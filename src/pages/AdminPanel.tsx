@@ -125,6 +125,29 @@ const AdminPanel = () => {
     fetchAll();
   };
 
+  const getUserRole = (userId: string) => {
+    const role = userRoles.find(r => r.user_id === userId);
+    return role?.role || 'student';
+  };
+
+  const getRoleLabel = (role: string) => {
+    const labels: Record<string, string> = { admin: 'Admin', student: 'Öğrenci', akademisyen: 'Akademisyen' };
+    return labels[role] || role;
+  };
+
+  const changeUserRole = async () => {
+    if (!roleUser) return;
+    const existingRole = userRoles.find(r => r.user_id === roleUser.user_id);
+    if (existingRole) {
+      await supabase.from('user_roles').update({ role: selectedRole }).eq('user_id', roleUser.user_id);
+    } else {
+      await supabase.from('user_roles').insert({ user_id: roleUser.user_id, role: selectedRole });
+    }
+    toast.success(`${roleUser.full_name} kullanıcısının rolü ${getRoleLabel(selectedRole)} olarak güncellendi!`);
+    setRoleDialogOpen(false);
+    fetchAll();
+  };
+
   if (!isAdmin) return null;
 
   return (
