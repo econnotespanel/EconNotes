@@ -193,6 +193,24 @@ const Messages = () => {
     setNewMessage(prev => prev + emoji);
   };
 
+  const reportMessage = async () => {
+    if (!reportingMessage || !reportReason.trim()) {
+      toast.error('Lütfen rapor sebebini yazın.');
+      return;
+    }
+    const { error } = await supabase.from('message_reports').insert({
+      reporter_id: user!.id,
+      reported_user_id: reportingMessage.sender_id,
+      message_id: reportingMessage.id,
+      reason: reportReason,
+    });
+    if (error) { toast.error('Rapor gönderilemedi.'); return; }
+    toast.success('Mesaj rapor edildi! Yöneticiler inceleyecektir.');
+    setReportDialogOpen(false);
+    setReportingMessage(null);
+    setReportReason('');
+  };
+
   const isFriend = (userId: string) => friends.some(f => f.user_id === userId);
   const hasSentRequest = (userId: string) => sentRequests.some(r => r.receiver_id === userId);
 
