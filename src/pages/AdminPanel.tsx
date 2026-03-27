@@ -35,6 +35,7 @@ const AdminPanel = () => {
   const [notes, setNotes] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [penalties, setPenalties] = useState<any[]>([]);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [systemOpen, setSystemOpen] = useState(true);
   const [penaltyDialog, setPenaltyDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
