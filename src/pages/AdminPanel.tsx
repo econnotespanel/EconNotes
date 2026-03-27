@@ -139,9 +139,9 @@ const AdminPanel = () => {
     if (!roleUser) return;
     const existingRole = userRoles.find(r => r.user_id === roleUser.user_id);
     if (existingRole) {
-      await supabase.from('user_roles').update({ role: selectedRole }).eq('user_id', roleUser.user_id);
+      await supabase.from('user_roles').update({ role: selectedRole as any }).eq('user_id', roleUser.user_id);
     } else {
-      await supabase.from('user_roles').insert({ user_id: roleUser.user_id, role: selectedRole });
+      await supabase.from('user_roles').insert({ user_id: roleUser.user_id, role: selectedRole as any });
     }
     toast.success(`${roleUser.full_name} kullanıcısının rolü ${getRoleLabel(selectedRole)} olarak güncellendi!`);
     setRoleDialogOpen(false);
