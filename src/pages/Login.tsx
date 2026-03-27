@@ -7,13 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [penaltyInfo, setPenaltyInfo] = useState<{ reason: string; until: string | null; is_permanent: boolean } | null>(null);
   const navigate = useNavigate();
 
   const getGreeting = () => {
@@ -30,16 +32,54 @@ const Login = () => {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
+    setPenaltyInfo(null);
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
     if (error) {
-      toast.error('Giriş başarısız. E-posta veya şifre hatalı.');
-    } else {
-      toast.success('Giriş başarılı! Panele yönlendiriliyorsunuz...', {
-        style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
-      });
-      navigate('/');
+      setLoading(false);
+      if (error.message?.includes('Email not confirmed')) {
+        toast.error('E-posta adresinizi doğrulamanız gerekmektedir. Lütfen mail kutunuzu kontrol edin.');
+      } else {
+        toast.error('Giriş başarısız. E-posta veya şifre hatalı.');
+      }
+      return;
     }
+
+    // Check for active penalty
+    if (data.user) {
+      const { data: penalties } = await supabase
+        .from('penalties')
+        .select('*')
+        .eq('user_id', data.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (penalties && penalties.length > 0) {
+        const latest = penalties[0];
+        const now = new Date();
+        const isPermanent = latest.is_permanent;
+        const penaltyUntil = latest.penalty_until ? new Date(latest.penalty_until) : null;
+
+        if (isPermanent || (penaltyUntil && penaltyUntil > now)) {
+          // User is penalized, sign them out
+          await supabase.auth.signOut();
+          setPenaltyInfo({
+            reason: latest.reason,
+            until: latest.penalty_until,
+            is_permanent: latest.is_permanent,
+          });
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
+    setLoading(false);
+    toast.success('Giriş başarılı! Panele yönlendiriliyorsunuz...', {
+      style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
+    });
+    navigate('/');
   };
 
   return (
@@ -52,9 +92,23 @@ const Login = () => {
           </div>
           <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
           <CardDescription className="text-base">{getGreeting()}</CardDescription>
-          <p className="text-xs text-muted-foreground">Bu platform, üniversite öğrencileri tarafından geliştirilmiştir.</p>
+          <p className="text-xs text-muted-foreground">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
         </CardHeader>
         <CardContent>
+          {penaltyInfo && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Hesabınız Cezalı</AlertTitle>
+              <AlertDescription className="space-y-1">
+                <p><strong>Sebep:</strong> {penaltyInfo.reason}</p>
+                {penaltyInfo.is_permanent ? (
+                  <p><strong>Süre:</strong> Süresiz uzaklaştırma</p>
+                ) : penaltyInfo.until ? (
+                  <p><strong>Ceza Bitiş:</strong> {new Date(penaltyInfo.until).toLocaleString('tr-TR')}</p>
+                ) : null}
+              </AlertDescription>
+            </Alert>
+          )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
