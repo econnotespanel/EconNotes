@@ -13,8 +13,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { logActivity } from '@/lib/activityLogger';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 const PENALTY_DURATIONS = [
   { warning: 1, label: '1. Uyarı - 5 Dakika', minutes: 5 },
@@ -32,6 +35,7 @@ const AdminPanel = () => {
   const [notes, setNotes] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [penalties, setPenalties] = useState<any[]>([]);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [systemOpen, setSystemOpen] = useState(true);
   const [penaltyDialog, setPenaltyDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -44,17 +48,19 @@ const AdminPanel = () => {
   }, [isAdmin]);
 
   const fetchAll = async () => {
-    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes] = await Promise.all([
+    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
       supabase.from('penalties').select('*').order('created_at', { ascending: false }),
       supabase.from('system_settings').select('*').limit(1).single(),
+      supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(100),
     ]);
     setUsers(usersRes.data || []);
     setNotes(notesRes.data || []);
     setAnnouncements(announcementsRes.data || []);
     setPenalties(penaltiesRes.data || []);
+    setActivityLogs(logsRes.data || []);
     if (settingsRes.data) setSystemOpen(settingsRes.data.is_system_open);
   };
 
@@ -85,6 +91,7 @@ const AdminPanel = () => {
     });
 
     if (error) { toast.error('Ceza verilemedi.'); return; }
+    await logActivity(user!.id, 'Admin', user!.email || '', 'penalty_issued', `${selectedUser.full_name} kullanıcısına ${duration?.label} cezası verildi. Sebep: ${penaltyReason}`, 'penalty');
     toast.success(`Ceza verildi: ${duration?.label}`);
     setPenaltyDialog(false);
     setPenaltyReason('');
@@ -134,11 +141,12 @@ const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="users">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5 hidden sm:inline" />Kullanıcılar</TabsTrigger>
             <TabsTrigger value="notes"><FileText className="h-4 w-4 mr-1.5 hidden sm:inline" />Notlar</TabsTrigger>
             <TabsTrigger value="announcements"><Megaphone className="h-4 w-4 mr-1.5 hidden sm:inline" />Duyurular</TabsTrigger>
             <TabsTrigger value="penalties"><AlertTriangle className="h-4 w-4 mr-1.5 hidden sm:inline" />Cezalar</TabsTrigger>
+            <TabsTrigger value="activity"><Activity className="h-4 w-4 mr-1.5 hidden sm:inline" />Aktiviteler</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">
@@ -272,6 +280,49 @@ const AdminPanel = () => {
                   );
                 })}
                 {penalties.length === 0 && <p className="text-center text-muted-foreground">Ceza kaydı yok.</p>}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="activity">
+            <Card className="glass-card">
+              <CardContent className="p-4">
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-2">
+                    {activityLogs.map((log) => {
+                      const actionLabels: Record<string, { label: string; color: string }> = {
+                        note_created: { label: 'Not Paylaşıldı', color: 'bg-green-500/10 text-green-500' },
+                        note_updated: { label: 'Not Güncellendi', color: 'bg-blue-500/10 text-blue-500' },
+                        note_deleted: { label: 'Not Silindi', color: 'bg-red-500/10 text-red-500' },
+                        announcement_created: { label: 'Duyuru Eklendi', color: 'bg-green-500/10 text-green-500' },
+                        announcement_deleted: { label: 'Duyuru Silindi', color: 'bg-red-500/10 text-red-500' },
+                        profile_updated: { label: 'Profil Güncellendi', color: 'bg-blue-500/10 text-blue-500' },
+                        password_changed: { label: 'Şifre Değiştirildi', color: 'bg-yellow-500/10 text-yellow-500' },
+                        avatar_updated: { label: 'Avatar Güncellendi', color: 'bg-blue-500/10 text-blue-500' },
+                        user_registered: { label: 'Yeni Kayıt', color: 'bg-green-500/10 text-green-500' },
+                        user_login: { label: 'Giriş Yaptı', color: 'bg-gray-500/10 text-gray-500' },
+                        penalty_issued: { label: 'Ceza Verildi', color: 'bg-red-500/10 text-red-500' },
+                        user_deleted: { label: 'Kullanıcı Silindi', color: 'bg-red-500/10 text-red-500' },
+                      };
+                      const actionInfo = actionLabels[log.action] || { label: log.action, color: 'bg-gray-500/10 text-gray-500' };
+                      return (
+                        <div key={log.id} className="flex items-start justify-between p-3 rounded-lg bg-accent/50">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">{log.user_name || 'Bilinmiyor'}</span>
+                              <Badge variant="outline" className={`text-[10px] ${actionInfo.color}`}>{actionInfo.label}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{log.user_email}</p>
+                            {log.details && <p className="text-xs text-muted-foreground mt-1">{log.details}</p>}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
+                            {new Date(log.created_at).toLocaleString('tr-TR')}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {activityLogs.length === 0 && <p className="text-center text-muted-foreground">Henüz aktivite kaydı yok.</p>}
+                  </div>
+                </ScrollArea>
               </CardContent>
             </Card>
           </TabsContent>

@@ -27,6 +27,8 @@ const Profile = () => {
   const handleUpdate = async () => {
     const { error } = await supabase.from('profiles').update(form).eq('user_id', user!.id);
     if (error) { toast.error('Güncellenemedi.'); return; }
+    const { logActivity } = await import('@/lib/activityLogger');
+    await logActivity(user!.id, form.full_name, user!.email || '', 'profile_updated', 'Profil bilgileri güncellendi');
     toast.success('Profil güncellendi!');
     setEditing(false);
     refreshProfile();
@@ -40,6 +42,8 @@ const Profile = () => {
     if (error) { toast.error('Yüklenemedi.'); return; }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
     await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('user_id', user!.id);
+    const { logActivity } = await import('@/lib/activityLogger');
+    await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'avatar_updated', 'Profil fotoğrafı güncellendi');
     toast.success('Profil fotoğrafı güncellendi!');
     refreshProfile();
   };
@@ -55,6 +59,8 @@ const Profile = () => {
     }
     const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
     if (error) { toast.error('Şifre değiştirilemedi: ' + error.message); return; }
+    const { logActivity } = await import('@/lib/activityLogger');
+    await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'password_changed', 'Hesap şifresi değiştirildi');
     toast.success('Şifre başarıyla değiştirildi!');
     setShowPasswordChange(false);
     setPasswordForm({ current: '', newPass: '', confirm: '' });

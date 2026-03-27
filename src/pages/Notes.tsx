@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc } from 'lucide-react';
+import { logActivity } from '@/lib/activityLogger';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx,.ppt,.docx,.doc,.mp3,.mp4';
 
@@ -85,10 +86,12 @@ const Notes = () => {
     if (editingNote) {
       const { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
       if (error) { toast.error('Not güncellenemedi.'); return; }
+      await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_updated', `"${form.title}" notu güncellendi`, 'note', editingNote.id);
       toast.success('Not güncellendi!');
     } else {
-      const { error } = await supabase.from('notes').insert(noteData);
+      const { data: insertedData, error } = await supabase.from('notes').insert(noteData).select('id').single();
       if (error) { toast.error('Not eklenemedi: ' + error.message); return; }
+      await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_created', `"${form.title}" notu paylaşıldı`, 'note', insertedData?.id);
       toast.success('Not başarıyla eklendi!');
     }
 
@@ -101,8 +104,10 @@ const Notes = () => {
   };
 
   const handleDelete = async (id: string) => {
+    const note = notes.find(n => n.id === id);
     const { error } = await supabase.from('notes').delete().eq('id', id);
     if (error) { toast.error('Silinemedi.'); return; }
+    await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_deleted', `"${note?.title}" notu silindi`, 'note', id);
     toast.success('Not silindi!');
     fetchNotes();
   };
