@@ -69,7 +69,7 @@ const Header = () => {
           {profile && (
             <div className="hidden md:flex flex-col items-end text-xs">
               <span className="font-semibold text-foreground">
-                {getGreeting()}
+                {getGreeting()}, {profile.full_name}
               </span>
               {profile.last_login && (
                 <span className="text-muted-foreground">Son giriş: {formatLastLogin()}</span>

@@ -8,12 +8,25 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users } from 'lucide-react';
+import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const EMOJIS = ['😀','😂','😍','👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐'];
+
+const MESSAGING_RULES = [
+  'Mesajlaşma sırasında saygılı ve nazik olunmalıdır.',
+  'Hakaret, küfür, argo veya aşağılayıcı ifadeler kesinlikle yasaktır.',
+  'Spam, reklam veya gereksiz tekrarlayan mesajlar göndermek yasaktır.',
+  'Kişisel bilgileri (TC, telefon, adres vb.) paylaşmak yasaktır.',
+  'Ders notları ve akademik içerikler mesaj yerine not paylaşım bölümünden paylaşılmalıdır.',
+  'Uygunsuz, müstehcen veya yasadışı içerik paylaşımı kesinlikle yasaktır.',
+  'Diğer kullanıcıları rahatsız etmek, taciz veya tehdit etmek yasaktır.',
+  'Kurallara uymayan kullanıcılar uyarı ve ceza alabilir.',
+];
 
 const Messages = () => {
   const { user, profile, isAdmin } = useAuth();
@@ -27,6 +40,8 @@ const Messages = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [addFriendOpen, setAddFriendOpen] = useState(false);
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [rulesChecked, setRulesChecked] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -101,6 +116,10 @@ const Messages = () => {
 
   useEffect(() => {
     if (user) {
+      const accepted = localStorage.getItem(`messaging_rules_${user.id}`);
+      if (accepted === 'true') {
+        setRulesAccepted(true);
+      }
       fetchFriends();
       fetchAllUsers();
     }
@@ -197,6 +216,56 @@ const Messages = () => {
     }
     return <span>{content}</span>;
   };
+
+  const handleAcceptRules = () => {
+    if (!rulesChecked) {
+      toast.error('Lütfen mesajlaşma kurallarını kabul edin.');
+      return;
+    }
+    localStorage.setItem(`messaging_rules_${user!.id}`, 'true');
+    setRulesAccepted(true);
+    toast.success('Kurallar kabul edildi. Artık mesajlaşabilirsiniz!');
+  };
+
+  if (!rulesAccepted) {
+    return (
+      <Layout>
+        <div className="max-w-lg mx-auto mt-10 animate-fade-in">
+          <Card className="glass-card">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="h-8 w-8 text-primary" />
+                <h2 className="text-xl font-bold">Mesajlaşma Kuralları</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Mesajlaşma özelliğini kullanabilmek için aşağıdaki kuralları okumanız ve kabul etmeniz gerekmektedir.
+              </p>
+              <ScrollArea className="h-[300px] rounded-lg border border-border p-4">
+                <ol className="space-y-3 list-decimal list-inside text-sm">
+                  {MESSAGING_RULES.map((rule, i) => (
+                    <li key={i} className="leading-relaxed">{rule}</li>
+                  ))}
+                </ol>
+              </ScrollArea>
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="accept-rules"
+                  checked={rulesChecked}
+                  onCheckedChange={(v) => setRulesChecked(v as boolean)}
+                />
+                <label htmlFor="accept-rules" className="text-sm cursor-pointer leading-tight">
+                  Yukarıdaki mesajlaşma kurallarını okudum ve kabul ediyorum.
+                </label>
+              </div>
+              <Button onClick={handleAcceptRules} className="w-full gradient-primary text-primary-foreground">
+                Kabul Et ve Devam Et
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
