@@ -116,6 +116,10 @@ const Messages = () => {
 
   useEffect(() => {
     if (user) {
+      const accepted = localStorage.getItem(`messaging_rules_${user.id}`);
+      if (accepted === 'true') {
+        setRulesAccepted(true);
+      }
       fetchFriends();
       fetchAllUsers();
     }
