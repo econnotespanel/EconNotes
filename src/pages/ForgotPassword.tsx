@@ -6,17 +6,31 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Mail, Info } from 'lucide-react';
+import { Mail, CheckCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.info(
-      'Şifre sıfırlama işlemi için lütfen yönetici ile iletişime geçin. E-posta: kaancolakogullari1@gmail.com',
-      { duration: 8000 }
-    );
+    if (!email) {
+      toast.error('Lütfen e-posta adresinizi girin.');
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    setLoading(false);
+    if (error) {
+      toast.error('Şifre sıfırlama bağlantısı gönderilemedi. Lütfen tekrar deneyin.');
+    } else {
+      setSent(true);
+      toast.success('Şifre sıfırlama bağlantısı e-posta adresinize gönderildi!');
+    }
   };
 
   return (
@@ -28,31 +42,39 @@ const ForgotPassword = () => {
             <img src={logo} alt="EconNotes" className="h-14 w-14 object-contain" />
           </div>
           <CardTitle className="text-2xl font-bold">Şifremi Unuttum</CardTitle>
-          <CardDescription>Şifrenizi sıfırlamak için yönetici ile iletişime geçin</CardDescription>
+          <CardDescription>Kayıtlı e-posta adresinize şifre sıfırlama bağlantısı göndereceğiz</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
-            <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-            <p className="text-sm text-foreground">
-              Şifrenizi unuttuysanız, lütfen yönetici ile iletişime geçin. 
-              Yönetici e-posta: <strong>kaancolakogullari1@gmail.com</strong>
-            </p>
-          </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Kayıtlı E-posta Adresiniz</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input id="email" type="email" placeholder="ornek@mail.com" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" />
-              </div>
+          {sent ? (
+            <div className="text-center space-y-3 py-4">
+              <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+              <p className="text-sm text-foreground">
+                Şifre sıfırlama bağlantısı <strong>{email}</strong> adresine gönderildi. Lütfen e-posta kutunuzu kontrol edin.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                E-posta gelmedi mi? Spam/gereksiz klasörünü de kontrol edin.
+              </p>
             </div>
-            <Button type="submit" className="w-full">Yönetici ile İletişime Geç</Button>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Kayıtlı E-posta Adresiniz</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input id="email" type="email" placeholder="ornek@mail.com" value={email} onChange={(e) => setEmail(e.target.value)} className="pl-10" />
+                </div>
+              </div>
+              <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
+                {loading ? 'Gönderiliyor...' : 'Şifre Sıfırlama Bağlantısı Gönder'}
+              </Button>
+            </form>
+          )}
           <p className="text-center text-sm">
             <Link to="/login" className="text-primary hover:underline">Giriş sayfasına dön</Link>
           </p>
         </CardContent>
       </Card>
+      <p className="absolute bottom-4 right-4 text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
     </div>
   );
 };

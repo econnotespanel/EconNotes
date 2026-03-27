@@ -75,8 +75,16 @@ const Login = () => {
       }
     }
 
+    // Fetch profile name for welcome message
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('user_id', data.user!.id)
+      .single();
+    const fullName = profileData?.full_name || data.user!.user_metadata?.full_name || '';
+    
     setLoading(false);
-    toast.success('Giriş başarılı! Panele yönlendiriliyorsunuz...', {
+    toast.success(`Giriş Başarılı! Hoş Geldiniz ${fullName}`, {
       style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
     });
     navigate('/');

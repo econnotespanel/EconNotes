@@ -77,13 +77,8 @@ const Header = () => {
             </div>
           )}
 
-          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/announcements')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/announcements')}>
             <Bell className="h-5 w-5" />
-            {unreadAnnouncements > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground flex items-center justify-center">
-                {unreadAnnouncements}
-              </span>
-            )}
           </Button>
 
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
