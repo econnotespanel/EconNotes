@@ -323,6 +323,46 @@ const AdminPanel = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="reports">
+            <Card className="glass-card">
+              <CardContent className="p-4 space-y-3">
+                {messageReports.length === 0 ? (
+                  <p className="text-center text-muted-foreground">Henüz rapor yok.</p>
+                ) : (
+                  messageReports.map((r) => {
+                    const reporter = users.find(u => u.user_id === r.reporter_id);
+                    const reported = users.find(u => u.user_id === r.reported_user_id);
+                    return (
+                      <div key={r.id} className={`p-3 rounded-lg border ${r.status === 'pending' ? 'bg-destructive/10 border-destructive/20' : 'bg-accent/50 border-border/50'}`}>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm">Raporlayan: {reporter?.full_name || 'Bilinmiyor'}</p>
+                              <Badge variant="outline" className={`text-[10px] ${r.status === 'pending' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
+                                {r.status === 'pending' ? 'Bekliyor' : 'İncelendi'}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Raporlanan: {reported?.full_name || 'Bilinmiyor'}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Sebep: {r.reason}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">{new Date(r.created_at).toLocaleString('tr-TR')}</p>
+                          </div>
+                          {r.status === 'pending' && (
+                            <Button size="sm" variant="outline" onClick={async () => {
+                              await supabase.from('message_reports').update({ status: 'reviewed' } as any).eq('id', r.id);
+                              toast.success('Rapor incelendi olarak işaretlendi.');
+                              fetchAll();
+                            }}>
+                              <Check className="h-3 w-3 mr-1" /> İncelendi
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
           <TabsContent value="activity">
             <Card className="glass-card">
               <CardContent className="p-4">
@@ -391,6 +431,29 @@ const AdminPanel = () => {
                 <Textarea value={penaltyReason} onChange={(e) => setPenaltyReason(e.target.value)} placeholder="Ceza sebebini yazın..." />
               </div>
               <Button className="w-full" onClick={issuePenalty}>Cezayı Uygula</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Role Dialog */}
+        <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Rol Değiştir - {roleUser?.full_name}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Rol</Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">Öğrenci</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="akademisyen">Akademisyen</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button className="w-full" onClick={changeUserRole}>Rolü Güncelle</Button>
             </div>
           </DialogContent>
         </Dialog>
