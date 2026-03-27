@@ -513,6 +513,30 @@ const Messages = () => {
       </div>
     </Layout>
   );
+
+        {/* Report Dialog */}
+        <Dialog open={reportDialogOpen} onOpenChange={(v) => { setReportDialogOpen(v); if (!v) { setReportingMessage(null); setReportReason(''); } }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Mesajı Raporla</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Bu mesajı uygunsuz bulduysanız sebebini yazarak yöneticilere bildirebilirsiniz.</p>
+              {reportingMessage && (
+                <div className="p-3 rounded-lg bg-accent text-sm">
+                  <p className="text-xs text-muted-foreground mb-1">Raporlanan mesaj:</p>
+                  <p>{reportingMessage.content}</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Rapor Sebebi *</Label>
+                <Textarea value={reportReason} onChange={(e) => setReportReason(e.target.value)} placeholder="Raporlama sebebinizi yazın..." />
+              </div>
+              <Button className="w-full" onClick={reportMessage}>Raporu Gönder</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </Layout>
+  );
 };
 
 export default Messages;
