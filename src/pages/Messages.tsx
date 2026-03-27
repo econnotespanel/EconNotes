@@ -8,12 +8,25 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users } from 'lucide-react';
+import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const EMOJIS = ['😀','😂','😍','👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐'];
+
+const MESSAGING_RULES = [
+  'Mesajlaşma sırasında saygılı ve nazik olunmalıdır.',
+  'Hakaret, küfür, argo veya aşağılayıcı ifadeler kesinlikle yasaktır.',
+  'Spam, reklam veya gereksiz tekrarlayan mesajlar göndermek yasaktır.',
+  'Kişisel bilgileri (TC, telefon, adres vb.) paylaşmak yasaktır.',
+  'Ders notları ve akademik içerikler mesaj yerine not paylaşım bölümünden paylaşılmalıdır.',
+  'Uygunsuz, müstehcen veya yasadışı içerik paylaşımı kesinlikle yasaktır.',
+  'Diğer kullanıcıları rahatsız etmek, taciz veya tehdit etmek yasaktır.',
+  'Kurallara uymayan kullanıcılar uyarı ve ceza alabilir.',
+];
 
 const Messages = () => {
   const { user, profile, isAdmin } = useAuth();
@@ -27,6 +40,8 @@ const Messages = () => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [addFriendOpen, setAddFriendOpen] = useState(false);
+  const [rulesAccepted, setRulesAccepted] = useState(false);
+  const [rulesChecked, setRulesChecked] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
