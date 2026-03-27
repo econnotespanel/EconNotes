@@ -169,10 +169,16 @@ const AdminPanel = () => {
             <h1 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6 text-primary" /> Yönetici Paneli</h1>
             <p className="text-sm text-muted-foreground">Sistem yönetimi ve kullanıcı kontrolü</p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">Sistem</span>
-            <Switch checked={systemOpen} onCheckedChange={toggleSystem} />
-            <Power className={`h-4 w-4 ${systemOpen ? 'text-success' : 'text-destructive'}`} />
+          <div className="flex flex-col sm:flex-row items-end gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Saat Kısıtı</span>
+              <Switch checked={noteUploadRestricted} onCheckedChange={toggleUploadRestriction} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Sistem</span>
+              <Switch checked={systemOpen} onCheckedChange={toggleSystem} />
+              <Power className={`h-4 w-4 ${systemOpen ? 'text-success' : 'text-destructive'}`} />
+            </div>
           </div>
         </div>
 
