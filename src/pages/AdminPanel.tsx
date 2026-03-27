@@ -48,17 +48,19 @@ const AdminPanel = () => {
   }, [isAdmin]);
 
   const fetchAll = async () => {
-    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes] = await Promise.all([
+    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
       supabase.from('penalties').select('*').order('created_at', { ascending: false }),
       supabase.from('system_settings').select('*').limit(1).single(),
+      supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(100),
     ]);
     setUsers(usersRes.data || []);
     setNotes(notesRes.data || []);
     setAnnouncements(announcementsRes.data || []);
     setPenalties(penaltiesRes.data || []);
+    setActivityLogs(logsRes.data || []);
     if (settingsRes.data) setSystemOpen(settingsRes.data.is_system_open);
   };
 
