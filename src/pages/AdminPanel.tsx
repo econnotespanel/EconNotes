@@ -71,7 +71,10 @@ const AdminPanel = () => {
     setActivityLogs(logsRes.data || []);
     setUserRoles(rolesRes.data || []);
     setMessageReports(reportsRes.data || []);
-    if (settingsRes.data) setSystemOpen(settingsRes.data.is_system_open);
+    if (settingsRes.data) {
+      setSystemOpen(settingsRes.data.is_system_open);
+      setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
+    }
   };
 
   const toggleSystem = async () => {
@@ -79,6 +82,13 @@ const AdminPanel = () => {
     await supabase.from('system_settings').update({ is_system_open: newState }).not('id', 'is', null);
     setSystemOpen(newState);
     toast.success(newState ? 'Sistem açıldı!' : 'Sistem kapatıldı!');
+  };
+
+  const toggleUploadRestriction = async () => {
+    const newState = !noteUploadRestricted;
+    await supabase.from('system_settings').update({ note_upload_restricted: newState } as any).not('id', 'is', null);
+    setNoteUploadRestricted(newState);
+    toast.success(newState ? 'Not yükleme saat kısıtı açıldı (00:00-09:00 arası kapalı)' : 'Not yükleme saat kısıtı kaldırıldı (7/24 açık)');
   };
 
   const issuePenalty = async () => {
