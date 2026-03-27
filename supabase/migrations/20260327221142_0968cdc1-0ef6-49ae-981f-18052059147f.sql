@@ -1,0 +1,1 @@
+ALTER TABLE public.system_settings ADD COLUMN IF NOT EXISTS note_upload_restricted BOOLEAN NOT NULL DEFAULT true;

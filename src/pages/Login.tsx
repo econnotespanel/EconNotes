@@ -150,7 +150,7 @@ const Login = () => {
               </div>
             </div>
             <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
-              {loading ? 'Giriş yapılıyor...' : 'Başlayalım!'}
+              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap!'}
             </Button>
             <div className="flex justify-between text-sm">
               <Link to="/forgot-password" className="text-primary hover:underline">Şifremi Unuttum</Link>

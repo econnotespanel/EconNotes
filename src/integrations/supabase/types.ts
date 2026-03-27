@@ -292,18 +292,21 @@ export type Database = {
           closed_until: string | null
           id: string
           is_system_open: boolean
+          note_upload_restricted: boolean
           updated_at: string
         }
         Insert: {
           closed_until?: string | null
           id?: string
           is_system_open?: boolean
+          note_upload_restricted?: boolean
           updated_at?: string
         }
         Update: {
           closed_until?: string | null
           id?: string
           is_system_open?: boolean
+          note_upload_restricted?: boolean
           updated_at?: string
         }
         Relationships: []
