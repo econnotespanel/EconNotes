@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc } from 'lucide-react';
+import { logActivity } from '@/lib/activityLogger';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx,.ppt,.docx,.doc,.mp3,.mp4';
 
