@@ -42,6 +42,9 @@ const Messages = () => {
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [rulesChecked, setRulesChecked] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportingMessage, setReportingMessage] = useState<any>(null);
+  const [reportReason, setReportReason] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
