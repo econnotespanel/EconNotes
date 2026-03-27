@@ -206,12 +206,19 @@ const AdminPanel = () => {
                           <td className="p-2 hidden md:table-cell">{u.university || '-'}</td>
                           <td className="p-2 hidden md:table-cell">{u.department || '-'}</td>
                           <td className="p-2 hidden lg:table-cell">{u.grade ? `${u.grade}. Sınıf` : '-'}</td>
+                          <td className="p-2">
+                            <Badge variant="outline" className="text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge>
+                          </td>
                           <td className="p-2 hidden lg:table-cell">{new Date(u.created_at).toLocaleDateString('tr-TR')}</td>
                           <td className="p-2 hidden xl:table-cell">{u.last_login ? new Date(u.last_login).toLocaleString('tr-TR') : '-'}</td>
                           <td className="p-2">
                             <div className="flex gap-1">
-                              <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }}>
+                              <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol Değiştir">
+                                <UserCog className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza Ver">
                                 <Ban className="h-3 w-3" />
+                              </Button>
                               </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
