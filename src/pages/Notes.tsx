@@ -86,10 +86,12 @@ const Notes = () => {
     if (editingNote) {
       const { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
       if (error) { toast.error('Not güncellenemedi.'); return; }
+      await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_updated', `"${form.title}" notu güncellendi`, 'note', editingNote.id);
       toast.success('Not güncellendi!');
     } else {
-      const { error } = await supabase.from('notes').insert(noteData);
+      const { data: insertedData, error } = await supabase.from('notes').insert(noteData).select('id').single();
       if (error) { toast.error('Not eklenemedi: ' + error.message); return; }
+      await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_created', `"${form.title}" notu paylaşıldı`, 'note', insertedData?.id);
       toast.success('Not başarıyla eklendi!');
     }
 
