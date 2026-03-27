@@ -91,6 +91,7 @@ const AdminPanel = () => {
     });
 
     if (error) { toast.error('Ceza verilemedi.'); return; }
+    await logActivity(user!.id, 'Admin', user!.email || '', 'penalty_issued', `${selectedUser.full_name} kullanıcısına ${duration?.label} cezası verildi. Sebep: ${penaltyReason}`, 'penalty');
     toast.success(`Ceza verildi: ${duration?.label}`);
     setPenaltyDialog(false);
     setPenaltyReason('');
