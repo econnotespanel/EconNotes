@@ -433,16 +433,27 @@ const Messages = () => {
                     <p className="text-center text-muted-foreground text-sm">Henüz mesaj yok. İlk mesajı gönderin!</p>
                   ) : (
                     messages.map(msg => (
-                      <div key={msg.id} className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[70%] p-3 rounded-xl text-sm ${
-                          msg.sender_id === user?.id
-                            ? 'bg-primary text-primary-foreground rounded-br-sm'
-                            : 'bg-accent rounded-bl-sm'
-                        }`}>
-                          {renderMessageContent(msg.content)}
-                          <p className="text-[10px] mt-1 opacity-60">
-                            {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                      <div key={msg.id} className={`group flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
+                        <div className="relative">
+                          <div className={`max-w-[70%] p-3 rounded-xl text-sm ${
+                            msg.sender_id === user?.id
+                              ? 'bg-primary text-primary-foreground rounded-br-sm'
+                              : 'bg-accent rounded-bl-sm'
+                          }`}>
+                            {renderMessageContent(msg.content)}
+                            <p className="text-[10px] mt-1 opacity-60">
+                              {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          {msg.sender_id !== user?.id && (
+                            <button
+                              onClick={() => { setReportingMessage(msg); setReportDialogOpen(true); }}
+                              className="absolute -right-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                              title="Mesajı Raporla"
+                            >
+                              <Flag className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))
