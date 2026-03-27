@@ -283,6 +283,49 @@ const AdminPanel = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="activity">
+            <Card className="glass-card">
+              <CardContent className="p-4">
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-2">
+                    {activityLogs.map((log) => {
+                      const actionLabels: Record<string, { label: string; color: string }> = {
+                        note_created: { label: 'Not Paylaşıldı', color: 'bg-green-500/10 text-green-500' },
+                        note_updated: { label: 'Not Güncellendi', color: 'bg-blue-500/10 text-blue-500' },
+                        note_deleted: { label: 'Not Silindi', color: 'bg-red-500/10 text-red-500' },
+                        announcement_created: { label: 'Duyuru Eklendi', color: 'bg-green-500/10 text-green-500' },
+                        announcement_deleted: { label: 'Duyuru Silindi', color: 'bg-red-500/10 text-red-500' },
+                        profile_updated: { label: 'Profil Güncellendi', color: 'bg-blue-500/10 text-blue-500' },
+                        password_changed: { label: 'Şifre Değiştirildi', color: 'bg-yellow-500/10 text-yellow-500' },
+                        avatar_updated: { label: 'Avatar Güncellendi', color: 'bg-blue-500/10 text-blue-500' },
+                        user_registered: { label: 'Yeni Kayıt', color: 'bg-green-500/10 text-green-500' },
+                        user_login: { label: 'Giriş Yaptı', color: 'bg-gray-500/10 text-gray-500' },
+                        penalty_issued: { label: 'Ceza Verildi', color: 'bg-red-500/10 text-red-500' },
+                        user_deleted: { label: 'Kullanıcı Silindi', color: 'bg-red-500/10 text-red-500' },
+                      };
+                      const actionInfo = actionLabels[log.action] || { label: log.action, color: 'bg-gray-500/10 text-gray-500' };
+                      return (
+                        <div key={log.id} className="flex items-start justify-between p-3 rounded-lg bg-accent/50">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">{log.user_name || 'Bilinmiyor'}</span>
+                              <Badge variant="outline" className={`text-[10px] ${actionInfo.color}`}>{actionInfo.label}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">{log.user_email}</p>
+                            {log.details && <p className="text-xs text-muted-foreground mt-1">{log.details}</p>}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
+                            {new Date(log.created_at).toLocaleString('tr-TR')}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {activityLogs.length === 0 && <p className="text-center text-muted-foreground">Henüz aktivite kaydı yok.</p>}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
 
         {/* Penalty Dialog */}
