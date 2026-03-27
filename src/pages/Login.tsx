@@ -84,7 +84,7 @@ const Login = () => {
     const fullName = profileData?.full_name || data.user!.user_metadata?.full_name || '';
     
     setLoading(false);
-    toast.success(`Giriş Başarılı! Hoş Geldiniz ${fullName}`, {
+    toast.success(`Giriş Başarılı! Hoş Geldiniz, ${fullName}`, {
       style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
     });
     navigate('/');
