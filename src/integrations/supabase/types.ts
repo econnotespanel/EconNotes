@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          user_email: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          user_email?: string
+          user_id: string
+          user_name?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          user_email?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: []
+      }
       announcements: {
         Row: {
           author_name: string
