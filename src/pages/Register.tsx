@@ -61,7 +61,7 @@ const Register = () => {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success('Kayıt başarıyla tamamlandı! Giriş yapabilirsiniz.');
+      toast.success('Kayıt başarılı! Lütfen e-posta adresinize gönderilen doğrulama bağlantısını tıklayarak hesabınızı aktifleştirin.', { duration: 8000 });
       navigate('/login');
     }
   };
