@@ -217,6 +217,56 @@ const Messages = () => {
     return <span>{content}</span>;
   };
 
+  const handleAcceptRules = () => {
+    if (!rulesChecked) {
+      toast.error('Lütfen mesajlaşma kurallarını kabul edin.');
+      return;
+    }
+    localStorage.setItem(`messaging_rules_${user!.id}`, 'true');
+    setRulesAccepted(true);
+    toast.success('Kurallar kabul edildi. Artık mesajlaşabilirsiniz!');
+  };
+
+  if (!rulesAccepted) {
+    return (
+      <Layout>
+        <div className="max-w-lg mx-auto mt-10 animate-fade-in">
+          <Card className="glass-card">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <ShieldCheck className="h-8 w-8 text-primary" />
+                <h2 className="text-xl font-bold">Mesajlaşma Kuralları</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Mesajlaşma özelliğini kullanabilmek için aşağıdaki kuralları okumanız ve kabul etmeniz gerekmektedir.
+              </p>
+              <ScrollArea className="h-[300px] rounded-lg border border-border p-4">
+                <ol className="space-y-3 list-decimal list-inside text-sm">
+                  {MESSAGING_RULES.map((rule, i) => (
+                    <li key={i} className="leading-relaxed">{rule}</li>
+                  ))}
+                </ol>
+              </ScrollArea>
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="accept-rules"
+                  checked={rulesChecked}
+                  onCheckedChange={(v) => setRulesChecked(v as boolean)}
+                />
+                <label htmlFor="accept-rules" className="text-sm cursor-pointer leading-tight">
+                  Yukarıdaki mesajlaşma kurallarını okudum ve kabul ediyorum.
+                </label>
+              </div>
+              <Button onClick={handleAcceptRules} className="w-full gradient-primary text-primary-foreground">
+                Kabul Et ve Devam Et
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-4 animate-fade-in">
