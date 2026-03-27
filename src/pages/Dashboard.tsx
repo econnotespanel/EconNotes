@@ -39,7 +39,7 @@ const Dashboard = () => {
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold">Ana Sayfa</h1>
-          <p className="text-muted-foreground text-sm">Hoş geldiniz, {profile?.full_name || 'Kullanıcı'}</p>
+          <p className="text-muted-foreground text-sm">Hoş Geldiniz</p>
         </div>
 
         {/* Stats */}
