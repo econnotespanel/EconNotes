@@ -84,7 +84,7 @@ const Login = () => {
     const fullName = profileData?.full_name || data.user!.user_metadata?.full_name || '';
     
     setLoading(false);
-    toast.success(`Giriş Başarılı! Hoş Geldiniz ${fullName}`, {
+    toast.success(`Giriş Başarılı! Hoş Geldiniz, ${fullName}`, {
       style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
     });
     navigate('/');
@@ -100,6 +100,7 @@ const Login = () => {
           </div>
           <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
           <CardDescription className="text-base">{getGreeting()}</CardDescription>
+          <p className="text-sm text-muted-foreground">EconNotes, Not Paylaşım Paneline Hoş Geldiniz!</p>
         </CardHeader>
         <CardContent>
           {penaltyInfo && (
@@ -149,7 +150,7 @@ const Login = () => {
               </div>
             </div>
             <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
-              {loading ? 'Giriş yapılıyor...' : 'Başlayalım!'}
+              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap!'}
             </Button>
             <div className="flex justify-between text-sm">
               <Link to="/forgot-password" className="text-primary hover:underline">Şifremi Unuttum</Link>

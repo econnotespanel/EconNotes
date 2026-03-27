@@ -39,6 +39,7 @@ const AdminPanel = () => {
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [messageReports, setMessageReports] = useState<any[]>([]);
   const [systemOpen, setSystemOpen] = useState(true);
+  const [noteUploadRestricted, setNoteUploadRestricted] = useState(true);
   const [penaltyDialog, setPenaltyDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [penaltyReason, setPenaltyReason] = useState('');
@@ -70,7 +71,10 @@ const AdminPanel = () => {
     setActivityLogs(logsRes.data || []);
     setUserRoles(rolesRes.data || []);
     setMessageReports(reportsRes.data || []);
-    if (settingsRes.data) setSystemOpen(settingsRes.data.is_system_open);
+    if (settingsRes.data) {
+      setSystemOpen(settingsRes.data.is_system_open);
+      setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
+    }
   };
 
   const toggleSystem = async () => {
@@ -78,6 +82,13 @@ const AdminPanel = () => {
     await supabase.from('system_settings').update({ is_system_open: newState }).not('id', 'is', null);
     setSystemOpen(newState);
     toast.success(newState ? 'Sistem açıldı!' : 'Sistem kapatıldı!');
+  };
+
+  const toggleUploadRestriction = async () => {
+    const newState = !noteUploadRestricted;
+    await supabase.from('system_settings').update({ note_upload_restricted: newState } as any).not('id', 'is', null);
+    setNoteUploadRestricted(newState);
+    toast.success(newState ? 'Not yükleme saat kısıtı açıldı (00:00-09:00 arası kapalı)' : 'Not yükleme saat kısıtı kaldırıldı (7/24 açık)');
   };
 
   const issuePenalty = async () => {
@@ -158,10 +169,16 @@ const AdminPanel = () => {
             <h1 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6 text-primary" /> Yönetici Paneli</h1>
             <p className="text-sm text-muted-foreground">Sistem yönetimi ve kullanıcı kontrolü</p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">Sistem</span>
-            <Switch checked={systemOpen} onCheckedChange={toggleSystem} />
-            <Power className={`h-4 w-4 ${systemOpen ? 'text-success' : 'text-destructive'}`} />
+          <div className="flex flex-col sm:flex-row items-end gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Saat Kısıtı</span>
+              <Switch checked={noteUploadRestricted} onCheckedChange={toggleUploadRestriction} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Sistem</span>
+              <Switch checked={systemOpen} onCheckedChange={toggleSystem} />
+              <Power className={`h-4 w-4 ${systemOpen ? 'text-success' : 'text-destructive'}`} />
+            </div>
           </div>
         </div>
 
