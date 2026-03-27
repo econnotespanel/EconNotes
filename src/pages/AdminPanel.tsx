@@ -193,6 +193,7 @@ const AdminPanel = () => {
                         <th className="text-left p-2 hidden md:table-cell">Üniversite</th>
                         <th className="text-left p-2 hidden md:table-cell">Bölüm</th>
                         <th className="text-left p-2 hidden lg:table-cell">Sınıf</th>
+                        <th className="text-left p-2">Rol</th>
                         <th className="text-left p-2 hidden lg:table-cell">Kayıt Tarihi</th>
                         <th className="text-left p-2 hidden xl:table-cell">Son Giriş</th>
                         <th className="text-left p-2">İşlemler</th>
