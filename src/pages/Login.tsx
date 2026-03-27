@@ -100,6 +100,7 @@ const Login = () => {
           </div>
           <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
           <CardDescription className="text-base">{getGreeting()}</CardDescription>
+          <p className="text-sm text-muted-foreground">EconNotes, Not Paylaşım Paneline Hoş Geldiniz!</p>
         </CardHeader>
         <CardContent>
           {penaltyInfo && (
