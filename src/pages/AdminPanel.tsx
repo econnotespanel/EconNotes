@@ -219,7 +219,6 @@ const AdminPanel = () => {
                               <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza Ver">
                                 <Ban className="h-3 w-3" />
                               </Button>
-                              </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
