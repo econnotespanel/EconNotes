@@ -104,8 +104,10 @@ const Notes = () => {
   };
 
   const handleDelete = async (id: string) => {
+    const note = notes.find(n => n.id === id);
     const { error } = await supabase.from('notes').delete().eq('id', id);
     if (error) { toast.error('Silinemedi.'); return; }
+    await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_deleted', `"${note?.title}" notu silindi`, 'note', id);
     toast.success('Not silindi!');
     fetchNotes();
   };
