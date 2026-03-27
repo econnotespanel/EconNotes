@@ -23,15 +23,6 @@ const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
-
-  useEffect(() => {
-    if (user) {
-      supabase.from('announcements').select('id', { count: 'exact' }).then(({ count }) => {
-        setUnreadAnnouncements(count || 0);
-      });
-    }
-  }, [user]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
