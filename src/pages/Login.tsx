@@ -92,7 +92,6 @@ const Login = () => {
           </div>
           <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
           <CardDescription className="text-base">{getGreeting()}</CardDescription>
-          <p className="text-xs text-muted-foreground">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
         </CardHeader>
         <CardContent>
           {penaltyInfo && (
