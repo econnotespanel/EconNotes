@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck } from 'lucide-react';
+import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck, Flag } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
 
 const EMOJIS = ['😀','😂','😍','👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐'];
 
@@ -42,6 +43,9 @@ const Messages = () => {
   const [addFriendOpen, setAddFriendOpen] = useState(false);
   const [rulesAccepted, setRulesAccepted] = useState(false);
   const [rulesChecked, setRulesChecked] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [reportingMessage, setReportingMessage] = useState<any>(null);
+  const [reportReason, setReportReason] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -188,6 +192,24 @@ const Messages = () => {
 
   const addEmoji = (emoji: string) => {
     setNewMessage(prev => prev + emoji);
+  };
+
+  const reportMessage = async () => {
+    if (!reportingMessage || !reportReason.trim()) {
+      toast.error('Lütfen rapor sebebini yazın.');
+      return;
+    }
+    const { error } = await supabase.from('message_reports').insert({
+      reporter_id: user!.id,
+      reported_user_id: reportingMessage.sender_id,
+      message_id: reportingMessage.id,
+      reason: reportReason,
+    });
+    if (error) { toast.error('Rapor gönderilemedi.'); return; }
+    toast.success('Mesaj rapor edildi! Yöneticiler inceleyecektir.');
+    setReportDialogOpen(false);
+    setReportingMessage(null);
+    setReportReason('');
   };
 
   const isFriend = (userId: string) => friends.some(f => f.user_id === userId);
@@ -412,16 +434,27 @@ const Messages = () => {
                     <p className="text-center text-muted-foreground text-sm">Henüz mesaj yok. İlk mesajı gönderin!</p>
                   ) : (
                     messages.map(msg => (
-                      <div key={msg.id} className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[70%] p-3 rounded-xl text-sm ${
-                          msg.sender_id === user?.id
-                            ? 'bg-primary text-primary-foreground rounded-br-sm'
-                            : 'bg-accent rounded-bl-sm'
-                        }`}>
-                          {renderMessageContent(msg.content)}
-                          <p className="text-[10px] mt-1 opacity-60">
-                            {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                      <div key={msg.id} className={`group flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
+                        <div className="relative">
+                          <div className={`max-w-[70%] p-3 rounded-xl text-sm ${
+                            msg.sender_id === user?.id
+                              ? 'bg-primary text-primary-foreground rounded-br-sm'
+                              : 'bg-accent rounded-bl-sm'
+                          }`}>
+                            {renderMessageContent(msg.content)}
+                            <p className="text-[10px] mt-1 opacity-60">
+                              {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
+                          {msg.sender_id !== user?.id && (
+                            <button
+                              onClick={() => { setReportingMessage(msg); setReportDialogOpen(true); }}
+                              className="absolute -right-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                              title="Mesajı Raporla"
+                            >
+                              <Flag className="h-3 w-3" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))
@@ -478,6 +511,27 @@ const Messages = () => {
             )}
           </Card>
         </div>
+
+        {/* Report Dialog */}
+        <Dialog open={reportDialogOpen} onOpenChange={(v) => { setReportDialogOpen(v); if (!v) { setReportingMessage(null); setReportReason(''); } }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Mesajı Raporla</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Bu mesajı uygunsuz bulduysanız sebebini yazarak yöneticilere bildirebilirsiniz.</p>
+              {reportingMessage && (
+                <div className="p-3 rounded-lg bg-accent text-sm">
+                  <p className="text-xs text-muted-foreground mb-1">Raporlanan mesaj:</p>
+                  <p>{reportingMessage.content}</p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label>Rapor Sebebi *</Label>
+                <Textarea value={reportReason} onChange={(e) => setReportReason(e.target.value)} placeholder="Raporlama sebebinizi yazın..." />
+              </div>
+              <Button className="w-full" onClick={reportMessage}>Raporu Gönder</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

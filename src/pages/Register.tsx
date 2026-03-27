@@ -150,7 +150,8 @@ const Register = () => {
             </p>
           </form>
         </CardContent>
-      </Card>
+    </Card>
+      <p className="absolute bottom-4 right-4 text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
     </div>
   );
 };

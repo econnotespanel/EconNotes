@@ -183,7 +183,7 @@ const Announcements = () => {
                       </>
                     )}
                     <Button size="sm" variant="ghost" onClick={() => shareAnnouncement(a, 'whatsapp')} className="h-7 px-2 text-[#25D366]" title="WhatsApp">
-                      <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">WA</span>
+                      <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">WP</span>
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => shareAnnouncement(a, 'twitter')} className="h-7 px-2" title="X (Twitter)">
                       <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">X</span>

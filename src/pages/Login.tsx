@@ -75,8 +75,16 @@ const Login = () => {
       }
     }
 
+    // Fetch profile name for welcome message
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('user_id', data.user!.id)
+      .single();
+    const fullName = profileData?.full_name || data.user!.user_metadata?.full_name || '';
+    
     setLoading(false);
-    toast.success('Giriş başarılı! Panele yönlendiriliyorsunuz...', {
+    toast.success(`Giriş Başarılı! Hoş Geldiniz ${fullName}`, {
       style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
     });
     navigate('/');
@@ -92,7 +100,6 @@ const Login = () => {
           </div>
           <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
           <CardDescription className="text-base">{getGreeting()}</CardDescription>
-          <p className="text-xs text-muted-foreground">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
         </CardHeader>
         <CardContent>
           {penaltyInfo && (
@@ -150,7 +157,8 @@ const Login = () => {
             </div>
           </form>
         </CardContent>
-      </Card>
+    </Card>
+      <p className="absolute bottom-4 right-4 text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
     </div>
   );
 };

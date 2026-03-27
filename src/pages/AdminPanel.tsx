@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -32,15 +32,20 @@ const AdminPanel = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
+  const [userRoles, setUserRoles] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [penalties, setPenalties] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [messageReports, setMessageReports] = useState<any[]>([]);
   const [systemOpen, setSystemOpen] = useState(true);
   const [penaltyDialog, setPenaltyDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [penaltyReason, setPenaltyReason] = useState('');
   const [penaltyLevel, setPenaltyLevel] = useState('1');
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [roleUser, setRoleUser] = useState<any>(null);
+  const [selectedRole, setSelectedRole] = useState('student');
 
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
@@ -48,19 +53,23 @@ const AdminPanel = () => {
   }, [isAdmin]);
 
   const fetchAll = async () => {
-    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes] = await Promise.all([
+    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
       supabase.from('penalties').select('*').order('created_at', { ascending: false }),
       supabase.from('system_settings').select('*').limit(1).single(),
       supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('user_roles').select('*'),
+      supabase.from('message_reports').select('*').order('created_at', { ascending: false }),
     ]);
     setUsers(usersRes.data || []);
     setNotes(notesRes.data || []);
     setAnnouncements(announcementsRes.data || []);
     setPenalties(penaltiesRes.data || []);
     setActivityLogs(logsRes.data || []);
+    setUserRoles(rolesRes.data || []);
+    setMessageReports(reportsRes.data || []);
     if (settingsRes.data) setSystemOpen(settingsRes.data.is_system_open);
   };
 
@@ -116,6 +125,29 @@ const AdminPanel = () => {
     fetchAll();
   };
 
+  const getUserRole = (userId: string) => {
+    const role = userRoles.find(r => r.user_id === userId);
+    return role?.role || 'student';
+  };
+
+  const getRoleLabel = (role: string) => {
+    const labels: Record<string, string> = { admin: 'Admin', student: 'Öğrenci', akademisyen: 'Akademisyen' };
+    return labels[role] || role;
+  };
+
+  const changeUserRole = async () => {
+    if (!roleUser) return;
+    const existingRole = userRoles.find(r => r.user_id === roleUser.user_id);
+    if (existingRole) {
+      await supabase.from('user_roles').update({ role: selectedRole as any }).eq('user_id', roleUser.user_id);
+    } else {
+      await supabase.from('user_roles').insert({ user_id: roleUser.user_id, role: selectedRole as any });
+    }
+    toast.success(`${roleUser.full_name} kullanıcısının rolü ${getRoleLabel(selectedRole)} olarak güncellendi!`);
+    setRoleDialogOpen(false);
+    fetchAll();
+  };
+
   if (!isAdmin) return null;
 
   return (
@@ -141,11 +173,12 @@ const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="users">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5 hidden sm:inline" />Kullanıcılar</TabsTrigger>
             <TabsTrigger value="notes"><FileText className="h-4 w-4 mr-1.5 hidden sm:inline" />Notlar</TabsTrigger>
             <TabsTrigger value="announcements"><Megaphone className="h-4 w-4 mr-1.5 hidden sm:inline" />Duyurular</TabsTrigger>
             <TabsTrigger value="penalties"><AlertTriangle className="h-4 w-4 mr-1.5 hidden sm:inline" />Cezalar</TabsTrigger>
+            <TabsTrigger value="reports"><Flag className="h-4 w-4 mr-1.5 hidden sm:inline" />Raporlar{messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">{messageReports.filter(r => r.status === 'pending').length}</span>}</TabsTrigger>
             <TabsTrigger value="activity"><Activity className="h-4 w-4 mr-1.5 hidden sm:inline" />Aktiviteler</TabsTrigger>
           </TabsList>
 
@@ -160,6 +193,7 @@ const AdminPanel = () => {
                         <th className="text-left p-2 hidden md:table-cell">Üniversite</th>
                         <th className="text-left p-2 hidden md:table-cell">Bölüm</th>
                         <th className="text-left p-2 hidden lg:table-cell">Sınıf</th>
+                        <th className="text-left p-2">Rol</th>
                         <th className="text-left p-2 hidden lg:table-cell">Kayıt Tarihi</th>
                         <th className="text-left p-2 hidden xl:table-cell">Son Giriş</th>
                         <th className="text-left p-2">İşlemler</th>
@@ -172,11 +206,17 @@ const AdminPanel = () => {
                           <td className="p-2 hidden md:table-cell">{u.university || '-'}</td>
                           <td className="p-2 hidden md:table-cell">{u.department || '-'}</td>
                           <td className="p-2 hidden lg:table-cell">{u.grade ? `${u.grade}. Sınıf` : '-'}</td>
+                          <td className="p-2">
+                            <Badge variant="outline" className="text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge>
+                          </td>
                           <td className="p-2 hidden lg:table-cell">{new Date(u.created_at).toLocaleDateString('tr-TR')}</td>
                           <td className="p-2 hidden xl:table-cell">{u.last_login ? new Date(u.last_login).toLocaleString('tr-TR') : '-'}</td>
                           <td className="p-2">
                             <div className="flex gap-1">
-                              <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }}>
+                              <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol Değiştir">
+                                <UserCog className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza Ver">
                                 <Ban className="h-3 w-3" />
                               </Button>
                               <AlertDialog>
@@ -283,6 +323,46 @@ const AdminPanel = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="reports">
+            <Card className="glass-card">
+              <CardContent className="p-4 space-y-3">
+                {messageReports.length === 0 ? (
+                  <p className="text-center text-muted-foreground">Henüz rapor yok.</p>
+                ) : (
+                  messageReports.map((r) => {
+                    const reporter = users.find(u => u.user_id === r.reporter_id);
+                    const reported = users.find(u => u.user_id === r.reported_user_id);
+                    return (
+                      <div key={r.id} className={`p-3 rounded-lg border ${r.status === 'pending' ? 'bg-destructive/10 border-destructive/20' : 'bg-accent/50 border-border/50'}`}>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm">Raporlayan: {reporter?.full_name || 'Bilinmiyor'}</p>
+                              <Badge variant="outline" className={`text-[10px] ${r.status === 'pending' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
+                                {r.status === 'pending' ? 'Bekliyor' : 'İncelendi'}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Raporlanan: {reported?.full_name || 'Bilinmiyor'}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Sebep: {r.reason}</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">{new Date(r.created_at).toLocaleString('tr-TR')}</p>
+                          </div>
+                          {r.status === 'pending' && (
+                            <Button size="sm" variant="outline" onClick={async () => {
+                              await supabase.from('message_reports').update({ status: 'reviewed' } as any).eq('id', r.id);
+                              toast.success('Rapor incelendi olarak işaretlendi.');
+                              fetchAll();
+                            }}>
+                              <Check className="h-3 w-3 mr-1" /> İncelendi
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
           <TabsContent value="activity">
             <Card className="glass-card">
               <CardContent className="p-4">
@@ -351,6 +431,29 @@ const AdminPanel = () => {
                 <Textarea value={penaltyReason} onChange={(e) => setPenaltyReason(e.target.value)} placeholder="Ceza sebebini yazın..." />
               </div>
               <Button className="w-full" onClick={issuePenalty}>Cezayı Uygula</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Role Dialog */}
+        <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Rol Değiştir - {roleUser?.full_name}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Rol</Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">Öğrenci</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="akademisyen">Akademisyen</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button className="w-full" onClick={changeUserRole}>Rolü Güncelle</Button>
             </div>
           </DialogContent>
         </Dialog>
