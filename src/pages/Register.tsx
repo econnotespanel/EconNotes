@@ -75,7 +75,7 @@ const Register = () => {
             <img src={logo} alt="EconNotes" className="h-14 w-14 object-contain" />
           </div>
           <CardTitle className="text-2xl font-bold">Kayıt Ol</CardTitle>
-          <CardDescription>EconNotes paneline katılın</CardDescription>
+          <CardDescription>EconNotes'a Kayıt Olun</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-3">
