@@ -510,9 +510,6 @@ const Messages = () => {
             )}
           </Card>
         </div>
-      </div>
-    </Layout>
-  );
 
         {/* Report Dialog */}
         <Dialog open={reportDialogOpen} onOpenChange={(v) => { setReportDialogOpen(v); if (!v) { setReportingMessage(null); setReportReason(''); } }}>
