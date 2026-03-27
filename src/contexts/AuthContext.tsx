@@ -79,8 +79,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         if (session?.user) {
           setTimeout(() => fetchProfile(session.user.id), 0);
-          // Update last login
           supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
+          if (_event === 'SIGNED_IN') {
+            import('@/lib/activityLogger').then(({ logActivity }) => {
+              logActivity(session.user.id, session.user.user_metadata?.full_name || '', session.user.email || '', 'user_login', 'Panele giriş yaptı');
+            });
+          }
         } else {
           setProfile(null);
           setIsAdmin(false);
