@@ -32,15 +32,20 @@ const AdminPanel = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
+  const [userRoles, setUserRoles] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [penalties, setPenalties] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [messageReports, setMessageReports] = useState<any[]>([]);
   const [systemOpen, setSystemOpen] = useState(true);
   const [penaltyDialog, setPenaltyDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [penaltyReason, setPenaltyReason] = useState('');
   const [penaltyLevel, setPenaltyLevel] = useState('1');
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [roleUser, setRoleUser] = useState<any>(null);
+  const [selectedRole, setSelectedRole] = useState('student');
 
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
