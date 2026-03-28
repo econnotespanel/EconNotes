@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock } from 'lucide-react';
+import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Profile = () => {
@@ -23,6 +24,9 @@ const Profile = () => {
   });
   const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
   const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<'idle' | 'verify' | 'sent'>('idle');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
 
   const handleUpdate = async () => {
     const { error } = await supabase.from('profiles').update(form).eq('user_id', user!.id);
@@ -66,8 +70,21 @@ const Profile = () => {
     setPasswordForm({ current: '', newPass: '', confirm: '' });
   };
 
+  const handleSendDeleteVerification = async () => {
+    // Send a password reset email as verification mechanism
+    const { error } = await supabase.auth.resetPasswordForEmail(user!.email!, {
+      redirectTo: window.location.origin + '/profile',
+    });
+    if (error) {
+      toast.error('Doğrulama e-postası gönderilemedi.');
+      return;
+    }
+    setDeleteStep('sent');
+    toast.success('Doğrulama e-postası gönderildi! Lütfen e-postanızı kontrol edin.');
+  };
+
   const handleDeleteAccount = async () => {
-    // Sign out and delete profile
+    // Delete profile and sign out
     await supabase.from('profiles').delete().eq('user_id', user!.id);
     await signOut();
     toast.success('Hesabınız silindi.');
@@ -198,24 +215,59 @@ const Profile = () => {
           <CardHeader>
             <CardTitle className="text-lg text-destructive flex items-center gap-2"><Trash2 className="h-5 w-5" /> Hesabı Sil</CardTitle>
           </CardHeader>
-          <CardContent>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">Hesabımı Sil</Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Hesabınızı silmek istediğinize emin misiniz?</AlertDialogTitle>
-                  <AlertDialogDescription>Bu işlem geri alınamaz. Tüm verileriniz silinecektir.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>İptal</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteAccount}>Evet, Hesabımı Sil</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">Hesabınızı silmek için önce e-posta doğrulaması yapmanız gerekmektedir.</p>
+            <Button variant="destructive" onClick={() => { setDeleteDialogOpen(true); setDeleteStep('verify'); }}>
+              Hesabımı Sil
+            </Button>
           </CardContent>
         </Card>
+
+        <Dialog open={deleteDialogOpen} onOpenChange={(v) => { setDeleteDialogOpen(v); if (!v) setDeleteStep('idle'); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <ShieldAlert className="h-5 w-5" /> Hesap Silme Doğrulaması
+              </DialogTitle>
+            </DialogHeader>
+            {deleteStep === 'verify' && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Hesabınızı silmek için <strong>{user?.email}</strong> adresine bir doğrulama e-postası göndereceğiz.
+                  E-postadaki bağlantıya tıkladıktan sonra hesabınızı silebilirsiniz.
+                </p>
+                <div className="flex gap-2">
+                  <Button onClick={handleSendDeleteVerification} className="w-full">
+                    Doğrulama E-postası Gönder
+                  </Button>
+                </div>
+              </div>
+            )}
+            {deleteStep === 'sent' && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Doğrulama e-postası <strong>{user?.email}</strong> adresine gönderildi. 
+                  E-postanızı kontrol edip bağlantıya tıkladıktan sonra aşağıdaki butona basarak hesabınızı silebilirsiniz.
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" className="w-full">E-postamı Doğruladım, Hesabımı Sil</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Son onay - Hesabınız kalıcı olarak silinecek!</AlertDialogTitle>
+                      <AlertDialogDescription>Bu işlem geri alınamaz. Tüm verileriniz, notlarınız ve mesajlarınız silinecektir.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>İptal</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDeleteAccount}>Evet, Hesabımı Sil</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

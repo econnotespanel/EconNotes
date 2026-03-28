@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
@@ -28,6 +28,7 @@ const Notes = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<string | null>(null);
   const [uploadRestricted, setUploadRestricted] = useState(true);
+  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '', description: '', grade: '1', department: '', course: '',
     semester: 'Güz Dönemi', file: null as File | null,
@@ -147,6 +148,16 @@ const Notes = () => {
     n.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Group notes by course for folder view
+  const courseGroups = filteredNotes.reduce((acc: Record<string, any[]>, note) => {
+    const key = note.course;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(note);
+    return acc;
+  }, {});
+
+  const displayNotes = selectedCourse ? (courseGroups[selectedCourse] || []) : filteredNotes;
+
   const isPreviewable = (fileType: string | null, fileUrl: string | null) => {
     if (!fileType || !fileUrl) return false;
     return fileType.startsWith('image/') || fileType === 'application/pdf';
@@ -164,6 +175,11 @@ const Notes = () => {
     if (!note.file_url || !note.file_type) return null;
     if (note.file_type.startsWith('image/')) return note.file_url;
     return null;
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.toLocaleDateString('tr-TR')} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   return (
@@ -260,110 +276,142 @@ const Notes = () => {
           </Button>
         </div>
 
-        {loading ? (
-          <p className="text-center text-muted-foreground">Yükleniyor...</p>
-        ) : filteredNotes.length === 0 ? (
-          <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Henüz not paylaşılmamış.</CardContent></Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredNotes.map((note) => {
-              const thumbnail = getThumbnail(note);
-              return (
-                <Card key={note.id} className="glass-card hover:shadow-xl transition-all duration-300 overflow-hidden">
-                  {/* Preview thumbnail */}
-                  {thumbnail ? (
-                    <div className="relative h-40 w-full overflow-hidden bg-muted cursor-pointer" onClick={() => { setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
-                      <img src={thumbnail} alt={note.title} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                      <div className="absolute bottom-2 left-2 right-2">
-                        <p className="text-white text-sm font-semibold truncate">{note.title}</p>
-                      </div>
-                    </div>
-                  ) : note.file_url ? (
-                    <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center cursor-pointer" onClick={() => { if (isPreviewable(note.file_type, note.file_url)) { setPreviewUrl(note.file_url); setPreviewType(note.file_type); } }}>
-                      <div className="text-center">
-                        <span className="text-4xl">{getFileIcon(note.file_type)}</span>
-                        <p className="text-xs text-muted-foreground mt-2 px-4 truncate max-w-[200px]">{note.file_name}</p>
-                      </div>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                      <div className="absolute bottom-2 left-2 right-2">
-                        <p className="text-white text-sm font-semibold truncate">{note.title}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-primary shrink-0" />
-                        <span className="truncate">{note.title}</span>
-                      </CardTitle>
-                    </CardHeader>
-                  )}
-                  <CardContent className="p-4 space-y-3">
-                    {!thumbnail && !note.file_url && note.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">{note.description}</p>
-                    )}
-                    {(thumbnail || note.file_url) && note.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">{note.description}</p>
-                    )}
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{note.grade}. Sınıf</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground">{note.course}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{note.semester}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {note.uploader_name} • {note.department} • {new Date(note.created_at).toLocaleDateString('tr-TR')}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {note.file_url && (
-                        <>
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={note.file_url} download={note.file_name}><Download className="h-3 w-3 mr-1" /> İndir</a>
-                          </Button>
-                          {isPreviewable(note.file_type, note.file_url) && (
-                            <Button size="sm" variant="outline" onClick={() => { setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
-                              <Eye className="h-3 w-3 mr-1" /> Önizle
-                            </Button>
-                          )}
-                        </>
-                      )}
-                      {(note.user_id === user?.id || isAdmin) && (
-                        <>
-                          <Button size="sm" variant="outline" onClick={() => handleEdit(note)}><Edit className="h-3 w-3" /></Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Bu notu silmek istediğinize emin misiniz?</AlertDialogTitle>
-                                <AlertDialogDescription>Bu işlem geri alınamaz.</AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>İptal</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDelete(note.id)}>Sil</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </>
-                      )}
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => shareNote(note, 'whatsapp')} className="h-7 px-2 text-[#25D366]" title="WhatsApp">
-                          <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">WP</span>
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => shareNote(note, 'twitter')} className="h-7 px-2" title="X (Twitter)">
-                          <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">X</span>
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => shareNote(note, 'facebook')} className="h-7 px-2 text-[#1877F2]" title="Facebook">
-                          <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">FB</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+        {/* Course folders view */}
+        {!selectedCourse && !searchTerm && (
+          <div>
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-primary" /> Ders Klasörleri
+            </h2>
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {Object.entries(courseGroups).map(([course, courseNotes]) => (
+                <button
+                  key={course}
+                  onClick={() => setSelectedCourse(course)}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl bg-accent/50 hover:bg-accent transition-colors border border-border/40 hover:shadow-md"
+                >
+                  <FolderOpen className="h-10 w-10 text-primary" />
+                  <span className="text-sm font-medium text-center truncate w-full">{course}</span>
+                  <span className="text-xs text-muted-foreground">{courseNotes.length} not</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
+
+        {selectedCourse && (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedCourse(null)}>
+              <ChevronLeft className="h-4 w-4 mr-1" /> Tüm Klasörler
+            </Button>
+            <span className="text-sm font-semibold">{selectedCourse}</span>
+            <span className="text-xs text-muted-foreground">({displayNotes.length} not)</span>
+          </div>
+        )}
+
+        {loading ? (
+          <p className="text-center text-muted-foreground">Yükleniyor...</p>
+        ) : (selectedCourse || searchTerm) ? (
+          displayNotes.length === 0 ? (
+            <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Bu klasörde henüz not yok.</CardContent></Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {displayNotes.map((note) => {
+                const thumbnail = getThumbnail(note);
+                return (
+                  <Card key={note.id} className="glass-card hover:shadow-xl transition-all duration-300 overflow-hidden">
+                    {thumbnail ? (
+                      <div className="relative h-40 w-full overflow-hidden bg-muted cursor-pointer" onClick={() => { setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
+                        <img src={thumbnail} alt={note.title} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                        <div className="absolute bottom-2 left-2 right-2">
+                          <p className="text-white text-sm font-semibold truncate">{note.title}</p>
+                        </div>
+                      </div>
+                    ) : note.file_url ? (
+                      <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center cursor-pointer" onClick={() => { if (isPreviewable(note.file_type, note.file_url)) { setPreviewUrl(note.file_url); setPreviewType(note.file_type); } }}>
+                        <div className="text-center">
+                          <span className="text-4xl">{getFileIcon(note.file_type)}</span>
+                          <p className="text-xs text-muted-foreground mt-2 px-4 truncate max-w-[200px]">{note.file_name}</p>
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                        <div className="absolute bottom-2 left-2 right-2">
+                          <p className="text-white text-sm font-semibold truncate">{note.title}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-primary shrink-0" />
+                          <span className="truncate">{note.title}</span>
+                        </CardTitle>
+                      </CardHeader>
+                    )}
+                    <CardContent className="p-4 space-y-3">
+                      {note.description && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">{note.description}</p>
+                      )}
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{note.grade}. Sınıf</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground">{note.course}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{note.semester}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {note.uploader_name} • {note.department} • {formatDateTime(note.created_at)}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {note.file_url && (
+                          <>
+                            <Button size="sm" variant="outline" asChild>
+                              <a href={note.file_url} download={note.file_name}><Download className="h-3 w-3 mr-1" /> İndir</a>
+                            </Button>
+                            {isPreviewable(note.file_type, note.file_url) && (
+                              <Button size="sm" variant="outline" onClick={() => { setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
+                                <Eye className="h-3 w-3 mr-1" /> Önizle
+                              </Button>
+                            )}
+                          </>
+                        )}
+                        {(note.user_id === user?.id || isAdmin) && (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => handleEdit(note)}><Edit className="h-3 w-3" /></Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Bu notu silmek istediğinize emin misiniz?</AlertDialogTitle>
+                                  <AlertDialogDescription>Bu işlem geri alınamaz.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>İptal</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDelete(note.id)}>Sil</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => shareNote(note, 'whatsapp')} className="h-7 px-2 text-[#25D366]" title="WhatsApp">
+                            <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">WP</span>
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => shareNote(note, 'twitter')} className="h-7 px-2" title="X (Twitter)">
+                            <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">X</span>
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => shareNote(note, 'facebook')} className="h-7 px-2 text-[#1877F2]" title="Facebook">
+                            <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">FB</span>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )
+        ) : !loading && Object.keys(courseGroups).length === 0 ? (
+          <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Henüz not paylaşılmamış.</CardContent></Card>
+        ) : null}
 
         {/* Preview Modal */}
         {previewUrl && (
