@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck, Flag } from 'lucide-react';
+import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck, Flag, UserMinus, Ban, AlertTriangle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -35,6 +36,7 @@ const Messages = () => {
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [sentRequests, setSentRequests] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [searchUser, setSearchUser] = useState('');
   const [selectedFriend, setSelectedFriend] = useState<any>(null);
   const [messages, setMessages] = useState<any[]>([]);
@@ -46,12 +48,20 @@ const Messages = () => {
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportingMessage, setReportingMessage] = useState<any>(null);
   const [reportReason, setReportReason] = useState('');
+  const [reportUserDialogOpen, setReportUserDialogOpen] = useState(false);
+  const [reportUserReason, setReportUserReason] = useState('');
+  const [reportingUserId, setReportingUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const fetchBlocks = async () => {
+    if (!user) return;
+    const { data } = await supabase.from('user_blocks').select('blocked_id').eq('blocker_id', user.id);
+    setBlockedUsers((data || []).map((b: any) => b.blocked_id));
+  };
+
   const fetchFriends = async () => {
     if (!user) return;
-    // Get accepted friend requests
     const { data: requests } = await supabase
       .from('friend_requests')
       .select('*')
@@ -65,13 +75,12 @@ const Messages = () => {
           .from('profiles')
           .select('*')
           .in('user_id', friendIds);
-        setFriends(profiles || []);
+        setFriends((profiles || []).filter(p => !blockedUsers.includes(p.user_id)));
       } else {
         setFriends([]);
       }
     }
 
-    // Pending requests received
     const { data: pending } = await supabase
       .from('friend_requests')
       .select('*')
@@ -92,7 +101,6 @@ const Messages = () => {
       setPendingRequests([]);
     }
 
-    // Sent requests
     const { data: sent } = await supabase
       .from('friend_requests')
       .select('*')
@@ -121,13 +129,17 @@ const Messages = () => {
   useEffect(() => {
     if (user) {
       const accepted = localStorage.getItem(`messaging_rules_${user.id}`);
-      if (accepted === 'true') {
-        setRulesAccepted(true);
-      }
-      fetchFriends();
-      fetchAllUsers();
+      if (accepted === 'true') setRulesAccepted(true);
+      fetchBlocks().then(() => {
+        fetchFriends();
+        fetchAllUsers();
+      });
     }
   }, [user]);
+
+  useEffect(() => {
+    if (blockedUsers.length >= 0 && user) fetchFriends();
+  }, [blockedUsers]);
 
   useEffect(() => {
     if (selectedFriend) {
@@ -160,6 +172,44 @@ const Messages = () => {
       toast.info('İstek reddedildi.');
     }
     fetchFriends();
+  };
+
+  const removeFriend = async (friendUserId: string) => {
+    await supabase.from('friend_requests').delete().or(
+      `and(sender_id.eq.${user!.id},receiver_id.eq.${friendUserId}),and(sender_id.eq.${friendUserId},receiver_id.eq.${user!.id})`
+    );
+    if (selectedFriend?.user_id === friendUserId) setSelectedFriend(null);
+    toast.success('Arkadaşlıktan çıkarıldı.');
+    fetchFriends();
+  };
+
+  const blockUser = async (userId: string) => {
+    await supabase.from('user_blocks').insert({ blocker_id: user!.id, blocked_id: userId });
+    // Also remove friendship
+    await supabase.from('friend_requests').delete().or(
+      `and(sender_id.eq.${user!.id},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${user!.id})`
+    );
+    if (selectedFriend?.user_id === userId) setSelectedFriend(null);
+    toast.success('Kullanıcı engellendi.');
+    await fetchBlocks();
+  };
+
+  const reportUser = async () => {
+    if (!reportingUserId || !reportUserReason.trim()) {
+      toast.error('Lütfen rapor sebebini yazın.');
+      return;
+    }
+    const { error } = await supabase.from('message_reports').insert({
+      reporter_id: user!.id,
+      reported_user_id: reportingUserId,
+      message_id: reportingUserId, // using as general report
+      reason: `[Kullanıcı Raporu] ${reportUserReason}`,
+    });
+    if (error) { toast.error('Rapor gönderilemedi.'); return; }
+    toast.success('Kullanıcı rapor edildi! Yöneticiler inceleyecektir.');
+    setReportUserDialogOpen(false);
+    setReportingUserId(null);
+    setReportUserReason('');
   };
 
   const sendMessage = async () => {
@@ -214,11 +264,24 @@ const Messages = () => {
 
   const isFriend = (userId: string) => friends.some(f => f.user_id === userId);
   const hasSentRequest = (userId: string) => sentRequests.some(r => r.receiver_id === userId);
+  const isBlocked = (userId: string) => blockedUsers.includes(userId);
 
   const filteredUsers = allUsers.filter(u =>
-    u.full_name.toLowerCase().includes(searchUser.toLowerCase()) ||
-    u.university.toLowerCase().includes(searchUser.toLowerCase())
+    !isBlocked(u.user_id) &&
+    (u.full_name.toLowerCase().includes(searchUser.toLowerCase()) ||
+    u.university.toLowerCase().includes(searchUser.toLowerCase()))
   );
+
+  const formatLastOnline = (lastLogin: string | null) => {
+    if (!lastLogin) return 'Bilinmiyor';
+    const d = new Date(lastLogin);
+    const now = new Date();
+    const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
+    if (diffMin < 1) return 'Çevrimiçi';
+    if (diffMin < 60) return `${diffMin} dk önce`;
+    if (diffMin < 1440) return `${Math.floor(diffMin / 60)} saat önce`;
+    return d.toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
 
   const renderMessageContent = (content: string) => {
     const fileMatch = content.match(/📎 \[Dosya: (.+?)\]\((.+?)\)/);
@@ -321,6 +384,7 @@ const Messages = () => {
                         <div>
                           <p className="text-sm font-medium">{u.full_name}</p>
                           <p className="text-xs text-muted-foreground">{u.university} • {u.department}</p>
+                          <p className="text-xs text-muted-foreground">{u.grade ? `${u.grade}. Sınıf` : ''}</p>
                         </div>
                       </div>
                       {isFriend(u.user_id) ? (
@@ -362,22 +426,74 @@ const Messages = () => {
                   <p className="text-sm text-muted-foreground text-center p-4">Henüz arkadaş yok. Kullanıcı ekleyin!</p>
                 ) : (
                   friends.map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => setSelectedFriend(f)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
-                        selectedFriend?.user_id === f.user_id ? 'bg-primary/10' : 'hover:bg-accent'
-                      }`}
-                    >
-                      <Avatar className="h-9 w-9">
-                        {f.avatar_url && <AvatarImage src={f.avatar_url} />}
-                        <AvatarFallback className="text-xs">{f.full_name?.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{f.full_name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{f.department}</p>
-                      </div>
-                    </button>
+                    <div key={f.id} className="group relative">
+                      <button
+                        onClick={() => setSelectedFriend(f)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
+                          selectedFriend?.user_id === f.user_id ? 'bg-primary/10' : 'hover:bg-accent'
+                        }`}
+                      >
+                        <Avatar className="h-9 w-9">
+                          {f.avatar_url && <AvatarImage src={f.avatar_url} />}
+                          <AvatarFallback className="text-xs">{f.full_name?.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{f.full_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{f.department}</p>
+                          <p className="text-[10px] text-muted-foreground">{formatLastOnline(f.last_login)}</p>
+                        </div>
+                      </button>
+                      {/* Friend actions popover */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent">
+                            <span className="text-xs">⋮</span>
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-40 p-1" side="right">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded hover:bg-accent transition-colors text-left">
+                                <UserMinus className="h-3 w-3" /> Çıkar
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>{f.full_name} arkadaşlıktan çıkarılsın mı?</AlertDialogTitle>
+                                <AlertDialogDescription>Bu işlem geri alınabilir, tekrar istek gönderebilirsiniz.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>İptal</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => removeFriend(f.user_id)}>Çıkar</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded hover:bg-accent transition-colors text-left text-destructive">
+                                <Ban className="h-3 w-3" /> Engelle
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>{f.full_name} engellensin mi?</AlertDialogTitle>
+                                <AlertDialogDescription>Bu kullanıcı engellendikten sonra size mesaj gönderemez ve arkadaş listenizden çıkarılır.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>İptal</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => blockUser(f.user_id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Engelle</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded hover:bg-accent transition-colors text-left text-warning"
+                            onClick={() => { setReportingUserId(f.user_id); setReportUserDialogOpen(true); }}
+                          >
+                            <AlertTriangle className="h-3 w-3" /> Raporla
+                          </button>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   ))
                 )}
               </TabsContent>
@@ -389,7 +505,8 @@ const Messages = () => {
                     <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
                       <div>
                         <p className="text-sm font-medium">{r.sender_profile?.full_name || 'Kullanıcı'}</p>
-                        <p className="text-xs text-muted-foreground">{r.sender_profile?.university}</p>
+                        <p className="text-xs text-muted-foreground">{r.sender_profile?.university} • {r.sender_profile?.department}</p>
+                        <p className="text-xs text-muted-foreground">{r.sender_profile?.grade ? `${r.sender_profile.grade}. Sınıf` : ''}</p>
                       </div>
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost" className="text-green-500 h-7 w-7 p-0" onClick={() => respondToRequest(r.id, true)}>
@@ -425,6 +542,7 @@ const Messages = () => {
                   <div>
                     <p className="text-sm font-semibold">{selectedFriend.full_name}</p>
                     <p className="text-xs text-muted-foreground">{selectedFriend.university} • {selectedFriend.department}</p>
+                    <p className="text-[10px] text-muted-foreground">Son görülme: {formatLastOnline(selectedFriend.last_login)}</p>
                   </div>
                 </div>
 
@@ -512,7 +630,7 @@ const Messages = () => {
           </Card>
         </div>
 
-        {/* Report Dialog */}
+        {/* Report Message Dialog */}
         <Dialog open={reportDialogOpen} onOpenChange={(v) => { setReportDialogOpen(v); if (!v) { setReportingMessage(null); setReportReason(''); } }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Mesajı Raporla</DialogTitle></DialogHeader>
@@ -529,6 +647,21 @@ const Messages = () => {
                 <Textarea value={reportReason} onChange={(e) => setReportReason(e.target.value)} placeholder="Raporlama sebebinizi yazın..." />
               </div>
               <Button className="w-full" onClick={reportMessage}>Raporu Gönder</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Report User Dialog */}
+        <Dialog open={reportUserDialogOpen} onOpenChange={(v) => { setReportUserDialogOpen(v); if (!v) { setReportingUserId(null); setReportUserReason(''); } }}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Kullanıcıyı Raporla</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">Bu kullanıcıyı uygunsuz davranış nedeniyle yöneticilere bildirebilirsiniz.</p>
+              <div className="space-y-2">
+                <Label>Rapor Sebebi *</Label>
+                <Textarea value={reportUserReason} onChange={(e) => setReportUserReason(e.target.value)} placeholder="Raporlama sebebinizi yazın..." />
+              </div>
+              <Button className="w-full" onClick={reportUser}>Raporu Gönder</Button>
             </div>
           </DialogContent>
         </Dialog>

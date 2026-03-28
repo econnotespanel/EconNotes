@@ -10,7 +10,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         {children}
       </main>
       <footer className="md:ml-60 text-center md:text-right px-6 py-3 text-xs text-muted-foreground border-t border-border/40">
-        EconNotes, Not Paylaşım Paneline Hoş Geldiniz.
+        Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
       </footer>
     </div>
   );

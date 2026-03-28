@@ -82,7 +82,7 @@ const Dashboard = () => {
                       <p className="text-sm font-medium">{note.title}</p>
                       <p className="text-xs text-muted-foreground">{note.uploader_name} • {note.course} • {note.semester}</p>
                     </div>
-                    <span className="text-xs text-muted-foreground">{new Date(note.created_at).toLocaleDateString('tr-TR')}</span>
+                    <span className="text-xs text-muted-foreground">{new Date(note.created_at).toLocaleDateString('tr-TR')} {new Date(note.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 ))
               )}
