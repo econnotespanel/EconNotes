@@ -291,7 +291,7 @@ const Notes = () => {
                 >
                   <FolderOpen className="h-10 w-10 text-primary" />
                   <span className="text-sm font-medium text-center truncate w-full">{course}</span>
-                  <span className="text-xs text-muted-foreground">{courseNotes.length} not</span>
+                  <span className="text-xs text-muted-foreground">{(courseNotes as any[]).length} not</span>
                 </button>
               ))}
             </div>
