@@ -50,11 +50,33 @@ export type Database = {
         }
         Relationships: []
       }
+      announcement_views: {
+        Row: {
+          announcement_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       announcements: {
         Row: {
           author_name: string
           content: string
           created_at: string
+          edited_at: string | null
           id: string
           title: string
           updated_at: string
@@ -64,6 +86,7 @@ export type Database = {
           author_name?: string
           content: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           title: string
           updated_at?: string
@@ -73,10 +96,41 @@ export type Database = {
           author_name?: string
           content?: string
           created_at?: string
+          edited_at?: string | null
           id?: string
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      comments: {
+        Row: {
+          content: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          user_id: string
+          user_name?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          user_id?: string
+          user_name?: string
         }
         Relationships: []
       }
@@ -164,17 +218,61 @@ export type Database = {
         }
         Relationships: []
       }
+      note_downloads: {
+        Row: {
+          created_at: string
+          id: string
+          note_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      note_views: {
+        Row: {
+          created_at: string
+          id: string
+          note_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           course: string
           created_at: string
           department: string
           description: string | null
+          edited_at: string | null
           file_name: string | null
           file_type: string | null
           file_url: string | null
           grade: number
           id: string
+          note_password: string | null
           semester: string
           title: string
           updated_at: string
@@ -186,11 +284,13 @@ export type Database = {
           created_at?: string
           department: string
           description?: string | null
+          edited_at?: string | null
           file_name?: string | null
           file_type?: string | null
           file_url?: string | null
           grade: number
           id?: string
+          note_password?: string | null
           semester: string
           title: string
           updated_at?: string
@@ -202,11 +302,13 @@ export type Database = {
           created_at?: string
           department?: string
           description?: string | null
+          edited_at?: string | null
           file_name?: string | null
           file_type?: string | null
           file_url?: string | null
           grade?: number
           id?: string
+          note_password?: string | null
           semester?: string
           title?: string
           updated_at?: string
@@ -289,6 +391,8 @@ export type Database = {
       }
       system_settings: {
         Row: {
+          academic_week: number | null
+          academic_week_label: string | null
           closed_until: string | null
           id: string
           is_system_open: boolean
@@ -296,6 +400,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          academic_week?: number | null
+          academic_week_label?: string | null
           closed_until?: string | null
           id?: string
           is_system_open?: boolean
@@ -303,6 +409,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          academic_week?: number | null
+          academic_week_label?: string | null
           closed_until?: string | null
           id?: string
           is_system_open?: boolean
