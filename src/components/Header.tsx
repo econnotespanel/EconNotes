@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { LogOut, Sun, Moon, Bell, User } from 'lucide-react';
+import { LogOut, Sun, Moon, Bell, User, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
@@ -23,6 +23,28 @@ const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchUnread = async () => {
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('receiver_id', user.id)
+        .eq('is_read', false);
+      setUnreadMessages(count || 0);
+
+      const { data: announcements } = await supabase.from('announcements').select('id');
+      const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
+      const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
+      setUnreadAnnouncements((announcements || []).filter(a => !viewedIds.has(a.id)).length);
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -68,8 +90,22 @@ const Header = () => {
             </div>
           )}
 
-          <Button variant="ghost" size="icon" onClick={() => navigate('/announcements')}>
+          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/messages')}>
+            <MessageSquare className="h-5 w-5" />
+            {unreadMessages > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-[9px] text-destructive-foreground inline-flex items-center justify-center">
+                {unreadMessages}
+              </span>
+            )}
+          </Button>
+
+          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/announcements')}>
             <Bell className="h-5 w-5" />
+            {unreadAnnouncements > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-[9px] text-destructive-foreground inline-flex items-center justify-center">
+                {unreadAnnouncements}
+              </span>
+            )}
           </Button>
 
           <Button variant="ghost" size="icon" onClick={toggleTheme}>

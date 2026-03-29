@@ -9,8 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, Megaphone, Edit, Trash2, Share2, SortAsc, SortDesc, Search } from 'lucide-react';
+import { Plus, Megaphone, Edit, Trash2, Share2, SortAsc, SortDesc, Search, Eye, MessageSquare, Smile, Pencil } from 'lucide-react';
+
+const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
 
 const Announcements = () => {
   const { user, profile, isAdmin } = useAuth();
@@ -22,11 +25,46 @@ const Announcements = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmUpload, setConfirmUpload] = useState(false);
   const [form, setForm] = useState({ title: '', content: '' });
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
+  const [comments, setComments] = useState<Record<string, any[]>>({});
+  const [newComment, setNewComment] = useState<Record<string, string>>({});
+  const [showComments, setShowComments] = useState<Record<string, boolean>>({});
 
   const fetchData = async () => {
     const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: sortOrder === 'asc' });
     setAnnouncements(data || []);
     setLoading(false);
+
+    // Track views
+    if (user && data) {
+      for (const a of data) {
+        await supabase.from('announcement_views').upsert(
+          { announcement_id: a.id, user_id: user.id },
+          { onConflict: 'announcement_id,user_id' }
+        );
+      }
+    }
+
+    // Fetch view counts
+    if (data) {
+      const { data: views } = await supabase.from('announcement_views').select('announcement_id');
+      const counts: Record<string, number> = {};
+      (views || []).forEach((v: any) => {
+        counts[v.announcement_id] = (counts[v.announcement_id] || 0) + 1;
+      });
+      setViewCounts(counts);
+    }
+
+    // Fetch comments
+    if (data) {
+      const { data: allComments } = await supabase.from('comments').select('*').eq('entity_type', 'announcement').order('created_at', { ascending: true });
+      const grouped: Record<string, any[]> = {};
+      (allComments || []).forEach((c: any) => {
+        if (!grouped[c.entity_id]) grouped[c.entity_id] = [];
+        grouped[c.entity_id].push(c);
+      });
+      setComments(grouped);
+    }
   };
 
   useEffect(() => { fetchData(); }, [sortOrder]);
@@ -37,12 +75,13 @@ const Announcements = () => {
       return;
     }
 
-    const data = {
+    const data: any = {
       title: form.title, content: form.content,
       user_id: user!.id, author_name: profile?.full_name || '',
     };
 
     if (editingItem) {
+      data.edited_at = new Date().toISOString();
       const { error } = await supabase.from('announcements').update(data).eq('id', editingItem.id);
       if (error) { toast.error('Güncellenemedi.'); return; }
       toast.success('Duyuru güncellendi!');
@@ -81,6 +120,38 @@ const Announcements = () => {
       facebook: `https://www.facebook.com/sharer/sharer.php?quote=${encoded}`,
     };
     window.open(urls[platform], '_blank');
+  };
+
+  const addComment = async (announcementId: string) => {
+    const text = newComment[announcementId]?.trim();
+    if (!text) return;
+    const { error } = await supabase.from('comments').insert({
+      user_id: user!.id,
+      user_name: profile?.full_name || '',
+      entity_type: 'announcement',
+      entity_id: announcementId,
+      content: text,
+    });
+    if (error) { toast.error('Yorum eklenemedi.'); return; }
+    setNewComment(prev => ({ ...prev, [announcementId]: '' }));
+    fetchData();
+  };
+
+  const addEmojiComment = async (announcementId: string, emoji: string) => {
+    const { error } = await supabase.from('comments').insert({
+      user_id: user!.id,
+      user_name: profile?.full_name || '',
+      entity_type: 'announcement',
+      entity_id: announcementId,
+      content: emoji,
+    });
+    if (error) { toast.error('Emoji eklenemedi.'); return; }
+    fetchData();
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.toLocaleDateString('tr-TR')} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
   };
 
   const filtered = announcements.filter(a =>
@@ -156,11 +227,20 @@ const Announcements = () => {
                   <CardTitle className="text-base flex items-center gap-2">
                     <Megaphone className="h-4 w-4 text-warning shrink-0" />
                     {a.title}
+                    {a.edited_at && (
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 font-normal">
+                        <Pencil className="h-2.5 w-2.5" /> düzenlendi {formatDateTime(a.edited_at)}
+                      </span>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{a.content}</p>
-                  <p className="text-xs text-muted-foreground">{a.author_name} • {new Date(a.created_at).toLocaleDateString('tr-TR')}</p>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{a.author_name} • {formatDateTime(a.created_at)}</span>
+                    <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {viewCounts[a.id] || 0}</span>
+                    <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" /> {(comments[a.id] || []).length}</span>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {isAdmin && (
                       <>
@@ -182,6 +262,18 @@ const Announcements = () => {
                         </AlertDialog>
                       </>
                     )}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button size="sm" variant="ghost"><Smile className="h-3 w-3" /></Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-2" side="top">
+                        <div className="grid grid-cols-5 gap-1">
+                          {EMOJIS.map(e => (
+                            <button key={e} onClick={() => addEmojiComment(a.id, e)} className="text-lg hover:bg-accent rounded p-1 transition-colors">{e}</button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <Button size="sm" variant="ghost" onClick={() => shareAnnouncement(a, 'whatsapp')} className="h-7 px-2 text-[#25D366]" title="WhatsApp">
                       <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">WP</span>
                     </Button>
@@ -191,6 +283,49 @@ const Announcements = () => {
                     <Button size="sm" variant="ghost" onClick={() => shareAnnouncement(a, 'facebook')} className="h-7 px-2 text-[#1877F2]" title="Facebook">
                       <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">FB</span>
                     </Button>
+                  </div>
+
+                  {/* Comments section */}
+                  <div className="pt-2 border-t border-border/40">
+                    {/* Emoji reactions summary */}
+                    {(comments[a.id] || []).filter(c => c.content.length <= 2).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {Object.entries(
+                          (comments[a.id] || []).filter(c => c.content.length <= 2).reduce((acc: Record<string, number>, c: any) => {
+                            acc[c.content] = (acc[c.content] || 0) + 1;
+                            return acc;
+                          }, {})
+                        ).map(([emoji, count]) => (
+                          <span key={emoji} className="text-xs px-1.5 py-0.5 rounded-full bg-accent">{emoji} {count as number}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <Button variant="ghost" size="sm" onClick={() => setShowComments(prev => ({ ...prev, [a.id]: !prev[a.id] }))} className="text-xs">
+                      <MessageSquare className="h-3 w-3 mr-1" /> {showComments[a.id] ? 'Yorumları Gizle' : `Yorumlar (${(comments[a.id] || []).filter(c => c.content.length > 2).length})`}
+                    </Button>
+
+                    {showComments[a.id] && (
+                      <div className="mt-2 space-y-2">
+                        {(comments[a.id] || []).filter(c => c.content.length > 2).map(c => (
+                          <div key={c.id} className="flex items-start gap-2 p-2 rounded bg-accent/30 text-xs">
+                            <span className="font-medium">{c.user_name}:</span>
+                            <span className="flex-1">{c.content}</span>
+                            <span className="text-muted-foreground whitespace-nowrap">{formatDateTime(c.created_at)}</span>
+                          </div>
+                        ))}
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Yorum yaz..."
+                            value={newComment[a.id] || ''}
+                            onChange={(e) => setNewComment(prev => ({ ...prev, [a.id]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === 'Enter') addComment(a.id); }}
+                            className="text-xs h-8"
+                          />
+                          <Button size="sm" className="h-8" onClick={() => addComment(a.id)}>Gönder</Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

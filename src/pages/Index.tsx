@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import Dashboard from './Dashboard';
 import { AlertTriangle } from 'lucide-react';
+import logo from '@/assets/econnotes-logo.png';
 
 const Index = () => {
   const { user, loading, isAdmin } = useAuth();
@@ -41,13 +42,16 @@ const Index = () => {
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="max-w-md text-center space-y-4">
           <div className="flex justify-center">
+            <img src={logo} alt="EconNotes" className="h-20 w-20 object-contain" />
+          </div>
+          <div className="flex justify-center">
             <div className="p-4 rounded-full bg-warning/10">
               <AlertTriangle className="h-12 w-12 text-warning" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Sistem Bakımda</h1>
+          <h1 className="text-2xl font-bold text-foreground">EconNotes Panel Bakımda</h1>
           <p className="text-muted-foreground">
-            Sistem şu anda bakım çalışması nedeniyle kapalıdır. Lütfen daha sonra tekrar deneyiniz.
+            EconNotes Panel bakımda, lütfen daha sonra tekrar deneyin.
           </p>
           {closedUntil && (
             <p className="text-sm text-muted-foreground">
