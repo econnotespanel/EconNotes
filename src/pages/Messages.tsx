@@ -554,7 +554,7 @@ const Messages = () => {
                     messages.map(msg => (
                       <div key={msg.id} className={`group flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
                         <div className="relative">
-                          <div className={`max-w-[70%] p-3 rounded-xl text-sm ${
+                          <div className={`inline-block max-w-[85%] p-3 rounded-xl text-sm break-words ${
                             msg.sender_id === user?.id
                               ? 'bg-primary text-primary-foreground rounded-br-sm'
                               : 'bg-accent rounded-bl-sm'
