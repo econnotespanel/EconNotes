@@ -14,6 +14,9 @@ import Announcements from "./pages/Announcements";
 import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
 import AdminPanel from "./pages/AdminPanel";
+import About from "./pages/About";
+import AcademicAssistant from "./pages/AcademicAssistant";
+import LiveClass from "./pages/LiveClass";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +39,9 @@ const App = () => (
               <Route path="/profile" element={<Profile />} />
               <Route path="/messages" element={<Messages />} />
               <Route path="/admin" element={<AdminPanel />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/assistant" element={<AcademicAssistant />} />
+              <Route path="/live-class" element={<LiveClass />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
