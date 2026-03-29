@@ -7,9 +7,26 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building, ShieldCheck } from 'lucide-react';
+
+const PANEL_RULES = [
+  'Tüm kullanıcılar birbirine saygılı davranmalıdır.',
+  'Hakaret, küfür, argo veya aşağılayıcı ifadeler kesinlikle yasaktır.',
+  'Spam, reklam veya gereksiz tekrarlayan içerik paylaşmak yasaktır.',
+  'Kişisel bilgileri (TC, telefon, adres vb.) paylaşmak yasaktır.',
+  'Paylaşılan ders notları telif hakkına uygun olmalıdır. Başkasının notunu paylaşmadan önce izin alınmalıdır.',
+  'Uygunsuz, müstehcen veya yasadışı içerik paylaşımı kesinlikle yasaktır.',
+  'Not yükleme saatleri belirli saatlerle sınırlandırılmış olabilir (09:00-00:00). Yönetici ayarlarına tabidir.',
+  'Diğer kullanıcıları rahatsız etmek, taciz veya tehdit etmek yasaktır.',
+  'Mesajlaşma özelliğini kötüye kullanan kullanıcılar cezalandırılabilir.',
+  'Kurallara uymayan kullanıcılar kademeli uyarı ve ceza alabilir (5 dk, 1 saat, 1 gün, 1 hafta, 4 hafta, süresiz).',
+  'Yönetici ekibi, kuralları ihlal eden içerikleri düzenleme ve silme hakkına sahiptir.',
+  'Platform yalnızca eğitim amaçlı kullanılmalıdır.',
+];
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -24,6 +41,7 @@ const Register = () => {
   const [acceptRules, setAcceptRules] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -139,7 +157,26 @@ const Register = () => {
             <div className="flex items-start gap-2">
               <Checkbox id="rules" checked={acceptRules} onCheckedChange={(v) => setAcceptRules(v as boolean)} />
               <Label htmlFor="rules" className="text-xs leading-tight cursor-pointer">
-                Panel kurallarını okudum ve kabul ediyorum. Paylaşılan içeriklerden sorumluluk tarafıma aittir.
+                <Dialog open={rulesOpen} onOpenChange={setRulesOpen}>
+                  <DialogTrigger asChild>
+                    <span className="underline text-primary cursor-pointer hover:text-primary/80">Panel Kuralları</span>
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[80vh]">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5 text-primary" /> EconNotes Panel Kuralları
+                      </DialogTitle>
+                    </DialogHeader>
+                    <ScrollArea className="h-[400px] rounded-lg border border-border p-4">
+                      <ol className="space-y-3 list-decimal list-inside text-sm">
+                        {PANEL_RULES.map((rule, i) => (
+                          <li key={i} className="leading-relaxed">{rule}</li>
+                        ))}
+                      </ol>
+                    </ScrollArea>
+                  </DialogContent>
+                </Dialog>
+                'nı okudum ve kabul ediyorum. Paylaşılan içeriklerden sorumluluk tarafıma aittir.
               </Label>
             </div>
             <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
@@ -149,6 +186,11 @@ const Register = () => {
               Hesabınız var mı? <Link to="/login" className="text-primary hover:underline">Giriş Yap</Link>
             </p>
           </form>
+          <div className="mt-3 pt-3 border-t border-border/40 text-center">
+            <p className="text-xs text-muted-foreground">
+              Yardım ve Teknik Destek için: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
+            </p>
+          </div>
         </CardContent>
     </Card>
       <p className="absolute bottom-4 right-4 text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>

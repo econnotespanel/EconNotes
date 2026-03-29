@@ -15,7 +15,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [penaltyInfo, setPenaltyInfo] = useState<{ reason: string; until: string | null; is_permanent: boolean } | null>(null);
+  const [penaltyInfo, setPenaltyInfo] = useState<{ reason: string; until: string | null; is_permanent: boolean; expired?: boolean } | null>(null);
   const navigate = useNavigate();
 
   const getGreeting = () => {
@@ -72,6 +72,16 @@ const Login = () => {
           setLoading(false);
           return;
         }
+
+        // Penalty expired - show info message
+        if (penaltyUntil && penaltyUntil <= now && !isPermanent) {
+          setPenaltyInfo({
+            reason: latest.reason,
+            until: latest.penalty_until,
+            is_permanent: false,
+            expired: true,
+          });
+        }
       }
     }
 
@@ -103,7 +113,7 @@ const Login = () => {
           <p className="text-sm text-muted-foreground">EconNotes, Not Paylaşım Paneline Hoş Geldiniz!</p>
         </CardHeader>
         <CardContent>
-          {penaltyInfo && (
+          {penaltyInfo && !penaltyInfo.expired && (
             <Alert variant="destructive" className="mb-4">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Hesabınız Cezalı</AlertTitle>
@@ -114,6 +124,15 @@ const Login = () => {
                 ) : penaltyInfo.until ? (
                   <p><strong>Ceza Bitiş:</strong> {new Date(penaltyInfo.until).toLocaleString('tr-TR')}</p>
                 ) : null}
+              </AlertDescription>
+            </Alert>
+          )}
+          {penaltyInfo?.expired && (
+            <Alert className="mb-4 border-warning/30 bg-warning/5">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              <AlertTitle className="text-warning">Uzaklaştırma Cezan Sona Erdi</AlertTitle>
+              <AlertDescription>
+                <p className="text-sm">EconNotes Panel kurallarına daha dikkatli olmayı unutma! Tekrar hoş geldin. 🎓</p>
               </AlertDescription>
             </Alert>
           )}
@@ -157,6 +176,11 @@ const Login = () => {
               <Link to="/register" className="text-primary hover:underline">Kayıt Ol</Link>
             </div>
           </form>
+          <div className="mt-4 pt-3 border-t border-border/40 text-center">
+            <p className="text-xs text-muted-foreground">
+              Yardım ve Teknik Destek için: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
+            </p>
+          </div>
         </CardContent>
     </Card>
       <p className="absolute bottom-4 right-4 text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
