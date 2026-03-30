@@ -435,6 +435,17 @@ const AdminPanel = () => {
               <div className="space-y-2"><Label>Ad Soyad</Label><Input value={editUserForm.full_name} onChange={e => setEditUserForm({...editUserForm, full_name: e.target.value})} /></div>
               <div className="space-y-2"><Label>Üniversite</Label><Input value={editUserForm.university} onChange={e => setEditUserForm({...editUserForm, university: e.target.value})} /></div>
               <div className="space-y-2"><Label>Bölüm</Label><Input value={editUserForm.department} onChange={e => setEditUserForm({...editUserForm, department: e.target.value})} /></div>
+              <div className="space-y-2"><Label>Sınıf</Label>
+                <Select value={String(editUserForm.grade)} onValueChange={v => setEditUserForm({...editUserForm, grade: parseInt(v)})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1. Sınıf</SelectItem>
+                    <SelectItem value="2">2. Sınıf</SelectItem>
+                    <SelectItem value="3">3. Sınıf</SelectItem>
+                    <SelectItem value="4">4. Sınıf</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Button className="w-full" onClick={updateUserProfile}>Kaydet</Button>
             </div>
           </DialogContent>
