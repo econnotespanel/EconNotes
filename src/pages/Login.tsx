@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, Shield } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Login = () => {
@@ -111,7 +111,12 @@ const Login = () => {
           <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
           <CardDescription className="text-base">{getGreeting()}</CardDescription>
           <p className="text-sm text-muted-foreground">EconNotes, Not Paylaşım Paneline Hoş Geldiniz!</p>
-          <p className="text-xs text-green-500 flex items-center justify-center gap-1">🔒 Güvenli Giriş</p>
+          <div className="flex items-center justify-center gap-2">
+            <div className="p-2 rounded-full bg-primary/10">
+              <Shield className="h-5 w-5 text-primary" />
+            </div>
+            <span className="text-sm font-medium text-muted-foreground">Güvenli Giriş</span>
+          </div>
         </CardHeader>
         <CardContent>
           {penaltyInfo && !penaltyInfo.expired && (

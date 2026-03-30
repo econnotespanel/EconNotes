@@ -1,6 +1,6 @@
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, Users, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone } from 'lucide-react';
+import { BookOpen, Users, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone, ShieldCheck } from 'lucide-react';
 import logo from '@/assets/econnotes-logo.png';
 
 const About = () => {
@@ -67,6 +67,49 @@ const About = () => {
               <h3 className="font-semibold">İletişim & Destek</h3>
               <p className="text-sm text-muted-foreground">
                 Teknik destek ve önerileriniz için: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" /> KVKK Bilgilendirmesi
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-muted-foreground leading-relaxed">
+            <p>
+              EconNotes Panel, 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında 
+              kullanıcılarının kişisel verilerini koruma altına almaktadır.
+            </p>
+            <div>
+              <h4 className="font-semibold text-foreground mb-2">Toplanan Bilgiler</h4>
+              <ul className="list-disc list-inside space-y-1">
+                <li><strong>Ad-Soyad:</strong> Kullanıcı kimliğinin doğrulanması ve profil oluşturulması amacıyla toplanır.</li>
+                <li><strong>E-posta Adresi:</strong> Hesap girişi, şifre sıfırlama ve iletişim amacıyla kullanılır.</li>
+                <li><strong>Üniversite Adı:</strong> Akademik topluluk doğrulaması için toplanır.</li>
+                <li><strong>Bölüm Bilgisi:</strong> Ders notu sınıflandırması ve öneriler için kullanılır.</li>
+                <li><strong>Sınıf Bilgisi:</strong> Ders notlarının sınıf bazında filtrelenmesi amacıyla toplanır.</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-foreground mb-2">Verilerin Kullanım Amacı</h4>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Platform hizmetlerinin sunulması ve iyileştirilmesi</li>
+                <li>Kullanıcı hesap güvenliğinin sağlanması</li>
+                <li>Ders notu paylaşım ve mesajlaşma hizmetlerinin yürütülmesi</li>
+                <li>Platform kurallarının uygulanması ve moderasyon</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-foreground mb-2">Veri Güvenliği</h4>
+              <p>
+                Kişisel verileriniz şifreli bağlantılar üzerinden iletilmekte ve güvenli sunucularda 
+                saklanmaktadır. Verileriniz üçüncü şahıslarla paylaşılmamaktadır. KVKK kapsamındaki 
+                haklarınız (erişim, düzeltme, silme, itiraz) için 
+                <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline ml-1">econnotespanel@gmail.com</a> adresinden 
+                bizimle iletişime geçebilirsiniz.
               </p>
             </div>
           </CardContent>
