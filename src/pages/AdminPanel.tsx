@@ -51,7 +51,7 @@ const AdminPanel = () => {
   const [selectedRole, setSelectedRole] = useState('student');
   const [editUserDialog, setEditUserDialog] = useState(false);
   const [editUserData, setEditUserData] = useState<any>(null);
-  const [editUserForm, setEditUserForm] = useState({ full_name: '', university: '', department: '' });
+  const [editUserForm, setEditUserForm] = useState({ full_name: '', university: '', department: '', grade: 1 });
   const [extendPenaltyDialog, setExtendPenaltyDialog] = useState(false);
   const [extendPenalty, setExtendPenalty] = useState<any>(null);
   const [extendMinutes, setExtendMinutes] = useState('60');
