@@ -530,6 +530,9 @@ const Notes = () => {
                               <Button size="sm" variant="ghost" onClick={() => shareNote(note, 'twitter')} className="h-7 px-2" title="X">
                                 <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">X</span>
                               </Button>
+                              <Button size="sm" variant="ghost" onClick={() => shareNote(note, 'facebook')} className="h-7 px-2 text-[#1877F2]" title="Facebook">
+                                <Share2 className="h-3 w-3 mr-1" /><span className="text-[10px]">FB</span>
+                              </Button>
                             </div>
                           </div>
 

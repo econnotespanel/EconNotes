@@ -1,6 +1,6 @@
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, Users, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone } from 'lucide-react';
+import { BookOpen, Users, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone, ShieldCheck } from 'lucide-react';
 import logo from '@/assets/econnotes-logo.png';
 
 const About = () => {
