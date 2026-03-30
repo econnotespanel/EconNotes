@@ -126,7 +126,7 @@ const Dashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Ana Sayfa</h1>
-            <p className="text-muted-foreground text-sm">Hoş Geldiniz, {profile?.full_name}</p>
+            <p className="text-muted-foreground text-sm">Hoş Geldiniz</p>
           </div>
           {/* Academic Week Widget */}
           {academicWeek.week && (

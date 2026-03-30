@@ -123,6 +123,14 @@ const Messages = () => {
       .or(`and(sender_id.eq.${user!.id},receiver_id.eq.${friendUserId}),and(sender_id.eq.${friendUserId},receiver_id.eq.${user!.id})`)
       .order('created_at', { ascending: true });
     setMessages(data || []);
+    
+    // Mark received messages as read
+    await supabase.from('messages')
+      .update({ is_read: true })
+      .eq('sender_id', friendUserId)
+      .eq('receiver_id', user!.id)
+      .eq('is_read', false);
+    
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
@@ -553,12 +561,12 @@ const Messages = () => {
                   ) : (
                     messages.map(msg => (
                       <div key={msg.id} className={`group flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
-                        <div className="relative">
-                          <div className={`inline-block max-w-[85%] p-3 rounded-xl text-sm break-words ${
+                        <div className="relative max-w-[85%]">
+                          <div className={`p-3 rounded-xl text-sm break-words ${
                             msg.sender_id === user?.id
                               ? 'bg-primary text-primary-foreground rounded-br-sm'
                               : 'bg-accent rounded-bl-sm'
-                          }`}>
+                          }`} style={{ maxWidth: 'fit-content', minWidth: '60px' }}>
                             {renderMessageContent(msg.content)}
                             <p className="text-[10px] mt-1 opacity-60">
                               {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}

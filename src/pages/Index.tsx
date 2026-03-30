@@ -50,14 +50,21 @@ const Index = () => {
             </div>
           </div>
           <h1 className="text-2xl font-bold text-foreground">EconNotes Panel Bakımda</h1>
-          <p className="text-muted-foreground">
-            EconNotes Panel bakımda, lütfen daha sonra tekrar deneyin.
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            EconNotes'a şu anda bakım çalışmaları nedeniyle geçici olarak erişim sağlanamamaktadır. 
+            Yaşanan sorunun en kısa sürede giderilmesi için çalışmalarımız titizlikle sürdürülmektedir. 
+            Anlayışınız, sabrınız ve desteğiniz için teşekkür ederiz.
           </p>
           {closedUntil && (
             <p className="text-sm text-muted-foreground">
               Tahmini açılış: <strong>{new Date(closedUntil).toLocaleString('tr-TR')}</strong>
             </p>
           )}
+          <p className="text-xs text-muted-foreground mt-2">
+            Yardım ve teknik destek talepleriniz için{' '}
+            <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>{' '}
+            adresi üzerinden bizimle iletişime geçebilirsiniz.
+          </p>
           <p className="text-xs text-muted-foreground mt-4">
             Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
           </p>

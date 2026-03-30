@@ -51,7 +51,7 @@ const AdminPanel = () => {
   const [selectedRole, setSelectedRole] = useState('student');
   const [editUserDialog, setEditUserDialog] = useState(false);
   const [editUserData, setEditUserData] = useState<any>(null);
-  const [editUserForm, setEditUserForm] = useState({ full_name: '', university: '', department: '' });
+  const [editUserForm, setEditUserForm] = useState({ full_name: '', university: '', department: '', grade: 1 });
   const [extendPenaltyDialog, setExtendPenaltyDialog] = useState(false);
   const [extendPenalty, setExtendPenalty] = useState<any>(null);
   const [extendMinutes, setExtendMinutes] = useState('60');
@@ -157,7 +157,13 @@ const AdminPanel = () => {
 
   const updateUserProfile = async () => {
     if (!editUserData) return;
-    await supabase.from('profiles').update(editUserForm).eq('user_id', editUserData.user_id);
+    const { error } = await supabase.from('profiles').update({
+      full_name: editUserForm.full_name,
+      university: editUserForm.university,
+      department: editUserForm.department,
+      grade: editUserForm.grade,
+    }).eq('user_id', editUserData.user_id);
+    if (error) { toast.error('Güncelleme başarısız: ' + error.message); return; }
     toast.success('Kullanıcı bilgileri güncellendi!');
     setEditUserDialog(false); fetchAll();
   };
@@ -241,7 +247,7 @@ const AdminPanel = () => {
                           <td className="p-2 hidden lg:table-cell">{u.last_login ? new Date(u.last_login).toLocaleString('tr-TR') : '-'}</td>
                           <td className="p-2">
                             <div className="flex gap-1">
-                              <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name, university: u.university, department: u.department }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
+                              <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name || '', university: u.university || '', department: u.department || '', grade: u.grade || 1 }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol"><UserCog className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza"><Ban className="h-3 w-3" /></Button>
                               <AlertDialog>
@@ -429,6 +435,17 @@ const AdminPanel = () => {
               <div className="space-y-2"><Label>Ad Soyad</Label><Input value={editUserForm.full_name} onChange={e => setEditUserForm({...editUserForm, full_name: e.target.value})} /></div>
               <div className="space-y-2"><Label>Üniversite</Label><Input value={editUserForm.university} onChange={e => setEditUserForm({...editUserForm, university: e.target.value})} /></div>
               <div className="space-y-2"><Label>Bölüm</Label><Input value={editUserForm.department} onChange={e => setEditUserForm({...editUserForm, department: e.target.value})} /></div>
+              <div className="space-y-2"><Label>Sınıf</Label>
+                <Select value={String(editUserForm.grade)} onValueChange={v => setEditUserForm({...editUserForm, grade: parseInt(v)})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1. Sınıf</SelectItem>
+                    <SelectItem value="2">2. Sınıf</SelectItem>
+                    <SelectItem value="3">3. Sınıf</SelectItem>
+                    <SelectItem value="4">4. Sınıf</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Button className="w-full" onClick={updateUserProfile}>Kaydet</Button>
             </div>
           </DialogContent>
