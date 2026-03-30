@@ -157,7 +157,13 @@ const AdminPanel = () => {
 
   const updateUserProfile = async () => {
     if (!editUserData) return;
-    await supabase.from('profiles').update(editUserForm).eq('user_id', editUserData.user_id);
+    const { error } = await supabase.from('profiles').update({
+      full_name: editUserForm.full_name,
+      university: editUserForm.university,
+      department: editUserForm.department,
+      grade: editUserForm.grade,
+    }).eq('user_id', editUserData.user_id);
+    if (error) { toast.error('Güncelleme başarısız: ' + error.message); return; }
     toast.success('Kullanıcı bilgileri güncellendi!');
     setEditUserDialog(false); fetchAll();
   };
