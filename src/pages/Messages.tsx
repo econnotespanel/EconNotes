@@ -123,6 +123,14 @@ const Messages = () => {
       .or(`and(sender_id.eq.${user!.id},receiver_id.eq.${friendUserId}),and(sender_id.eq.${friendUserId},receiver_id.eq.${user!.id})`)
       .order('created_at', { ascending: true });
     setMessages(data || []);
+    
+    // Mark received messages as read
+    await supabase.from('messages')
+      .update({ is_read: true })
+      .eq('sender_id', friendUserId)
+      .eq('receiver_id', user!.id)
+      .eq('is_read', false);
+    
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
