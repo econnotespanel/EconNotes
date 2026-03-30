@@ -562,11 +562,11 @@ const Messages = () => {
                     messages.map(msg => (
                       <div key={msg.id} className={`group flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
                         <div className="relative">
-                          <div className={`inline-block max-w-[85%] p-3 rounded-xl text-sm break-words ${
+                          <div className={`p-3 rounded-xl text-sm break-words ${
                             msg.sender_id === user?.id
                               ? 'bg-primary text-primary-foreground rounded-br-sm'
                               : 'bg-accent rounded-bl-sm'
-                          }`}>
+                          }`} style={{ maxWidth: 'fit-content', minWidth: '60px' }}>
                             {renderMessageContent(msg.content)}
                             <p className="text-[10px] mt-1 opacity-60">
                               {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
