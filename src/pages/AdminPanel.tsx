@@ -108,7 +108,8 @@ const AdminPanel = () => {
   const updateAcademicWeek = async () => {
     await supabase.from('system_settings').update({ 
       academic_week: academicWeek ? parseInt(academicWeek) : null, 
-      academic_week_label: academicWeekLabel || null 
+      academic_week_label: academicWeekLabel || null,
+      academic_semester: academicSemester || 'Güz',
     } as any).not('id', 'is', null);
     toast.success('Akademik hafta güncellendi!');
   };
