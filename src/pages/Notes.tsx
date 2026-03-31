@@ -140,6 +140,7 @@ const Notes = () => {
       file_url: fileUrl, file_name: fileName, file_type: fileType,
       user_id: user!.id, uploader_name: profile?.full_name || '',
       note_password: form.note_password || null,
+      university: form.university || profile?.university || '',
     };
 
     if (editingNote) {
