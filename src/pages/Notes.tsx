@@ -178,7 +178,7 @@ const Notes = () => {
     setForm({
       title: note.title, description: note.description || '', grade: String(note.grade),
       department: note.department, course: note.course, semester: note.semester, file: null,
-      note_password: note.note_password || '',
+      note_password: note.note_password || '', university: note.university || '',
     });
     setAcceptOwnership(true);
     setDialogOpen(true);
