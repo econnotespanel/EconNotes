@@ -73,6 +73,9 @@ export type Database = {
       }
       announcements: {
         Row: {
+          attachment_name: string | null
+          attachment_type: string | null
+          attachment_url: string | null
           author_name: string
           content: string
           created_at: string
@@ -83,6 +86,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          attachment_name?: string | null
+          attachment_type?: string | null
+          attachment_url?: string | null
           author_name?: string
           content: string
           created_at?: string
@@ -93,11 +99,47 @@ export type Database = {
           user_id: string
         }
         Update: {
+          attachment_name?: string | null
+          attachment_type?: string | null
+          attachment_url?: string | null
           author_name?: string
           content?: string
           created_at?: string
           edited_at?: string | null
           id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      banners: {
+        Row: {
+          bg_color: string | null
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bg_color?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bg_color?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
           title?: string
           updated_at?: string
           user_id?: string
@@ -275,6 +317,7 @@ export type Database = {
           note_password: string | null
           semester: string
           title: string
+          university: string | null
           updated_at: string
           uploader_name: string
           user_id: string
@@ -293,6 +336,7 @@ export type Database = {
           note_password?: string | null
           semester: string
           title: string
+          university?: string | null
           updated_at?: string
           uploader_name?: string
           user_id: string
@@ -311,6 +355,7 @@ export type Database = {
           note_password?: string | null
           semester?: string
           title?: string
+          university?: string | null
           updated_at?: string
           uploader_name?: string
           user_id?: string
@@ -391,6 +436,7 @@ export type Database = {
       }
       system_settings: {
         Row: {
+          academic_semester: string | null
           academic_week: number | null
           academic_week_label: string | null
           closed_until: string | null
@@ -400,6 +446,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          academic_semester?: string | null
           academic_week?: number | null
           academic_week_label?: string | null
           closed_until?: string | null
@@ -409,6 +456,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          academic_semester?: string | null
           academic_week?: number | null
           academic_week_label?: string | null
           closed_until?: string | null
