@@ -317,6 +317,10 @@ const Notes = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
+                    <Label>Üniversite *</Label>
+                    <Input value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} placeholder="Üniversite adını yazın" />
+                  </div>
+                  <div className="space-y-2">
                     <Label>Bölüm *</Label>
                     <Input value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} placeholder="Bölüm adını yazın" />
                   </div>
