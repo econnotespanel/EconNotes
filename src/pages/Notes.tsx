@@ -41,6 +41,7 @@ const Notes = () => {
   const [form, setForm] = useState({
     title: '', description: '', grade: '1', department: '', course: '',
     semester: 'Güz Dönemi', file: null as File | null, note_password: '',
+    university: '',
   });
   const [confirmUpload, setConfirmUpload] = useState(false);
   const [acceptOwnership, setAcceptOwnership] = useState(false);
