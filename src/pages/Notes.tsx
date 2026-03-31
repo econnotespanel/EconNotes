@@ -158,7 +158,7 @@ const Notes = () => {
 
     setDialogOpen(false);
     setEditingNote(null);
-    setForm({ title: '', description: '', grade: '1', department: '', course: '', semester: 'Güz Dönemi', file: null, note_password: '' });
+    setForm({ title: '', description: '', grade: '1', department: '', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
     setConfirmUpload(false);
     setAcceptOwnership(false);
     fetchNotes();
