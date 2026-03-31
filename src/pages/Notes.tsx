@@ -115,7 +115,7 @@ const Notes = () => {
       return;
     }
     if (!canUploadNow()) {
-      toast.error('Not yükleme saatleri: 09:00-00:00. Panel güvenlik kurallarından dolayı bu kısıtlama yapılmaktadır.');
+      toast.error('Panel güvenlik kuralları gereği not yükleme işlemleri yalnızca 09.00 - 00.00 saatleri arasında yapılabilmektedir. Bu kısıtlama, sistem güvenliğini sağlamak amacıyla uygulanmaktadır. Anlayışınız için teşekkür ederiz.', { duration: 8000 });
       return;
     }
 
