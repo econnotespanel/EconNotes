@@ -44,6 +44,13 @@ const Register = () => {
   const [rulesOpen, setRulesOpen] = useState(false);
   const navigate = useNavigate();
 
+  const validatePassword = (password: string) => {
+    if (password.length < 6) return 'Şifre en az 6 karakter olmalıdır.';
+    if (!/[A-Z]/.test(password)) return 'Şifre en az 1 büyük harf içermelidir.';
+    if (!/[0-9]/.test(password)) return 'Şifre en az 1 rakam içermelidir.';
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.fullName || !formData.email || !formData.password || !formData.university || !formData.department) {
@@ -54,8 +61,9 @@ const Register = () => {
       toast.error('Şifreler eşleşmiyor.');
       return;
     }
-    if (formData.password.length < 6) {
-      toast.error('Şifre en az 6 karakter olmalıdır.');
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
     if (!acceptRules) {
@@ -146,6 +154,7 @@ const Register = () => {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              <p className="text-[10px] text-muted-foreground">En az 6 karakter, 1 büyük harf ve 1 rakam gereklidir.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="confirmPassword">Şifre Tekrar</Label>
@@ -193,7 +202,7 @@ const Register = () => {
           </div>
         </CardContent>
     </Card>
-      <p className="absolute bottom-4 right-4 text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+      <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
     </div>
   );
 };

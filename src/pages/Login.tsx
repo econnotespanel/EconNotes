@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle, Shield } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Login = () => {
@@ -62,7 +62,6 @@ const Login = () => {
         const penaltyUntil = latest.penalty_until ? new Date(latest.penalty_until) : null;
 
         if (isPermanent || (penaltyUntil && penaltyUntil > now)) {
-          // User is penalized, sign them out
           await supabase.auth.signOut();
           setPenaltyInfo({
             reason: latest.reason,
@@ -73,7 +72,6 @@ const Login = () => {
           return;
         }
 
-        // Penalty expired - show info message
         if (penaltyUntil && penaltyUntil <= now && !isPermanent) {
           setPenaltyInfo({
             reason: latest.reason,
@@ -85,7 +83,6 @@ const Login = () => {
       }
     }
 
-    // Fetch profile name for welcome message
     const { data: profileData } = await supabase
       .from('profiles')
       .select('full_name')
@@ -111,11 +108,11 @@ const Login = () => {
           <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
           <CardDescription className="text-base">{getGreeting()}</CardDescription>
           <p className="text-sm text-muted-foreground">EconNotes, Not Paylaşım Paneline Hoş Geldiniz!</p>
-          <div className="flex items-center justify-center gap-2">
-            <div className="p-2 rounded-full bg-primary/10">
-              <Shield className="h-5 w-5 text-primary" />
+          <div className="flex items-center justify-center gap-3">
+            <div className="p-3 rounded-full bg-primary/10">
+              <ShieldCheck className="h-6 w-6 text-primary" />
             </div>
-            <span className="text-sm font-medium text-muted-foreground">Güvenli Giriş</span>
+            <span className="text-base font-semibold text-muted-foreground">Güvenli Giriş</span>
           </div>
         </CardHeader>
         <CardContent>
@@ -189,7 +186,7 @@ const Login = () => {
           </div>
         </CardContent>
     </Card>
-      <p className="absolute bottom-4 right-4 text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+      <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
     </div>
   );
 };
