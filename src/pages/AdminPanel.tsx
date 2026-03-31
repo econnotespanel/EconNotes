@@ -87,6 +87,7 @@ const AdminPanel = () => {
       setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
       setAcademicWeek(String((settingsRes.data as any).academic_week || ''));
       setAcademicWeekLabel((settingsRes.data as any).academic_week_label || '');
+      setAcademicSemester((settingsRes.data as any).academic_semester || 'Güz');
     }
   };
 
