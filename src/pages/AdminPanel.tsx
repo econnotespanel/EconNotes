@@ -42,6 +42,7 @@ const AdminPanel = () => {
   const [noteUploadRestricted, setNoteUploadRestricted] = useState(true);
   const [academicWeek, setAcademicWeek] = useState<string>('');
   const [academicWeekLabel, setAcademicWeekLabel] = useState('');
+  const [academicSemester, setAcademicSemester] = useState('Güz');
   const [penaltyDialog, setPenaltyDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [penaltyReason, setPenaltyReason] = useState('');
@@ -86,6 +87,7 @@ const AdminPanel = () => {
       setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
       setAcademicWeek(String((settingsRes.data as any).academic_week || ''));
       setAcademicWeekLabel((settingsRes.data as any).academic_week_label || '');
+      setAcademicSemester((settingsRes.data as any).academic_semester || 'Güz');
     }
   };
 
@@ -106,7 +108,8 @@ const AdminPanel = () => {
   const updateAcademicWeek = async () => {
     await supabase.from('system_settings').update({ 
       academic_week: academicWeek ? parseInt(academicWeek) : null, 
-      academic_week_label: academicWeekLabel || null 
+      academic_week_label: academicWeekLabel || null,
+      academic_semester: academicSemester || 'Güz',
     } as any).not('id', 'is', null);
     toast.success('Akademik hafta güncellendi!');
   };
@@ -205,6 +208,16 @@ const AdminPanel = () => {
             <div className="space-y-1">
               <Label className="text-xs">Hafta No</Label>
               <Input type="number" value={academicWeek} onChange={e => setAcademicWeek(e.target.value)} className="w-20 h-8" min="1" max="14" placeholder="—" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Dönem</Label>
+              <Select value={academicSemester} onValueChange={setAcademicSemester}>
+                <SelectTrigger className="w-28 h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Güz">Güz</SelectItem>
+                  <SelectItem value="Bahar">Bahar</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1 flex-1 min-w-[150px]">
               <Label className="text-xs">Etiket</Label>

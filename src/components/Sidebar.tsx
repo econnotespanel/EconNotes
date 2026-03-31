@@ -1,8 +1,8 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -14,34 +14,51 @@ const Sidebar = () => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
 
+  const fetchUnread = useCallback(async () => {
+    if (!user) return;
+    // Count distinct senders with unread messages
+    const { data: unreadMsgs } = await supabase
+      .from('messages')
+      .select('sender_id')
+      .eq('receiver_id', user.id)
+      .eq('is_read', false);
+    
+    if (unreadMsgs) {
+      const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));
+      setUnreadMessages(uniqueSenders.size);
+    }
+
+    const { data: announcements } = await supabase.from('announcements').select('id');
+    const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
+    const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
+    const unread = (announcements || []).filter(a => !viewedIds.has(a.id)).length;
+    setUnreadAnnouncements(unread);
+  }, [user]);
+
+  useEffect(() => {
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => clearInterval(interval);
+  }, [fetchUnread]);
+
+  // Realtime subscription for message updates
   useEffect(() => {
     if (!user) return;
-    const fetchUnread = async () => {
-      // Unread messages
-      const { count } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('receiver_id', user.id)
-        .eq('is_read', false);
-      setUnreadMessages(count || 0);
-
-      // Unread announcements
-      const { data: announcements } = await supabase.from('announcements').select('id');
-      const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
-      const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
-      const unread = (announcements || []).filter(a => !viewedIds.has(a.id)).length;
-      setUnreadAnnouncements(unread);
-    };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
+    const channel = supabase
+      .channel('sidebar-messages')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => {
+        fetchUnread();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, fetchUnread]);
 
   const links = [
     { label: 'Ana Sayfa', icon: Home, path: '/' },
     { label: 'Notlar', icon: FileText, path: '/notes' },
     { label: 'Duyurular', icon: Megaphone, path: '/announcements', badge: unreadAnnouncements },
     { label: 'Mesajlar', icon: MessageSquare, path: '/messages', badge: unreadMessages },
+    { label: 'Canlı Ders', icon: Video, path: '/live-class' },
     { label: 'Akademik Asistan', icon: Bot, path: '/assistant' },
     { label: 'Profilim', icon: User, path: '/profile' },
     { label: 'Hakkında', icon: Info, path: '/about' },
@@ -80,7 +97,6 @@ const Sidebar = () => {
 
   return (
     <>
-      {/* Mobile hamburger */}
       <Button
         variant="ghost"
         size="icon"
@@ -90,12 +106,10 @@ const Sidebar = () => {
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </Button>
 
-      {/* Mobile overlay */}
       {open && (
         <div className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-sm md:hidden" onClick={() => setOpen(false)} />
       )}
 
-      {/* Sidebar */}
       <aside
         className={cn(
           "fixed left-0 top-16 z-50 h-[calc(100vh-4rem)] w-60 border-r border-border bg-card transition-transform duration-300 md:translate-x-0 flex flex-col justify-between",

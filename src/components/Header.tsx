@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 const Header = () => {
@@ -26,25 +26,44 @@ const Header = () => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
 
+  const fetchUnread = useCallback(async () => {
+    if (!user) return;
+
+    // Count distinct senders with unread messages
+    const { data: unreadMsgs } = await supabase
+      .from('messages')
+      .select('sender_id')
+      .eq('receiver_id', user.id)
+      .eq('is_read', false);
+    
+    if (unreadMsgs) {
+      const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));
+      setUnreadMessages(uniqueSenders.size);
+    }
+
+    const { data: announcements } = await supabase.from('announcements').select('id');
+    const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
+    const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
+    setUnreadAnnouncements((announcements || []).filter(a => !viewedIds.has(a.id)).length);
+  }, [user]);
+
+  useEffect(() => {
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => clearInterval(interval);
+  }, [fetchUnread]);
+
+  // Subscribe to realtime message changes
   useEffect(() => {
     if (!user) return;
-    const fetchUnread = async () => {
-      const { count } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('receiver_id', user.id)
-        .eq('is_read', false);
-      setUnreadMessages(count || 0);
-
-      const { data: announcements } = await supabase.from('announcements').select('id');
-      const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
-      const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
-      setUnreadAnnouncements((announcements || []).filter(a => !viewedIds.has(a.id)).length);
-    };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
-  }, [user]);
+    const channel = supabase
+      .channel('header-messages')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => {
+        fetchUnread();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user, fetchUnread]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -68,7 +87,7 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-card/80 backdrop-blur-xl">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-3 cursor-pointer ml-10 md:ml-0" onClick={() => navigate('/')}>
+        <div className="flex items-center gap-3 cursor-pointer ml-12 md:ml-0" onClick={() => navigate('/')}>
           <img 
             src={logo} 
             alt="EconNotes" 

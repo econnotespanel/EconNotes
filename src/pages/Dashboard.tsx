@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,27 +15,32 @@ const Dashboard = () => {
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
   const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([]);
   const [syncTime] = useState(new Date().toLocaleString('tr-TR'));
-  const [academicWeek, setAcademicWeek] = useState<{ week: number | null; label: string | null }>({ week: null, label: null });
+  const [academicWeek, setAcademicWeek] = useState<{ week: number | null; label: string | null; semester: string | null }>({ week: null, label: null, semester: null });
   const [showAllNotes, setShowAllNotes] = useState(false);
   const [showAllAnnouncements, setShowAllAnnouncements] = useState(false);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const [showWelcome, setShowWelcome] = useState(false);
   const [sessionWarning, setSessionWarning] = useState(false);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchData = async () => {
-      const [notesRes, announcementsRes, settingsRes] = await Promise.all([
+      const [notesRes, announcementsRes, settingsRes, bannersRes] = await Promise.all([
         supabase.from('notes').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
         supabase.from('announcements').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
         supabase.from('system_settings').select('*').limit(1).single(),
+        supabase.from('banners').select('*').eq('is_active', true).order('created_at', { ascending: false }),
       ]);
       setStats({ notes: notesRes.count || 0, announcements: announcementsRes.count || 0 });
       setRecentNotes(notesRes.data || []);
       setRecentAnnouncements(announcementsRes.data || []);
+      setBanners(bannersRes.data || []);
       if (settingsRes.data) {
         setAcademicWeek({
           week: (settingsRes.data as any).academic_week,
           label: (settingsRes.data as any).academic_week_label,
+          semester: (settingsRes.data as any).academic_semester,
         });
       }
     };
@@ -63,7 +68,6 @@ const Dashboard = () => {
     checkUnreadAnnouncements();
     checkFirstLogin();
 
-    // Session timeout warning (1 hour)
     const sessionStart = Date.now();
     const interval = setInterval(() => {
       if (Date.now() - sessionStart > 3600000) {
@@ -91,7 +95,22 @@ const Dashboard = () => {
   return (
     <Layout>
       <div className="space-y-6 animate-fade-in">
-        {/* Welcome message for first-time users */}
+        {/* Banners */}
+        {banners.filter(b => !dismissedBanners.has(b.id)).map(banner => (
+          <Card key={banner.id} className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <Megaphone className="h-5 w-5 text-primary shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm">{banner.title}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{banner.content}</p>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setDismissedBanners(prev => new Set(prev).add(banner.id))}><X className="h-4 w-4" /></Button>
+            </CardContent>
+          </Card>
+        ))}
+
         {showWelcome && (
           <Card className="glass-card border-primary/30 bg-primary/5">
             <CardContent className="p-4 flex items-center justify-between">
@@ -107,7 +126,6 @@ const Dashboard = () => {
           </Card>
         )}
 
-        {/* Session timeout warning */}
         {sessionWarning && (
           <Card className="glass-card border-warning/30 bg-warning/5">
             <CardContent className="p-4 flex items-center justify-between">
@@ -128,21 +146,22 @@ const Dashboard = () => {
             <h1 className="text-2xl font-bold">Ana Sayfa</h1>
             <p className="text-muted-foreground text-sm">Hoş Geldiniz</p>
           </div>
-          {/* Academic Week Widget */}
           {academicWeek.week && (
             <Card className="glass-card">
               <CardContent className="p-3 flex items-center gap-2">
                 <GraduationCap className="h-5 w-5 text-primary" />
                 <div className="text-right">
                   <p className="text-sm font-bold">{academicWeek.week}. Hafta</p>
-                  {academicWeek.label && <p className="text-[10px] text-muted-foreground">{academicWeek.label}</p>}
+                  <div className="flex items-center gap-1">
+                    {academicWeek.semester && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">{academicWeek.semester}</span>}
+                    {academicWeek.label && <span className="text-[10px] text-muted-foreground">{academicWeek.label}</span>}
+                  </div>
                 </div>
               </CardContent>
             </Card>
           )}
         </div>
 
-        {/* Stats */}
         <div className="flex flex-col sm:flex-row items-stretch gap-4">
           {statCards.map((stat, i) => (
             <div key={stat.label} className="flex items-stretch flex-1">
@@ -165,7 +184,6 @@ const Dashboard = () => {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Recent Notes */}
           <Card className="glass-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -199,7 +217,6 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Recent Announcements */}
           <Card className="glass-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">

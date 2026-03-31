@@ -41,6 +41,7 @@ const Notes = () => {
   const [form, setForm] = useState({
     title: '', description: '', grade: '1', department: '', course: '',
     semester: 'Güz Dönemi', file: null as File | null, note_password: '',
+    university: '',
   });
   const [confirmUpload, setConfirmUpload] = useState(false);
   const [acceptOwnership, setAcceptOwnership] = useState(false);
@@ -114,7 +115,7 @@ const Notes = () => {
       return;
     }
     if (!canUploadNow()) {
-      toast.error('Not yükleme saatleri: 09:00-00:00. Panel güvenlik kurallarından dolayı bu kısıtlama yapılmaktadır.');
+      toast.error('Panel güvenlik kuralları gereği not yükleme işlemleri yalnızca 09.00 - 00.00 saatleri arasında yapılabilmektedir. Bu kısıtlama, sistem güvenliğini sağlamak amacıyla uygulanmaktadır. Anlayışınız için teşekkür ederiz.', { duration: 8000 });
       return;
     }
 
@@ -139,6 +140,7 @@ const Notes = () => {
       file_url: fileUrl, file_name: fileName, file_type: fileType,
       user_id: user!.id, uploader_name: profile?.full_name || '',
       note_password: form.note_password || null,
+      university: form.university || profile?.university || '',
     };
 
     if (editingNote) {
@@ -156,7 +158,7 @@ const Notes = () => {
 
     setDialogOpen(false);
     setEditingNote(null);
-    setForm({ title: '', description: '', grade: '1', department: '', course: '', semester: 'Güz Dönemi', file: null, note_password: '' });
+    setForm({ title: '', description: '', grade: '1', department: '', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
     setConfirmUpload(false);
     setAcceptOwnership(false);
     fetchNotes();
@@ -176,7 +178,7 @@ const Notes = () => {
     setForm({
       title: note.title, description: note.description || '', grade: String(note.grade),
       department: note.department, course: note.course, semester: note.semester, file: null,
-      note_password: note.note_password || '',
+      note_password: note.note_password || '', university: note.university || '',
     });
     setAcceptOwnership(true);
     setDialogOpen(true);
@@ -313,6 +315,10 @@ const Notes = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Üniversite *</Label>
+                    <Input value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} placeholder="Üniversite adını yazın" />
                   </div>
                   <div className="space-y-2">
                     <Label>Bölüm *</Label>
@@ -466,7 +472,7 @@ const Notes = () => {
                             {note.note_password && <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning flex items-center gap-0.5"><Lock className="h-2.5 w-2.5" /> Şifreli</span>}
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span>{note.uploader_name} • {note.department} • {formatDateTime(note.created_at)}</span>
+                            <span>{note.uploader_name} • {note.university ? `${note.university} • ` : ''}{note.department} • {formatDateTime(note.created_at)}</span>
                             {note.edited_at && (
                               <span className="flex items-center gap-0.5">
                                 <Pencil className="h-2.5 w-2.5" /> {formatDateTime(note.edited_at)}

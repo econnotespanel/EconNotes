@@ -1,13 +1,15 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import Dashboard from './Dashboard';
 import { AlertTriangle } from 'lucide-react';
 import logo from '@/assets/econnotes-logo.png';
+import { toast } from 'sonner';
 
 const Index = () => {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isAdmin, signOut } = useAuth();
+  const navigate = useNavigate();
   const [systemOpen, setSystemOpen] = useState<boolean | null>(null);
   const [closedUntil, setClosedUntil] = useState<string | null>(null);
 
@@ -15,14 +17,26 @@ const Index = () => {
     const checkSystem = async () => {
       const { data } = await supabase.from('system_settings').select('*').limit(1).single();
       if (data) {
-        setSystemOpen((data as any).is_system_open ?? true);
+        const isOpen = (data as any).is_system_open ?? true;
+        setSystemOpen(isOpen);
         setClosedUntil((data as any).closed_until);
+
+        // If system just closed and user is not admin, force logout
+        if (!isOpen && user && !isAdmin) {
+          toast.error('EconNotes Panel Hatası: Sistem bakıma alındı. Oturumunuz sonlandırıldı.', { duration: 6000 });
+          await signOut();
+          navigate('/login');
+        }
       } else {
         setSystemOpen(true);
       }
     };
     checkSystem();
-  }, []);
+
+    // Poll system status every 15 seconds
+    const interval = setInterval(checkSystem, 15000);
+    return () => clearInterval(interval);
+  }, [user, isAdmin]);
 
   if (loading || systemOpen === null) {
     return (
@@ -36,13 +50,17 @@ const Index = () => {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  // If system is closed and user is not admin, show maintenance message
   if (!systemOpen && !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <div className="max-w-md text-center space-y-4">
           <div className="flex justify-center">
-            <img src={logo} alt="EconNotes" className="h-20 w-20 object-contain" />
+            <img 
+              src={logo} 
+              alt="EconNotes" 
+              className="h-20 w-20 object-contain"
+              style={{ filter: 'var(--logo-filter)' }}
+            />
           </div>
           <div className="flex justify-center">
             <div className="p-4 rounded-full bg-warning/10">
