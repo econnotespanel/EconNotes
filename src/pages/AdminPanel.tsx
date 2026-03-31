@@ -206,6 +206,16 @@ const AdminPanel = () => {
               <Label className="text-xs">Hafta No</Label>
               <Input type="number" value={academicWeek} onChange={e => setAcademicWeek(e.target.value)} className="w-20 h-8" min="1" max="14" placeholder="—" />
             </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Dönem</Label>
+              <Select value={academicSemester} onValueChange={setAcademicSemester}>
+                <SelectTrigger className="w-28 h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Güz">Güz</SelectItem>
+                  <SelectItem value="Bahar">Bahar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1 flex-1 min-w-[150px]">
               <Label className="text-xs">Etiket</Label>
               <Input value={academicWeekLabel} onChange={e => setAcademicWeekLabel(e.target.value)} className="h-8" placeholder="ör: Vize Haftası" />

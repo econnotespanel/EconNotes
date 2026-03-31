@@ -472,7 +472,7 @@ const Notes = () => {
                             {note.note_password && <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning flex items-center gap-0.5"><Lock className="h-2.5 w-2.5" /> Şifreli</span>}
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span>{note.uploader_name} • {note.department} • {formatDateTime(note.created_at)}</span>
+                            <span>{note.uploader_name} • {note.university ? `${note.university} • ` : ''}{note.department} • {formatDateTime(note.created_at)}</span>
                             {note.edited_at && (
                               <span className="flex items-center gap-0.5">
                                 <Pencil className="h-2.5 w-2.5" /> {formatDateTime(note.edited_at)}
