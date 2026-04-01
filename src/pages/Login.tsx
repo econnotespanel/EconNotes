@@ -103,7 +103,7 @@ const Login = () => {
       <Card className="w-full max-w-md glass-card animate-fade-in relative z-10">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <img src={logo} alt="EconNotes" className="h-16 w-16 object-contain" />
+            <img src={logo} alt="EconNotes" className="h-16 w-16 object-contain" style={{ filter: 'var(--logo-filter)' }} />
           </div>
           <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
           <CardDescription className="text-base">{getGreeting()}</CardDescription>
