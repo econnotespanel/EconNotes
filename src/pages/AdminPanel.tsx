@@ -337,7 +337,46 @@ const AdminPanel = () => {
             </CardContent></Card>
           </TabsContent>
 
-          <TabsContent value="penalties">
+          <TabsContent value="banners">
+            <Card className="glass-card">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Banner Yönetimi</CardTitle>
+                <Button size="sm" onClick={() => { setEditingBanner(null); setBannerForm({ title: '', content: '', bg_color: 'primary' }); setBannerDialog(true); }}>
+                  <Plus className="h-3 w-3 mr-1" /> Yeni Banner
+                </Button>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                {banners.map((b) => (
+                  <div key={b.id} className={`flex items-center justify-between p-3 rounded-lg border ${b.is_active ? 'bg-primary/5 border-primary/20' : 'bg-accent/50 border-border/50'}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">{b.title}</p>
+                        <Badge variant="outline" className={`text-[10px] ${b.is_active ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'}`}>
+                          {b.is_active ? 'Aktif' : 'Pasif'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-1">{b.content}</p>
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <Button size="sm" variant="outline" onClick={() => toggleBannerActive(b.id, b.is_active)} title={b.is_active ? 'Pasif yap' : 'Aktif yap'}>
+                        <Power className={`h-3 w-3 ${b.is_active ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setEditingBanner(b); setBannerForm({ title: b.title, content: b.content, bg_color: b.bg_color || 'primary' }); setBannerDialog(true); }}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
+                        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Bu banner'ı silmek istediğinize emin misiniz?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => deleteBanner(b.id)}>Sil</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                ))}
+                {banners.length === 0 && <p className="text-center text-muted-foreground">Henüz banner yok.</p>}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
             <Card className="glass-card"><CardContent className="p-4 space-y-3">
               {penalties.map((p) => {
                 const penaltyUser = users.find(u => u.user_id === p.user_id);
