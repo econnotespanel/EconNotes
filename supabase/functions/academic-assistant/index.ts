@@ -1,6 +1,3 @@
-import "https://esm.sh/@anthropic-ai/sdk@0.39.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -12,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { message, notesContext, history } = await req.json();
+    const { message, notesContext, history, hasFile, fileName } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -21,12 +18,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    const systemPrompt = `Sen EconNotes Akademik Asistanısın. Üniversite öğrencilerine ders konularını anlatıyorsun.
-Aşağıda platformdaki mevcut ders notları listesi var. Kullanıcı bir ders veya konu sorduğunda, bu notlara referans vererek açıklama yap.
+    let systemPrompt = `Sen EconNotes Akademik Asistanısın. Üniversite öğrencilerine ders konularını anlatıyorsun.
 Türkçe yanıt ver. Akademik ve anlaşılır bir dille açıkla. Markdown formatı kullan.
+Kullanıcı sana dosya gönderebilir. Dosya içeriğini analiz et, özetle ve önemli noktaları çıkar.
+Ders özeti istendiğinde detaylı ve düzenli bir şekilde özetle.
 
-Mevcut Notlar:
+Mevcut Platformdaki Notlar:
 ${notesContext || 'Henüz not yüklenmemiş.'}`;
+
+    if (hasFile && fileName) {
+      systemPrompt += `\n\nKullanıcı "${fileName}" adlı bir dosya yükledi. Dosya içeriği mesajda yer alıyor. İçeriği analiz et ve kullanıcının sorusuna göre yanıt ver.`;
+    }
 
     const messages = [
       ...(history || []).map((m: any) => ({ role: m.role, content: m.content })),
@@ -45,7 +47,7 @@ ${notesContext || 'Henüz not yüklenmemiş.'}`;
           { role: 'system', content: systemPrompt },
           ...messages,
         ],
-        max_tokens: 2000,
+        max_tokens: 4000,
       }),
     });
 

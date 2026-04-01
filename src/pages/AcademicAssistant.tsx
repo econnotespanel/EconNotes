@@ -6,18 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Bot, Send, User, Loader2 } from 'lucide-react';
+import { Bot, Send, User, Loader2, Upload, FileText, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { toast } from 'sonner';
 
 const AcademicAssistant = () => {
   const { user, profile } = useAuth();
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: 'Merhaba! 🎓 Ben EconNotes Akademik Asistanınızım. Size ders notlarınız hakkında yardımcı olabilirim. Bir konu veya ders adı yazın, size açıklama yapayım!' }
+    { role: 'assistant', content: 'Merhaba! 🎓 Ben EconNotes Akademik Asistanınızım. Size ders notlarınız hakkında yardımcı olabilirim. Bir konu veya ders adı yazın, size açıklama yapayım! Ayrıca dosya yükleyerek ders özetleri çıkartabilirim.' }
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [notes, setNotes] = useState<any[]>([]);
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; content: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchNotes = async () => {
@@ -31,21 +34,52 @@ const AcademicAssistant = () => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const maxSize = 2 * 1024 * 1024; // 2MB for text extraction
+    if (file.size > maxSize) {
+      toast.error('Dosya boyutu 2MB\'dan küçük olmalıdır.');
+      return;
+    }
+
+    if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md') || file.name.endsWith('.csv')) {
+      const text = await file.text();
+      setUploadedFile({ name: file.name, content: text.slice(0, 10000) });
+      toast.success(`${file.name} yüklendi. Soru sorabilirsiniz.`);
+    } else {
+      // For non-text files, just note the filename
+      setUploadedFile({ name: file.name, content: `[Dosya yüklendi: ${file.name} - ${(file.size / 1024).toFixed(1)}KB]` });
+      toast.success(`${file.name} yüklendi.`);
+    }
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
     const userMessage = input.trim();
     setInput('');
+
+    let fullMessage = userMessage;
+    if (uploadedFile) {
+      fullMessage = `[Yüklenen dosya: ${uploadedFile.name}]\n\nDosya içeriği:\n${uploadedFile.content}\n\nKullanıcının sorusu: ${userMessage}`;
+    }
+
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setLoading(true);
 
     try {
       const notesContext = notes.map(n => `- ${n.title} (${n.course}, ${n.department}, ${n.semester}): ${n.description || 'Açıklama yok'}`).join('\n');
-      
+
       const response = await supabase.functions.invoke('academic-assistant', {
         body: {
-          message: userMessage,
+          message: fullMessage,
           notesContext,
           history: messages.slice(-10),
+          hasFile: !!uploadedFile,
+          fileName: uploadedFile?.name,
         },
       });
 
@@ -65,7 +99,7 @@ const AcademicAssistant = () => {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Bot className="h-6 w-6 text-primary" /> Akademik Asistan
           </h1>
-          <p className="text-sm text-muted-foreground">Ders notlarınız hakkında sorular sorun, konuları öğrenin</p>
+          <p className="text-sm text-muted-foreground">Ders notlarınız hakkında sorular sorun, dosya yükleyin ve özetler çıkartın</p>
         </div>
 
         <Card className="glass-card flex flex-col h-[calc(100%-5rem)]">
@@ -111,8 +145,24 @@ const AcademicAssistant = () => {
               <div ref={scrollRef} />
             </div>
           </ScrollArea>
+
+          {/* Uploaded file indicator */}
+          {uploadedFile && (
+            <div className="px-3 pt-2">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-accent/50 text-xs">
+                <FileText className="h-3 w-3 text-primary" />
+                <span className="flex-1 truncate">{uploadedFile.name}</span>
+                <Button variant="ghost" size="sm" className="h-5 w-5 p-0" onClick={() => setUploadedFile(null)}><X className="h-3 w-3" /></Button>
+              </div>
+            </div>
+          )}
+
           <div className="p-3 border-t border-border">
             <div className="flex gap-2">
+              <input type="file" ref={fileInputRef} className="hidden" accept=".txt,.md,.csv,.doc,.docx,.pdf" onChange={handleFileUpload} />
+              <Button variant="outline" size="icon" className="shrink-0" onClick={() => fileInputRef.current?.click()} title="Dosya Yükle">
+                <Upload className="h-4 w-4" />
+              </Button>
               <Textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
