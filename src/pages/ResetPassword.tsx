@@ -70,7 +70,7 @@ const ResetPassword = () => {
         <Card className="w-full max-w-md glass-card animate-fade-in relative z-10">
           <CardHeader className="text-center space-y-3">
             <div className="flex justify-center">
-              <img src={logo} alt="EconNotes" className="h-14 w-14 object-contain" />
+              <img src={logo} alt="EconNotes" className="h-14 w-14 object-contain" style={{ filter: 'var(--logo-filter)' }} />
             </div>
             <CardTitle className="text-2xl font-bold">Geçersiz Bağlantı</CardTitle>
             <CardDescription>Bu şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.</CardDescription>
