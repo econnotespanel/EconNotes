@@ -38,6 +38,7 @@ const AdminPanel = () => {
   const [penalties, setPenalties] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [messageReports, setMessageReports] = useState<any[]>([]);
+  const [banners, setBanners] = useState<any[]>([]);
   const [systemOpen, setSystemOpen] = useState(true);
   const [noteUploadRestricted, setNoteUploadRestricted] = useState(true);
   const [academicWeek, setAcademicWeek] = useState<string>('');
@@ -58,6 +59,10 @@ const AdminPanel = () => {
   const [extendMinutes, setExtendMinutes] = useState('60');
   const [reportPenaltyDialog, setReportPenaltyDialog] = useState(false);
   const [reportPenaltyUser, setReportPenaltyUser] = useState<any>(null);
+  // Banner CRUD state
+  const [bannerDialog, setBannerDialog] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<any>(null);
+  const [bannerForm, setBannerForm] = useState({ title: '', content: '', bg_color: 'primary' });
 
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
