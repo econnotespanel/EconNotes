@@ -376,7 +376,7 @@ const AdminPanel = () => {
             </Card>
           </TabsContent>
 
-
+          <TabsContent value="penalties">
             <Card className="glass-card"><CardContent className="p-4 space-y-3">
               {penalties.map((p) => {
                 const penaltyUser = users.find(u => u.user_id === p.user_id);
