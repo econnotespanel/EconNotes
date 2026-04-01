@@ -70,7 +70,7 @@ const AdminPanel = () => {
   }, [isAdmin]);
 
   const fetchAll = async () => {
-    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes] = await Promise.all([
+    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
@@ -79,6 +79,7 @@ const AdminPanel = () => {
       supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('user_roles').select('*'),
       supabase.from('message_reports').select('*').order('created_at', { ascending: false }),
+      supabase.from('banners').select('*').order('created_at', { ascending: false }),
     ]);
     setUsers(usersRes.data || []);
     setNotes(notesRes.data || []);
@@ -87,6 +88,7 @@ const AdminPanel = () => {
     setActivityLogs(logsRes.data || []);
     setUserRoles(rolesRes.data || []);
     setMessageReports(reportsRes.data || []);
+    setBanners(bannersRes.data || []);
     if (settingsRes.data) {
       setSystemOpen(settingsRes.data.is_system_open);
       setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
