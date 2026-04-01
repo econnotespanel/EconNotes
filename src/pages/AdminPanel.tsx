@@ -555,6 +555,27 @@ const AdminPanel = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={bannerDialog} onOpenChange={(v) => { setBannerDialog(v); if (!v) setEditingBanner(null); }}>
+          <DialogContent><DialogHeader><DialogTitle>{editingBanner ? 'Banner Düzenle' : 'Yeni Banner'}</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Başlık</Label><Input value={bannerForm.title} onChange={e => setBannerForm({...bannerForm, title: e.target.value})} placeholder="Banner başlığı" /></div>
+              <div className="space-y-2"><Label>İçerik</Label><Textarea value={bannerForm.content} onChange={e => setBannerForm({...bannerForm, content: e.target.value})} placeholder="Banner içeriği" rows={3} /></div>
+              <div className="space-y-2"><Label>Renk</Label>
+                <Select value={bannerForm.bg_color} onValueChange={v => setBannerForm({...bannerForm, bg_color: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">Mavi</SelectItem>
+                    <SelectItem value="warning">Turuncu</SelectItem>
+                    <SelectItem value="destructive">Kırmızı</SelectItem>
+                    <SelectItem value="success">Yeşil</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button className="w-full" onClick={saveBanner}>{editingBanner ? 'Güncelle' : 'Oluştur'}</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
