@@ -185,6 +185,24 @@ const AdminPanel = () => {
     setPenaltyDialog(true);
   };
 
+  // Banner CRUD
+  const saveBanner = async () => {
+    if (!bannerForm.title || !bannerForm.content) { toast.error('Lütfen tüm alanları doldurun.'); return; }
+    if (editingBanner) {
+      const { error } = await supabase.from('banners').update({ title: bannerForm.title, content: bannerForm.content, bg_color: bannerForm.bg_color }).eq('id', editingBanner.id);
+      if (error) { toast.error('Güncellenemedi.'); return; }
+      toast.success('Banner güncellendi!');
+    } else {
+      const { error } = await supabase.from('banners').insert({ title: bannerForm.title, content: bannerForm.content, bg_color: bannerForm.bg_color, user_id: user!.id });
+      if (error) { toast.error('Eklenemedi.'); return; }
+      toast.success('Banner oluşturuldu!');
+    }
+    setBannerDialog(false); setEditingBanner(null); setBannerForm({ title: '', content: '', bg_color: 'primary' }); fetchAll();
+  };
+
+  const deleteBanner = async (id: string) => { await supabase.from('banners').delete().eq('id', id); toast.success('Banner silindi!'); fetchAll(); };
+  const toggleBannerActive = async (id: string, current: boolean) => { await supabase.from('banners').update({ is_active: !current }).eq('id', id); fetchAll(); };
+
   if (!isAdmin) return null;
 
   return (
