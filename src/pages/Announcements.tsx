@@ -1,6 +1,6 @@
 import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, Megaphone, Edit, Trash2, Share2, SortAsc, SortDesc, Search, Eye, MessageSquare, Smile, Pencil } from 'lucide-react';
+import { Plus, Megaphone, Edit, Trash2, Share2, SortAsc, SortDesc, Search, Eye, MessageSquare, Smile, Pencil, Upload, FileIcon, Image as ImageIcon, X } from 'lucide-react';
 
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
 
@@ -29,13 +29,15 @@ const Announcements = () => {
   const [comments, setComments] = useState<Record<string, any[]>>({});
   const [newComment, setNewComment] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = async () => {
     const { data } = await supabase.from('announcements').select('*').order('created_at', { ascending: sortOrder === 'asc' });
     setAnnouncements(data || []);
     setLoading(false);
 
-    // Track views
     if (user && data) {
       for (const a of data) {
         await supabase.from('announcement_views').upsert(
@@ -45,17 +47,13 @@ const Announcements = () => {
       }
     }
 
-    // Fetch view counts
     if (data) {
       const { data: views } = await supabase.from('announcement_views').select('announcement_id');
       const counts: Record<string, number> = {};
-      (views || []).forEach((v: any) => {
-        counts[v.announcement_id] = (counts[v.announcement_id] || 0) + 1;
-      });
+      (views || []).forEach((v: any) => { counts[v.announcement_id] = (counts[v.announcement_id] || 0) + 1; });
       setViewCounts(counts);
     }
 
-    // Fetch comments
     if (data) {
       const { data: allComments } = await supabase.from('comments').select('*').eq('entity_type', 'announcement').order('created_at', { ascending: true });
       const grouped: Record<string, any[]> = {};
@@ -70,14 +68,29 @@ const Announcements = () => {
   useEffect(() => { fetchData(); }, [sortOrder]);
 
   const handleSubmit = async () => {
-    if (!form.title || !form.content) {
-      toast.error('Lütfen tüm alanları doldurun.');
-      return;
+    if (!form.title || !form.content) { toast.error('Lütfen tüm alanları doldurun.'); return; }
+
+    let attachmentUrl = editingItem?.attachment_url || null;
+    let attachmentName = editingItem?.attachment_name || null;
+    let attachmentType = editingItem?.attachment_type || null;
+
+    if (attachmentFile) {
+      setUploadingFile(true);
+      const ext = attachmentFile.name.split('.').pop();
+      const filePath = `announcements/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('notes').upload(filePath, attachmentFile);
+      if (uploadError) { toast.error('Dosya yüklenemedi.'); setUploadingFile(false); return; }
+      const { data: urlData } = supabase.storage.from('notes').getPublicUrl(filePath);
+      attachmentUrl = urlData.publicUrl;
+      attachmentName = attachmentFile.name;
+      attachmentType = attachmentFile.type.startsWith('image/') ? 'image' : 'file';
+      setUploadingFile(false);
     }
 
     const data: any = {
       title: form.title, content: form.content,
       user_id: user!.id, author_name: profile?.full_name || '',
+      attachment_url: attachmentUrl, attachment_name: attachmentName, attachment_type: attachmentType,
     };
 
     if (editingItem) {
@@ -91,23 +104,19 @@ const Announcements = () => {
       toast.success('Duyuru eklendi!');
     }
 
-    setDialogOpen(false);
-    setEditingItem(null);
-    setForm({ title: '', content: '' });
-    setConfirmUpload(false);
-    fetchData();
+    setDialogOpen(false); setEditingItem(null); setForm({ title: '', content: '' }); setConfirmUpload(false); setAttachmentFile(null); fetchData();
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from('announcements').delete().eq('id', id);
     if (error) { toast.error('Silinemedi.'); return; }
-    toast.success('Duyuru silindi!');
-    fetchData();
+    toast.success('Duyuru silindi!'); fetchData();
   };
 
   const handleEdit = (item: any) => {
     setEditingItem(item);
     setForm({ title: item.title, content: item.content });
+    setAttachmentFile(null);
     setDialogOpen(true);
   };
 
@@ -126,24 +135,17 @@ const Announcements = () => {
     const text = newComment[announcementId]?.trim();
     if (!text) return;
     const { error } = await supabase.from('comments').insert({
-      user_id: user!.id,
-      user_name: profile?.full_name || '',
-      entity_type: 'announcement',
-      entity_id: announcementId,
-      content: text,
+      user_id: user!.id, user_name: profile?.full_name || '',
+      entity_type: 'announcement', entity_id: announcementId, content: text,
     });
     if (error) { toast.error('Yorum eklenemedi.'); return; }
-    setNewComment(prev => ({ ...prev, [announcementId]: '' }));
-    fetchData();
+    setNewComment(prev => ({ ...prev, [announcementId]: '' })); fetchData();
   };
 
   const addEmojiComment = async (announcementId: string, emoji: string) => {
     const { error } = await supabase.from('comments').insert({
-      user_id: user!.id,
-      user_name: profile?.full_name || '',
-      entity_type: 'announcement',
-      entity_id: announcementId,
-      content: emoji,
+      user_id: user!.id, user_name: profile?.full_name || '',
+      entity_type: 'announcement', entity_id: announcementId, content: emoji,
     });
     if (error) { toast.error('Emoji eklenemedi.'); return; }
     fetchData();
@@ -168,7 +170,7 @@ const Announcements = () => {
             <p className="text-sm text-muted-foreground">Panel duyuruları</p>
           </div>
           {isAdmin && (
-            <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingItem(null); setConfirmUpload(false); } }}>
+            <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingItem(null); setConfirmUpload(false); setAttachmentFile(null); } }}>
               <DialogTrigger asChild>
                 <Button className="gradient-primary text-primary-foreground"><Plus className="h-4 w-4 mr-2" /> Duyuru Ekle</Button>
               </DialogTrigger>
@@ -186,6 +188,24 @@ const Announcements = () => {
                       <Label>İçerik</Label>
                       <Textarea value={form.content} onChange={(e) => setForm({...form, content: e.target.value})} placeholder="Duyuru içeriği" rows={5} />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Dosya / Görsel Ekle (Opsiyonel)</Label>
+                      <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)} />
+                      {attachmentFile ? (
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-accent/50 text-sm">
+                          {attachmentFile.type.startsWith('image/') ? <ImageIcon className="h-4 w-4 text-primary" /> : <FileIcon className="h-4 w-4 text-primary" />}
+                          <span className="flex-1 truncate">{attachmentFile.name}</span>
+                          <Button variant="ghost" size="sm" onClick={() => setAttachmentFile(null)}><X className="h-3 w-3" /></Button>
+                        </div>
+                      ) : (
+                        <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()}>
+                          <Upload className="h-4 w-4 mr-2" /> Dosya Seç
+                        </Button>
+                      )}
+                      {editingItem?.attachment_url && !attachmentFile && (
+                        <p className="text-xs text-muted-foreground">Mevcut ek: {editingItem.attachment_name}</p>
+                      )}
+                    </div>
                     <Button className="w-full" onClick={() => setConfirmUpload(true)}>
                       {editingItem ? 'Güncelle' : 'Duyuruyu Yayınla'}
                     </Button>
@@ -195,7 +215,9 @@ const Announcements = () => {
                     <p className="font-medium">Bu duyuruyu yayınlamak istediğinize emin misiniz?</p>
                     <div className="flex gap-3 justify-center">
                       <Button variant="outline" onClick={() => setConfirmUpload(false)}>İptal</Button>
-                      <Button className="gradient-primary text-primary-foreground" onClick={handleSubmit}>Evet, Yayınla</Button>
+                      <Button className="gradient-primary text-primary-foreground" onClick={handleSubmit} disabled={uploadingFile}>
+                        {uploadingFile ? 'Yükleniyor...' : 'Evet, Yayınla'}
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -236,6 +258,21 @@ const Announcements = () => {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{a.content}</p>
+
+                  {/* Attachment display */}
+                  {a.attachment_url && (
+                    <div className="mt-2">
+                      {a.attachment_type === 'image' ? (
+                        <img src={a.attachment_url} alt={a.attachment_name} className="max-w-full max-h-64 rounded-lg border border-border object-contain" />
+                      ) : (
+                        <a href={a.attachment_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 text-sm hover:bg-accent transition-colors">
+                          <FileIcon className="h-4 w-4 text-primary" />
+                          <span>{a.attachment_name || 'Dosya'}</span>
+                        </a>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span>{a.author_name} • {formatDateTime(a.created_at)}</span>
                     <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {viewCounts[a.id] || 0}</span>
@@ -287,7 +324,6 @@ const Announcements = () => {
 
                   {/* Comments section */}
                   <div className="pt-2 border-t border-border/40">
-                    {/* Emoji reactions summary */}
                     {(comments[a.id] || []).filter(c => c.content.length <= 2).length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
                         {Object.entries(

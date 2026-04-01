@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -38,6 +38,7 @@ const AdminPanel = () => {
   const [penalties, setPenalties] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [messageReports, setMessageReports] = useState<any[]>([]);
+  const [banners, setBanners] = useState<any[]>([]);
   const [systemOpen, setSystemOpen] = useState(true);
   const [noteUploadRestricted, setNoteUploadRestricted] = useState(true);
   const [academicWeek, setAcademicWeek] = useState<string>('');
@@ -58,6 +59,10 @@ const AdminPanel = () => {
   const [extendMinutes, setExtendMinutes] = useState('60');
   const [reportPenaltyDialog, setReportPenaltyDialog] = useState(false);
   const [reportPenaltyUser, setReportPenaltyUser] = useState<any>(null);
+  // Banner CRUD state
+  const [bannerDialog, setBannerDialog] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<any>(null);
+  const [bannerForm, setBannerForm] = useState({ title: '', content: '', bg_color: 'primary' });
 
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
@@ -65,7 +70,7 @@ const AdminPanel = () => {
   }, [isAdmin]);
 
   const fetchAll = async () => {
-    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes] = await Promise.all([
+    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
@@ -74,6 +79,7 @@ const AdminPanel = () => {
       supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('user_roles').select('*'),
       supabase.from('message_reports').select('*').order('created_at', { ascending: false }),
+      supabase.from('banners').select('*').order('created_at', { ascending: false }),
     ]);
     setUsers(usersRes.data || []);
     setNotes(notesRes.data || []);
@@ -82,6 +88,7 @@ const AdminPanel = () => {
     setActivityLogs(logsRes.data || []);
     setUserRoles(rolesRes.data || []);
     setMessageReports(reportsRes.data || []);
+    setBanners(bannersRes.data || []);
     if (settingsRes.data) {
       setSystemOpen(settingsRes.data.is_system_open);
       setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
@@ -178,6 +185,24 @@ const AdminPanel = () => {
     setPenaltyDialog(true);
   };
 
+  // Banner CRUD
+  const saveBanner = async () => {
+    if (!bannerForm.title || !bannerForm.content) { toast.error('Lütfen tüm alanları doldurun.'); return; }
+    if (editingBanner) {
+      const { error } = await supabase.from('banners').update({ title: bannerForm.title, content: bannerForm.content, bg_color: bannerForm.bg_color }).eq('id', editingBanner.id);
+      if (error) { toast.error('Güncellenemedi.'); return; }
+      toast.success('Banner güncellendi!');
+    } else {
+      const { error } = await supabase.from('banners').insert({ title: bannerForm.title, content: bannerForm.content, bg_color: bannerForm.bg_color, user_id: user!.id });
+      if (error) { toast.error('Eklenemedi.'); return; }
+      toast.success('Banner oluşturuldu!');
+    }
+    setBannerDialog(false); setEditingBanner(null); setBannerForm({ title: '', content: '', bg_color: 'primary' }); fetchAll();
+  };
+
+  const deleteBanner = async (id: string) => { await supabase.from('banners').delete().eq('id', id); toast.success('Banner silindi!'); fetchAll(); };
+  const toggleBannerActive = async (id: string, current: boolean) => { await supabase.from('banners').update({ is_active: !current }).eq('id', id); fetchAll(); };
+
   if (!isAdmin) return null;
 
   return (
@@ -235,10 +260,11 @@ const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="users">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5 hidden sm:inline" />Kullanıcılar</TabsTrigger>
             <TabsTrigger value="notes"><FileText className="h-4 w-4 mr-1.5 hidden sm:inline" />Notlar</TabsTrigger>
             <TabsTrigger value="announcements"><Megaphone className="h-4 w-4 mr-1.5 hidden sm:inline" />Duyurular</TabsTrigger>
+            <TabsTrigger value="banners"><ImageIcon className="h-4 w-4 mr-1.5 hidden sm:inline" />Bannerlar</TabsTrigger>
             <TabsTrigger value="penalties"><AlertTriangle className="h-4 w-4 mr-1.5 hidden sm:inline" />Cezalar</TabsTrigger>
             <TabsTrigger value="reports"><Flag className="h-4 w-4 mr-1.5 hidden sm:inline" />Raporlar{messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">{messageReports.filter(r => r.status === 'pending').length}</span>}</TabsTrigger>
             <TabsTrigger value="activity"><Activity className="h-4 w-4 mr-1.5 hidden sm:inline" />Aktiviteler</TabsTrigger>
@@ -309,6 +335,45 @@ const AdminPanel = () => {
               ))}
               {announcements.length === 0 && <p className="text-center text-muted-foreground">Duyuru yok.</p>}
             </CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="banners">
+            <Card className="glass-card">
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Banner Yönetimi</CardTitle>
+                <Button size="sm" onClick={() => { setEditingBanner(null); setBannerForm({ title: '', content: '', bg_color: 'primary' }); setBannerDialog(true); }}>
+                  <Plus className="h-3 w-3 mr-1" /> Yeni Banner
+                </Button>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3">
+                {banners.map((b) => (
+                  <div key={b.id} className={`flex items-center justify-between p-3 rounded-lg border ${b.is_active ? 'bg-primary/5 border-primary/20' : 'bg-accent/50 border-border/50'}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-sm">{b.title}</p>
+                        <Badge variant="outline" className={`text-[10px] ${b.is_active ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground'}`}>
+                          {b.is_active ? 'Aktif' : 'Pasif'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground line-clamp-1">{b.content}</p>
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <Button size="sm" variant="outline" onClick={() => toggleBannerActive(b.id, b.is_active)} title={b.is_active ? 'Pasif yap' : 'Aktif yap'}>
+                        <Power className={`h-3 w-3 ${b.is_active ? 'text-green-500' : 'text-muted-foreground'}`} />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setEditingBanner(b); setBannerForm({ title: b.title, content: b.content, bg_color: b.bg_color || 'primary' }); setBannerDialog(true); }}>
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
+                        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Bu banner'ı silmek istediğinize emin misiniz?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => deleteBanner(b.id)}>Sil</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                ))}
+                {banners.length === 0 && <p className="text-center text-muted-foreground">Henüz banner yok.</p>}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="penalties">
@@ -487,6 +552,27 @@ const AdminPanel = () => {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">Raporlanan kullanıcı: <strong>{reportPenaltyUser?.full_name}</strong></p>
               <Button className="w-full" onClick={penalizeFromReport}>Ceza Menüsünü Aç</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={bannerDialog} onOpenChange={(v) => { setBannerDialog(v); if (!v) setEditingBanner(null); }}>
+          <DialogContent><DialogHeader><DialogTitle>{editingBanner ? 'Banner Düzenle' : 'Yeni Banner'}</DialogTitle></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Başlık</Label><Input value={bannerForm.title} onChange={e => setBannerForm({...bannerForm, title: e.target.value})} placeholder="Banner başlığı" /></div>
+              <div className="space-y-2"><Label>İçerik</Label><Textarea value={bannerForm.content} onChange={e => setBannerForm({...bannerForm, content: e.target.value})} placeholder="Banner içeriği" rows={3} /></div>
+              <div className="space-y-2"><Label>Renk</Label>
+                <Select value={bannerForm.bg_color} onValueChange={v => setBannerForm({...bannerForm, bg_color: v})}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">Mavi</SelectItem>
+                    <SelectItem value="warning">Turuncu</SelectItem>
+                    <SelectItem value="destructive">Kırmızı</SelectItem>
+                    <SelectItem value="success">Yeşil</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button className="w-full" onClick={saveBanner}>{editingBanner ? 'Güncelle' : 'Oluştur'}</Button>
             </div>
           </DialogContent>
         </Dialog>
