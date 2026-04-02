@@ -125,9 +125,12 @@ const About = () => {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground">
-          © 2026 EconNotes Panel — Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
-        </p>
+        <div className="text-center space-y-1">
+          <p className="text-xs text-muted-foreground">
+            © 2026 EconNotes Panel — Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
+          </p>
+          <p className="text-[10px] text-muted-foreground/60">Versiyon 2.4.0</p>
+        </div>
       </div>
     </Layout>
   );
