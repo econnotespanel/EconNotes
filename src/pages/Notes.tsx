@@ -292,7 +292,14 @@ const Notes = () => {
           </div>
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingNote(null); setConfirmUpload(false); setAcceptOwnership(false); } }}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground"><Plus className="h-4 w-4 mr-2" /> Not Ekle</Button>
+              <Button className="gradient-primary text-primary-foreground" onClick={() => {
+                if (!editingNote) {
+                  const key = `econotes_upload_rules_${user?.id}`;
+                  if (!localStorage.getItem(key)) {
+                    setShowUploadRules(true);
+                  }
+                }
+              }}><Plus className="h-4 w-4 mr-2" /> Not Ekle</Button>
             </DialogTrigger>
             <DialogContent className="max-h-[85vh] overflow-y-auto">
               <DialogHeader>
