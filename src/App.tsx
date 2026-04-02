@@ -17,6 +17,7 @@ import AdminPanel from "./pages/AdminPanel";
 import About from "./pages/About";
 import AcademicAssistant from "./pages/AcademicAssistant";
 import LiveClass from "./pages/LiveClass";
+import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
 
