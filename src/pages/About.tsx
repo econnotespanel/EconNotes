@@ -88,9 +88,11 @@ const About = () => {
               <ul className="list-disc list-inside space-y-1">
                 <li><strong>Ad-Soyad:</strong> Kullanıcı kimliğinin doğrulanması ve profil oluşturulması amacıyla toplanır.</li>
                 <li><strong>E-posta Adresi:</strong> Hesap girişi, şifre sıfırlama ve iletişim amacıyla kullanılır.</li>
-                <li><strong>Üniversite Adı:</strong> Akademik topluluk doğrulaması için toplanır.</li>
+                <li><strong>Üniversite Adı:</strong> Akademik topluluk doğrulaması ve not sınıflandırması için toplanır.</li>
                 <li><strong>Bölüm Bilgisi:</strong> Ders notu sınıflandırması ve öneriler için kullanılır.</li>
                 <li><strong>Sınıf Bilgisi:</strong> Ders notlarının sınıf bazında filtrelenmesi amacıyla toplanır.</li>
+                <li><strong>Aktivite Kayıtları:</strong> Platform güvenliği ve moderasyon amacıyla giriş, not yükleme/silme işlemleri kaydedilir.</li>
+                <li><strong>IP Adresi:</strong> Güvenlik ve kötüye kullanım tespiti amacıyla işlenir.</li>
               </ul>
             </div>
             <div>
@@ -100,16 +102,24 @@ const About = () => {
                 <li>Kullanıcı hesap güvenliğinin sağlanması</li>
                 <li>Ders notu paylaşım ve mesajlaşma hizmetlerinin yürütülmesi</li>
                 <li>Platform kurallarının uygulanması ve moderasyon</li>
+                <li>Yasal yükümlülüklerin yerine getirilmesi</li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-foreground mb-2">Veri Güvenliği</h4>
+              <h4 className="font-semibold text-foreground mb-2">Verilerin Saklanması ve Paylaşımı</h4>
               <p>
-                Kişisel verileriniz şifreli bağlantılar üzerinden iletilmekte ve güvenli sunucularda 
-                saklanmaktadır. Verileriniz üçüncü şahıslarla paylaşılmamaktadır. KVKK kapsamındaki 
-                haklarınız (erişim, düzeltme, silme, itiraz) için 
-                <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline ml-1">econnotespanel@gmail.com</a> adresinden 
-                bizimle iletişime geçebilirsiniz.
+                Kişisel verileriniz şifreli bağlantılar (SSL/TLS) üzerinden iletilmekte ve güvenli sunucularda 
+                saklanmaktadır. Verileriniz, yasal zorunluluklar dışında üçüncü şahıslarla paylaşılmamaktadır.
+                Hesabınızı sildiğinizde kişisel verileriniz sistemden kaldırılır.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-semibold text-foreground mb-2">Haklarınız</h4>
+              <p>
+                KVKK kapsamındaki haklarınız (kişisel verilerinize erişim, düzeltme, silme, işlenmesine itiraz, 
+                veri taşınabilirliği) için{' '}
+                <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>{' '}
+                adresinden bizimle iletişime geçebilirsiniz.
               </p>
             </div>
           </CardContent>
