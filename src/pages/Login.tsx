@@ -179,7 +179,11 @@ const Login = () => {
               <Link to="/register" className="text-primary hover:underline">Kayıt Ol</Link>
             </div>
           </form>
-          <div className="mt-4 pt-3 border-t border-border/40 text-center">
+          <div className="mt-4 pt-3 border-t border-border/40 text-center space-y-2">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/install')}>
+              <Download className="mr-2 h-4 w-4" />
+              Uygulamayı İndir (Android / iOS)
+            </Button>
             <p className="text-xs text-muted-foreground">
               Yardım ve Teknik Destek için: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
             </p>
