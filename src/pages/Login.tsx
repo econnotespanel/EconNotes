@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Login = () => {
