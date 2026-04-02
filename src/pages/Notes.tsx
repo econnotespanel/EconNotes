@@ -46,6 +46,18 @@ const Notes = () => {
   });
   const [confirmUpload, setConfirmUpload] = useState(false);
   const [acceptOwnership, setAcceptOwnership] = useState(false);
+  const [showUploadRules, setShowUploadRules] = useState(false);
+
+  const NOTE_UPLOAD_RULES = [
+    'Yüklenen notlar telif hakkına uygun olmalıdır. Başkasının notunu paylaşmadan önce izin alınmalıdır.',
+    'Uygunsuz, müstehcen veya yasadışı içerik paylaşımı kesinlikle yasaktır.',
+    'Not yükleme saatleri 09:00-00:00 arasında yapılabilir (yönetici ayarına tabidir).',
+    'Yüklenen notların doğruluğundan ve kalitesinden yükleyen kişi sorumludur.',
+    'Spam amaçlı veya alakasız dosya yüklemek yasaktır.',
+    'Desteklenen formatlar: PDF, PNG, JPG, JPEG, PPTX.',
+    'Kurallara uymayan kullanıcılar cezalandırılabilir.',
+    'Yönetici ekibi uygunsuz notları silme hakkına sahiptir.',
+  ];
 
   const fetchNotes = async () => {
     const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: sortOrder === 'asc' });
