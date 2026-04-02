@@ -625,6 +625,32 @@ const Notes = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* First-time upload rules dialog */}
+        <Dialog open={showUploadRules} onOpenChange={setShowUploadRules}>
+          <DialogContent className="max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-primary" /> Not Yükleme Kuralları
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="h-[300px] rounded-lg border border-border p-4">
+              <ol className="space-y-3 list-decimal list-inside text-sm">
+                {NOTE_UPLOAD_RULES.map((rule, i) => (
+                  <li key={i} className="leading-relaxed">{rule}</li>
+                ))}
+              </ol>
+            </ScrollArea>
+            <Button className="w-full gradient-primary text-primary-foreground" onClick={() => {
+              const key = `econotes_upload_rules_${user?.id}`;
+              localStorage.setItem(key, 'true');
+              setShowUploadRules(false);
+              toast.success('Kurallar okundu. Not yüklemeye başlayabilirsiniz.');
+            }}>
+              Okudum ve Anladım
+            </Button>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
