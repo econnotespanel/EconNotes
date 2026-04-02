@@ -8,6 +8,21 @@ import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
+const BannerContent = ({ content }: { content: string }) => {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = content.length > 100;
+  return (
+    <div>
+      <p className={`text-xs text-muted-foreground ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{content}</p>
+      {isLong && (
+        <button onClick={() => setExpanded(!expanded)} className="text-xs text-primary hover:underline mt-1">
+          {expanded ? 'Daha az göster' : 'Devamını oku'}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
