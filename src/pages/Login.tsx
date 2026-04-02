@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Login = () => {
@@ -179,7 +179,11 @@ const Login = () => {
               <Link to="/register" className="text-primary hover:underline">Kayıt Ol</Link>
             </div>
           </form>
-          <div className="mt-4 pt-3 border-t border-border/40 text-center">
+          <div className="mt-4 pt-3 border-t border-border/40 text-center space-y-2">
+            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/install')}>
+              <Download className="mr-2 h-4 w-4" />
+              Uygulamayı İndir (Android / iOS)
+            </Button>
             <p className="text-xs text-muted-foreground">
               Yardım ve Teknik Destek için: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
             </p>

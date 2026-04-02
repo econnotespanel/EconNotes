@@ -17,6 +17,7 @@ import AdminPanel from "./pages/AdminPanel";
 import About from "./pages/About";
 import AcademicAssistant from "./pages/AcademicAssistant";
 import LiveClass from "./pages/LiveClass";
+import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import ResetPassword from "./pages/ResetPassword";
 
@@ -44,6 +45,7 @@ const App = () => (
               <Route path="/about" element={<About />} />
               <Route path="/assistant" element={<AcademicAssistant />} />
               <Route path="/live-class" element={<LiveClass />} />
+              <Route path="/install" element={<Install />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
