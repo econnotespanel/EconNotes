@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
@@ -45,6 +46,18 @@ const Notes = () => {
   });
   const [confirmUpload, setConfirmUpload] = useState(false);
   const [acceptOwnership, setAcceptOwnership] = useState(false);
+  const [showUploadRules, setShowUploadRules] = useState(false);
+
+  const NOTE_UPLOAD_RULES = [
+    'Yüklenen notlar telif hakkına uygun olmalıdır. Başkasının notunu paylaşmadan önce izin alınmalıdır.',
+    'Uygunsuz, müstehcen veya yasadışı içerik paylaşımı kesinlikle yasaktır.',
+    'Not yükleme saatleri 09:00-00:00 arasında yapılabilir (yönetici ayarına tabidir).',
+    'Yüklenen notların doğruluğundan ve kalitesinden yükleyen kişi sorumludur.',
+    'Spam amaçlı veya alakasız dosya yüklemek yasaktır.',
+    'Desteklenen formatlar: PDF, PNG, JPG, JPEG, PPTX.',
+    'Kurallara uymayan kullanıcılar cezalandırılabilir.',
+    'Yönetici ekibi uygunsuz notları silme hakkına sahiptir.',
+  ];
 
   const fetchNotes = async () => {
     const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: sortOrder === 'asc' });
@@ -279,7 +292,14 @@ const Notes = () => {
           </div>
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingNote(null); setConfirmUpload(false); setAcceptOwnership(false); } }}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground"><Plus className="h-4 w-4 mr-2" /> Not Ekle</Button>
+              <Button className="gradient-primary text-primary-foreground" onClick={() => {
+                if (!editingNote) {
+                  const key = `econotes_upload_rules_${user?.id}`;
+                  if (!localStorage.getItem(key)) {
+                    setShowUploadRules(true);
+                  }
+                }
+              }}><Plus className="h-4 w-4 mr-2" /> Not Ekle</Button>
             </DialogTrigger>
             <DialogContent className="max-h-[85vh] overflow-y-auto">
               <DialogHeader>
@@ -605,6 +625,32 @@ const Notes = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* First-time upload rules dialog */}
+        <Dialog open={showUploadRules} onOpenChange={setShowUploadRules}>
+          <DialogContent className="max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-primary" /> Not Yükleme Kuralları
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="h-[300px] rounded-lg border border-border p-4">
+              <ol className="space-y-3 list-decimal list-inside text-sm">
+                {NOTE_UPLOAD_RULES.map((rule, i) => (
+                  <li key={i} className="leading-relaxed">{rule}</li>
+                ))}
+              </ol>
+            </ScrollArea>
+            <Button className="w-full gradient-primary text-primary-foreground" onClick={() => {
+              const key = `econotes_upload_rules_${user?.id}`;
+              localStorage.setItem(key, 'true');
+              setShowUploadRules(false);
+              toast.success('Kurallar okundu. Not yüklemeye başlayabilirsiniz.');
+            }}>
+              Okudum ve Anladım
+            </Button>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

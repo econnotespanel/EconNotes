@@ -8,6 +8,21 @@ import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
+const BannerContent = ({ content }: { content: string }) => {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = content.length > 100;
+  return (
+    <div>
+      <p className={`text-xs text-muted-foreground ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{content}</p>
+      {isLong && (
+        <button onClick={() => setExpanded(!expanded)} className="text-xs text-primary hover:underline mt-1">
+          {expanded ? 'Daha az göster' : 'Devamını oku'}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
@@ -101,9 +116,9 @@ const Dashboard = () => {
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <Megaphone className="h-5 w-5 text-primary shrink-0" />
-                <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                   <p className="font-semibold text-sm">{banner.title}</p>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{banner.content}</p>
+                  <BannerContent content={banner.content} />
                 </div>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setDismissedBanners(prev => new Set(prev).add(banner.id))}><X className="h-4 w-4" /></Button>
