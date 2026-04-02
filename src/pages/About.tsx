@@ -18,7 +18,7 @@ const About = () => {
       <div className="max-w-3xl mx-auto space-y-8 animate-fade-in">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
-            <img src={logo} alt="EconNotes" className="h-20 w-20 object-contain" />
+            <img src={logo} alt="EconNotes" className="h-20 w-20 object-contain" style={{ filter: 'var(--logo-filter)' }} />
           </div>
           <h1 className="text-3xl font-bold gradient-text">EconNotes Panel</h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
