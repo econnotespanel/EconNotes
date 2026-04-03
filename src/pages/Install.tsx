@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Download, Smartphone, Monitor, Apple, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { Download, Monitor, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import logo from "@/assets/econnotes-logo.png";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -22,11 +23,9 @@ const Install = () => {
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
     window.addEventListener("beforeinstallprompt", handler);
-
     if (window.matchMedia("(display-mode: standalone)").matches) {
       setIsInstalled(true);
     }
-
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
@@ -34,9 +33,7 @@ const Install = () => {
     if (!deferredPrompt) return;
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      setIsInstalled(true);
-    }
+    if (outcome === "accepted") setIsInstalled(true);
     setDeferredPrompt(null);
   };
 
@@ -48,7 +45,7 @@ const Install = () => {
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center space-y-2">
           <img
-            src="/lovable-uploads/a5765ea4-3377-40fa-9db1-09e12e58860c.png"
+            src={logo}
             alt="EconNotes Logo"
             className="h-16 mx-auto"
             style={{ filter: "var(--logo-filter)" }}
@@ -67,14 +64,11 @@ const Install = () => {
               <p className="text-sm text-muted-foreground text-center">
                 EconNotes uygulaması cihazınıza kurulmuş durumda.
               </p>
-              <Button onClick={() => navigate("/")} className="mt-2">
-                Panele Dön
-              </Button>
+              <Button onClick={() => navigate("/")} className="mt-2">Panele Dön</Button>
             </CardContent>
           </Card>
         ) : (
           <>
-            {/* Direct install button for supported browsers */}
             {deferredPrompt && (
               <Card className="border-primary">
                 <CardHeader className="pb-3">
@@ -95,21 +89,13 @@ const Install = () => {
 
             {/* iOS Guide */}
             <Card>
-              <CardHeader
-                className="cursor-pointer pb-3"
-                onClick={() => setShowIosGuide(!showIosGuide)}
-              >
+              <CardHeader className="cursor-pointer pb-3" onClick={() => setShowIosGuide(!showIosGuide)}>
                 <CardTitle className="flex items-center justify-between text-lg">
-                  <span className="flex items-center gap-2">
-                    <Apple className="h-5 w-5" />
-                    iPhone / iPad Kurulumu
-                  </span>
+                  <span>iOS için İndir</span>
                   {showIosGuide ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </CardTitle>
                 {isIos && (
-                  <CardDescription className="text-primary font-medium">
-                    Bu cihaz için önerilen yöntem
-                  </CardDescription>
+                  <CardDescription className="text-primary font-medium">Bu cihaz için önerilen yöntem</CardDescription>
                 )}
               </CardHeader>
               {showIosGuide && (
@@ -129,21 +115,13 @@ const Install = () => {
 
             {/* Android Guide */}
             <Card>
-              <CardHeader
-                className="cursor-pointer pb-3"
-                onClick={() => setShowAndroidGuide(!showAndroidGuide)}
-              >
+              <CardHeader className="cursor-pointer pb-3" onClick={() => setShowAndroidGuide(!showAndroidGuide)}>
                 <CardTitle className="flex items-center justify-between text-lg">
-                  <span className="flex items-center gap-2">
-                    <Smartphone className="h-5 w-5" />
-                    Android Kurulumu
-                  </span>
+                  <span>Android için İndir</span>
                   {showAndroidGuide ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </CardTitle>
                 {isAndroid && (
-                  <CardDescription className="text-primary font-medium">
-                    Bu cihaz için önerilen yöntem
-                  </CardDescription>
+                  <CardDescription className="text-primary font-medium">Bu cihaz için önerilen yöntem</CardDescription>
                 )}
               </CardHeader>
               {showAndroidGuide && (
@@ -177,9 +155,7 @@ const Install = () => {
         )}
 
         <div className="text-center">
-          <Button variant="ghost" onClick={() => navigate("/login")}>
-            Giriş sayfasına dön
-          </Button>
+          <Button variant="ghost" onClick={() => navigate("/login")}>Giriş sayfasına dön</Button>
         </div>
       </div>
     </div>
