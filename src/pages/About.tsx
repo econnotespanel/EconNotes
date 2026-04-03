@@ -127,9 +127,9 @@ const About = () => {
 
         <div className="text-center space-y-1">
           <p className="text-xs text-muted-foreground">
-            © 2026 EconNotes Panel — Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
+            © 2026 EconNotes — Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
           </p>
-          <p className="text-[10px] text-muted-foreground/60">Versiyon 2.4.0</p>
+          <p className="text-[10px] text-muted-foreground/60">Versiyon 2.5.0</p>
         </div>
       </div>
     </Layout>

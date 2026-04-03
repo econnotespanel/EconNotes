@@ -228,7 +228,7 @@ const Notes = () => {
   };
 
   const isNoteLocked = (note: any) => {
-    if (!note.note_password) return false;
+    if (!note.note_password || note.note_password.trim() === '') return false;
     if (isAdmin) return false;
     if (note.user_id === user?.id) return false;
     return !unlockedNotes.has(note.id);
@@ -611,7 +611,7 @@ const Notes = () => {
           <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); }}>
             <DialogContent className="max-w-4xl max-h-[80vh]">
               <DialogHeader><DialogTitle>Önizleme</DialogTitle></DialogHeader>
-              <div className="w-full h-[60vh]">
+              <div className="w-full h-[60vh] relative">
                 {previewType?.startsWith('image/') ? (
                   <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
                 ) : previewType === 'application/pdf' ? (
@@ -621,6 +621,14 @@ const Notes = () => {
                     <p className="text-muted-foreground">Bu dosya türü önizlenemez. Lütfen indirin.</p>
                   </div>
                 )}
+                {/* EconNotes Watermark */}
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden select-none">
+                  <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-16 rotate-[-30deg] scale-150 opacity-[0.08]">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <span key={i} className="text-3xl font-bold text-foreground whitespace-nowrap">EconNotes</span>
+                    ))}
+                  </div>
+                </div>
               </div>
             </DialogContent>
           </Dialog>

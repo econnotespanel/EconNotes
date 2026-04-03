@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle, ShieldCheck, Download } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,7 +16,17 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [penaltyInfo, setPenaltyInfo] = useState<{ reason: string; until: string | null; is_permanent: boolean; expired?: boolean } | null>(null);
+  const [loginBanners, setLoginBanners] = useState<any[]>([]);
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    const fetchBanners = async () => {
+      const { data } = await supabase.from('banners').select('*').eq('is_active', true).order('created_at', { ascending: false });
+      setLoginBanners(data || []);
+    };
+    fetchBanners();
+  }, []);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -46,7 +56,6 @@ const Login = () => {
       return;
     }
 
-    // Check for active penalty
     if (data.user) {
       const { data: penalties } = await supabase
         .from('penalties')
@@ -63,22 +72,13 @@ const Login = () => {
 
         if (isPermanent || (penaltyUntil && penaltyUntil > now)) {
           await supabase.auth.signOut();
-          setPenaltyInfo({
-            reason: latest.reason,
-            until: latest.penalty_until,
-            is_permanent: latest.is_permanent,
-          });
+          setPenaltyInfo({ reason: latest.reason, until: latest.penalty_until, is_permanent: latest.is_permanent });
           setLoading(false);
           return;
         }
 
         if (penaltyUntil && penaltyUntil <= now && !isPermanent) {
-          setPenaltyInfo({
-            reason: latest.reason,
-            until: latest.penalty_until,
-            is_permanent: false,
-            expired: true,
-          });
+          setPenaltyInfo({ reason: latest.reason, until: latest.penalty_until, is_permanent: false, expired: true });
         }
       }
     }
@@ -97,27 +97,80 @@ const Login = () => {
     navigate('/');
   };
 
+  const features = [
+    { icon: BookOpen, title: 'Not Paylaşımı', desc: 'Ders notlarınızı arkadaşlarınızla kolayca paylaşın' },
+    { icon: Users, title: 'Topluluk', desc: 'Üniversite öğrencileriyle bilgi paylaşın.' },
+    { icon: TrendingUp, title: 'Başarı', desc: 'Sınavlara hazırlanın, başarıya ulaşın' },
+  ];
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden">
-      <div className="absolute inset-0 decorative-lines opacity-10" />
-      <Card className="w-full max-w-md glass-card animate-fade-in relative z-10">
-        <CardHeader className="text-center space-y-4">
-          <div className="flex justify-center">
-            <img src={logo} alt="EconNotes" className="h-16 w-16 object-contain" style={{ filter: 'var(--logo-filter)' }} />
+    <div className="min-h-screen flex flex-col lg:flex-row relative">
+      {/* Left panel - features */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(180, 60%, 20%), hsl(190, 80%, 25%), hsl(170, 70%, 30%))' }}>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-8">
+            <img src={logo} alt="EconNotes" className="h-12 w-12 object-contain brightness-0 invert" />
+            <h1 className="text-2xl font-bold text-white">EconNotes</h1>
           </div>
-          <CardTitle className="text-2xl font-bold">EconNotes</CardTitle>
-          <CardDescription className="text-base">{getGreeting()}</CardDescription>
-          <p className="text-sm text-muted-foreground">EconNotes, Not Paylaşım Paneline Hoş Geldiniz.</p>
-          <div className="flex items-center justify-center gap-3">
-            <div className="p-3 rounded-full bg-primary/10">
-              <ShieldCheck className="h-6 w-6 text-primary" />
+          <p className="text-white/80 text-lg mb-12">EconNotes ile notların hep yanında!</p>
+
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-white">Platform Özellikleri</h2>
+            {features.map((f, i) => (
+              <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
+                <div className="p-2 rounded-lg bg-white/10">
+                  <f.icon className="h-6 w-6 text-white/90" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">{f.title}</h3>
+                  <p className="text-sm text-white/70">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="text-white/50 text-sm relative z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+        {/* Decorative gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20" />
+      </div>
+
+      {/* Right panel - login form */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-background relative min-h-screen lg:min-h-0">
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          className="absolute top-4 right-4 p-2 rounded-full hover:bg-accent transition-colors text-muted-foreground"
+          title={theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}
+        >
+          {theme === 'dark' ? '☀️' : '🌙'}
+        </button>
+
+        {/* Mobile logo */}
+        <div className="lg:hidden flex items-center gap-3 mb-6">
+          <img src={logo} alt="EconNotes" className="h-10 w-10 object-contain" style={{ filter: 'var(--logo-filter)' }} />
+          <h1 className="text-xl font-bold text-foreground">EconNotes</h1>
+        </div>
+
+        <div className="w-full max-w-sm space-y-6">
+          {/* Login banners */}
+          {loginBanners.length > 0 && (
+            <div className="space-y-2">
+              {loginBanners.map((banner) => (
+                <Alert key={banner.id} className="border-primary/30 bg-primary/5">
+                  <AlertTitle className="text-sm font-semibold">{banner.title}</AlertTitle>
+                  <AlertDescription className="text-xs">{banner.content}</AlertDescription>
+                </Alert>
+              ))}
             </div>
-            <span className="text-base font-semibold text-muted-foreground">Güvenli Giriş</span>
+          )}
+
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Hoş Geldiniz</h2>
+            <p className="text-sm text-primary mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin</p>
           </div>
-        </CardHeader>
-        <CardContent>
+
           {penaltyInfo && !penaltyInfo.expired && (
-            <Alert variant="destructive" className="mb-4">
+            <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Hesabınız Cezalı</AlertTitle>
               <AlertDescription className="space-y-1">
@@ -131,7 +184,7 @@ const Login = () => {
             </Alert>
           )}
           {penaltyInfo?.expired && (
-            <Alert className="mb-4 border-warning/30 bg-warning/5">
+            <Alert className="border-warning/30 bg-warning/5">
               <AlertTriangle className="h-4 w-4 text-warning" />
               <AlertTitle className="text-warning">Uzaklaştırma Cezan Sona Erdi</AlertTitle>
               <AlertDescription>
@@ -139,6 +192,7 @@ const Login = () => {
               </AlertDescription>
             </Alert>
           )}
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">E-posta</Label>
@@ -155,7 +209,10 @@ const Login = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Şifre</Label>
+              <div className="flex justify-between items-center">
+                <Label htmlFor="password">Şifre</Label>
+                <Link to="/forgot-password" className="text-xs text-primary hover:underline">Şifremi Unuttum</Link>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -171,26 +228,28 @@ const Login = () => {
                 </button>
               </div>
             </div>
-            <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
-              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap!'}
+            <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(174, 80%, 45%)', color: 'white' }}>
+              {loading ? 'Giriş yapılıyor...' : 'Başlayalım!'}
             </Button>
-            <div className="flex justify-between text-sm">
-              <Link to="/forgot-password" className="text-primary hover:underline">Şifremi Unuttum</Link>
-              <Link to="/register" className="text-primary hover:underline">Kayıt Ol</Link>
-            </div>
           </form>
-          <div className="mt-4 pt-3 border-t border-border/40 text-center space-y-2">
+
+          <p className="text-sm text-center text-muted-foreground">
+            Hesabınız yok mu? <Link to="/register" className="text-primary hover:underline font-medium">Kayıt Ol</Link>
+          </p>
+
+          <div className="space-y-2 pt-2 border-t border-border/40">
             <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/install')}>
               <Download className="mr-2 h-4 w-4" />
-              Uygulamayı İndir (Android / iOS)
+              Uygulamayı İndir
             </Button>
-            <p className="text-xs text-muted-foreground">
-              Yardım ve Teknik Destek için: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
+            <p className="text-xs text-muted-foreground text-center">
+              Yardım ve Teknik Destek: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
             </p>
           </div>
-        </CardContent>
-    </Card>
-      <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+        </div>
+
+        <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-muted-foreground">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+      </div>
     </div>
   );
 };
