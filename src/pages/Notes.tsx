@@ -228,7 +228,7 @@ const Notes = () => {
   };
 
   const isNoteLocked = (note: any) => {
-    if (!note.note_password) return false;
+    if (!note.note_password || note.note_password.trim() === '') return false;
     if (isAdmin) return false;
     if (note.user_id === user?.id) return false;
     return !unlockedNotes.has(note.id);
