@@ -1,28 +1,28 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
+import { toast } from 'sonner';
 
 export async function addWatermarkToPdf(pdfUrl: string): Promise<Blob> {
-  const response = await fetch(pdfUrl);
+  const response = await fetch(pdfUrl, { mode: 'cors' });
+  if (!response.ok) throw new Error(`Failed to fetch PDF: ${response.status}`);
   const pdfBytes = await response.arrayBuffer();
-  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const pages = pdfDoc.getPages();
 
   for (const page of pages) {
     const { width, height } = page.getSize();
     const text = 'EconNotes';
-    const fontSize = 48;
-    const textWidth = font.widthOfTextAtSize(text, fontSize);
+    const fontSize = 42;
 
-    // Draw repeated diagonal watermarks
-    for (let y = -100; y < height + 200; y += 180) {
-      for (let x = -100; x < width + 200; x += 300) {
+    for (let y = -100; y < height + 200; y += 150) {
+      for (let x = -200; x < width + 200; x += 250) {
         page.drawText(text, {
           x,
           y,
           size: fontSize,
           font,
-          color: rgb(0.7, 0.7, 0.7),
-          opacity: 0.12,
+          color: rgb(0.6, 0.6, 0.6),
+          opacity: 0.18,
           rotate: degrees(-35),
         });
       }
@@ -30,7 +30,7 @@ export async function addWatermarkToPdf(pdfUrl: string): Promise<Blob> {
   }
 
   const watermarkedBytes = await pdfDoc.save();
-  return new Blob([watermarkedBytes as unknown as ArrayBuffer], { type: 'application/pdf' });
+  return new Blob([new Uint8Array(watermarkedBytes)], { type: 'application/pdf' });
 }
 
 export async function addWatermarkToImage(imageUrl: string): Promise<Blob> {
@@ -49,15 +49,14 @@ export async function addWatermarkToImage(imageUrl: string): Promise<Blob> {
 
   ctx.drawImage(img, 0, 0);
 
-  // Draw repeated diagonal watermarks
   ctx.save();
   ctx.font = `${Math.max(canvas.width, canvas.height) * 0.04}px Helvetica, Arial, sans-serif`;
-  ctx.fillStyle = 'rgba(128, 128, 128, 0.12)';
+  ctx.fillStyle = 'rgba(100, 100, 100, 0.18)';
   ctx.rotate((-35 * Math.PI) / 180);
 
   const text = 'EconNotes';
-  for (let y = -canvas.height; y < canvas.height * 2; y += 160) {
-    for (let x = -canvas.width; x < canvas.width * 2; x += 280) {
+  for (let y = -canvas.height; y < canvas.height * 2; y += 140) {
+    for (let x = -canvas.width; x < canvas.width * 2; x += 240) {
       ctx.fillText(text, x, y);
     }
   }
@@ -69,15 +68,15 @@ export async function addWatermarkToImage(imageUrl: string): Promise<Blob> {
 }
 
 export async function downloadWithWatermark(fileUrl: string, fileName: string, fileType: string) {
+  const toastId = toast.loading('Dosya hazırlanıyor...');
   try {
     let blob: Blob;
 
     if (fileType === 'application/pdf') {
       blob = await addWatermarkToPdf(fileUrl);
-    } else if (fileType.startsWith('image/')) {
+    } else if (fileType?.startsWith('image/')) {
       blob = await addWatermarkToImage(fileUrl);
     } else {
-      // For other file types, download as-is
       const res = await fetch(fileUrl);
       blob = await res.blob();
     }
@@ -89,9 +88,23 @@ export async function downloadWithWatermark(fileUrl: string, fileName: string, f
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success('Dosya indirildi!', { id: toastId });
   } catch (error) {
-    console.error('Watermark error, falling back to direct download:', error);
-    window.open(fileUrl, '_blank');
+    console.error('Watermark error:', error);
+    toast.dismiss(toastId);
+    // Fallback: direct download without watermark
+    try {
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = fileName || 'download';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.info('Dosya doğrudan indiriliyor.');
+    } catch {
+      window.open(fileUrl, '_blank');
+    }
   }
 }
