@@ -165,8 +165,12 @@ const Login = () => {
           )}
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Hoş Geldiniz</h2>
+            <h2 className="text-2xl font-bold text-foreground">{getGreeting()}</h2>
             <p className="text-sm text-primary mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin</p>
+            <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+              <Lock className="h-3 w-3" />
+              <span>🔒 Güvenli Giriş</span>
+            </div>
           </div>
 
           {penaltyInfo && !penaltyInfo.expired && (
