@@ -129,7 +129,7 @@ const Login = () => {
             ))}
           </div>
         </div>
-        <p className="text-white/50 text-sm relative z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+        <p className="text-white/50 text-sm relative z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir. 🎓</p>
         {/* Decorative gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20" />
       </div>
