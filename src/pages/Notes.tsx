@@ -508,8 +508,8 @@ const Notes = () => {
                           <div className="flex flex-wrap gap-1.5">
                             {note.file_url && (
                               <>
-                                <Button size="sm" variant="outline" onClick={() => { trackDownload(note.id); }} asChild>
-                                  <a href={note.file_url} download={note.file_name}><Download className="h-3 w-3 mr-1" /> İndir</a>
+                                <Button size="sm" variant="outline" onClick={() => { trackDownload(note.id); downloadWithWatermark(note.file_url, note.file_name, note.file_type); }}>
+                                  <Download className="h-3 w-3 mr-1" /> İndir
                                 </Button>
                                 {isPreviewable(note.file_type, note.file_url) && (
                                   <Button size="sm" variant="outline" onClick={() => { trackView(note.id); setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
