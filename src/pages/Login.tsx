@@ -232,8 +232,8 @@ const Login = () => {
                 </button>
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(174, 80%, 45%)', color: 'white' }}>
-              {loading ? 'Giriş yapılıyor...' : 'Başlayalım!'}
+            <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(221, 83%, 53%)', color: 'white' }}>
+              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </Button>
           </form>
 
