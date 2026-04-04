@@ -30,7 +30,7 @@ export async function addWatermarkToPdf(pdfUrl: string): Promise<Blob> {
   }
 
   const watermarkedBytes = await pdfDoc.save();
-  return new Blob([watermarkedBytes], { type: 'application/pdf' });
+  return new Blob([watermarkedBytes as unknown as ArrayBuffer], { type: 'application/pdf' });
 }
 
 export async function addWatermarkToImage(imageUrl: string): Promise<Blob> {
