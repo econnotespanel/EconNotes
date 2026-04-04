@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -98,15 +98,15 @@ const Login = () => {
   };
 
   const features = [
-    { icon: BookOpen, title: 'Not Paylaşımı', desc: 'Ders notlarınızı arkadaşlarınızla kolayca paylaşın' },
+    { icon: BookOpen, title: 'Not Paylaşımı', desc: 'Ders notlarınızı arkadaşlarınızla kolayca paylaşın.' },
     { icon: Users, title: 'Topluluk', desc: 'Üniversite öğrencileriyle bilgi paylaşın.' },
-    { icon: TrendingUp, title: 'Başarı', desc: 'Sınavlara hazırlanın, başarıya ulaşın' },
+    { icon: TrendingUp, title: 'Başarı', desc: 'Sınavlara hazırlanın, başarıya ulaşın.' },
   ];
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row relative">
       {/* Left panel - features */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: theme === 'dark' ? 'linear-gradient(135deg, hsl(217, 91%, 12%), hsl(221, 83%, 18%), hsl(213, 80%, 22%))' : 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-8">
             <img src={logo} alt="EconNotes" className="h-12 w-12 object-contain brightness-0 invert" />
@@ -129,7 +129,7 @@ const Login = () => {
             ))}
           </div>
         </div>
-        <p className="text-white/50 text-sm relative z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir. 🎓</p>
+        <p className="text-white/50 text-sm relative z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
         {/* Decorative gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20" />
       </div>
@@ -167,9 +167,11 @@ const Login = () => {
           <div>
             <h2 className="text-2xl font-bold text-foreground">{getGreeting()}</h2>
             <p className="text-sm text-primary mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin</p>
-            <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-              <Lock className="h-3 w-3" />
-              <span>🔒 Güvenli Giriş</span>
+            <div className="flex items-center gap-2 mt-3">
+              <div className="p-1.5 rounded-full bg-primary/10">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+              </div>
+              <span className="text-sm text-muted-foreground font-medium">Güvenli Giriş</span>
             </div>
           </div>
 
@@ -249,6 +251,7 @@ const Login = () => {
             <p className="text-xs text-muted-foreground text-center">
               Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
+            <p className="text-xs text-muted-foreground/60 text-center lg:hidden">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
           </div>
         </div>
       </div>
