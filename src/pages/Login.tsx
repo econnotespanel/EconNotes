@@ -251,6 +251,7 @@ const Login = () => {
             <p className="text-xs text-muted-foreground text-center">
               Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
+            <p className="text-xs text-muted-foreground/60 text-center lg:hidden">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
           </div>
         </div>
       </div>
