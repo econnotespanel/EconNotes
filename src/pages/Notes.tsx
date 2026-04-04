@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { toast } from 'sonner';
 import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
+import { downloadWithWatermark } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
@@ -507,8 +508,8 @@ const Notes = () => {
                           <div className="flex flex-wrap gap-1.5">
                             {note.file_url && (
                               <>
-                                <Button size="sm" variant="outline" onClick={() => { trackDownload(note.id); }} asChild>
-                                  <a href={note.file_url} download={note.file_name}><Download className="h-3 w-3 mr-1" /> İndir</a>
+                                <Button size="sm" variant="outline" onClick={() => { trackDownload(note.id); downloadWithWatermark(note.file_url, note.file_name, note.file_type); }}>
+                                  <Download className="h-3 w-3 mr-1" /> İndir
                                 </Button>
                                 {isPreviewable(note.file_type, note.file_url) && (
                                   <Button size="sm" variant="outline" onClick={() => { trackView(note.id); setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
