@@ -197,7 +197,7 @@ const Register = () => {
           </form>
           <div className="mt-3 pt-3 border-t border-border/40 text-center">
             <p className="text-xs text-muted-foreground">
-              Yardım ve Teknik Destek için: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
+              Yardım ve Teknik Destek için: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
           </div>
         </CardContent>

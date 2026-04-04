@@ -80,7 +80,7 @@ const Index = () => {
           )}
           <p className="text-xs text-muted-foreground mt-2">
             Yardım ve teknik destek talepleriniz için{' '}
-            <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>{' '}
+            <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>{' '}
             adresi üzerinden bizimle iletişime geçebilirsiniz.
           </p>
           <p className="text-xs text-muted-foreground mt-4">

@@ -66,7 +66,7 @@ const About = () => {
             <div>
               <h3 className="font-semibold">İletişim & Destek</h3>
               <p className="text-sm text-muted-foreground">
-                Teknik destek ve önerileriniz için: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
+                Teknik destek ve önerileriniz için: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
               </p>
             </div>
           </CardContent>
@@ -118,7 +118,7 @@ const About = () => {
               <p>
                 KVKK kapsamındaki haklarınız (kişisel verilerinize erişim, düzeltme, silme, işlenmesine itiraz, 
                 veri taşınabilirliği) için{' '}
-                <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>{' '}
+                <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>{' '}
                 adresinden bizimle iletişime geçebilirsiniz.
               </p>
             </div>

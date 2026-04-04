@@ -106,7 +106,7 @@ const Login = () => {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row relative">
       {/* Left panel - features */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(180, 60%, 20%), hsl(190, 80%, 25%), hsl(170, 70%, 30%))' }}>
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-8">
             <img src={logo} alt="EconNotes" className="h-12 w-12 object-contain brightness-0 invert" />
@@ -129,7 +129,7 @@ const Login = () => {
             ))}
           </div>
         </div>
-        <p className="text-white/50 text-sm relative z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+        <p className="text-white/50 text-sm relative z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir. 🎓</p>
         {/* Decorative gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20" />
       </div>
@@ -165,8 +165,12 @@ const Login = () => {
           )}
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Hoş Geldiniz</h2>
+            <h2 className="text-2xl font-bold text-foreground">{getGreeting()}</h2>
             <p className="text-sm text-primary mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin</p>
+            <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+              <Lock className="h-3 w-3" />
+              <span>🔒 Güvenli Giriş</span>
+            </div>
           </div>
 
           {penaltyInfo && !penaltyInfo.expired && (
@@ -228,8 +232,8 @@ const Login = () => {
                 </button>
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(174, 80%, 45%)', color: 'white' }}>
-              {loading ? 'Giriş yapılıyor...' : 'Başlayalım!'}
+            <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(221, 83%, 53%)', color: 'white' }}>
+              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </Button>
           </form>
 
@@ -243,12 +247,10 @@ const Login = () => {
               Uygulamayı İndir
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              Yardım ve Teknik Destek: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
+              Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
           </div>
         </div>
-
-        <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-muted-foreground">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
       </div>
     </div>
   );
