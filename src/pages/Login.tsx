@@ -247,12 +247,10 @@ const Login = () => {
               Uygulamayı İndir
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              Yardım ve Teknik Destek: <a href="mailto:econnotespanel@gmail.com" className="text-primary hover:underline">econnotespanel@gmail.com</a>
+              Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
           </div>
         </div>
-
-        <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-muted-foreground">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
       </div>
     </div>
   );

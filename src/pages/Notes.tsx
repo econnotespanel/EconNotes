@@ -609,9 +609,9 @@ const Notes = () => {
         {/* Preview Modal */}
         {previewUrl && (
           <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); }}>
-            <DialogContent className="max-w-4xl max-h-[80vh]">
+            <DialogContent className="max-w-[95vw] w-full max-h-[95vh] h-[95vh]">
               <DialogHeader><DialogTitle>Önizleme</DialogTitle></DialogHeader>
-              <div className="w-full h-[60vh] relative">
+              <div className="w-full h-[calc(95vh-80px)] relative">
                 {previewType?.startsWith('image/') ? (
                   <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
                 ) : previewType === 'application/pdf' ? (
