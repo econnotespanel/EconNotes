@@ -210,10 +210,12 @@ const Login = () => {
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
-          className="absolute top-4 right-4 p-2 rounded-full hover:bg-accent transition-colors text-muted-foreground"
+          className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium text-muted-foreground hover:text-foreground"
           title={theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}
         >
-          {theme === 'dark' ? '☀️' : '🌙'}
+          <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
+          <span className={`transition-transform duration-300 ${theme === 'light' ? 'rotate-0' : 'rotate-90 scale-0 absolute'}`}>🌙</span>
+          <span className="text-xs">{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
         </button>
 
         {/* Mobile logo */}
@@ -236,8 +238,8 @@ const Login = () => {
           )}
 
           <div>
-            <p className="text-sm text-primary font-medium mb-1">EconNotes'a Hoş Geldiniz.</p>
             <h2 className="text-2xl font-bold text-foreground">{getGreeting()}</h2>
+            <p className="text-sm text-primary font-medium mt-1">EconNotes'a Hoş Geldiniz.</p>
             <p className="text-sm text-muted-foreground mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin</p>
             <div className="flex items-center gap-2 mt-3">
               <div className="p-1.5 rounded-full bg-primary/10">
@@ -315,7 +317,7 @@ const Login = () => {
               Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
             <p className="text-xs text-muted-foreground/60 text-center lg:hidden">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
-            <p className="text-xs text-muted-foreground/40 text-center">{APP_VERSION}</p>
+            <p className="text-xs text-muted-foreground/40 text-center lg:hidden">{APP_VERSION}</p>
           </div>
         </div>
       </div>

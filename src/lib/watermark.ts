@@ -2,9 +2,19 @@ import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import { toast } from 'sonner';
 
 export async function addWatermarkToPdf(pdfUrl: string): Promise<Blob> {
-  const response = await fetch(pdfUrl, { mode: 'cors' });
-  if (!response.ok) throw new Error(`Failed to fetch PDF: ${response.status}`);
-  const pdfBytes = await response.arrayBuffer();
+  // Try fetching with different approaches for CORS
+  let pdfBytes: ArrayBuffer;
+  try {
+    const response = await fetch(pdfUrl, { mode: 'cors' });
+    if (!response.ok) throw new Error(`Failed to fetch PDF: ${response.status}`);
+    pdfBytes = await response.arrayBuffer();
+  } catch {
+    // Fallback: try without cors mode
+    const response = await fetch(pdfUrl);
+    if (!response.ok) throw new Error(`Failed to fetch PDF: ${response.status}`);
+    pdfBytes = await response.arrayBuffer();
+  }
+  
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const pages = pdfDoc.getPages();
@@ -12,17 +22,17 @@ export async function addWatermarkToPdf(pdfUrl: string): Promise<Blob> {
   for (const page of pages) {
     const { width, height } = page.getSize();
     const text = 'EconNotes';
-    const fontSize = 42;
+    const fontSize = 48;
 
-    for (let y = -100; y < height + 200; y += 150) {
-      for (let x = -200; x < width + 200; x += 250) {
+    for (let y = -100; y < height + 200; y += 120) {
+      for (let x = -200; x < width + 200; x += 200) {
         page.drawText(text, {
           x,
           y,
           size: fontSize,
           font,
-          color: rgb(0.6, 0.6, 0.6),
-          opacity: 0.18,
+          color: rgb(0.5, 0.5, 0.5),
+          opacity: 0.25,
           rotate: degrees(-35),
         });
       }
@@ -50,13 +60,13 @@ export async function addWatermarkToImage(imageUrl: string): Promise<Blob> {
   ctx.drawImage(img, 0, 0);
 
   ctx.save();
-  ctx.font = `${Math.max(canvas.width, canvas.height) * 0.04}px Helvetica, Arial, sans-serif`;
-  ctx.fillStyle = 'rgba(100, 100, 100, 0.18)';
+  ctx.font = `${Math.max(canvas.width, canvas.height) * 0.05}px Helvetica, Arial, sans-serif`;
+  ctx.fillStyle = 'rgba(80, 80, 80, 0.25)';
   ctx.rotate((-35 * Math.PI) / 180);
 
   const text = 'EconNotes';
-  for (let y = -canvas.height; y < canvas.height * 2; y += 140) {
-    for (let x = -canvas.width; x < canvas.width * 2; x += 240) {
+  for (let y = -canvas.height; y < canvas.height * 2; y += 120) {
+    for (let x = -canvas.width; x < canvas.width * 2; x += 200) {
       ctx.fillText(text, x, y);
     }
   }

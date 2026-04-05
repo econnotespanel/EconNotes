@@ -20,7 +20,7 @@ const About = () => {
           <div className="flex justify-center">
             <img src={logo} alt="EconNotes" className="h-20 w-20 object-contain" style={{ filter: 'var(--logo-filter)' }} />
           </div>
-          <h1 className="text-3xl font-bold gradient-text">EconNotes Panel</h1>
+          <h1 className="text-3xl font-bold gradient-text">EconNotes</h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
             EconNotes Panel, üniversite öğrencilerinin ders notlarına daha iyi, hızlı ve pratik bir şekilde ulaşabilmesini sağlayan bir ders notu paylaşım modülüdür.
           </p>
