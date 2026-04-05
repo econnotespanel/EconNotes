@@ -12,6 +12,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
 import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building, ShieldCheck } from 'lucide-react';
+import { useSystemStatus } from '@/hooks/useSystemStatus';
+import MaintenanceScreen from '@/components/MaintenanceScreen';
+
+const APP_VERSION = 'v2.5.0';
 
 const PANEL_RULES = [
   'Tüm kullanıcılar birbirine saygılı davranmalıdır.',
@@ -43,6 +47,7 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const navigate = useNavigate();
+  const { systemOpen, closedUntil } = useSystemStatus();
 
   const validatePassword = (password: string) => {
     if (password.length < 6) return 'Şifre en az 6 karakter olmalıdır.';
@@ -91,6 +96,10 @@ const Register = () => {
       navigate('/login');
     }
   };
+
+  if (systemOpen === false) {
+    return <MaintenanceScreen closedUntil={closedUntil} />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden">
@@ -195,10 +204,11 @@ const Register = () => {
               Hesabınız var mı? <Link to="/login" className="text-primary hover:underline">Giriş Yap</Link>
             </p>
           </form>
-          <div className="mt-3 pt-3 border-t border-border/40 text-center">
+          <div className="mt-3 pt-3 border-t border-border/40 text-center space-y-1">
             <p className="text-xs text-muted-foreground">
               Yardım ve Teknik Destek için: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
+            <p className="text-xs text-muted-foreground/40">{APP_VERSION}</p>
           </div>
         </CardContent>
     </Card>
