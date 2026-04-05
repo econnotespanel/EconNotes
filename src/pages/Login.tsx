@@ -9,6 +9,10 @@ import logo from '@/assets/econnotes-logo.png';
 import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSystemStatus } from '@/hooks/useSystemStatus';
+import MaintenanceScreen from '@/components/MaintenanceScreen';
+
+const APP_VERSION = 'v2.5.0';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,9 +20,11 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [penaltyInfo, setPenaltyInfo] = useState<{ reason: string; until: string | null; is_permanent: boolean; expired?: boolean } | null>(null);
+  const [penaltyCountdown, setPenaltyCountdown] = useState(0);
   const [loginBanners, setLoginBanners] = useState<any[]>([]);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { systemOpen, closedUntil } = useSystemStatus();
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -27,6 +33,35 @@ const Login = () => {
     };
     fetchBanners();
   }, []);
+
+  // Penalty countdown timer
+  useEffect(() => {
+    if (penaltyCountdown > 0) {
+      const timer = setTimeout(() => setPenaltyCountdown(penaltyCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+    if (penaltyCountdown === 0 && penaltyInfo?.expired) {
+      // Auto-navigate after countdown
+      const profileFetch = async () => {
+        const { data: session } = await supabase.auth.getSession();
+        if (session?.session?.user) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('user_id', session.session.user.id)
+            .single();
+          const fullName = profileData?.full_name || session.session.user.user_metadata?.full_name || '';
+          toast.success(`Giriş Başarılı! Hoş Geldiniz, ${fullName}`, {
+            style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
+          });
+          navigate('/');
+        }
+      };
+      if (penaltyInfo?.expired) {
+        profileFetch();
+      }
+    }
+  }, [penaltyCountdown, penaltyInfo]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -79,6 +114,9 @@ const Login = () => {
 
         if (penaltyUntil && penaltyUntil <= now && !isPermanent) {
           setPenaltyInfo({ reason: latest.reason, until: latest.penalty_until, is_permanent: false, expired: true });
+          setPenaltyCountdown(5);
+          setLoading(false);
+          return;
         }
       }
     }
@@ -96,6 +134,36 @@ const Login = () => {
     });
     navigate('/');
   };
+
+  // Show maintenance screen if system is closed
+  if (systemOpen === false) {
+    return <MaintenanceScreen closedUntil={closedUntil} />;
+  }
+
+  // Show penalty expired countdown screen
+  if (penaltyInfo?.expired && penaltyCountdown > 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md text-center space-y-4 animate-fade-in">
+          <div className="flex justify-center">
+            <div className="p-4 rounded-full bg-warning/10">
+              <AlertTriangle className="h-12 w-12 text-warning" />
+            </div>
+          </div>
+          <h2 className="text-xl font-bold text-foreground">Uzaklaştırma Cezan Sona Erdi</h2>
+          <p className="text-sm text-muted-foreground">
+            EconNotes kurallarına daha dikkatli olmayı unutma! Tekrar hoş geldin.
+          </p>
+          <div className="flex justify-center">
+            <div className="w-16 h-16 rounded-full border-4 border-primary flex items-center justify-center">
+              <span className="text-2xl font-bold text-primary">{penaltyCountdown}</span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Platforma yönlendiriliyorsunuz...</p>
+        </div>
+      </div>
+    );
+  }
 
   const features = [
     { icon: BookOpen, title: 'Not Paylaşımı', desc: 'Ders notlarınızı arkadaşlarınızla kolayca paylaşın.' },
@@ -129,7 +197,10 @@ const Login = () => {
             ))}
           </div>
         </div>
-        <p className="text-white/50 text-sm relative z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+        <div className="relative z-10 flex items-center justify-between">
+          <p className="text-white/50 text-sm">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+          <span className="text-white/30 text-xs">{APP_VERSION}</span>
+        </div>
         {/* Decorative gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20" />
       </div>
@@ -165,8 +236,9 @@ const Login = () => {
           )}
 
           <div>
+            <p className="text-sm text-primary font-medium mb-1">EconNotes'a Hoş Geldiniz.</p>
             <h2 className="text-2xl font-bold text-foreground">{getGreeting()}</h2>
-            <p className="text-sm text-primary mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin</p>
+            <p className="text-sm text-muted-foreground mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin</p>
             <div className="flex items-center gap-2 mt-3">
               <div className="p-1.5 rounded-full bg-primary/10">
                 <ShieldCheck className="h-4 w-4 text-primary" />
@@ -186,15 +258,6 @@ const Login = () => {
                 ) : penaltyInfo.until ? (
                   <p><strong>Ceza Bitiş:</strong> {new Date(penaltyInfo.until).toLocaleString('tr-TR')}</p>
                 ) : null}
-              </AlertDescription>
-            </Alert>
-          )}
-          {penaltyInfo?.expired && (
-            <Alert className="border-warning/30 bg-warning/5">
-              <AlertTriangle className="h-4 w-4 text-warning" />
-              <AlertTitle className="text-warning">Uzaklaştırma Cezan Sona Erdi</AlertTitle>
-              <AlertDescription>
-                <p className="text-sm">EconNotes Panel kurallarına daha dikkatli olmayı unutma! Tekrar hoş geldin. 🎓</p>
               </AlertDescription>
             </Alert>
           )}
@@ -252,6 +315,7 @@ const Login = () => {
               Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
             <p className="text-xs text-muted-foreground/60 text-center lg:hidden">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+            <p className="text-xs text-muted-foreground/40 text-center">{APP_VERSION}</p>
           </div>
         </div>
       </div>
