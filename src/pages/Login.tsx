@@ -113,10 +113,15 @@ const Login = () => {
         }
 
         if (penaltyUntil && penaltyUntil <= now && !isPermanent) {
-          setPenaltyInfo({ reason: latest.reason, until: latest.penalty_until, is_permanent: false, expired: true });
-          setPenaltyCountdown(5);
-          setLoading(false);
-          return;
+          const warnedKey = `penalty_warned_${latest.id}`;
+          const alreadyWarned = localStorage.getItem(warnedKey);
+          if (!alreadyWarned) {
+            localStorage.setItem(warnedKey, 'true');
+            setPenaltyInfo({ reason: latest.reason, until: latest.penalty_until, is_permanent: false, expired: true });
+            setPenaltyCountdown(5);
+            setLoading(false);
+            return;
+          }
         }
       }
     }
