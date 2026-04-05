@@ -14,8 +14,7 @@ const Index = () => {
 
   useEffect(() => {
     if (systemOpen === false && user && !isAdmin) {
-      toast.error('EconNotes Hatası: Sistem bakıma alındı. Oturumunuz sonlandırıldı.', { duration: 6000 });
-      signOut().then(() => navigate('/login'));
+      signOut();
     }
   }, [systemOpen, user, isAdmin]);
 
