@@ -4,16 +4,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
-import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building, ShieldCheck, UserPlus, BookOpen, Users, TrendingUp } from 'lucide-react';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const APP_VERSION = 'v2.5.0';
 
@@ -48,6 +48,7 @@ const Register = () => {
   const [rulesOpen, setRulesOpen] = useState(false);
   const navigate = useNavigate();
   const { systemOpen, closedUntil } = useSystemStatus();
+  const { theme, toggleTheme } = useTheme();
 
   const validatePassword = (password: string) => {
     if (password.length < 6) return 'Şifre en az 6 karakter olmalıdır.';
@@ -101,18 +102,73 @@ const Register = () => {
     return <MaintenanceScreen closedUntil={closedUntil} />;
   }
 
+  const features = [
+    { icon: BookOpen, title: 'Not Paylaşımı', desc: 'Ders notlarınızı arkadaşlarınızla kolayca paylaşın.' },
+    { icon: Users, title: 'Topluluk', desc: 'Üniversite öğrencileriyle bilgi paylaşın.' },
+    { icon: TrendingUp, title: 'Başarı', desc: 'Sınavlara hazırlanın, başarıya ulaşın.' },
+  ];
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden">
-      <div className="absolute inset-0 decorative-lines opacity-10" />
-      <Card className="w-full max-w-md glass-card animate-fade-in relative z-10 max-h-[90vh] overflow-y-auto">
-        <CardHeader className="text-center space-y-3">
-          <div className="flex justify-center">
-            <img src={logo} alt="EconNotes" className="h-14 w-14 object-contain" style={{ filter: 'var(--logo-filter)' }} />
+    <div className="min-h-screen flex flex-col lg:flex-row relative">
+      {/* Left panel */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: theme === 'dark' ? 'linear-gradient(135deg, hsl(217, 91%, 12%), hsl(221, 83%, 18%), hsl(213, 80%, 22%))' : 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-8">
+            <img src={logo} alt="EconNotes" className="h-12 w-12 object-contain brightness-0 invert" />
+            <h1 className="text-2xl font-bold text-white">EconNotes</h1>
           </div>
-          <CardTitle className="text-2xl font-bold">Kayıt Ol</CardTitle>
-          <CardDescription>EconNotes'a Kayıt Olun</CardDescription>
-        </CardHeader>
-        <CardContent>
+          <p className="text-white/80 text-lg mb-12">EconNotes ile notların hep yanında!</p>
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-white">Platform Özellikleri</h2>
+            {features.map((f, i) => (
+              <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
+                <div className="p-2 rounded-lg bg-white/10">
+                  <f.icon className="h-6 w-6 text-white/90" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">{f.title}</h3>
+                  <p className="text-sm text-white/70">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="relative z-10 flex items-center justify-between">
+          <p className="text-white/50 text-sm">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+          <span className="text-white/30 text-xs">{APP_VERSION}</span>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20" />
+      </div>
+
+      {/* Right panel - register form */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-background relative min-h-screen lg:min-h-0">
+        {/* Theme toggle */}
+        <button
+          onClick={toggleTheme}
+          className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium text-muted-foreground hover:text-foreground"
+          title={theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}
+        >
+          <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
+          <span className={`transition-transform duration-300 ${theme === 'light' ? 'rotate-0' : 'rotate-90 scale-0 absolute'}`}>🌙</span>
+          <span className="text-xs">{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
+        </button>
+
+        {/* Mobile logo */}
+        <div className="lg:hidden flex items-center gap-3 mb-4">
+          <img src={logo} alt="EconNotes" className="h-10 w-10 object-contain" style={{ filter: 'var(--logo-filter)' }} />
+          <h1 className="text-xl font-bold text-foreground">EconNotes</h1>
+        </div>
+
+        <div className="w-full max-w-sm space-y-4 max-h-[85vh] overflow-y-auto pr-1">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <UserPlus className="h-5 w-5 text-primary" />
+              <h2 className="text-2xl font-bold text-foreground">Kayıt Ol</h2>
+            </div>
+            <p className="text-sm text-primary font-medium">EconNotes'a Hoş Geldiniz.</p>
+            <p className="text-sm text-muted-foreground mt-1">Hesap oluşturmak için bilgilerinizi girin.</p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="fullName">Ad Soyad</Label>
@@ -128,18 +184,20 @@ const Register = () => {
                 <Input id="email" type="email" placeholder="ornek@mail.com" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="pl-10" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="university">Üniversite</Label>
-              <div className="relative">
-                <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input id="university" placeholder="Üniversite adını yazın" value={formData.university} onChange={(e) => setFormData({...formData, university: e.target.value})} className="pl-10" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="university">Üniversite</Label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input id="university" placeholder="Üniversite" value={formData.university} onChange={(e) => setFormData({...formData, university: e.target.value})} className="pl-10" />
+                </div>
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="department">Bölüm</Label>
-              <div className="relative">
-                <GraduationCap className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input id="department" placeholder="Bölüm adını yazın" value={formData.department} onChange={(e) => setFormData({...formData, department: e.target.value})} className="pl-10" />
+              <div className="space-y-1.5">
+                <Label htmlFor="department">Bölüm</Label>
+                <div className="relative">
+                  <GraduationCap className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input id="department" placeholder="Bölüm" value={formData.department} onChange={(e) => setFormData({...formData, department: e.target.value})} className="pl-10" />
+                </div>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -159,7 +217,7 @@ const Register = () => {
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="pl-10 pr-10" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-muted-foreground">
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-muted-foreground hover:text-foreground">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
@@ -197,22 +255,24 @@ const Register = () => {
                 'nı okudum ve kabul ediyorum. Paylaşılan içeriklerden sorumluluk tarafıma aittir.
               </Label>
             </div>
-            <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
+            <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(221, 83%, 53%)', color: 'white' }}>
               {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
-              Hesabınız var mı? <Link to="/login" className="text-primary hover:underline">Giriş Yap</Link>
-            </p>
           </form>
-          <div className="mt-3 pt-3 border-t border-border/40 text-center space-y-1">
-            <p className="text-xs text-muted-foreground">
-              Yardım ve Teknik Destek için: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
+
+          <p className="text-sm text-center text-muted-foreground">
+            Hesabınız var mı? <Link to="/login" className="text-primary hover:underline font-medium">Giriş Yap</Link>
+          </p>
+
+          <div className="space-y-2 pt-2 border-t border-border/40">
+            <p className="text-xs text-muted-foreground text-center">
+              Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
-            <p className="text-xs text-muted-foreground/40">{APP_VERSION}</p>
+            <p className="text-xs text-muted-foreground/60 text-center lg:hidden">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+            <p className="text-xs text-muted-foreground/40 text-center lg:hidden">{APP_VERSION}</p>
           </div>
-        </CardContent>
-    </Card>
-      <p className="absolute bottom-4 left-0 right-0 text-center text-xs text-white/60 z-10">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+        </div>
+      </div>
     </div>
   );
 };
