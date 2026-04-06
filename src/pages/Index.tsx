@@ -8,15 +8,9 @@ import { useSystemStatus } from '@/hooks/useSystemStatus';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
 
 const Index = () => {
-  const { user, loading, isAdmin, signOut } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { systemOpen, closedUntil } = useSystemStatus();
-
-  useEffect(() => {
-    if (systemOpen === false && user && !isAdmin) {
-      signOut();
-    }
-  }, [systemOpen, user, isAdmin]);
 
   if (loading || systemOpen === null) {
     return (
@@ -28,11 +22,12 @@ const Index = () => {
     );
   }
 
-  if (!user) return <Navigate to="/login" replace />;
-
-  if (!systemOpen && !isAdmin) {
+  // Show maintenance screen for non-admin users (without signing them out)
+  if (systemOpen === false && !isAdmin) {
     return <MaintenanceScreen closedUntil={closedUntil} />;
   }
+
+  if (!user) return <Navigate to="/login" replace />;
 
   return <Dashboard />;
 };

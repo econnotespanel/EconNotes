@@ -245,7 +245,7 @@ const Login = () => {
           <div>
             <h2 className="text-2xl font-bold text-foreground">{getGreeting()}</h2>
             <p className="text-sm text-primary font-medium mt-1">EconNotes'a Hoş Geldiniz.</p>
-            <p className="text-sm text-muted-foreground mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin</p>
+            <p className="text-sm text-muted-foreground mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin.</p>
             <div className="flex items-center gap-2 mt-3">
               <div className="p-1.5 rounded-full bg-primary/10">
                 <ShieldCheck className="h-4 w-4 text-primary" />
