@@ -8,7 +8,7 @@ import { useSystemStatus } from '@/hooks/useSystemStatus';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
 
 const Index = () => {
-  const { user, loading, isAdmin, signOut } = useAuth();
+  const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
   const { systemOpen, closedUntil } = useSystemStatus();
 
