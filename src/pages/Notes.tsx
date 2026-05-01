@@ -500,12 +500,27 @@ const Notes = () => {
                             <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{note.semester}</span>
                             {note.note_password && <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning flex items-center gap-0.5"><Lock className="h-2.5 w-2.5" /> Şifreli</span>}
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span>{note.uploader_name} • {note.university ? `${note.university} • ` : ''}{note.department} • {formatDateTime(note.created_at)}</span>
+                          <div className="rounded-lg border border-border/60 bg-muted/40 p-2.5 space-y-1 text-xs">
+                            {note.university && (
+                              <div className="flex items-start gap-1.5">
+                                <span className="font-medium text-foreground/80 shrink-0">🏛️ Üniversite:</span>
+                                <span className="text-muted-foreground">{note.university}</span>
+                              </div>
+                            )}
+                            {note.department && (
+                              <div className="flex items-start gap-1.5">
+                                <span className="font-medium text-foreground/80 shrink-0">🎓 Bölüm:</span>
+                                <span className="text-muted-foreground">{note.department}</span>
+                              </div>
+                            )}
+                            <div className="flex items-start gap-1.5">
+                              <span className="font-medium text-foreground/80 shrink-0">👤 Yükleyen:</span>
+                              <span className="text-muted-foreground">{note.uploader_name} • {formatDateTime(note.created_at)}</span>
+                            </div>
                             {note.edited_at && (
-                              <span className="flex items-center gap-0.5">
+                              <div className="flex items-center gap-1.5 text-muted-foreground">
                                 <Pencil className="h-2.5 w-2.5" /> {formatDateTime(note.edited_at)}
-                              </span>
+                              </div>
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">
