@@ -67,7 +67,8 @@ const Header = () => {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour >= 6 && hour <= 16) return 'İyi Günler';
+    if (hour >= 6 && hour <= 11) return 'Günaydın';
+    if (hour >= 12 && hour <= 16) return 'İyi Günler';
     if (hour >= 17 && hour <= 20) return 'İyi Akşamlar';
     return 'İyi Geceler';
   };
