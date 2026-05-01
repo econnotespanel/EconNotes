@@ -304,6 +304,8 @@ export type Database = {
       }
       notes: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           course: string
           created_at: string
           department: string
@@ -315,7 +317,9 @@ export type Database = {
           grade: number
           id: string
           note_password: string | null
+          rejection_reason: string | null
           semester: string
+          status: string
           title: string
           university: string | null
           updated_at: string
@@ -323,6 +327,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           course: string
           created_at?: string
           department: string
@@ -334,7 +340,9 @@ export type Database = {
           grade: number
           id?: string
           note_password?: string | null
+          rejection_reason?: string | null
           semester: string
+          status?: string
           title: string
           university?: string | null
           updated_at?: string
@@ -342,6 +350,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           course?: string
           created_at?: string
           department?: string
@@ -353,7 +363,9 @@ export type Database = {
           grade?: number
           id?: string
           note_password?: string | null
+          rejection_reason?: string | null
           semester?: string
+          status?: string
           title?: string
           university?: string | null
           updated_at?: string

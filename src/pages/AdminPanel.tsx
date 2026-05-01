@@ -151,6 +151,19 @@ const AdminPanel = () => {
   };
 
   const deleteNote = async (id: string) => { await supabase.from('notes').delete().eq('id', id); toast.success('Not silindi!'); fetchAll(); };
+  const approveNote = async (id: string) => {
+    const { error } = await supabase.from('notes').update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: user!.id, rejection_reason: null } as any).eq('id', id);
+    if (error) { toast.error('Onaylanamadı: ' + error.message); return; }
+    toast.success('Not onaylandı ve yayınlandı.');
+    fetchAll();
+  };
+  const rejectNote = async (id: string) => {
+    const reason = window.prompt('Reddetme sebebi (opsiyonel):') || 'Kurallara uygun değil';
+    const { error } = await supabase.from('notes').update({ status: 'rejected', rejection_reason: reason } as any).eq('id', id);
+    if (error) { toast.error('Reddedilemedi: ' + error.message); return; }
+    toast.success('Not reddedildi.');
+    fetchAll();
+  };
   const deleteAnnouncement = async (id: string) => { await supabase.from('announcements').delete().eq('id', id); toast.success('Duyuru silindi!'); fetchAll(); };
   const deleteUser = async (userId: string) => { await supabase.from('profiles').delete().eq('user_id', userId); toast.success('Kullanıcı silindi!'); fetchAll(); };
 
@@ -306,16 +319,46 @@ const AdminPanel = () => {
 
           <TabsContent value="notes">
             <Card className="glass-card"><CardContent className="p-4 space-y-3">
-              {notes.map((n) => (
+              {/* Onay bekleyen notlar */}
+              {notes.filter(n => n.status === 'pending').length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 text-warning">
+                    <Clock className="h-4 w-4" /> Onay Bekleyen Notlar ({notes.filter(n => n.status === 'pending').length})
+                  </h3>
+                  {notes.filter(n => n.status === 'pending').map((n) => (
+                    <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-warning/10 border border-warning/30">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{n.title} <Badge variant="outline" className="text-[10px] ml-1 bg-warning/20 text-warning">Beklemede</Badge> {n.note_password && <Badge variant="outline" className="text-[10px] ml-1">🔒 {n.note_password}</Badge>}</p>
+                        <p className="text-xs text-muted-foreground">{n.uploader_name} • {n.course} • {n.department} • {new Date(n.created_at).toLocaleString('tr-TR')}</p>
+                        {n.file_url && <a href={n.file_url} target="_blank" rel="noopener" className="text-xs text-primary hover:underline">Dosyayı görüntüle</a>}
+                      </div>
+                      <div className="flex gap-1 ml-2">
+                        <Button size="sm" variant="outline" className="text-green-500" onClick={() => approveNote(n.id)} title="Onayla"><Check className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="outline" className="text-destructive" onClick={() => rejectNote(n.id)} title="Reddet"><Ban className="h-3 w-3" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Diğer notlar */}
+              <h3 className="text-sm font-semibold pt-2">Tüm Notlar</h3>
+              {notes.filter(n => n.status !== 'pending').map((n) => (
                 <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
                   <div>
-                    <p className="font-medium text-sm">{n.title} {n.note_password && <Badge variant="outline" className="text-[10px] ml-1">🔒 Şifre: {n.note_password}</Badge>}</p>
+                    <p className="font-medium text-sm">{n.title}
+                      {n.status === 'rejected' && <Badge variant="outline" className="text-[10px] ml-1 bg-destructive/10 text-destructive">Reddedildi</Badge>}
+                      {n.status === 'approved' && <Badge variant="outline" className="text-[10px] ml-1 bg-green-500/10 text-green-500">Onaylı</Badge>}
+                      {n.note_password && <Badge variant="outline" className="text-[10px] ml-1">🔒 {n.note_password}</Badge>}
+                    </p>
                     <p className="text-xs text-muted-foreground">{n.uploader_name} • {n.course} • {new Date(n.created_at).toLocaleString('tr-TR')}</p>
                   </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
-                    <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Bu notu silmek istediğinize emin misiniz?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => deleteNote(n.id)}>Sil</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-                  </AlertDialog>
+                  <div className="flex gap-1">
+                    {n.status === 'rejected' && <Button size="sm" variant="outline" className="text-green-500" onClick={() => approveNote(n.id)} title="Onayla"><Check className="h-3 w-3" /></Button>}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
+                      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Bu notu silmek istediğinize emin misiniz?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => deleteNote(n.id)}>Sil</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               ))}
               {notes.length === 0 && <p className="text-center text-muted-foreground">Not yok.</p>}

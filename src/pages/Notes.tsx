@@ -155,6 +155,10 @@ const Notes = () => {
       user_id: user!.id, uploader_name: profile?.full_name || '',
       note_password: form.note_password || null,
       university: form.university || profile?.university || '',
+      // Admin'in yüklediği notlar otomatik onaylı; diğerleri admin onayı bekler
+      status: isAdmin ? 'approved' : 'pending',
+      approved_at: isAdmin ? new Date().toISOString() : null,
+      approved_by: isAdmin ? user!.id : null,
     };
 
     if (editingNote) {
@@ -167,7 +171,11 @@ const Notes = () => {
       const { data: insertedData, error } = await supabase.from('notes').insert(noteData).select('id').single();
       if (error) { toast.error('Not eklenemedi: ' + error.message); return; }
       await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_created', `"${form.title}" notu paylaşıldı`, 'note', insertedData?.id);
-      toast.success('Not başarıyla eklendi!');
+      if (isAdmin) {
+        toast.success('Not başarıyla yayınlandı.');
+      } else {
+        toast.success('Notunuz başarıyla yüklendi. Admin yönetici ekibinin onayının ardından, en geç 24 saat içerisinde yayınlanacaktır.', { duration: 9000 });
+      }
     }
 
     setDialogOpen(false);
