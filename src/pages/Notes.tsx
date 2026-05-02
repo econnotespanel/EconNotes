@@ -474,7 +474,7 @@ const Notes = () => {
 
         {loading ? (
           <p className="text-center text-muted-foreground">Yükleniyor...</p>
-        ) : (selectedCourse || searchTerm) ? (
+        ) : (selectedCourse || searchTerm || filterUniversity !== 'all' || filterDepartment !== 'all') ? (
           displayNotes.length === 0 ? (
             <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Bu klasörde henüz not yok.</CardContent></Card>
           ) : (
