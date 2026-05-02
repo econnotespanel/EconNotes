@@ -33,6 +33,8 @@ const Notes = () => {
   const [previewType, setPreviewType] = useState<string | null>(null);
   const [uploadRestricted, setUploadRestricted] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [filterUniversity, setFilterUniversity] = useState<string>('all');
+  const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [downloadCounts, setDownloadCounts] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, any[]>>({});
@@ -252,11 +254,26 @@ const Notes = () => {
     }
   };
 
-  const filteredNotes = notes.filter(n =>
-    n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    n.course.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    n.department.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const universityOptions = Array.from(new Set(notes.map(n => (n.university || '').trim()).filter(Boolean))).sort();
+  const departmentOptions = Array.from(new Set(
+    notes
+      .filter(n => filterUniversity === 'all' || (n.university || '').trim() === filterUniversity)
+      .map(n => (n.department || '').trim())
+      .filter(Boolean)
+  )).sort();
+
+  const filteredNotes = notes.filter(n => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = !term ||
+      n.title.toLowerCase().includes(term) ||
+      n.course.toLowerCase().includes(term) ||
+      (n.department || '').toLowerCase().includes(term) ||
+      (n.university || '').toLowerCase().includes(term) ||
+      (n.uploader_name || '').toLowerCase().includes(term);
+    const matchesUni = filterUniversity === 'all' || (n.university || '').trim() === filterUniversity;
+    const matchesDept = filterDepartment === 'all' || (n.department || '').trim() === filterDepartment;
+    return matchesSearch && matchesUni && matchesDept;
+  });
 
   const courseGroups = filteredNotes.reduce((acc: Record<string, any[]>, note) => {
     const key = note.course;
@@ -393,7 +410,7 @@ const Notes = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Not ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+            <Input placeholder="Not, ders, üniversite, bölüm veya kişi ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
           </div>
           <Button variant="outline" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
             {sortOrder === 'desc' ? <SortDesc className="h-4 w-4 mr-2" /> : <SortAsc className="h-4 w-4 mr-2" />}
@@ -401,8 +418,30 @@ const Notes = () => {
           </Button>
         </div>
 
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Select value={filterUniversity} onValueChange={(v) => { setFilterUniversity(v); setFilterDepartment('all'); setSelectedCourse(null); }}>
+            <SelectTrigger className="sm:w-64"><SelectValue placeholder="🏛️ Üniversite seç" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">🏛️ Tüm Üniversiteler</SelectItem>
+              {universityOptions.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterDepartment} onValueChange={(v) => { setFilterDepartment(v); setSelectedCourse(null); }}>
+            <SelectTrigger className="sm:w-64"><SelectValue placeholder="🎓 Bölüm seç" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">🎓 Tüm Bölümler</SelectItem>
+              {departmentOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {(filterUniversity !== 'all' || filterDepartment !== 'all') && (
+            <Button variant="ghost" onClick={() => { setFilterUniversity('all'); setFilterDepartment('all'); }}>
+              Filtreleri Temizle
+            </Button>
+          )}
+        </div>
+
         {/* Course folders view */}
-        {!selectedCourse && !searchTerm && (
+        {!selectedCourse && !searchTerm && filterUniversity === 'all' && filterDepartment === 'all' && (
           <div>
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <FolderOpen className="h-5 w-5 text-primary" /> Ders Klasörleri
@@ -435,7 +474,7 @@ const Notes = () => {
 
         {loading ? (
           <p className="text-center text-muted-foreground">Yükleniyor...</p>
-        ) : (selectedCourse || searchTerm) ? (
+        ) : (selectedCourse || searchTerm || filterUniversity !== 'all' || filterDepartment !== 'all') ? (
           displayNotes.length === 0 ? (
             <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Bu klasörde henüz not yok.</CardContent></Card>
           ) : (
