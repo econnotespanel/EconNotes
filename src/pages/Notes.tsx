@@ -410,7 +410,7 @@ const Notes = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Not ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+            <Input placeholder="Not, ders, üniversite, bölüm veya kişi ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
           </div>
           <Button variant="outline" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
             {sortOrder === 'desc' ? <SortDesc className="h-4 w-4 mr-2" /> : <SortAsc className="h-4 w-4 mr-2" />}
@@ -418,8 +418,30 @@ const Notes = () => {
           </Button>
         </div>
 
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Select value={filterUniversity} onValueChange={(v) => { setFilterUniversity(v); setFilterDepartment('all'); setSelectedCourse(null); }}>
+            <SelectTrigger className="sm:w-64"><SelectValue placeholder="🏛️ Üniversite seç" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">🏛️ Tüm Üniversiteler</SelectItem>
+              {universityOptions.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={filterDepartment} onValueChange={(v) => { setFilterDepartment(v); setSelectedCourse(null); }}>
+            <SelectTrigger className="sm:w-64"><SelectValue placeholder="🎓 Bölüm seç" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">🎓 Tüm Bölümler</SelectItem>
+              {departmentOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {(filterUniversity !== 'all' || filterDepartment !== 'all') && (
+            <Button variant="ghost" onClick={() => { setFilterUniversity('all'); setFilterDepartment('all'); }}>
+              Filtreleri Temizle
+            </Button>
+          )}
+        </div>
+
         {/* Course folders view */}
-        {!selectedCourse && !searchTerm && (
+        {!selectedCourse && !searchTerm && filterUniversity === 'all' && filterDepartment === 'all' && (
           <div>
             <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
               <FolderOpen className="h-5 w-5 text-primary" /> Ders Klasörleri
