@@ -33,6 +33,8 @@ const Notes = () => {
   const [previewType, setPreviewType] = useState<string | null>(null);
   const [uploadRestricted, setUploadRestricted] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [filterUniversity, setFilterUniversity] = useState<string>('all');
+  const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [downloadCounts, setDownloadCounts] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, any[]>>({});
@@ -252,11 +254,26 @@ const Notes = () => {
     }
   };
 
-  const filteredNotes = notes.filter(n =>
-    n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    n.course.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    n.department.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const universityOptions = Array.from(new Set(notes.map(n => (n.university || '').trim()).filter(Boolean))).sort();
+  const departmentOptions = Array.from(new Set(
+    notes
+      .filter(n => filterUniversity === 'all' || (n.university || '').trim() === filterUniversity)
+      .map(n => (n.department || '').trim())
+      .filter(Boolean)
+  )).sort();
+
+  const filteredNotes = notes.filter(n => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = !term ||
+      n.title.toLowerCase().includes(term) ||
+      n.course.toLowerCase().includes(term) ||
+      (n.department || '').toLowerCase().includes(term) ||
+      (n.university || '').toLowerCase().includes(term) ||
+      (n.uploader_name || '').toLowerCase().includes(term);
+    const matchesUni = filterUniversity === 'all' || (n.university || '').trim() === filterUniversity;
+    const matchesDept = filterDepartment === 'all' || (n.department || '').trim() === filterDepartment;
+    return matchesSearch && matchesUni && matchesDept;
+  });
 
   const courseGroups = filteredNotes.reduce((acc: Record<string, any[]>, note) => {
     const key = note.course;
