@@ -211,6 +211,8 @@
       radial-gradient(circle at 50% 50%, hsl(var(--primary) / 0.04), transparent 70%);
   }
   .decorative-lines > * { position: relative; z-index: 1; }
+  .decorative-lines > main, .decorative-lines > header, .decorative-lines > footer { position: relative; z-index: 1; }
+  .decorative-lines::before { z-index: -1 !important; }
 
   /* Subtle hover lift utility for cards/buttons */
   .lift-on-hover { transition: transform .25s ease, box-shadow .25s ease; }
