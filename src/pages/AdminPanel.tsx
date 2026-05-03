@@ -75,7 +75,7 @@ const AdminPanel = () => {
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
       supabase.from('penalties').select('*').order('created_at', { ascending: false }),
-      supabase.from('system_settings').select('*').limit(1).single(),
+      supabase.from('system_settings').select('*').limit(1).maybeSingle(),
       supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('user_roles').select('*'),
       supabase.from('message_reports').select('*').order('created_at', { ascending: false }),

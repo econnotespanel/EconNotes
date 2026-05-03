@@ -7,7 +7,7 @@ export const useSystemStatus = () => {
 
   useEffect(() => {
     const checkSystem = async () => {
-      const { data } = await supabase.from('system_settings').select('*').limit(1).single();
+      const { data } = await supabase.from('system_settings').select('*').limit(1).maybeSingle();
       if (data) {
         setSystemOpen((data as any).is_system_open ?? true);
         setClosedUntil((data as any).closed_until);

@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 @layer base {
   :root {
@@ -204,7 +204,7 @@
     position: fixed;
     inset: 0;
     pointer-events: none;
-    z-index: 0;
+    z-index: -1;
     background-image:
       radial-gradient(circle at 12% 18%, hsl(var(--primary) / 0.10), transparent 45%),
       radial-gradient(circle at 88% 78%, hsl(var(--primary-glow) / 0.10), transparent 50%),
@@ -212,7 +212,6 @@
   }
   .decorative-lines > * { position: relative; z-index: 1; }
   .decorative-lines > main, .decorative-lines > header, .decorative-lines > footer { position: relative; z-index: 1; }
-  .decorative-lines::before { z-index: -1 !important; }
 
   /* Subtle hover lift utility for cards/buttons */
   .lift-on-hover { transition: transform .25s ease, box-shadow .25s ease; }

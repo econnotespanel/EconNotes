@@ -44,7 +44,7 @@ const Dashboard = () => {
       const [notesRes, announcementsRes, settingsRes, bannersRes] = await Promise.all([
         supabase.from('notes').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
         supabase.from('announcements').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
-        supabase.from('system_settings').select('*').limit(1).single(),
+        supabase.from('system_settings').select('*').limit(1).maybeSingle(),
         supabase.from('banners').select('*').eq('is_active', true).order('created_at', { ascending: false }),
       ]);
       setStats({ notes: notesRes.count || 0, announcements: announcementsRes.count || 0 });
