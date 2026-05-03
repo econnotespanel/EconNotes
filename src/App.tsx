@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { Suspense, lazy, useState, useCallback } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -8,23 +8,32 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
-import Index from "./pages/Index";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ForgotPassword from "./pages/ForgotPassword";
-import Notes from "./pages/Notes";
-import Announcements from "./pages/Announcements";
-import Profile from "./pages/Profile";
-import Messages from "./pages/Messages";
-import AdminPanel from "./pages/AdminPanel";
-import About from "./pages/About";
-import AcademicAssistant from "./pages/AcademicAssistant";
-import LiveClass from "./pages/LiveClass";
-import Install from "./pages/Install";
-import NotFound from "./pages/NotFound";
-import ResetPassword from "./pages/ResetPassword";
+
+const Index = lazy(() => import("./pages/Index"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const Notes = lazy(() => import("./pages/Notes"));
+const Announcements = lazy(() => import("./pages/Announcements"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Messages = lazy(() => import("./pages/Messages"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+const About = lazy(() => import("./pages/About"));
+const AcademicAssistant = lazy(() => import("./pages/AcademicAssistant"));
+const LiveClass = lazy(() => import("./pages/LiveClass"));
+const Install = lazy(() => import("./pages/Install"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
 const queryClient = new QueryClient();
+
+const RouteLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="animate-pulse-glow p-4 rounded-full">
+      <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  </div>
+);
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(() => {
@@ -47,23 +56,25 @@ const App = () => {
             <OfflineBanner />
             {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
             <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/notes" element={<Notes />} />
-                <Route path="/announcements" element={<Announcements />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/messages" element={<Messages />} />
-                <Route path="/admin" element={<AdminPanel />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/assistant" element={<AcademicAssistant />} />
-                <Route path="/live-class" element={<LiveClass />} />
-                <Route path="/install" element={<Install />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <Suspense fallback={<RouteLoader />}>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/notes" element={<Notes />} />
+                  <Route path="/announcements" element={<Announcements />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/messages" element={<Messages />} />
+                  <Route path="/admin" element={<AdminPanel />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/assistant" element={<AcademicAssistant />} />
+                  <Route path="/live-class" element={<LiveClass />} />
+                  <Route path="/install" element={<Install />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>
