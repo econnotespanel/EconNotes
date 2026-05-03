@@ -91,7 +91,7 @@ const Notes = () => {
   };
 
   const fetchSettings = async () => {
-    const { data } = await supabase.from('system_settings').select('*').limit(1).single();
+    const { data } = await supabase.from('system_settings').select('*').limit(1).maybeSingle();
     if (data) setUploadRestricted((data as any).note_upload_restricted ?? true);
   };
 
