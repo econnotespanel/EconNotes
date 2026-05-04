@@ -171,6 +171,14 @@
   }
   .animate-fade-in { animation: fade-in .35s ease both; }
 
+  @media (prefers-reduced-motion: reduce) {
+    .animate-fade-in {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   .animated-border {
     position: relative;
     overflow: hidden;
@@ -204,14 +212,15 @@
     position: fixed;
     inset: 0;
     pointer-events: none;
-    z-index: -1;
+    z-index: 0;
     background-image:
       radial-gradient(circle at 12% 18%, hsl(var(--primary) / 0.10), transparent 45%),
       radial-gradient(circle at 88% 78%, hsl(var(--primary-glow) / 0.10), transparent 50%),
       radial-gradient(circle at 50% 50%, hsl(var(--primary) / 0.04), transparent 70%);
   }
   .decorative-lines > * { position: relative; z-index: 1; }
-  .decorative-lines > main, .decorative-lines > header, .decorative-lines > footer { position: relative; z-index: 1; }
+  .decorative-lines > main { position: relative; z-index: 2; }
+  .decorative-lines > header, .decorative-lines > footer { position: relative; z-index: 3; }
 
   /* Subtle hover lift utility for cards/buttons */
   .lift-on-hover { transition: transform .25s ease, box-shadow .25s ease; }
