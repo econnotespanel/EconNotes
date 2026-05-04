@@ -10,8 +10,6 @@ import logo from '@/assets/econnotes-logo.png';
 import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useSystemStatus } from '@/hooks/useSystemStatus';
-import MaintenanceScreen from '@/components/MaintenanceScreen';
 
 const APP_VERSION = 'v2.5.0';
 
@@ -25,7 +23,6 @@ const Login = () => {
   const [loginBanners, setLoginBanners] = useState<any[]>([]);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { systemOpen, closedUntil } = useSystemStatus();
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -141,11 +138,6 @@ const Login = () => {
     });
     navigate('/');
   };
-
-  // Show maintenance screen if system is closed
-  if (systemOpen === false) {
-    return <MaintenanceScreen closedUntil={closedUntil} />;
-  }
 
   // Show penalty expired countdown screen
   if (penaltyInfo?.expired && penaltyCountdown > 0) {
