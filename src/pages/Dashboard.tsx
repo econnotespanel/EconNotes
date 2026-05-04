@@ -109,7 +109,7 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="space-y-6 animate-fade-in">
+      <div className="relative z-10 space-y-6 opacity-100 visible text-foreground">
         {/* Banners */}
         {banners.filter(b => !dismissedBanners.has(b.id)).map(banner => (
           <Card key={banner.id} className="border-primary/30 bg-primary/5">
