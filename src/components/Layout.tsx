@@ -3,11 +3,11 @@ import Sidebar from '@/components/Sidebar';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className="min-h-screen bg-background decorative-lines overflow-x-hidden">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <Header />
       <Sidebar />
-      <main className="relative z-20 md:ml-60 min-h-[calc(100vh-4rem)] bg-background p-4 md:p-6 pb-16 opacity-100 visible">
-        <div className="mx-auto w-full max-w-7xl opacity-100 visible">
+      <main className="relative z-10 md:ml-60 min-h-[calc(100vh-4rem)] bg-background p-4 md:p-6 pb-16 opacity-100 visible">
+        <div className="mx-auto w-full max-w-7xl opacity-100 visible text-foreground">
           {children}
         </div>
       </main>
