@@ -39,7 +39,7 @@ const Dashboard = () => {
   const [sessionWarning, setSessionWarning] = useState(false);
   const [banners, setBanners] = useState<any[]>([]);
   const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(new Set());
-
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     const fetchData = async () => {
       const [notesRes, announcementsRes, settingsRes, bannersRes] = await Promise.all([
