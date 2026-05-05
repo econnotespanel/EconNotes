@@ -7,6 +7,7 @@ import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronU
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const BannerContent = ({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
@@ -38,7 +39,7 @@ const Dashboard = () => {
   const [sessionWarning, setSessionWarning] = useState(false);
   const [banners, setBanners] = useState<any[]>([]);
   const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(new Set());
-
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     const fetchData = async () => {
       const [notesRes, announcementsRes, settingsRes, bannersRes] = await Promise.all([
@@ -58,6 +59,7 @@ const Dashboard = () => {
           semester: (settingsRes.data as any).academic_semester,
         });
       }
+      setLoading(false);
     };
 
     const checkUnreadAnnouncements = async () => {
@@ -178,7 +180,22 @@ const Dashboard = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch gap-4">
-          {statCards.map((stat, i) => (
+          {loading
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-stretch flex-1">
+                  <Card className="glass-card flex-1">
+                    <CardContent className="p-4 flex items-center gap-4">
+                      <Skeleton className="h-12 w-12 rounded-xl" />
+                      <div className="space-y-2 flex-1">
+                        <Skeleton className="h-6 w-12" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  {i < 2 && <Separator orientation="vertical" className="mx-2 hidden sm:block h-auto bg-border" />}
+                </div>
+              ))
+            : statCards.map((stat, i) => (
             <div key={stat.label} className="flex items-stretch flex-1">
               <Card className="glass-card flex-1 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => i < 2 ? navigate('/notes') : navigate('/announcements')}>
                 <CardContent className="p-4 flex items-center gap-4">
@@ -206,7 +223,20 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {recentNotes.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-accent/30">
+                    <div className="flex items-center gap-2 flex-1">
+                      <Skeleton className="h-3 w-4" />
+                      <div className="space-y-2 flex-1">
+                        <Skeleton className="h-3 w-1/2" />
+                        <Skeleton className="h-2 w-3/4" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                ))
+              ) : recentNotes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Henüz not paylaşılmamış.</p>
               ) : (
                 <>
@@ -242,7 +272,19 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {recentAnnouncements.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="p-3 rounded-lg bg-accent/30">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-3 w-4" />
+                      <div className="space-y-2 flex-1">
+                        <Skeleton className="h-3 w-2/3" />
+                        <Skeleton className="h-2 w-1/2" />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : recentAnnouncements.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Henüz duyuru yok.</p>
               ) : (
                 <>
