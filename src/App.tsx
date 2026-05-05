@@ -10,6 +10,24 @@ import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
 import RouteLoader from "@/components/RouteLoader";
 
+const Index = lazy(() => import("./pages/Index"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const Notes = lazy(() => import("./pages/Notes"));
+const Announcements = lazy(() => import("./pages/Announcements"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Messages = lazy(() => import("./pages/Messages"));
+const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+const About = lazy(() => import("./pages/About"));
+const AcademicAssistant = lazy(() => import("./pages/AcademicAssistant"));
+const LiveClass = lazy(() => import("./pages/LiveClass"));
+const Install = lazy(() => import("./pages/Install"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+
+const queryClient = new QueryClient();
+
 const App = () => {
   const [showSplash, setShowSplash] = useState(() => {
     const shown = sessionStorage.getItem('econotes_splash_shown');
