@@ -59,6 +59,7 @@ const Dashboard = () => {
           semester: (settingsRes.data as any).academic_semester,
         });
       }
+      setLoading(false);
     };
 
     const checkUnreadAnnouncements = async () => {
