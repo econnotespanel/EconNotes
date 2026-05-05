@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
+import RouteLoader from "@/components/RouteLoader";
 
 const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
@@ -26,14 +27,6 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
 const queryClient = new QueryClient();
-
-const RouteLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
-    <div className="animate-pulse-glow p-4 rounded-full">
-      <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  </div>
-);
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(() => {
