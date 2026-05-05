@@ -22,7 +22,7 @@ const About = () => {
           </div>
           <h1 className="text-3xl font-bold gradient-text">EconNotes</h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            EconNotes Panel, üniversite öğrencilerinin ders notlarına daha iyi, hızlı ve pratik bir şekilde ulaşabilmesini sağlayan bir ders notu paylaşım modülüdür.
+            EconNotes, üniversite öğrencilerinin ders notlarına daha iyi, hızlı ve pratik bir şekilde ulaşabilmesini sağlayan bir ders notu paylaşım modülüdür.
           </p>
         </div>
 
@@ -80,7 +80,7 @@ const About = () => {
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground leading-relaxed">
             <p>
-              EconNotes Panel, 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında 
+              EconNotes, 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) kapsamında 
               kullanıcılarının kişisel verilerini koruma altına almaktadır.
             </p>
             <div>
