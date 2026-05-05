@@ -8,32 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
-
-const Index = lazy(() => import("./pages/Index"));
-const Login = lazy(() => import("./pages/Login"));
-const Register = lazy(() => import("./pages/Register"));
-const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
-const Notes = lazy(() => import("./pages/Notes"));
-const Announcements = lazy(() => import("./pages/Announcements"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Messages = lazy(() => import("./pages/Messages"));
-const AdminPanel = lazy(() => import("./pages/AdminPanel"));
-const About = lazy(() => import("./pages/About"));
-const AcademicAssistant = lazy(() => import("./pages/AcademicAssistant"));
-const LiveClass = lazy(() => import("./pages/LiveClass"));
-const Install = lazy(() => import("./pages/Install"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-
-const queryClient = new QueryClient();
-
-const RouteLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
-    <div className="animate-pulse-glow p-4 rounded-full">
-      <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  </div>
-);
+import RouteLoader from "@/components/RouteLoader";
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(() => {
