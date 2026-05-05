@@ -7,6 +7,7 @@ import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronU
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const BannerContent = ({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
