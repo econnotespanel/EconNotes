@@ -412,9 +412,9 @@ const Messages = () => {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100vh-16rem)]">
-          {/* Left: Friends & Requests */}
-          <Card className="glass-card md:col-span-1 overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100dvh-12rem)] md:h-[calc(100vh-16rem)]">
+          {/* Left: Friends & Requests — hidden on mobile when a chat is open */}
+          <Card className={`glass-card md:col-span-1 overflow-hidden ${selectedFriend ? 'hidden md:block' : 'block'}`}>
             <Tabs defaultValue="friends" className="h-full flex flex-col">
               <TabsList className="w-full rounded-none">
                 <TabsTrigger value="friends" className="flex-1">
