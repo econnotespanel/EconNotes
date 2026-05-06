@@ -37,7 +37,13 @@ const App = () => {
   const handleSplashFinish = useCallback(() => {
     sessionStorage.setItem('econotes_splash_shown', 'true');
     setShowSplash(false);
+    prefetchRoutes();
   }, []);
+
+  // Prefetch important routes after initial mount as well
+  if (typeof window !== 'undefined') {
+    queueMicrotask(() => prefetchRoutes());
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
