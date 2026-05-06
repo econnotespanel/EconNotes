@@ -634,10 +634,10 @@ const Messages = () => {
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                       placeholder="Mesajınızı yazın..."
-                      className="resize-none flex-1"
+                      className="resize-none flex-1 min-h-10 max-h-32 text-base md:text-sm"
                       rows={1}
                     />
-                    <Button onClick={sendMessage} className="gradient-primary text-primary-foreground shrink-0">
+                    <Button onClick={sendMessage} className="gradient-primary text-primary-foreground shrink-0" aria-label="Gönder">
                       <Send className="h-4 w-4" />
                     </Button>
                   </div>
