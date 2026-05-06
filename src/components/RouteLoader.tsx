@@ -1,33 +1,98 @@
+import { useEffect, useRef, useState } from 'react';
+
 const word = 'EconNotes';
+const MIN_VISIBLE_MS = 450;
+const FADE_MS = 350;
 
 const RouteLoader = () => {
+  const [leaving, setLeaving] = useState(false);
+  const [mounted, setMounted] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startedAt = useRef<number>(Date.now());
+
+  useEffect(() => {
+    // Move focus to the loader so screen readers announce it
+    containerRef.current?.focus();
+    return () => {
+      // On unmount path: ensure min visible duration via fade
+      const elapsed = Date.now() - startedAt.current;
+      const remaining = Math.max(0, MIN_VISIBLE_MS - elapsed);
+      window.setTimeout(() => setLeaving(true), remaining);
+      window.setTimeout(() => setMounted(false), remaining + FADE_MS);
+    };
+  }, []);
+
+  if (!mounted) return null;
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
-      <div className="absolute inset-0 -z-10 opacity-60"
+    <div
+      ref={containerRef}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label="Sayfa yükleniyor"
+      tabIndex={-1}
+      className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden outline-none transition-opacity"
+      style={{
+        opacity: leaving ? 0 : 1,
+        transitionDuration: `${FADE_MS}ms`,
+        transitionTimingFunction: 'cubic-bezier(.4,0,.2,1)',
+      }}
+    >
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 -z-10 opacity-70 animate-loader-aurora"
         style={{
           background:
-            'radial-gradient(circle at 30% 30%, hsl(var(--primary) / 0.35), transparent 55%), radial-gradient(circle at 70% 70%, hsl(280 85% 65% / 0.3), transparent 55%)',
-          filter: 'blur(60px)',
+            'radial-gradient(circle at 25% 30%, hsl(var(--primary) / 0.45), transparent 55%), radial-gradient(circle at 75% 70%, hsl(280 85% 65% / 0.4), transparent 55%), radial-gradient(circle at 50% 50%, hsl(199 95% 60% / 0.25), transparent 70%)',
+          filter: 'blur(70px)',
         }}
       />
       <div className="flex flex-col items-center gap-6">
-        <div className="flex items-baseline gap-0.5 text-4xl md:text-5xl font-extrabold tracking-tight">
+        <div
+          className="flex items-baseline gap-0.5 text-4xl md:text-5xl font-extrabold tracking-tight"
+          aria-hidden="true"
+        >
           {word.split('').map((ch, i) => (
             <span
               key={i}
-              className="gradient-text animate-letter-pulse drop-shadow-[0_4px_20px_hsl(var(--primary)/0.45)]"
+              className="gradient-text animate-letter-pulse drop-shadow-[0_4px_24px_hsl(var(--primary)/0.55)]"
               style={{ animationDelay: `${i * 110}ms` }}
             >
               {ch}
             </span>
           ))}
         </div>
-        <div className="h-1 w-40 rounded-full bg-muted overflow-hidden">
+        <div
+          className="h-1 w-44 rounded-full bg-muted/60 overflow-hidden"
+          aria-hidden="true"
+        >
           <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-primary to-transparent animate-loader-bar" />
         </div>
+        <span className="sr-only">EconNotes yükleniyor, lütfen bekleyin.</span>
       </div>
     </div>
   );
 };
 
 export default RouteLoader;
+
+export const prefetchRoutes = () => {
+  // Warm up critical chunks after first paint
+  const w = window as any;
+  const idle = (cb: () => void): void => {
+    if (typeof w.requestIdleCallback === 'function') {
+      w.requestIdleCallback(cb, { timeout: 2500 });
+    } else {
+      w.setTimeout(cb, 600);
+    }
+  };
+
+  idle(() => {
+    void import('@/pages/Dashboard');
+    void import('@/pages/Notes');
+    void import('@/pages/Announcements');
+    void import('@/pages/Messages');
+    void import('@/pages/Profile');
+  });
+};

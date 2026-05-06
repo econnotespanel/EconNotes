@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState, useCallback } from "react";
+import { Suspense, lazy, useState, useCallback, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -8,7 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
-import RouteLoader from "@/components/RouteLoader";
+import RouteLoader, { prefetchRoutes } from "@/components/RouteLoader";
 
 const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
@@ -37,6 +37,11 @@ const App = () => {
   const handleSplashFinish = useCallback(() => {
     sessionStorage.setItem('econotes_splash_shown', 'true');
     setShowSplash(false);
+    prefetchRoutes();
+  }, []);
+
+  useEffect(() => {
+    prefetchRoutes();
   }, []);
 
   return (
