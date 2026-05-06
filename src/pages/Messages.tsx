@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck, Flag, UserMinus, Ban, AlertTriangle } from 'lucide-react';
+import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck, Flag, UserMinus, Ban, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -412,9 +412,9 @@ const Messages = () => {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100vh-16rem)]">
-          {/* Left: Friends & Requests */}
-          <Card className="glass-card md:col-span-1 overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100dvh-12rem)] md:h-[calc(100vh-16rem)]">
+          {/* Left: Friends & Requests — hidden on mobile when a chat is open */}
+          <Card className={`glass-card md:col-span-1 overflow-hidden ${selectedFriend ? 'hidden md:block' : 'block'}`}>
             <Tabs defaultValue="friends" className="h-full flex flex-col">
               <TabsList className="w-full rounded-none">
                 <TabsTrigger value="friends" className="flex-1">
@@ -532,7 +532,7 @@ const Messages = () => {
           </Card>
 
           {/* Right: Chat Area */}
-          <Card className="glass-card md:col-span-2 flex flex-col overflow-hidden">
+          <Card className={`glass-card md:col-span-2 flex-col overflow-hidden ${selectedFriend ? 'flex' : 'hidden md:flex'}`}>
             {!selectedFriend ? (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
                 <MessageSquare className="h-16 w-16 mb-4 opacity-20" />
@@ -542,14 +542,23 @@ const Messages = () => {
             ) : (
               <>
                 {/* Chat header */}
-                <div className="p-4 border-b border-border flex items-center gap-3">
-                  <Avatar className="h-9 w-9">
+                <div className="p-3 md:p-4 border-b border-border flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden shrink-0 -ml-1"
+                    onClick={() => setSelectedFriend(null)}
+                    aria-label="Geri"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                  <Avatar className="h-9 w-9 shrink-0">
                     {selectedFriend.avatar_url && <AvatarImage src={selectedFriend.avatar_url} />}
                     <AvatarFallback className="text-xs">{selectedFriend.full_name?.charAt(0)}</AvatarFallback>
                   </Avatar>
-                  <div>
-                    <p className="text-sm font-semibold">{selectedFriend.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedFriend.university} • {selectedFriend.department}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate">{selectedFriend.full_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{selectedFriend.university} • {selectedFriend.department}</p>
                     <p className="text-[10px] text-muted-foreground">Son görülme: {formatLastOnline(selectedFriend.last_login)}</p>
                   </div>
                 </div>
@@ -589,7 +598,7 @@ const Messages = () => {
                 </div>
 
                 {/* Input area */}
-                <div className="p-3 border-t border-border">
+                <div className="p-2 md:p-3 border-t border-border bg-card/60 backdrop-blur-sm">
                   <div className="flex items-end gap-2">
                     <input
                       ref={fileInputRef}
@@ -625,10 +634,10 @@ const Messages = () => {
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                       placeholder="Mesajınızı yazın..."
-                      className="resize-none flex-1"
+                      className="resize-none flex-1 min-h-10 max-h-32 text-base md:text-sm"
                       rows={1}
                     />
-                    <Button onClick={sendMessage} className="gradient-primary text-primary-foreground shrink-0">
+                    <Button onClick={sendMessage} className="gradient-primary text-primary-foreground shrink-0" aria-label="Gönder">
                       <Send className="h-4 w-4" />
                     </Button>
                   </div>
