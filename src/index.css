@@ -223,7 +223,7 @@
   .dark body::after { opacity: 0.35; }
 
   @media (prefers-reduced-motion: reduce) {
-    #root::before, #root::after { animation: none; }
+    #root::before, #root::after, body::after { animation: none; }
   }
 }
 
