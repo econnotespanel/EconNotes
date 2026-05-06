@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck, Flag, UserMinus, Ban, AlertTriangle } from 'lucide-react';
+import { Send, MessageSquare, UserPlus, Check, X, Search, Paperclip, Smile, Users, ShieldCheck, Flag, UserMinus, Ban, AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
