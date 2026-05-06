@@ -183,6 +183,10 @@
   .dark #root::before { opacity: 0.45; }
   .dark #root::after { opacity: 0.4; }
 
+  /* Third floating orb for richer depth */
+  #root > .__orb-3,
+  body > .__orb-3 { display: none; }
+
   @keyframes orb-float-a {
     0%   { transform: translate(0, 0) scale(1); }
     50%  { transform: translate(60vw, 30vh) scale(1.15); }
@@ -193,6 +197,18 @@
     50%  { transform: translate(-50vw, -20vh) scale(1.1); }
     100% { transform: translate(-20vw, -50vh) scale(0.9); }
   }
+  @keyframes orb-float-c {
+    0%   { transform: translate(0, 0) scale(0.9); }
+    50%  { transform: translate(-30vw, 40vh) scale(1.2); }
+    100% { transform: translate(40vw, -30vh) scale(1); }
+  }
+
+  /* Pulsing grid lines that breathe with primary color */
+  @keyframes grid-breathe {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 1; }
+  }
+  body::before { animation: grid-breathe 9s ease-in-out infinite; }
 
   @keyframes mesh-spin {
     from { transform: translate(-50%, -50%) rotate(0deg); }
