@@ -222,6 +222,19 @@
   }
   .dark body::after { opacity: 0.35; }
 
+  /* Subtle film grain across the whole app */
+  html::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  .dark html::before { opacity: 0.08; }
+
   @media (prefers-reduced-motion: reduce) {
     #root::before, #root::after, body::after { animation: none; }
   }
