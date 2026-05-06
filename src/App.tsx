@@ -8,7 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
-import RouteLoader from "@/components/RouteLoader";
+import RouteLoader, { prefetchRoutes } from "@/components/RouteLoader";
 
 const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
