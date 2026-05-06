@@ -532,7 +532,7 @@ const Messages = () => {
           </Card>
 
           {/* Right: Chat Area */}
-          <Card className="glass-card md:col-span-2 flex flex-col overflow-hidden">
+          <Card className={`glass-card md:col-span-2 flex-col overflow-hidden ${selectedFriend ? 'flex' : 'hidden md:flex'}`}>
             {!selectedFriend ? (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
                 <MessageSquare className="h-16 w-16 mb-4 opacity-20" />
@@ -542,14 +542,23 @@ const Messages = () => {
             ) : (
               <>
                 {/* Chat header */}
-                <div className="p-4 border-b border-border flex items-center gap-3">
-                  <Avatar className="h-9 w-9">
+                <div className="p-3 md:p-4 border-b border-border flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden shrink-0 -ml-1"
+                    onClick={() => setSelectedFriend(null)}
+                    aria-label="Geri"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                  <Avatar className="h-9 w-9 shrink-0">
                     {selectedFriend.avatar_url && <AvatarImage src={selectedFriend.avatar_url} />}
                     <AvatarFallback className="text-xs">{selectedFriend.full_name?.charAt(0)}</AvatarFallback>
                   </Avatar>
-                  <div>
-                    <p className="text-sm font-semibold">{selectedFriend.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedFriend.university} • {selectedFriend.department}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate">{selectedFriend.full_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{selectedFriend.university} • {selectedFriend.department}</p>
                     <p className="text-[10px] text-muted-foreground">Son görülme: {formatLastOnline(selectedFriend.last_login)}</p>
                   </div>
                 </div>
