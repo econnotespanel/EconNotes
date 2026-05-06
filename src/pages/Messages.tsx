@@ -598,7 +598,7 @@ const Messages = () => {
                 </div>
 
                 {/* Input area */}
-                <div className="p-3 border-t border-border">
+                <div className="p-2 md:p-3 border-t border-border bg-card/60 backdrop-blur-sm">
                   <div className="flex items-end gap-2">
                     <input
                       ref={fileInputRef}
