@@ -116,10 +116,11 @@
     @apply bg-background text-foreground font-sans antialiased;
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(ellipse 60% 50% at 15% 10%, hsl(var(--primary) / 0.28), transparent 60%),
-      radial-gradient(ellipse 50% 40% at 85% 15%, hsl(199 95% 60% / 0.25), transparent 60%),
-      radial-gradient(ellipse 70% 50% at 50% 100%, hsl(280 85% 65% / 0.18), transparent 60%),
-      radial-gradient(ellipse 40% 30% at 100% 80%, hsl(var(--primary-glow) / 0.22), transparent 60%);
+      radial-gradient(ellipse 60% 50% at 15% 10%, hsl(var(--primary) / 0.32), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 85% 15%, hsl(199 95% 60% / 0.28), transparent 60%),
+      radial-gradient(ellipse 70% 50% at 50% 100%, hsl(280 85% 65% / 0.22), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 100% 80%, hsl(var(--primary-glow) / 0.26), transparent 60%),
+      radial-gradient(ellipse 35% 35% at 0% 60%, hsl(180 90% 55% / 0.18), transparent 60%);
     background-attachment: fixed;
     position: relative;
   }
