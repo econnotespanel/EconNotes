@@ -40,10 +40,9 @@ const App = () => {
     prefetchRoutes();
   }, []);
 
-  // Prefetch important routes after initial mount as well
-  if (typeof window !== 'undefined') {
-    queueMicrotask(() => prefetchRoutes());
-  }
+  useEffect(() => {
+    prefetchRoutes();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
