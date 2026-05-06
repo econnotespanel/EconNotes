@@ -79,10 +79,13 @@ export default RouteLoader;
 
 export const prefetchRoutes = () => {
   // Warm up critical chunks after first paint
-  const idle = (cb: () => void) =>
-    'requestIdleCallback' in window
-      ? (window as any).requestIdleCallback(cb, { timeout: 2500 })
-      : window.setTimeout(cb, 600);
+  const idle = (cb: () => void): void => {
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(cb, { timeout: 2500 });
+    } else {
+      window.setTimeout(cb, 600);
+    }
+  };
 
   idle(() => {
     void import('@/pages/Dashboard');
