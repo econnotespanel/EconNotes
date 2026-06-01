@@ -523,6 +523,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_download_quota: {
+        Args: { _user_id: string }
+        Returns: {
+          allowed_downloads: number
+          approved_uploads: number
+          can_download: boolean
+          is_admin: boolean
+          remaining: number
+          total_downloads: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -3,11 +3,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
+import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 
 const BannerContent = ({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
@@ -27,6 +29,7 @@ const BannerContent = ({ content }: { content: string }) => {
 const Dashboard = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const { quota } = useDownloadQuota();
   const [stats, setStats] = useState({ notes: 0, announcements: 0 });
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
   const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([]);
@@ -214,6 +217,41 @@ const Dashboard = () => {
             </div>
           ))}
         </div>
+
+        {quota && !quota.is_admin && (
+          <Card className={`glass-card aurora-border ${!quota.can_download ? 'border-destructive/50' : ''}`}>
+            <CardContent className="p-5">
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <div className={`p-3 rounded-2xl ${quota.can_download ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
+                  <ShieldCheck className="h-7 w-7" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                    <h3 className="font-semibold text-base">İndirme Kotanız</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${quota.can_download ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                      {quota.can_download ? `${quota.remaining} hak kaldı` : 'Hak doldu'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Her 2 indirme için en az 1 onaylı not yüklemelisiniz. İlk indirmeniz için de bir not yüklemiş olmanız gerekir.
+                  </p>
+                  <Progress
+                    value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
+                    className="h-2"
+                  />
+                  <div className="flex items-center justify-between mt-2 text-xs">
+                    <span className="flex items-center gap-1 text-muted-foreground"><Upload className="h-3 w-3" /> {quota.approved_uploads} onaylı yükleme</span>
+                    <span className="flex items-center gap-1 text-muted-foreground"><Download className="h-3 w-3" /> {quota.total_downloads} / {quota.allowed_downloads} indirme</span>
+                  </div>
+                </div>
+                <Button size="sm" onClick={() => navigate('/notes')} className="gradient-primary text-primary-foreground shrink-0">
+                  {quota.can_download ? 'Notlara Git' : 'Not Yükle'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="glass-card">
