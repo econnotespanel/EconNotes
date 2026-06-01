@@ -330,6 +330,55 @@ const Notes = () => {
   return (
     <Layout>
       <div className="space-y-6 animate-fade-in">
+        {quota && !quota.is_admin && (
+          <Card className={`glass-card border-2 ${quota.can_download ? 'border-primary/30' : 'border-destructive/50'}`}>
+            <CardContent className="p-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ShieldCheck className={`h-4 w-4 ${quota.can_download ? 'text-primary' : 'text-destructive'}`} />
+                    <h3 className="font-semibold text-sm">İndirme Kotası</h3>
+                    <span className="text-xs text-muted-foreground">(her 2 indirme için 1 onaylı not yüklemelisiniz)</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span><b className="text-foreground">{quota.approved_uploads}</b> onaylı yükleme</span>
+                    <span>•</span>
+                    <span><b className="text-foreground">{quota.total_downloads}</b> / {quota.allowed_downloads} indirme kullanıldı</span>
+                    <span>•</span>
+                    <span className={quota.can_download ? 'text-success' : 'text-destructive font-medium'}>
+                      {quota.can_download ? `${quota.remaining} indirme hakkı kaldı` : 'Hakkınız bitti — yeni not yükleyin'}
+                    </span>
+                  </div>
+                  <Progress
+                    value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
+                    className="mt-2 h-1.5"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <AlertDialog open={quotaBlockOpen} onOpenChange={setQuotaBlockOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>İndirme hakkınız doldu</AlertDialogTitle>
+              <AlertDialogDescription>
+                EconNotes'ta her 2 indirme için en az 1 onaylı ders notu yüklemeniz gerekmektedir. Devam etmek için yeni bir not yükleyin; notunuz yönetici tarafından onaylandığında indirme hakkınız otomatik olarak artacaktır.
+                {quota && (
+                  <span className="block mt-3 text-foreground">
+                    Onaylı yüklemeniz: <b>{quota.approved_uploads}</b> · İndirmeniz: <b>{quota.total_downloads}</b> · Hak: <b>{quota.allowed_downloads}</b>
+                  </span>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Kapat</AlertDialogCancel>
+              <AlertDialogAction onClick={() => { setQuotaBlockOpen(false); setDialogOpen(true); }}>Not Yükle</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Notlar</h1>
