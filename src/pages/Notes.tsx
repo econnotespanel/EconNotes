@@ -17,12 +17,16 @@ import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, S
 import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useDownloadQuota } from '@/hooks/useDownloadQuota';
+import { Progress } from '@/components/ui/progress';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
 
 const Notes = () => {
   const { user, profile, isAdmin } = useAuth();
+  const { quota, refresh: refreshQuota } = useDownloadQuota();
+  const [quotaBlockOpen, setQuotaBlockOpen] = useState(false);
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -119,6 +123,21 @@ const Notes = () => {
       { onConflict: 'note_id,user_id' }
     );
     fetchNotes();
+    refreshQuota();
+  };
+
+  // Quota-aware download handler. Blocks when user has not uploaded enough notes.
+  const handleDownloadClick = async (note: any) => {
+    if (!user) return;
+    // Re-fetch quota fresh to avoid race conditions
+    const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
+    const q = (data && data[0]) as typeof quota;
+    if (q && !q.can_download) {
+      setQuotaBlockOpen(true);
+      return;
+    }
+    trackDownload(note.id);
+    downloadWithWatermark(note.file_url, note.file_name, note.file_type);
   };
 
   const handleSubmit = async () => {
