@@ -589,7 +589,7 @@ const Notes = () => {
                           <div className="flex flex-wrap gap-1.5">
                             {note.file_url && (
                               <>
-                                <Button size="sm" variant="outline" onClick={() => { trackDownload(note.id); downloadWithWatermark(note.file_url, note.file_name, note.file_type); }}>
+                                <Button size="sm" variant="outline" onClick={() => handleDownloadClick(note)}>
                                   <Download className="h-3 w-3 mr-1" /> İndir
                                 </Button>
                                 {isPreviewable(note.file_type, note.file_url) && (
