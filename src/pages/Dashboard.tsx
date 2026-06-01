@@ -3,11 +3,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
+import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 
 const BannerContent = ({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
@@ -27,6 +29,7 @@ const BannerContent = ({ content }: { content: string }) => {
 const Dashboard = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const { quota } = useDownloadQuota();
   const [stats, setStats] = useState({ notes: 0, announcements: 0 });
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
   const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([]);
