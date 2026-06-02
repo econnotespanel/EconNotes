@@ -58,6 +58,7 @@ const Sidebar = () => {
     { label: 'Notlar', icon: FileText, path: '/notes' },
     { label: 'Duyurular', icon: Megaphone, path: '/announcements', badge: unreadAnnouncements },
     { label: 'Mesajlar', icon: MessageSquare, path: '/messages', badge: unreadMessages },
+    { label: 'Çalış', icon: GraduationCap, path: '/study' },
     { label: 'Canlı Ders', icon: Video, path: '/live-class' },
     { label: 'Akademik Asistan', icon: Bot, path: '/assistant' },
     { label: 'Profilim', icon: User, path: '/profile' },
