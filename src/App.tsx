@@ -69,6 +69,7 @@ const App = () => {
                   <Route path="/admin" element={<AdminPanel />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/assistant" element={<AcademicAssistant />} />
+                  <Route path="/study" element={<Study />} />
                   <Route path="/live-class" element={<LiveClass />} />
                   <Route path="/install" element={<Install />} />
                   <Route path="*" element={<NotFound />} />
