@@ -446,6 +446,89 @@ export type Database = {
         }
         Relationships: []
       }
+      study_materials: {
+        Row: {
+          content: Json
+          course: string | null
+          created_at: string
+          id: string
+          material_type: string
+          model: string | null
+          source_note_id: string | null
+          source_type: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: Json
+          course?: string | null
+          created_at?: string
+          id?: string
+          material_type: string
+          model?: string | null
+          source_note_id?: string | null
+          source_type: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          course?: string | null
+          created_at?: string
+          id?: string
+          material_type?: string
+          model?: string | null
+          source_note_id?: string | null
+          source_type?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      study_progress: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          material_id: string
+          score: number | null
+          total_questions: number | null
+          user_id: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          material_id: string
+          score?: number | null
+          total_questions?: number | null
+          user_id: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          material_id?: string
+          score?: number | null
+          total_questions?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_progress_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "study_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_settings: {
         Row: {
           academic_semester: string | null

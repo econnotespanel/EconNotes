@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
@@ -58,6 +58,7 @@ const Sidebar = () => {
     { label: 'Notlar', icon: FileText, path: '/notes' },
     { label: 'Duyurular', icon: Megaphone, path: '/announcements', badge: unreadAnnouncements },
     { label: 'Mesajlar', icon: MessageSquare, path: '/messages', badge: unreadMessages },
+    { label: 'Çalış', icon: GraduationCap, path: '/study' },
     { label: 'Canlı Ders', icon: Video, path: '/live-class' },
     { label: 'Akademik Asistan', icon: Bot, path: '/assistant' },
     { label: 'Profilim', icon: User, path: '/profile' },
