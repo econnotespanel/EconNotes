@@ -451,6 +451,7 @@ export type Database = {
           content: Json
           course: string | null
           created_at: string
+          exam_profile: Json | null
           id: string
           material_type: string
           model: string | null
@@ -464,6 +465,7 @@ export type Database = {
           content?: Json
           course?: string | null
           created_at?: string
+          exam_profile?: Json | null
           id?: string
           material_type: string
           model?: string | null
@@ -477,6 +479,7 @@ export type Database = {
           content?: Json
           course?: string | null
           created_at?: string
+          exam_profile?: Json | null
           id?: string
           material_type?: string
           model?: string | null
@@ -528,6 +531,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      study_reports: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          material_id: string | null
+          screenshot_url: string | null
+          section: string
+          status: string
+          user_email: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          material_id?: string | null
+          screenshot_url?: string | null
+          section: string
+          status?: string
+          user_email?: string
+          user_id: string
+          user_name?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          material_id?: string | null
+          screenshot_url?: string | null
+          section?: string
+          status?: string
+          user_email?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: []
       }
       system_settings: {
         Row: {
