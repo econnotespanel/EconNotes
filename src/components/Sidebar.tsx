@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { APP_VERSION } from '@/lib/version';
 
 const Sidebar = () => {
   const { isAdmin, user } = useAuth();
@@ -58,7 +59,7 @@ const Sidebar = () => {
     { label: 'Notlar', icon: FileText, path: '/notes' },
     { label: 'Duyurular', icon: Megaphone, path: '/announcements', badge: unreadAnnouncements },
     { label: 'Mesajlar', icon: MessageSquare, path: '/messages', badge: unreadMessages },
-    { label: 'Çalış', icon: GraduationCap, path: '/study' },
+    { label: 'Çalışma Stüdyosu', icon: GraduationCap, path: '/study', isNew: true },
     { label: 'Canlı Ders', icon: Video, path: '/live-class' },
     { label: 'Akademik Asistan', icon: Bot, path: '/assistant' },
     { label: 'Profilim', icon: User, path: '/profile' },
@@ -72,6 +73,7 @@ const Sidebar = () => {
         const Icon = link.icon;
         const active = location.pathname === link.path;
         const badge = (link as any).badge;
+        const isNew = (link as any).isNew;
         return (
           <button
             key={link.path}
@@ -84,9 +86,14 @@ const Sidebar = () => {
             )}
           >
             <Icon className="h-4 w-4" />
-            {link.label}
+            <span className="flex-1 text-left">{link.label}</span>
+            {isNew && (
+              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white shadow-sm">
+                YENİ
+              </span>
+            )}
             {badge > 0 && (
-              <span className="absolute right-2 h-5 min-w-5 px-1 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">
+              <span className="h-5 min-w-5 px-1 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">
                 {badge}
               </span>
             )}
@@ -120,7 +127,7 @@ const Sidebar = () => {
         <NavContent />
         <div className="p-3 border-t border-border">
           <p className="text-xs text-muted-foreground text-center">EconNotes</p>
-          <p className="text-[10px] text-muted-foreground text-center mt-1">v2.5.0</p>
+          <p className="text-[10px] text-muted-foreground text-center mt-1">{APP_VERSION}</p>
         </div>
       </aside>
     </>
