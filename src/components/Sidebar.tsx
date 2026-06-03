@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { APP_VERSION } from '@/lib/version';
 
 const Sidebar = () => {
   const { isAdmin, user } = useAuth();
@@ -126,7 +127,7 @@ const Sidebar = () => {
         <NavContent />
         <div className="p-3 border-t border-border">
           <p className="text-xs text-muted-foreground text-center">EconNotes</p>
-          <p className="text-[10px] text-muted-foreground text-center mt-1">v2.5.0</p>
+          <p className="text-[10px] text-muted-foreground text-center mt-1">{APP_VERSION}</p>
         </div>
       </aside>
     </>

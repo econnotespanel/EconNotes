@@ -10,8 +10,7 @@ import logo from '@/assets/econnotes-logo.png';
 import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
-
-const APP_VERSION = 'v2.5.0';
+import { APP_VERSION } from '@/lib/version';
 
 const Login = () => {
   const [email, setEmail] = useState('');
