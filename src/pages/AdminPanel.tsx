@@ -93,6 +93,7 @@ const AdminPanel = () => {
     setUserRoles(rolesRes.data || []);
     setMessageReports(reportsRes.data || []);
     setBanners(bannersRes.data || []);
+    setStudyMaterials(studyRes.data || []);
     if (settingsRes.data) {
       setSystemOpen(settingsRes.data.is_system_open);
       setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
