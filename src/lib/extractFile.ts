@@ -2,11 +2,10 @@
 // PDFs are parsed in the browser to text (faster, no upload-payload limits).
 // Images and audio are returned as base64 for multimodal AI.
 
-import * as pdfjsLib from 'pdfjs-dist';
-// Vite-friendly worker import
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
