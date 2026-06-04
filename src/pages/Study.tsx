@@ -71,17 +71,7 @@ const MOTIVATIONS_RIGHT = [
   'İşte bu! 🔥',
 ];
 
-const fileToBase64 = (file: File): Promise<{ data: string; mime: string }> =>
-  new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => {
-      const result = r.result as string;
-      const base64 = result.split(',')[1];
-      resolve({ data: base64, mime: file.type || 'application/octet-stream' });
-    };
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
+// (file → base64 helper moved into src/lib/extractFile.ts)
 
 const Study = () => {
   const { user } = useAuth();
