@@ -135,19 +135,21 @@ const Study = () => {
     setLoading(false);
   };
 
-  const startProgress = () => {
+  const startProgress = (initialLabel = 'Materyal hazırlanıyor...') => {
     setProgress(2);
-    setProgressLabel('Materyal hazırlanıyor...');
-    let p = 2;
+    setProgressLabel(initialLabel);
+  };
+  const rampProgressTo = (cap: number, label: string) => {
+    if (progressTimer.current) window.clearInterval(progressTimer.current);
+    setProgressLabel(label);
     progressTimer.current = window.setInterval(() => {
-      // smooth ramp to 92
-      p = Math.min(92, p + (p < 30 ? 4 : p < 60 ? 2 : 1));
-      setProgress(p);
-      if (p < 25) setProgressLabel('Kaynak analiz ediliyor...');
-      else if (p < 55) setProgressLabel('Yapay zeka düşünüyor...');
-      else if (p < 80) setProgressLabel('Sorular oluşturuluyor...');
-      else setProgressLabel('Son rötuşlar...');
-    }, 300);
+      setProgress(p => (p < cap ? Math.min(cap, p + (p < 40 ? 3 : p < 70 ? 2 : 1)) : p));
+    }, 350);
+  };
+  const setProgressNow = (pct: number, label: string) => {
+    if (progressTimer.current) { window.clearInterval(progressTimer.current); progressTimer.current = null; }
+    setProgress(pct);
+    setProgressLabel(label);
   };
   const stopProgress = (done = true) => {
     if (progressTimer.current) window.clearInterval(progressTimer.current);
@@ -166,15 +168,33 @@ const Study = () => {
       if (!uploadFile || !uploadTitle.trim()) { toast.error('Dosya ve başlık zorunlu.'); return; }
       const max = 25 * 1024 * 1024;
       if (uploadFile.size > max) { toast.error('Dosya 25MB sınırını aşıyor.'); return; }
-      const { data, mime } = await fileToBase64(uploadFile);
-      const isAudio = mime.startsWith('audio/');
-      payload.noteTitle = uploadTitle;
-      payload.course = uploadCourse || '-';
-      payload.noteContext = `Yüklenen materyal: ${uploadFile.name}\nAçıklama: ${uploadDescription || '-'}\n(Lütfen ekteki ${isAudio ? 'ses dosyasını' : 'belgeyi'} doğrudan kaynak olarak kullan.)`;
-      if (isAudio) payload.audio = { data, mimeType: mime };
-      else payload.document = { data, mimeType: mime };
-      titleForMaterial = uploadTitle;
-      courseForMaterial = uploadCourse || null;
+
+      setGenerating(true);
+      startProgress('Dosya okunuyor...');
+      try {
+        const ex = await extractFile(uploadFile, (pct, label) => setProgressNow(Math.min(pct, 65), label));
+        payload.noteTitle = uploadTitle;
+        payload.course = uploadCourse || '-';
+        if (ex.kind === 'text') {
+          payload.noteContext =
+            `Yüklenen materyal: ${uploadFile.name}\nAçıklama: ${uploadDescription || '-'}\n` +
+            `${ex.pages ? `Sayfa sayısı: ${ex.pages}\n` : ''}` +
+            `--- METİN İÇERİĞİ ---\n${ex.text}`;
+        } else if (ex.kind === 'image') {
+          payload.noteContext = `Yüklenen görsel: ${uploadFile.name}\nAçıklama: ${uploadDescription || '-'}\n(Ekteki görseli birincil kaynak olarak kullan.)`;
+          payload.document = { data: ex.data, mimeType: ex.mime };
+        } else {
+          payload.noteContext = `Yüklenen ses kaydı: ${uploadFile.name}\nAçıklama: ${uploadDescription || '-'}\n(Ekteki ses kaydını birincil kaynak olarak kullan, dökümden konuları çıkar.)`;
+          payload.audio = { data: ex.data, mimeType: ex.mime };
+        }
+        titleForMaterial = uploadTitle;
+        courseForMaterial = uploadCourse || null;
+      } catch (e: any) {
+        stopProgress(false);
+        setGenerating(false);
+        toast.error(e.message || 'Dosya okunamadı.');
+        return;
+      }
     } else {
       const list = sourceMode === 'own' ? ownNotes : platformNotes;
       const note = list.find(n => n.id === selectedNoteId);
@@ -185,15 +205,17 @@ const Study = () => {
       titleForMaterial = note.title;
       courseForMaterial = note.course;
       sourceNoteId = note.id;
+      setGenerating(true);
+      startProgress();
     }
 
-    setGenerating(true);
-    startProgress();
+    rampProgressTo(95, 'Yapay zeka materyali üretiyor...');
     try {
       const res = await supabase.functions.invoke('generate-study-material', { body: payload });
       if (res.error) throw res.error;
       if (res.data?.error) throw new Error(res.data.error);
 
+      setProgressNow(97, 'Kaydediliyor...');
       const { data: inserted, error } = await supabase.from('study_materials').insert({
         user_id: user!.id,
         source_type: sourceMode,
@@ -215,7 +237,7 @@ const Study = () => {
       void load();
     } catch (e: any) {
       stopProgress(false);
-      toast.error(e.message || 'Üretim başarısız.');
+      toast.error(e.message || 'Üretim başarısız. Lütfen tekrar deneyin.');
     } finally {
       setGenerating(false);
     }
