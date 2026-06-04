@@ -218,7 +218,7 @@ const Study = () => {
       setProgressNow(97, 'Kaydediliyor...');
       const { data: inserted, error } = await supabase.from('study_materials').insert({
         user_id: user!.id,
-        source_type: sourceMode,
+        source_type: sourceMode === 'platform' ? 'platform' : 'own',
         source_note_id: sourceNoteId,
         material_type: materialType,
         title: `${TYPE_META[materialType].label}: ${titleForMaterial}`,
