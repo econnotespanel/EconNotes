@@ -39,6 +39,9 @@ const AdminPanel = () => {
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [messageReports, setMessageReports] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
+  const [studyMaterials, setStudyMaterials] = useState<any[]>([]);
+  const [studyFilter, setStudyFilter] = useState('');
+  const [studyDetail, setStudyDetail] = useState<any>(null);
   const [systemOpen, setSystemOpen] = useState(true);
   const [noteUploadRestricted, setNoteUploadRestricted] = useState(true);
   const [academicWeek, setAcademicWeek] = useState<string>('');
