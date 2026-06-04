@@ -73,7 +73,7 @@ const AdminPanel = () => {
   }, [isAdmin]);
 
   const fetchAll = async () => {
-    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes] = await Promise.all([
+    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('notes').select('*').order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
@@ -83,6 +83,7 @@ const AdminPanel = () => {
       supabase.from('user_roles').select('*'),
       supabase.from('message_reports').select('*').order('created_at', { ascending: false }),
       supabase.from('banners').select('*').order('created_at', { ascending: false }),
+      supabase.from('study_materials').select('*').order('created_at', { ascending: false }).limit(500),
     ]);
     setUsers(usersRes.data || []);
     setNotes(notesRes.data || []);
