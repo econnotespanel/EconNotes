@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
+import { extractFile } from '@/lib/extractFile';
 
 type MaterialType = 'flashcards' | 'quiz' | 'summary' | 'video';
 type ExamType = 'test' | 'classic' | 'mixed';
