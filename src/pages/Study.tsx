@@ -463,11 +463,11 @@ const Study = () => {
                   <label className="flex items-center gap-3 px-3 py-3 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition">
                     <FileUp className="h-5 w-5 text-primary" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{uploadFile ? uploadFile.name : 'Dosya seç (PDF, görsel, ses)'}</p>
-                      <p className="text-[11px] text-muted-foreground">PDF, PNG, JPG, MP3, WAV, M4A — maks 25MB</p>
+                      <p className="text-sm font-medium">{uploadFile ? uploadFile.name : 'Dosya seç (PDF, görsel, ses, metin)'}</p>
+                      <p className="text-[11px] text-muted-foreground">PDF (tarayıcıda metin çıkarılır), PNG, JPG, MP3, WAV, M4A, TXT, MD — maks 25MB</p>
                     </div>
                     {uploadFile?.type.startsWith('audio/') && <Mic className="h-4 w-4 text-fuchsia-500" />}
-                    <input type="file" className="hidden" accept=".pdf,image/*,audio/*" onChange={e => setUploadFile(e.target.files?.[0] || null)} />
+                    <input type="file" className="hidden" accept=".pdf,.txt,.md,image/*,audio/*,text/*" onChange={e => setUploadFile(e.target.files?.[0] || null)} />
                   </label>
                 </TabsContent>
               </Tabs>
