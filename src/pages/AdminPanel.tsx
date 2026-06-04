@@ -532,7 +532,109 @@ const AdminPanel = () => {
               </ScrollArea>
             </CardContent></Card>
           </TabsContent>
+
+          <TabsContent value="study">
+            <Card className="glass-card"><CardContent className="p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Çalışma Stüdyosu Üretimleri</h3>
+                  <p className="text-xs text-muted-foreground">Toplam {studyMaterials.length} materyal · güvenlik denetimi için tüm üretimler listelenir.</p>
+                </div>
+                <Input placeholder="Kullanıcı, ders veya başlık ara..." value={studyFilter} onChange={(e) => setStudyFilter(e.target.value)} className="sm:max-w-xs" />
+              </div>
+              <ScrollArea className="h-[520px]">
+                <div className="space-y-2">
+                  {studyMaterials
+                    .filter((m) => {
+                      if (!studyFilter.trim()) return true;
+                      const q = studyFilter.toLowerCase();
+                      const u = users.find(x => x.user_id === m.user_id);
+                      return [m.title, m.course, m.material_type, u?.full_name, u?.university, u?.department]
+                        .filter(Boolean).some((v: string) => v.toLowerCase().includes(q));
+                    })
+                    .map((m) => {
+                      const u = users.find(x => x.user_id === m.user_id);
+                      const typeMeta: Record<string, { label: string; color: string }> = {
+                        flashcards: { label: 'Bilgi Kartları', color: 'bg-blue-500/10 text-blue-500' },
+                        quiz: { label: 'Test', color: 'bg-purple-500/10 text-purple-500' },
+                        summary: { label: 'Özet', color: 'bg-emerald-500/10 text-emerald-500' },
+                        video: { label: 'Video', color: 'bg-pink-500/10 text-pink-500' },
+                      };
+                      const t = typeMeta[m.material_type] || { label: m.material_type, color: 'bg-muted text-muted-foreground' };
+                      const src = m.source_type === 'platform' ? 'Platform notu' : (m.source_note_id ? 'Kendi notu' : 'Dış yükleme');
+                      return (
+                        <div key={m.id} className="flex items-start justify-between gap-3 p-3 rounded-lg bg-accent/50">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge variant="outline" className={`text-[10px] ${t.color}`}>{t.label}</Badge>
+                              <Badge variant="outline" className="text-[10px]">{src}</Badge>
+                              {m.course && <Badge variant="outline" className="text-[10px]">{m.course}</Badge>}
+                            </div>
+                            <p className="font-medium text-sm mt-1 truncate">{m.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1 flex-wrap">
+                              <BookOpen className="h-3 w-3" />
+                              {u?.full_name || 'Bilinmiyor'}
+                              {u?.university && <span>· {u.university}</span>}
+                              {u?.department && <span>· {u.department}</span>}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{new Date(m.created_at).toLocaleString('tr-TR')}</span>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setStudyDetail(m)}>
+                              <Eye className="h-3 w-3 mr-1" />İncele
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {studyMaterials.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8">Henüz üretim yok.</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent></Card>
+          </TabsContent>
         </Tabs>
+
+        <Dialog open={!!studyDetail} onOpenChange={(o) => !o && setStudyDetail(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />{studyDetail?.title}</DialogTitle>
+            </DialogHeader>
+            {studyDetail && (
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-muted-foreground">Kullanıcı:</span> {users.find(u => u.user_id === studyDetail.user_id)?.full_name || '-'}</div>
+                  <div><span className="text-muted-foreground">Ders:</span> {studyDetail.course || '-'}</div>
+                  <div><span className="text-muted-foreground">Tür:</span> {studyDetail.material_type}</div>
+                  <div><span className="text-muted-foreground">Kaynak:</span> {studyDetail.source_type}</div>
+                  <div><span className="text-muted-foreground">Model:</span> {studyDetail.model || '-'}</div>
+                  <div><span className="text-muted-foreground">Tarih:</span> {new Date(studyDetail.created_at).toLocaleString('tr-TR')}</div>
+                </div>
+                <ScrollArea className="h-[360px] rounded-lg border bg-muted/30 p-3">
+                  <pre className="text-[11px] whitespace-pre-wrap break-words font-mono">
+                    {JSON.stringify(studyDetail.content, null, 2)}
+                  </pre>
+                </ScrollArea>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={async () => {
+                      const { error } = await supabase.from('study_materials').delete().eq('id', studyDetail.id);
+                      if (error) { toast.error('Silinemedi.'); return; }
+                      toast.success('Materyal silindi.');
+                      setStudyMaterials(prev => prev.filter(x => x.id !== studyDetail.id));
+                      setStudyDetail(null);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />Materyali Sil
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Dialogs */}
         <Dialog open={penaltyDialog} onOpenChange={setPenaltyDialog}>
