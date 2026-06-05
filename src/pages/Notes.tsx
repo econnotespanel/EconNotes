@@ -94,9 +94,30 @@ const Notes = () => {
     setComments(grouped);
   };
 
+  const [viewRestricted, setViewRestricted] = useState(false);
   const fetchSettings = async () => {
     const { data } = await supabase.from('system_settings').select('*').limit(1).maybeSingle();
-    if (data) setUploadRestricted((data as any).note_upload_restricted ?? true);
+    if (data) {
+      setUploadRestricted((data as any).note_upload_restricted ?? true);
+      setViewRestricted((data as any).note_view_restricted ?? false);
+    }
+  };
+
+  const handlePreviewClick = async (note: any) => {
+    if (!user) return;
+    if (viewRestricted && !isAdmin) {
+      const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
+      const q = (data && data[0]) as typeof quota;
+      if (q && !q.can_download) {
+        setQuotaBlockOpen(true);
+        return;
+      }
+    }
+    trackView(note.id);
+    if (isPreviewable(note.file_type, note.file_url)) {
+      setPreviewUrl(note.file_url);
+      setPreviewType(note.file_type);
+    }
   };
 
   useEffect(() => { fetchNotes(); fetchSettings(); }, [sortOrder]);
@@ -571,7 +592,7 @@ const Notes = () => {
                     ) : (
                       <>
                         {thumbnail ? (
-                          <div className="relative h-40 w-full overflow-hidden bg-muted cursor-pointer" onClick={() => { trackView(note.id); setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
+                          <div className="relative h-40 w-full overflow-hidden bg-muted cursor-pointer" onClick={() => handlePreviewClick(note)}>
                             <img src={thumbnail} alt={note.title} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                             <div className="absolute bottom-2 left-2 right-2">
@@ -579,7 +600,7 @@ const Notes = () => {
                             </div>
                           </div>
                         ) : note.file_url ? (
-                          <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center cursor-pointer" onClick={() => { trackView(note.id); if (isPreviewable(note.file_type, note.file_url)) { setPreviewUrl(note.file_url); setPreviewType(note.file_type); } }}>
+                          <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center cursor-pointer" onClick={() => handlePreviewClick(note)}>
                             <div className="text-center">
                               <span className="text-4xl">{getFileIcon(note.file_type)}</span>
                               <p className="text-xs text-muted-foreground mt-2 px-4 truncate max-w-[200px]">{note.file_name}</p>
@@ -642,7 +663,7 @@ const Notes = () => {
                                   <Download className="h-3 w-3 mr-1" /> İndir
                                 </Button>
                                 {isPreviewable(note.file_type, note.file_url) && (
-                                  <Button size="sm" variant="outline" onClick={() => { trackView(note.id); setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
+                                  <Button size="sm" variant="outline" onClick={() => handlePreviewClick(note)}>
                                     <Eye className="h-3 w-3 mr-1" /> Önizle
                                   </Button>
                                 )}

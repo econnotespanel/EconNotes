@@ -44,6 +44,7 @@ const AdminPanel = () => {
   const [studyDetail, setStudyDetail] = useState<any>(null);
   const [systemOpen, setSystemOpen] = useState(true);
   const [noteUploadRestricted, setNoteUploadRestricted] = useState(true);
+  const [noteViewRestricted, setNoteViewRestricted] = useState(false);
   const [academicWeek, setAcademicWeek] = useState<string>('');
   const [academicWeekLabel, setAcademicWeekLabel] = useState('');
   const [academicSemester, setAcademicSemester] = useState('Güz');
@@ -97,6 +98,7 @@ const AdminPanel = () => {
     if (settingsRes.data) {
       setSystemOpen(settingsRes.data.is_system_open);
       setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
+      setNoteViewRestricted((settingsRes.data as any).note_view_restricted ?? false);
       setAcademicWeek(String((settingsRes.data as any).academic_week || ''));
       setAcademicWeekLabel((settingsRes.data as any).academic_week_label || '');
       setAcademicSemester((settingsRes.data as any).academic_semester || 'Güz');
@@ -115,6 +117,13 @@ const AdminPanel = () => {
     await supabase.from('system_settings').update({ note_upload_restricted: newState } as any).not('id', 'is', null);
     setNoteUploadRestricted(newState);
     toast.success(newState ? 'Saat kısıtı açıldı' : 'Saat kısıtı kaldırıldı');
+  };
+
+  const toggleViewRestriction = async () => {
+    const newState = !noteViewRestricted;
+    await supabase.from('system_settings').update({ note_view_restricted: newState } as any).not('id', 'is', null);
+    setNoteViewRestricted(newState);
+    toast.success(newState ? 'Önizleme kotası açıldı.' : 'Önizleme kotası kapatıldı.');
   };
 
   const updateAcademicWeek = async () => {
@@ -235,6 +244,10 @@ const AdminPanel = () => {
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Saat Kısıtı</span>
               <Switch checked={noteUploadRestricted} onCheckedChange={toggleUploadRestriction} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Önizleme Kotası</span>
+              <Switch checked={noteViewRestricted} onCheckedChange={toggleViewRestriction} />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Sistem</span>
