@@ -44,6 +44,7 @@ const AdminPanel = () => {
   const [studyDetail, setStudyDetail] = useState<any>(null);
   const [systemOpen, setSystemOpen] = useState(true);
   const [noteUploadRestricted, setNoteUploadRestricted] = useState(true);
+  const [noteViewRestricted, setNoteViewRestricted] = useState(false);
   const [academicWeek, setAcademicWeek] = useState<string>('');
   const [academicWeekLabel, setAcademicWeekLabel] = useState('');
   const [academicSemester, setAcademicSemester] = useState('Güz');
