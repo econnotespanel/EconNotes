@@ -15,7 +15,8 @@ import { Label } from '@/components/ui/label';
 import {
   GraduationCap, Sparkles, Layers, ClipboardList, FileText as FileTextIcon, Video as VideoIcon,
   Loader2, ChevronLeft, ChevronRight, Check, X, Trash2, Play, Search, Plus, BookOpen,
-  Upload, Mic, FileUp, Bug, Coffee, Award, Flame, Brain, Trophy, RefreshCw, RotateCw
+  Upload, Mic, FileUp, Bug, Coffee, Award, Flame, Brain, Trophy, RefreshCw, RotateCw,
+  MessageCircle, Send, Wand2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
@@ -653,6 +654,7 @@ const ReportDialog = ({ open, onOpenChange, materialId, user }: { open: boolean;
 
 // ============ Viewers ============
 const MaterialViewer = ({ material, onReport }: { material: StudyMaterial; onReport: () => void }) => {
+  const [coachOpen, setCoachOpen] = useState(false);
   const renderer = () => {
     switch (material.material_type) {
       case 'flashcards': return <FlashcardViewer material={material} />;
@@ -666,12 +668,146 @@ const MaterialViewer = ({ material, onReport }: { material: StudyMaterial; onRep
       <DialogHeader>
         <DialogTitle className="flex items-center justify-between gap-2 pr-6">
           <span className="line-clamp-2">{material.title}</span>
-          <Button size="sm" variant="ghost" onClick={onReport} className="gap-1 shrink-0">
-            <Bug className="h-3.5 w-3.5" /> Bildir
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button
+              size="sm"
+              onClick={() => setCoachOpen(true)}
+              className="gap-1 bg-gradient-to-r from-primary to-fuchsia-500 text-primary-foreground hover:opacity-90"
+            >
+              <Wand2 className="h-3.5 w-3.5" /> Akıl Hocası
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onReport} className="gap-1">
+              <Bug className="h-3.5 w-3.5" /> Bildir
+            </Button>
+          </div>
         </DialogTitle>
       </DialogHeader>
       {renderer()}
+      <StudyCoachPanel material={material} open={coachOpen} onClose={() => setCoachOpen(false)} />
+    </div>
+  );
+};
+
+// ============ AI Akıl Hocası (bağlamsal sohbet) ============
+const QUICK_PROMPTS = [
+  'Bu konuyu daha basit anlat.',
+  'Somut bir örnek ver.',
+  'En çok hangi 3 noktayı çalışmalıyım?',
+  'Bana 3 hızlı soru sor.',
+];
+
+const StudyCoachPanel = ({ material, open, onClose }: { material: StudyMaterial; open: boolean; onClose: () => void }) => {
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open && messages.length === 0) {
+      setMessages([{
+        role: 'assistant',
+        content: `Merhaba 👋 Ben senin Akıl Hocan'ım. **${material.title}** materyalini birlikte çalışalım. Aşağıdan hızlı bir başlangıç seçebilir veya istediğini sorabilirsin.`,
+      }]);
+    }
+  }, [open, material.title]);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
+
+  const send = async (text: string) => {
+    if (!text.trim() || loading) return;
+    const next = [...messages, { role: 'user' as const, content: text }];
+    setMessages(next);
+    setInput('');
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('study-coach', {
+        body: {
+          materialTitle: material.title,
+          materialType: material.material_type,
+          course: material.course,
+          materialContent: material.content,
+          messages: next,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setMessages(m => [...m, { role: 'assistant', content: data.reply }]);
+    } catch (e: any) {
+      toast.error(e.message || 'Akıl Hocası şu an cevap veremedi.');
+      setMessages(m => m.slice(0, -1));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!open) return null;
+  return (
+    <div className="rounded-2xl border-2 border-primary/30 bg-gradient-to-br from-primary/5 via-card to-fuchsia-500/5 overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-card/50">
+        <div className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary to-fuchsia-500 flex items-center justify-center">
+            <Wand2 className="h-3.5 w-3.5 text-primary-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold leading-none">AI Akıl Hocası</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Bu materyale özel yardımcın</p>
+          </div>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onClose} className="h-7 w-7 p-0"><X className="h-4 w-4" /></Button>
+      </div>
+
+      <div className="max-h-[340px] overflow-y-auto p-4 space-y-3">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
+              m.role === 'user'
+                ? 'bg-primary text-primary-foreground rounded-br-sm'
+                : 'bg-muted/70 border border-border rounded-bl-sm'
+            }`}>
+              {m.role === 'assistant'
+                ? <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1.5 prose-ul:my-1.5"><ReactMarkdown>{m.content}</ReactMarkdown></div>
+                : <p className="whitespace-pre-wrap">{m.content}</p>}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-muted/70 border border-border rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Düşünüyor...
+            </div>
+          </div>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      {messages.length <= 1 && (
+        <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+          {QUICK_PROMPTS.map(p => (
+            <button
+              key={p}
+              onClick={() => send(p)}
+              disabled={loading}
+              className="text-xs px-2.5 py-1 rounded-full border border-border bg-card hover:bg-primary/10 hover:border-primary/40 transition disabled:opacity-50"
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="p-3 border-t border-border bg-card/50 flex gap-2">
+        <Input
+          placeholder="Bir soru sor..."
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
+          disabled={loading}
+          className="flex-1"
+        />
+        <Button onClick={() => send(input)} disabled={loading || !input.trim()} size="icon">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        </Button>
+      </div>
     </div>
   );
 };
