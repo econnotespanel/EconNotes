@@ -592,7 +592,7 @@ const Notes = () => {
                     ) : (
                       <>
                         {thumbnail ? (
-                          <div className="relative h-40 w-full overflow-hidden bg-muted cursor-pointer" onClick={() => { trackView(note.id); setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
+                          <div className="relative h-40 w-full overflow-hidden bg-muted cursor-pointer" onClick={() => handlePreviewClick(note)}>
                             <img src={thumbnail} alt={note.title} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                             <div className="absolute bottom-2 left-2 right-2">
