@@ -94,9 +94,30 @@ const Notes = () => {
     setComments(grouped);
   };
 
+  const [viewRestricted, setViewRestricted] = useState(false);
   const fetchSettings = async () => {
     const { data } = await supabase.from('system_settings').select('*').limit(1).maybeSingle();
-    if (data) setUploadRestricted((data as any).note_upload_restricted ?? true);
+    if (data) {
+      setUploadRestricted((data as any).note_upload_restricted ?? true);
+      setViewRestricted((data as any).note_view_restricted ?? false);
+    }
+  };
+
+  const handlePreviewClick = async (note: any) => {
+    if (!user) return;
+    if (viewRestricted && !isAdmin) {
+      const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
+      const q = (data && data[0]) as typeof quota;
+      if (q && !q.can_download) {
+        setQuotaBlockOpen(true);
+        return;
+      }
+    }
+    trackView(note.id);
+    if (isPreviewable(note.file_type, note.file_url)) {
+      setPreviewUrl(note.file_url);
+      setPreviewType(note.file_type);
+    }
   };
 
   useEffect(() => { fetchNotes(); fetchSettings(); }, [sortOrder]);
