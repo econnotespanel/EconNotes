@@ -246,6 +246,10 @@ const AdminPanel = () => {
               <Switch checked={noteUploadRestricted} onCheckedChange={toggleUploadRestriction} />
             </div>
             <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Önizleme Kotası</span>
+              <Switch checked={noteViewRestricted} onCheckedChange={toggleViewRestriction} />
+            </div>
+            <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Sistem</span>
               <Switch checked={systemOpen} onCheckedChange={toggleSystem} />
               <Power className={`h-4 w-4 ${systemOpen ? 'text-green-500' : 'text-destructive'}`} />
