@@ -663,7 +663,7 @@ const Notes = () => {
                                   <Download className="h-3 w-3 mr-1" /> İndir
                                 </Button>
                                 {isPreviewable(note.file_type, note.file_url) && (
-                                  <Button size="sm" variant="outline" onClick={() => { trackView(note.id); setPreviewUrl(note.file_url); setPreviewType(note.file_type); }}>
+                                  <Button size="sm" variant="outline" onClick={() => handlePreviewClick(note)}>
                                     <Eye className="h-3 w-3 mr-1" /> Önizle
                                   </Button>
                                 )}
