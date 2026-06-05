@@ -580,6 +580,7 @@ export type Database = {
           id: string
           is_system_open: boolean
           note_upload_restricted: boolean
+          note_view_restricted: boolean
           updated_at: string
         }
         Insert: {
@@ -590,6 +591,7 @@ export type Database = {
           id?: string
           is_system_open?: boolean
           note_upload_restricted?: boolean
+          note_view_restricted?: boolean
           updated_at?: string
         }
         Update: {
@@ -600,6 +602,7 @@ export type Database = {
           id?: string
           is_system_open?: boolean
           note_upload_restricted?: boolean
+          note_view_restricted?: boolean
           updated_at?: string
         }
         Relationships: []
