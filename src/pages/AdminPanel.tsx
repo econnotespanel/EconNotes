@@ -119,6 +119,13 @@ const AdminPanel = () => {
     toast.success(newState ? 'Saat kısıtı açıldı' : 'Saat kısıtı kaldırıldı');
   };
 
+  const toggleViewRestriction = async () => {
+    const newState = !noteViewRestricted;
+    await supabase.from('system_settings').update({ note_view_restricted: newState } as any).not('id', 'is', null);
+    setNoteViewRestricted(newState);
+    toast.success(newState ? 'Önizleme kotası açıldı.' : 'Önizleme kotası kapatıldı.');
+  };
+
   const updateAcademicWeek = async () => {
     await supabase.from('system_settings').update({ 
       academic_week: academicWeek ? parseInt(academicWeek) : null, 
