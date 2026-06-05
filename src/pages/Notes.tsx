@@ -600,7 +600,7 @@ const Notes = () => {
                             </div>
                           </div>
                         ) : note.file_url ? (
-                          <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center cursor-pointer" onClick={() => { trackView(note.id); if (isPreviewable(note.file_type, note.file_url)) { setPreviewUrl(note.file_url); setPreviewType(note.file_type); } }}>
+                          <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center cursor-pointer" onClick={() => handlePreviewClick(note)}>
                             <div className="text-center">
                               <span className="text-4xl">{getFileIcon(note.file_type)}</span>
                               <p className="text-xs text-muted-foreground mt-2 px-4 truncate max-w-[200px]">{note.file_name}</p>
