@@ -64,6 +64,17 @@ const Register = () => {
       toast.error('Lütfen tüm alanları doldurun.');
       return;
     }
+    // Name validation: only letters (incl. Turkish), spaces, hyphens, apostrophes. No ?, @, #, digits, emoji.
+    const nameRegex = /^[A-Za-zÇĞİıÖŞÜçğıiöşü\s'’\-]{2,60}$/;
+    if (!nameRegex.test(formData.fullName.trim())) {
+      toast.error('Ad Soyad yalnızca harflerden oluşmalıdır. Özel karakter, rakam veya soru işareti içeremez.');
+      return;
+    }
+    const uniDeptRegex = /^[A-Za-zÇĞİıÖŞÜçğıiöşü0-9\s'’\-\.\,\(\)]{2,100}$/;
+    if (!uniDeptRegex.test(formData.university.trim()) || !uniDeptRegex.test(formData.department.trim())) {
+      toast.error('Üniversite ve bölüm bilgileri geçersiz karakter içeremez.');
+      return;
+    }
     if (formData.password !== formData.confirmPassword) {
       toast.error('Şifreler eşleşmiyor.');
       return;
