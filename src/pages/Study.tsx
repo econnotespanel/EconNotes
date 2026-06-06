@@ -303,7 +303,7 @@ const Study = () => {
               { label: 'Özet', value: stats.summary, icon: FileTextIcon },
               { label: 'Video', value: stats.video, icon: VideoIcon },
             ].map((s, i) => (
-              <div key={i} className="rounded-xl border border-border/60 bg-card/60 backdrop-blur p-3">
+              <div key={i} className="glass-card p-3 lift-on-hover">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">{s.label}</span>
                   <s.icon className="h-3.5 w-3.5 text-primary" />
@@ -323,14 +323,14 @@ const Study = () => {
               <button
                 key={t}
                 onClick={() => { setMaterialType(t); setCreateOpen(true); }}
-                className="group relative overflow-hidden rounded-2xl border border-border bg-card p-5 text-left transition-all hover:border-primary/40 hover:shadow-lg hover:-translate-y-0.5"
+                className="group relative overflow-hidden rounded-2xl border border-border bg-card p-5 text-left transition-all hover:border-primary/60 hover:shadow-xl hover:shadow-primary/20 hover:-translate-y-1"
               >
-                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-br ${meta.color} transition-opacity`} style={{ filter: 'blur(40px)', opacity: 0.15 }} />
+                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-br ${meta.color} transition-opacity duration-500`} style={{ filter: 'blur(40px)', opacity: 0.2 }} />
                 <div className="relative">
-                  <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${meta.color} text-white shadow-md`}>
+                  <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${meta.color} text-white shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-3 font-semibold">{meta.label}</h3>
+                  <h3 className="mt-3 font-semibold group-hover:text-primary transition-colors">{meta.label}</h3>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{meta.desc}</p>
                 </div>
               </button>
