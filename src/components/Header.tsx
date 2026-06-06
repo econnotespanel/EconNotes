@@ -86,7 +86,7 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-card/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 w-full border-b border-white/30 dark:border-white/10 bg-card/50 dark:bg-card/40 backdrop-blur-2xl shadow-sm shadow-primary/5">
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
         <div className="flex items-center gap-3 cursor-pointer ml-12 md:ml-0" onClick={() => navigate('/')}>
           <img 
