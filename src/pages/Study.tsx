@@ -268,27 +268,29 @@ const Study = () => {
     <Layout>
       <div className="space-y-6 animate-fade-in">
         {/* Hero */}
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/15 via-primary/5 to-transparent p-6 md:p-8">
-          <div className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
-          <div className="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full bg-fuchsia-500/15 blur-3xl" />
+        <div className="aurora-border relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/20 via-fuchsia-500/10 to-cyan-400/10 p-6 md:p-8">
+          <div className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-primary/30 blur-3xl animate-loader-aurora" />
+          <div className="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl animate-loader-aurora" />
+          <div className="absolute top-10 left-1/4 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
           <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
-              <Badge variant="secondary" className="mb-3 gap-1.5">
-                <Sparkles className="h-3 w-3" /> Yeni nesil · Çalışma Stüdyosu
+              <Badge variant="secondary" className="mb-3 gap-1.5 backdrop-blur bg-white/40 dark:bg-white/10 border border-white/30">
+                <Sparkles className="h-3 w-3 animate-pulse" /> Yeni nesil · Çalışma Stüdyosu
               </Badge>
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight flex items-center gap-3">
-                <GraduationCap className="h-8 w-8 text-primary" /> Çalışma Stüdyosu
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white shadow">YENİ</span>
+              <h1 className="text-3xl md:text-5xl font-bold tracking-tight flex items-center gap-3 flex-wrap">
+                <GraduationCap className="h-9 w-9 text-primary neon-glow" />
+                <span className="holo-text">Çalışma Stüdyosu</span>
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white shadow animate-pulse-glow">YENİ</span>
               </h1>
               <p className="text-muted-foreground mt-2 max-w-xl">
                 Notlarını, PDF'leri ve sesli kayıtları yükle. Sınav türünü ve hedefini söyle — Çalışma Stüdyosu sana özel kart, quiz, özet ve video taslakları üretsin.
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="lg" onClick={() => setReportOpen(true)} className="gap-2">
+              <Button variant="outline" size="lg" onClick={() => setReportOpen(true)} className="gap-2 backdrop-blur bg-white/40 dark:bg-white/5 border-white/30">
                 <Bug className="h-4 w-4" /> Platforma Bildir
               </Button>
-              <Button size="lg" onClick={() => setCreateOpen(true)} className="gap-2 shadow-lg shadow-primary/30">
+              <Button size="lg" onClick={() => setCreateOpen(true)} className="gap-2 gradient-primary text-white border-0">
                 <Plus className="h-4 w-4" /> Yeni Materyal
               </Button>
             </div>
