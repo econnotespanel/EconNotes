@@ -79,21 +79,24 @@ const Sidebar = () => {
             key={link.path}
             onClick={() => { navigate(link.path); setOpen(false); }}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 relative",
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 relative overflow-hidden",
               active
-                ? "bg-primary text-primary-foreground shadow-md"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                ? "bg-gradient-to-r from-primary to-[hsl(var(--primary-glow))] text-primary-foreground shadow-lg shadow-primary/30"
+                : "text-foreground/70 hover:bg-white/50 dark:hover:bg-white/5 hover:text-foreground hover:translate-x-1 hover:shadow-md"
             )}
           >
-            <Icon className="h-4 w-4" />
+            {active && (
+              <span className="absolute inset-y-1 left-0 w-1 rounded-r bg-white/80" />
+            )}
+            <Icon className={cn("h-4 w-4 transition-transform duration-300", !active && "group-hover:scale-110 group-hover:text-primary")} />
             <span className="flex-1 text-left">{link.label}</span>
             {isNew && (
-              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white shadow-sm">
+              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white shadow-sm animate-pulse">
                 YENİ
               </span>
             )}
             {badge > 0 && (
-              <span className="h-5 min-w-5 px-1 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">
+              <span className="h-5 min-w-5 px-1 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center shadow">
                 {badge}
               </span>
             )}
@@ -120,13 +123,13 @@ const Sidebar = () => {
 
       <aside
         className={cn(
-          "fixed left-0 top-16 z-50 h-[calc(100vh-4rem)] w-60 border-r border-border bg-card transition-transform duration-300 md:translate-x-0 flex flex-col justify-between",
+          "fixed left-0 top-16 z-50 h-[calc(100vh-4rem)] w-60 border-r border-white/30 dark:border-white/10 bg-card/50 dark:bg-card/40 backdrop-blur-2xl transition-transform duration-300 md:translate-x-0 flex flex-col justify-between shadow-xl shadow-primary/5",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
         <NavContent />
-        <div className="p-3 border-t border-border">
-          <p className="text-xs text-muted-foreground text-center">EconNotes</p>
+        <div className="p-3 border-t border-white/30 dark:border-white/10">
+          <p className="text-xs text-muted-foreground text-center font-semibold">EconNotes</p>
           <p className="text-[10px] text-muted-foreground text-center mt-1">{APP_VERSION}</p>
         </div>
       </aside>
