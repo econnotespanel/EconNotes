@@ -6,54 +6,54 @@
 
 @layer base {
   :root {
-    --background: 214 50% 98%;
-    --foreground: 222 47% 11%;
+    --background: 230 60% 98%;
+    --foreground: 230 50% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 230 50% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 230 50% 10%;
 
-    --primary: 221 83% 53%;
+    --primary: 250 90% 60%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 199 95% 60%;
+    --primary-glow: 280 95% 65%;
 
-    --secondary: 214 95% 93%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 250 95% 94%;
+    --secondary-foreground: 230 50% 10%;
 
-    --muted: 214 40% 96%;
-    --muted-foreground: 215 20% 45%;
+    --muted: 230 40% 96%;
+    --muted-foreground: 230 16% 45%;
 
-    --accent: 199 95% 92%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 280 95% 94%;
+    --accent-foreground: 230 50% 10%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
+    --success: 152 76% 40%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 91% 50%;
+    --border: 230 32% 91%;
+    --input: 230 32% 91%;
+    --ring: 250 90% 60%;
 
-    --radius: 0.75rem;
+    --radius: 0.875rem;
 
-    --sidebar-background: 217 91% 50%;
+    --sidebar-background: 250 90% 58%;
     --sidebar-foreground: 0 0% 100%;
     --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 217 91% 50%;
-    --sidebar-accent: 217 91% 58%;
+    --sidebar-primary-foreground: 250 90% 58%;
+    --sidebar-accent: 260 90% 65%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 217 91% 58%;
+    --sidebar-border: 260 90% 65%;
     --sidebar-ring: 0 0% 100%;
 
-    --gradient-start: 221 83% 53%;
-    --gradient-mid: 217 91% 60%;
+    --gradient-start: 250 90% 60%;
+    --gradient-mid: 280 95% 65%;
     --gradient-end: 199 95% 60%;
 
     --logo-filter: none;
