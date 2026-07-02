@@ -148,6 +148,33 @@ const AdminPanel = () => {
     toast.success('Akademik hafta güncellendi!');
   };
 
+  const saveClosureSettings = async (opts?: { close?: boolean; reopen?: boolean }) => {
+    const patch: any = {
+      closure_title: closureTitle || null,
+      closure_message: closureMessage || null,
+      closure_image_url: closureImageUrl || null,
+      closure_mode: closureMode || 'maintenance',
+      closed_until: closedUntilInput ? new Date(closedUntilInput).toISOString() : null,
+    };
+    if (opts?.close) patch.is_system_open = false;
+    if (opts?.reopen) patch.is_system_open = true;
+    const { error } = await supabase.from('system_settings').update(patch).not('id', 'is', null);
+    if (error) { toast.error('Kapanış ayarları kaydedilemedi.'); return; }
+    if (opts?.close) { setSystemOpen(false); toast.success('Sistem kapatıldı ve kapanış ekranı yayınlandı.'); }
+    else if (opts?.reopen) { setSystemOpen(true); toast.success('Sistem yeniden açıldı. Herkese kolay gelsin!'); }
+    else toast.success('Kapanış ayarları kaydedildi.');
+  };
+
+  const runPromotion = async () => {
+    setPromoteLoading(true);
+    const { data, error } = await (supabase as any).rpc('promote_students_annual');
+    setPromoteLoading(false);
+    setPromoteDialog(false);
+    if (error) { toast.error('Sınıf atlatma başarısız: ' + error.message); return; }
+    const row = Array.isArray(data) ? data[0] : data;
+    toast.success(`Sınıflar atlatıldı! Mezun olan: ${row?.graduated_total ?? 0}, aktif öğrenci: ${row?.promoted_total ?? 0}`);
+    fetchAll();
+
   const issuePenalty = async () => {
     if (!selectedUser || !penaltyReason) { toast.error('Lütfen tüm alanları doldurun.'); return; }
     const level = parseInt(penaltyLevel);
