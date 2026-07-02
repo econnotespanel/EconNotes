@@ -174,6 +174,9 @@ const AdminPanel = () => {
     const row = Array.isArray(data) ? data[0] : data;
     toast.success(`Sınıflar atlatıldı! Mezun olan: ${row?.graduated_total ?? 0}, aktif öğrenci: ${row?.promoted_total ?? 0}`);
     fetchAll();
+  };
+
+
 
   const issuePenalty = async () => {
     if (!selectedUser || !penaltyReason) { toast.error('Lütfen tüm alanları doldurun.'); return; }
