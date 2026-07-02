@@ -117,11 +117,16 @@
     @apply bg-background text-foreground font-sans antialiased;
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(ellipse 60% 50% at 15% 10%, hsl(var(--primary) / 0.32), transparent 60%),
-      radial-gradient(ellipse 50% 40% at 85% 15%, hsl(199 95% 60% / 0.28), transparent 60%),
-      radial-gradient(ellipse 70% 50% at 50% 100%, hsl(280 85% 65% / 0.22), transparent 60%),
-      radial-gradient(ellipse 40% 30% at 100% 80%, hsl(var(--primary-glow) / 0.26), transparent 60%),
-      radial-gradient(ellipse 35% 35% at 0% 60%, hsl(180 90% 55% / 0.18), transparent 60%);
+      /* Summer sun (top right) */
+      radial-gradient(ellipse 55% 45% at 92% 8%, hsl(45 100% 68% / 0.55), transparent 60%),
+      /* Coral sunset (top left) */
+      radial-gradient(ellipse 50% 40% at 8% 12%, hsl(14 95% 70% / 0.35), transparent 65%),
+      /* Ocean turquoise (bottom) */
+      radial-gradient(ellipse 70% 55% at 50% 105%, hsl(190 90% 60% / 0.45), transparent 65%),
+      /* Palm green (bottom left) */
+      radial-gradient(ellipse 45% 35% at 5% 85%, hsl(155 75% 55% / 0.32), transparent 65%),
+      /* Sky blue baseline */
+      radial-gradient(ellipse 60% 50% at 50% 40%, hsl(210 95% 75% / 0.28), transparent 70%);
     background-attachment: fixed;
     position: relative;
   }
