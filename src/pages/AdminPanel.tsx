@@ -685,6 +685,7 @@ const AdminPanel = () => {
                     <SelectItem value="2">2. Sınıf</SelectItem>
                     <SelectItem value="3">3. Sınıf</SelectItem>
                     <SelectItem value="4">4. Sınıf</SelectItem>
+                    <SelectItem value="5">Mezun</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
