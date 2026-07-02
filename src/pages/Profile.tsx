@@ -163,7 +163,7 @@ const Profile = () => {
                     <GraduationCap className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <p className="text-xs text-muted-foreground">Sınıf</p>
-                      <p className="text-sm font-medium">{profile?.grade ? `${profile.grade}. Sınıf` : '-'}</p>
+                      <p className="text-sm font-medium">{profile?.grade === 5 ? 'Mezun' : profile?.grade ? `${profile.grade}. Sınıf` : '-'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">

@@ -18,7 +18,7 @@ const ForgotPassword = () => {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { systemOpen, closedUntil } = useSystemStatus();
+  const { systemOpen, closedUntil, closureTitle, closureMessage, closureImageUrl, closureMode } = useSystemStatus();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +40,7 @@ const ForgotPassword = () => {
   };
 
   if (systemOpen === false) {
-    return <MaintenanceScreen closedUntil={closedUntil} />;
+    return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
   }
 
   const features = [

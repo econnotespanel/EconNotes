@@ -48,7 +48,7 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const navigate = useNavigate();
-  const { systemOpen, closedUntil } = useSystemStatus();
+  const { systemOpen, closedUntil, closureTitle, closureMessage, closureImageUrl, closureMode } = useSystemStatus();
   const { theme, toggleTheme } = useTheme();
 
   const validatePassword = (password: string) => {
@@ -111,7 +111,7 @@ const Register = () => {
   };
 
   if (systemOpen === false) {
-    return <MaintenanceScreen closedUntil={closedUntil} />;
+    return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
   }
 
   const features = [

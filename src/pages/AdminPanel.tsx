@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -48,6 +48,13 @@ const AdminPanel = () => {
   const [academicWeek, setAcademicWeek] = useState<string>('');
   const [academicWeekLabel, setAcademicWeekLabel] = useState('');
   const [academicSemester, setAcademicSemester] = useState('Güz');
+  const [closureTitle, setClosureTitle] = useState('');
+  const [closureMessage, setClosureMessage] = useState('');
+  const [closureImageUrl, setClosureImageUrl] = useState('');
+  const [closureMode, setClosureMode] = useState('maintenance');
+  const [closedUntilInput, setClosedUntilInput] = useState('');
+  const [promoteLoading, setPromoteLoading] = useState(false);
+  const [promoteDialog, setPromoteDialog] = useState(false);
   const [penaltyDialog, setPenaltyDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [penaltyReason, setPenaltyReason] = useState('');
@@ -102,6 +109,12 @@ const AdminPanel = () => {
       setAcademicWeek(String((settingsRes.data as any).academic_week || ''));
       setAcademicWeekLabel((settingsRes.data as any).academic_week_label || '');
       setAcademicSemester((settingsRes.data as any).academic_semester || 'Güz');
+      setClosureTitle((settingsRes.data as any).closure_title || '');
+      setClosureMessage((settingsRes.data as any).closure_message || '');
+      setClosureImageUrl((settingsRes.data as any).closure_image_url || '');
+      setClosureMode((settingsRes.data as any).closure_mode || 'maintenance');
+      const cu = (settingsRes.data as any).closed_until;
+      setClosedUntilInput(cu ? new Date(cu).toISOString().slice(0, 16) : '');
     }
   };
 
@@ -134,6 +147,36 @@ const AdminPanel = () => {
     } as any).not('id', 'is', null);
     toast.success('Akademik hafta güncellendi!');
   };
+
+  const saveClosureSettings = async (opts?: { close?: boolean; reopen?: boolean }) => {
+    const patch: any = {
+      closure_title: closureTitle || null,
+      closure_message: closureMessage || null,
+      closure_image_url: closureImageUrl || null,
+      closure_mode: closureMode || 'maintenance',
+      closed_until: closedUntilInput ? new Date(closedUntilInput).toISOString() : null,
+    };
+    if (opts?.close) patch.is_system_open = false;
+    if (opts?.reopen) patch.is_system_open = true;
+    const { error } = await supabase.from('system_settings').update(patch).not('id', 'is', null);
+    if (error) { toast.error('Kapanış ayarları kaydedilemedi.'); return; }
+    if (opts?.close) { setSystemOpen(false); toast.success('Sistem kapatıldı ve kapanış ekranı yayınlandı.'); }
+    else if (opts?.reopen) { setSystemOpen(true); toast.success('Sistem yeniden açıldı. Herkese kolay gelsin!'); }
+    else toast.success('Kapanış ayarları kaydedildi.');
+  };
+
+  const runPromotion = async () => {
+    setPromoteLoading(true);
+    const { data, error } = await (supabase as any).rpc('promote_students_annual');
+    setPromoteLoading(false);
+    setPromoteDialog(false);
+    if (error) { toast.error('Sınıf atlatma başarısız: ' + error.message); return; }
+    const row = Array.isArray(data) ? data[0] : data;
+    toast.success(`Sınıflar atlatıldı! Mezun olan: ${row?.graduated_total ?? 0}, aktif öğrenci: ${row?.promoted_total ?? 0}`);
+    fetchAll();
+  };
+
+
 
   const issuePenalty = async () => {
     if (!selectedUser || !penaltyReason) { toast.error('Lütfen tüm alanları doldurun.'); return; }
@@ -282,6 +325,84 @@ const AdminPanel = () => {
             <Button size="sm" onClick={updateAcademicWeek}>Kaydet</Button>
           </CardContent>
         </Card>
+
+        {/* Yaz Dönemi Kapanış Menüsü + Sınıf Atlatma */}
+        <Card className="glass-card border-yellow-300/40 bg-gradient-to-br from-yellow-50/60 via-orange-50/40 to-cyan-50/60 dark:from-yellow-500/10 dark:via-orange-500/10 dark:to-cyan-500/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sun className="h-5 w-5 text-yellow-500" />
+              Yaz Dönemi Yönetimi
+              <Palmtree className="h-5 w-5 text-emerald-500 ml-auto" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Kapanış Türü</Label>
+                <Select value={closureMode} onValueChange={setClosureMode}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="summer">🌴 Yaz Tatili</SelectItem>
+                    <SelectItem value="maintenance">🛠️ Bakım</SelectItem>
+                    <SelectItem value="announcement">📣 Duyuru</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tekrar Açılış Tarihi (opsiyonel)</Label>
+                <Input type="datetime-local" value={closedUntilInput} onChange={e => setClosedUntilInput(e.target.value)} className="h-9" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Başlık</Label>
+              <Input value={closureTitle} onChange={e => setClosureTitle(e.target.value)} placeholder="ör: EconNotes Yaz Tatiline Girdi 🌊" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Kapanış Metni</Label>
+              <Textarea value={closureMessage} onChange={e => setClosureMessage(e.target.value)} rows={4} placeholder="Öğrencilere gösterilecek metni yazın..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Görsel URL (opsiyonel)</Label>
+              <Input value={closureImageUrl} onChange={e => setClosureImageUrl(e.target.value)} placeholder="https://..." />
+              {closureImageUrl && (
+                <img src={closureImageUrl} alt="Önizleme" className="mt-2 max-h-40 rounded-lg border border-border object-cover" />
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button size="sm" variant="outline" onClick={() => saveClosureSettings()}>Ayarları Kaydet</Button>
+              {systemOpen ? (
+                <Button size="sm" className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:opacity-90 text-white" onClick={() => saveClosureSettings({ close: true })}>
+                  <Sun className="h-4 w-4 mr-1.5" /> Sistemi Kapat & Yayınla
+                </Button>
+              ) : (
+                <Button size="sm" className="bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 text-white" onClick={() => saveClosureSettings({ reopen: true })}>
+                  <Power className="h-4 w-4 mr-1.5" /> Sistemi Yeniden Aç
+                </Button>
+              )}
+              <AlertDialog open={promoteDialog} onOpenChange={setPromoteDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="border-emerald-400/60 text-emerald-700 dark:text-emerald-300">
+                    <ArrowUpCircle className="h-4 w-4 mr-1.5" /> Sınıfları Bir Üste Taşı (1 Ağustos)
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Tüm öğrencileri bir üst sınıfa taşımak istediğinize emin misiniz?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      1. Sınıf → 2, 2 → 3, 3 → 4 olacak. 4. sınıflar "Mezun" kategorisine geçecek. Bu işlem geri alınamaz.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>İptal</AlertDialogCancel>
+                    <AlertDialogAction onClick={runPromotion} disabled={promoteLoading}>{promoteLoading ? 'Uygulanıyor...' : 'Evet, Taşı'}</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+
+
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{users.length}</p><p className="text-xs text-muted-foreground">Kullanıcılar</p></CardContent></Card>
@@ -685,6 +806,7 @@ const AdminPanel = () => {
                     <SelectItem value="2">2. Sınıf</SelectItem>
                     <SelectItem value="3">3. Sınıf</SelectItem>
                     <SelectItem value="4">4. Sınıf</SelectItem>
+                    <SelectItem value="5">Mezun</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

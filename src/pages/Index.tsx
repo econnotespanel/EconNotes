@@ -10,7 +10,7 @@ import MaintenanceScreen from '@/components/MaintenanceScreen';
 const Index = () => {
   const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const { systemOpen, closedUntil } = useSystemStatus();
+  const { systemOpen, closedUntil, closureTitle, closureMessage, closureImageUrl, closureMode } = useSystemStatus();
 
   if (loading || systemOpen === null) {
     return (
@@ -24,7 +24,7 @@ const Index = () => {
 
   // Show maintenance screen for non-admin users (without signing them out)
   if (systemOpen === false && !isAdmin) {
-    return <MaintenanceScreen closedUntil={closedUntil} />;
+    return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
   }
 
   if (!user) return <Navigate to="/login" replace />;

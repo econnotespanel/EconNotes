@@ -577,6 +577,10 @@ export type Database = {
           academic_week: number | null
           academic_week_label: string | null
           closed_until: string | null
+          closure_image_url: string | null
+          closure_message: string | null
+          closure_mode: string
+          closure_title: string | null
           id: string
           is_system_open: boolean
           note_upload_restricted: boolean
@@ -588,6 +592,10 @@ export type Database = {
           academic_week?: number | null
           academic_week_label?: string | null
           closed_until?: string | null
+          closure_image_url?: string | null
+          closure_message?: string | null
+          closure_mode?: string
+          closure_title?: string | null
           id?: string
           is_system_open?: boolean
           note_upload_restricted?: boolean
@@ -599,6 +607,10 @@ export type Database = {
           academic_week?: number | null
           academic_week_label?: string | null
           closed_until?: string | null
+          closure_image_url?: string | null
+          closure_message?: string | null
+          closure_mode?: string
+          closure_title?: string | null
           id?: string
           is_system_open?: boolean
           note_upload_restricted?: boolean
@@ -670,6 +682,13 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      promote_students_annual: {
+        Args: never
+        Returns: {
+          graduated_total: number
+          promoted_total: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "student" | "akademisyen"
