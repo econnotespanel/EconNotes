@@ -326,6 +326,84 @@ const AdminPanel = () => {
           </CardContent>
         </Card>
 
+        {/* Yaz Dönemi Kapanış Menüsü + Sınıf Atlatma */}
+        <Card className="glass-card border-yellow-300/40 bg-gradient-to-br from-yellow-50/60 via-orange-50/40 to-cyan-50/60 dark:from-yellow-500/10 dark:via-orange-500/10 dark:to-cyan-500/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sun className="h-5 w-5 text-yellow-500" />
+              Yaz Dönemi Yönetimi
+              <Palmtree className="h-5 w-5 text-emerald-500 ml-auto" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Kapanış Türü</Label>
+                <Select value={closureMode} onValueChange={setClosureMode}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="summer">🌴 Yaz Tatili</SelectItem>
+                    <SelectItem value="maintenance">🛠️ Bakım</SelectItem>
+                    <SelectItem value="announcement">📣 Duyuru</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tekrar Açılış Tarihi (opsiyonel)</Label>
+                <Input type="datetime-local" value={closedUntilInput} onChange={e => setClosedUntilInput(e.target.value)} className="h-9" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Başlık</Label>
+              <Input value={closureTitle} onChange={e => setClosureTitle(e.target.value)} placeholder="ör: EconNotes Yaz Tatiline Girdi 🌊" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Kapanış Metni</Label>
+              <Textarea value={closureMessage} onChange={e => setClosureMessage(e.target.value)} rows={4} placeholder="Öğrencilere gösterilecek metni yazın..." />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Görsel URL (opsiyonel)</Label>
+              <Input value={closureImageUrl} onChange={e => setClosureImageUrl(e.target.value)} placeholder="https://..." />
+              {closureImageUrl && (
+                <img src={closureImageUrl} alt="Önizleme" className="mt-2 max-h-40 rounded-lg border border-border object-cover" />
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button size="sm" variant="outline" onClick={() => saveClosureSettings()}>Ayarları Kaydet</Button>
+              {systemOpen ? (
+                <Button size="sm" className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:opacity-90 text-white" onClick={() => saveClosureSettings({ close: true })}>
+                  <Sun className="h-4 w-4 mr-1.5" /> Sistemi Kapat & Yayınla
+                </Button>
+              ) : (
+                <Button size="sm" className="bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 text-white" onClick={() => saveClosureSettings({ reopen: true })}>
+                  <Power className="h-4 w-4 mr-1.5" /> Sistemi Yeniden Aç
+                </Button>
+              )}
+              <AlertDialog open={promoteDialog} onOpenChange={setPromoteDialog}>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="border-emerald-400/60 text-emerald-700 dark:text-emerald-300">
+                    <ArrowUpCircle className="h-4 w-4 mr-1.5" /> Sınıfları Bir Üste Taşı (1 Ağustos)
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Tüm öğrencileri bir üst sınıfa taşımak istediğinize emin misiniz?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      1. Sınıf → 2, 2 → 3, 3 → 4 olacak. 4. sınıflar "Mezun" kategorisine geçecek. Bu işlem geri alınamaz.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>İptal</AlertDialogCancel>
+                    <AlertDialogAction onClick={runPromotion} disabled={promoteLoading}>{promoteLoading ? 'Uygulanıyor...' : 'Evet, Taşı'}</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+
+
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{users.length}</p><p className="text-xs text-muted-foreground">Kullanıcılar</p></CardContent></Card>
           <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{notes.length}</p><p className="text-xs text-muted-foreground">Notlar</p></CardContent></Card>
