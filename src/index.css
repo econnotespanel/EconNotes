@@ -172,23 +172,23 @@
   #root::before {
     width: 520px;
     height: 520px;
-    top: -120px;
-    left: -120px;
-    background: radial-gradient(circle, hsl(var(--primary) / 0.7), transparent 70%);
+    top: -140px;
+    left: -140px;
+    background: radial-gradient(circle, hsl(45 100% 65% / 0.7), transparent 70%);
     animation: orb-float-a 20s ease-in-out infinite alternate;
   }
 
   #root::after {
     width: 620px;
     height: 620px;
-    bottom: -180px;
-    right: -160px;
-    background: radial-gradient(circle, hsl(280 85% 65% / 0.55), transparent 70%);
+    bottom: -200px;
+    right: -180px;
+    background: radial-gradient(circle, hsl(190 90% 60% / 0.6), transparent 70%);
     animation: orb-float-b 24s ease-in-out infinite alternate;
   }
 
-  .dark #root::before { opacity: 0.45; }
-  .dark #root::after { opacity: 0.4; }
+  .dark #root::before { opacity: 0.35; }
+  .dark #root::after { opacity: 0.35; }
 
   /* Third floating orb for richer depth */
   #root > .__orb-3,
