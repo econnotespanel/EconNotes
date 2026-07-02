@@ -111,7 +111,7 @@ const Register = () => {
   };
 
   if (systemOpen === false) {
-    return <MaintenanceScreen closedUntil={closedUntil} />;
+    return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
   }
 
   const features = [
