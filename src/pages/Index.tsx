@@ -10,7 +10,7 @@ import MaintenanceScreen from '@/components/MaintenanceScreen';
 const Index = () => {
   const { user, loading, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const { systemOpen, closedUntil } = useSystemStatus();
+  const { systemOpen, closedUntil, closureTitle, closureMessage, closureImageUrl, closureMode } = useSystemStatus();
 
   if (loading || systemOpen === null) {
     return (
