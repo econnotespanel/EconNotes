@@ -48,6 +48,13 @@ const AdminPanel = () => {
   const [academicWeek, setAcademicWeek] = useState<string>('');
   const [academicWeekLabel, setAcademicWeekLabel] = useState('');
   const [academicSemester, setAcademicSemester] = useState('Güz');
+  const [closureTitle, setClosureTitle] = useState('');
+  const [closureMessage, setClosureMessage] = useState('');
+  const [closureImageUrl, setClosureImageUrl] = useState('');
+  const [closureMode, setClosureMode] = useState('maintenance');
+  const [closedUntilInput, setClosedUntilInput] = useState('');
+  const [promoteLoading, setPromoteLoading] = useState(false);
+  const [promoteDialog, setPromoteDialog] = useState(false);
   const [penaltyDialog, setPenaltyDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [penaltyReason, setPenaltyReason] = useState('');
