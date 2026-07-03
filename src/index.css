@@ -539,12 +539,32 @@
   /* Summer maintenance scene */
   .summer-scene {
     background:
-      radial-gradient(ellipse 60% 45% at 90% 10%, hsl(45 100% 68% / 0.85), transparent 60%),
-      radial-gradient(ellipse 70% 55% at 50% 100%, hsl(190 90% 62% / 0.7), transparent 65%),
-      linear-gradient(180deg, hsl(200 100% 88%) 0%, hsl(190 95% 78%) 55%, hsl(180 85% 70%) 100%);
+      radial-gradient(ellipse 60% 45% at 90% 10%, hsl(45 100% 68% / 0.95), transparent 60%),
+      radial-gradient(ellipse 70% 55% at 50% 100%, hsl(190 90% 62% / 0.8), transparent 65%),
+      linear-gradient(180deg, hsl(200 100% 82%) 0%, hsl(190 95% 72%) 55%, hsl(180 85% 65%) 100%);
+  }
+  .dark .summer-scene {
+    background:
+      radial-gradient(ellipse 60% 45% at 90% 10%, hsl(35 100% 60% / 0.55), transparent 60%),
+      radial-gradient(ellipse 70% 55% at 50% 100%, hsl(200 90% 40% / 0.75), transparent 65%),
+      linear-gradient(180deg, hsl(220 60% 20%) 0%, hsl(210 70% 25%) 55%, hsl(200 80% 30%) 100%);
   }
 
   @keyframes spin-slow { to { transform: rotate(360deg); } }
   .animate-spin-slow { animation: spin-slow 12s linear infinite; }
+
+  @keyframes cloud-drift {
+    0% { transform: translateX(-20px); }
+    50% { transform: translateX(30px); }
+    100% { transform: translateX(-20px); }
+  }
+  .animate-cloud-drift { animation: cloud-drift 14s ease-in-out infinite; }
+  .animate-cloud-drift-slow { animation: cloud-drift 22s ease-in-out infinite; }
+
+  @keyframes boat-bob {
+    0%, 100% { transform: translateY(0) rotate(-3deg); }
+    50% { transform: translateY(-6px) rotate(3deg); }
+  }
+  .animate-boat-bob { animation: boat-bob 4s ease-in-out infinite; }
 }
 
