@@ -135,7 +135,14 @@ const Login = () => {
     toast.success(`Giriş Başarılı! Hoş Geldiniz, ${fullName}`, {
       style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
     });
-    navigate('/');
+
+    // Yeni kayıt olan kullanıcı ise karşılama turuna yönlendir
+    let welcomePending = false;
+    try {
+      welcomePending = localStorage.getItem('econnotes_welcome_pending') === '1';
+      if (welcomePending) localStorage.removeItem('econnotes_welcome_pending');
+    } catch {}
+    navigate(welcomePending ? '/welcome' : '/');
   };
 
   // Show penalty expired countdown screen

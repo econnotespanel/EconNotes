@@ -105,6 +105,8 @@ const Register = () => {
     if (error) {
       toast.error(error.message);
     } else {
+      // Yeni kullanıcı bayrağı — ilk girişte /welcome kurulum ekranına yönlendirilecek
+      try { localStorage.setItem('econnotes_welcome_pending', '1'); } catch {}
       toast.success('Kayıt başarılı. Şimdi giriş yapabilirsiniz.', { duration: 6000 });
       navigate('/login');
     }
