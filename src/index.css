@@ -230,7 +230,7 @@
 
   /* Hand-drawn wavy underline for headings */
   .wavy-underline {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8'><path d='M0 4 Q 15 0 30 4 T 60 4 T 90 4 T 120 4' fill='none' stroke='%23F53D8A' stroke-width='3' stroke-linecap='round'/></svg>");
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8'><path d='M0 4 Q 15 0 30 4 T 60 4 T 90 4 T 120 4' fill='none' stroke='%232C7BFF' stroke-width='3' stroke-linecap='round'/></svg>");
     background-repeat: no-repeat;
     background-position: 0 100%;
     background-size: 100% 8px;
