@@ -26,6 +26,7 @@ const Install = lazy(() => import("./pages/Install"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Study = lazy(() => import("./pages/Study"));
+const Welcome = lazy(() => import("./pages/Welcome"));
 
 const queryClient = new QueryClient();
 
