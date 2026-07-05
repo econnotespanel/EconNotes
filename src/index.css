@@ -20,10 +20,10 @@
     --popover: 0 0% 100%;
     --popover-foreground: 240 20% 10%;
 
-    /* Hot magenta primary */
-    --primary: 335 92% 58%;            /* #F53D8A */
+    /* Neon electric blue primary */
+    --primary: 218 100% 58%;           /* #2C7BFF */
     --primary-foreground: 42 55% 98%;
-    --primary-glow: 320 100% 70%;
+    --primary-glow: 200 100% 65%;
 
     /* Acid lime secondary vibes */
     --secondary: 78 100% 62%;          /* #C5FF3D */
@@ -32,8 +32,8 @@
     --muted: 42 30% 92%;
     --muted-foreground: 240 10% 38%;
 
-    /* Cobalt accent */
-    --accent: 230 84% 56%;             /* #3A50E8 */
+    /* Violet accent */
+    --accent: 265 90% 62%;             /* #7B3DF5 */
     --accent-foreground: 42 55% 98%;
 
     --destructive: 358 82% 58%;
@@ -47,27 +47,27 @@
 
     --border: 240 20% 10%;             /* ink border for brutalist stroke */
     --input: 240 20% 88%;
-    --ring: 335 92% 58%;
+    --ring: 218 100% 58%;
 
     --radius: 1.25rem;
 
-    /* Sidebar — cobalt block */
+    /* Sidebar — deep ink block */
     --sidebar-background: 240 20% 10%;
     --sidebar-foreground: 42 55% 96%;
-    --sidebar-primary: 78 100% 62%;
+    --sidebar-primary: 195 100% 60%;
     --sidebar-primary-foreground: 240 20% 10%;
     --sidebar-accent: 240 15% 18%;
     --sidebar-accent-foreground: 42 55% 96%;
     --sidebar-border: 240 15% 20%;
-    --sidebar-ring: 78 100% 62%;
+    --sidebar-ring: 195 100% 60%;
 
-    /* Sticker palette (for accents/tape) */
-    --sticker-pink: 335 92% 58%;
+    /* Sticker palette (for accents/tape) — neon blue/violet remap */
+    --sticker-pink: 218 100% 58%;      /* now electric blue */
     --sticker-lime: 78 100% 62%;
-    --sticker-cobalt: 230 84% 56%;
+    --sticker-cobalt: 230 90% 55%;
     --sticker-tangerine: 22 95% 60%;
-    --sticker-lilac: 268 85% 72%;
-    --sticker-cyan: 190 90% 55%;
+    --sticker-lilac: 268 90% 70%;
+    --sticker-cyan: 275 92% 62%;       /* now violet-purple */
 
     --shadow-brutal: 6px 6px 0 0 hsl(var(--foreground));
     --shadow-brutal-lg: 10px 10px 0 0 hsl(var(--foreground));
@@ -85,9 +85,9 @@
     --popover: 245 35% 12%;
     --popover-foreground: 42 55% 96%;
 
-    --primary: 335 100% 68%;
+    --primary: 210 100% 66%;
     --primary-foreground: 245 40% 8%;
-    --primary-glow: 320 100% 75%;
+    --primary-glow: 195 100% 70%;
 
     --secondary: 78 100% 62%;
     --secondary-foreground: 245 40% 8%;
@@ -95,7 +95,7 @@
     --muted: 245 25% 18%;
     --muted-foreground: 42 20% 75%;
 
-    --accent: 230 90% 68%;
+    --accent: 270 95% 72%;
     --accent-foreground: 245 40% 8%;
 
     --destructive: 358 82% 62%;
@@ -109,7 +109,7 @@
 
     --border: 42 55% 96%;
     --input: 245 25% 22%;
-    --ring: 335 100% 68%;
+    --ring: 210 100% 66%;
 
     --sidebar-background: 245 45% 6%;
     --sidebar-foreground: 42 55% 96%;
@@ -230,7 +230,7 @@
 
   /* Hand-drawn wavy underline for headings */
   .wavy-underline {
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8'><path d='M0 4 Q 15 0 30 4 T 60 4 T 90 4 T 120 4' fill='none' stroke='%23F53D8A' stroke-width='3' stroke-linecap='round'/></svg>");
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8'><path d='M0 4 Q 15 0 30 4 T 60 4 T 90 4 T 120 4' fill='none' stroke='%232C7BFF' stroke-width='3' stroke-linecap='round'/></svg>");
     background-repeat: no-repeat;
     background-position: 0 100%;
     background-size: 100% 8px;
