@@ -1,11 +1,21 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { APP_VERSION } from '@/lib/version';
+
+type LinkItem = {
+  label: string;
+  icon: any;
+  path: string;
+  emoji: string;
+  color: string; // sticker palette css var name
+  badge?: number;
+  isNew?: boolean;
+};
 
 const Sidebar = () => {
   const { isAdmin, user } = useAuth();
@@ -17,18 +27,15 @@ const Sidebar = () => {
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
-    // Count distinct senders with unread messages
     const { data: unreadMsgs } = await supabase
       .from('messages')
       .select('sender_id')
       .eq('receiver_id', user.id)
       .eq('is_read', false);
-    
     if (unreadMsgs) {
       const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));
       setUnreadMessages(uniqueSenders.size);
     }
-
     const { data: announcements } = await supabase.from('announcements').select('id');
     const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
     const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
@@ -42,7 +49,6 @@ const Sidebar = () => {
     return () => clearInterval(interval);
   }, [fetchUnread]);
 
-  // Realtime subscription for message updates
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -54,50 +60,87 @@ const Sidebar = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchUnread]);
 
-  const links = [
-    { label: 'Ana Sayfa', icon: Home, path: '/' },
-    { label: 'Notlar', icon: FileText, path: '/notes' },
-    { label: 'Duyurular', icon: Megaphone, path: '/announcements', badge: unreadAnnouncements },
-    { label: 'Mesajlar', icon: MessageSquare, path: '/messages', badge: unreadMessages },
-    { label: 'Çalışma Stüdyosu', icon: GraduationCap, path: '/study', isNew: true },
-    { label: 'Canlı Ders', icon: Video, path: '/live-class' },
-    { label: 'Akademik Asistan', icon: Bot, path: '/assistant' },
-    { label: 'Profilim', icon: User, path: '/profile' },
-    { label: 'Hakkında', icon: Info, path: '/about' },
-    ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' }] : []),
+  const links: LinkItem[] = [
+    { label: 'Ana Sayfa',          icon: Home,          path: '/',              emoji: '🏠', color: 'sticker-pink' },
+    { label: 'Notlar',             icon: FileText,      path: '/notes',         emoji: '📚', color: 'sticker-cobalt' },
+    { label: 'Duyurular',          icon: Megaphone,     path: '/announcements', emoji: '📣', color: 'sticker-tangerine', badge: unreadAnnouncements },
+    { label: 'Mesajlar',           icon: MessageSquare, path: '/messages',      emoji: '💬', color: 'sticker-lime', badge: unreadMessages },
+    { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',         emoji: '⚡', color: 'sticker-cyan', isNew: true },
+    { label: 'Canlı Ders',         icon: Video,         path: '/live-class',    emoji: '🎬', color: 'sticker-lilac' },
+    { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant',     emoji: '🤖', color: 'sticker-cobalt' },
+    { label: 'Profilim',           icon: User,          path: '/profile',       emoji: '🎒', color: 'sticker-pink' },
+    { label: 'Hakkında',           icon: Info,          path: '/about',         emoji: '✨', color: 'sticker-tangerine' },
+    ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin', emoji: '🛡️', color: 'sticker-cyan' } as LinkItem] : []),
   ];
 
   const NavContent = () => (
-    <nav className="flex flex-col gap-1 p-3">
-      {links.map((link) => {
+    <nav className="flex flex-col gap-2 p-3">
+      {links.map((link, idx) => {
         const Icon = link.icon;
         const active = location.pathname === link.path;
-        const badge = (link as any).badge;
-        const isNew = (link as any).isNew;
+        const tilt = idx % 3 === 0 ? '-rotate-1' : idx % 3 === 1 ? 'rotate-1' : 'rotate-0';
         return (
           <button
             key={link.path}
             onClick={() => { navigate(link.path); setOpen(false); }}
+            style={{
+              // active bg uses the item's sticker color
+              ['--item-color' as any]: `hsl(var(--${link.color}))`,
+            }}
             className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-300 relative overflow-hidden",
+              'group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold border-2 border-transparent',
+              'transition-all duration-200 will-change-transform overflow-hidden',
+              'hover:border-foreground hover:-translate-y-0.5 hover:-translate-x-0.5 hover:rotate-0',
+              'hover:[box-shadow:5px_5px_0_0_hsl(var(--foreground))]',
               active
-                ? "bg-gradient-to-r from-primary to-[hsl(var(--primary-glow))] text-primary-foreground shadow-lg shadow-primary/30"
-                : "text-foreground/70 hover:bg-white/50 dark:hover:bg-white/5 hover:text-foreground hover:translate-x-1 hover:shadow-md"
+                ? 'border-foreground text-foreground [box-shadow:5px_5px_0_0_hsl(var(--foreground))] scale-[1.02]'
+                : cn('text-foreground/75 hover:text-foreground bg-transparent', tilt),
             )}
           >
+            {/* Active fill */}
             {active && (
-              <span className="absolute inset-y-1 left-0 w-1 rounded-r bg-white/80" />
+              <span
+                aria-hidden
+                className="absolute inset-0 -z-10"
+                style={{ background: 'var(--item-color)' }}
+              />
             )}
-            <Icon className={cn("h-4 w-4 transition-transform duration-300", !active && "group-hover:scale-110 group-hover:text-primary")} />
-            <span className="flex-1 text-left">{link.label}</span>
-            {isNew && (
-              <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white shadow-sm animate-pulse">
+
+            {/* Diagonal shine sweep on hover */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/70 to-transparent opacity-0 group-hover:opacity-100 group-hover:translate-x-full transition-all duration-700"
+            />
+
+            {/* Icon chip — sticker square with hard border */}
+            <span
+              className={cn(
+                'relative shrink-0 w-8 h-8 grid place-items-center rounded-lg border-2 border-foreground transition-transform duration-300',
+                'group-hover:rotate-[-8deg] group-hover:scale-110',
+                active ? 'bg-background' : 'bg-card',
+              )}
+              style={!active ? { background: 'var(--item-color)' } : undefined}
+            >
+              <Icon className="h-4 w-4" strokeWidth={2.5} />
+              {active && (
+                <Sparkles className="absolute -top-2 -right-2 h-3.5 w-3.5 text-foreground animate-pulse" strokeWidth={3} />
+              )}
+            </span>
+
+            <span className="flex-1 text-left leading-tight">
+              {link.label}
+            </span>
+
+            <span aria-hidden className="text-base opacity-80 group-hover:animate-wiggle">{link.emoji}</span>
+
+            {link.isNew && (
+              <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md border-2 border-foreground bg-background text-foreground shadow-[2px_2px_0_0_hsl(var(--foreground))] rotate-[-6deg]">
                 YENİ
               </span>
             )}
-            {badge > 0 && (
-              <span className="h-5 min-w-5 px-1 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center shadow">
-                {badge}
+            {link.badge && link.badge > 0 && (
+              <span className="h-5 min-w-5 px-1 rounded-full bg-destructive text-[10px] font-black text-destructive-foreground inline-flex items-center justify-center border-2 border-foreground shadow-[2px_2px_0_0_hsl(var(--foreground))]">
+                {link.badge}
               </span>
             )}
           </button>
@@ -111,26 +154,35 @@ const Sidebar = () => {
       <Button
         variant="ghost"
         size="icon"
-        className="fixed top-4 left-4 z-[60] md:hidden"
+        className="fixed top-4 left-4 z-[60] md:hidden border-2 border-foreground bg-card shadow-[3px_3px_0_0_hsl(var(--foreground))]"
         onClick={() => setOpen(!open)}
       >
         {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </Button>
 
       {open && (
-        <div className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-sm md:hidden" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-foreground/30 md:hidden" onClick={() => setOpen(false)} />
       )}
 
       <aside
         className={cn(
-          "fixed left-0 top-16 z-50 h-[calc(100vh-4rem)] w-60 border-r border-white/30 dark:border-white/10 bg-card/50 dark:bg-card/40 backdrop-blur-2xl transition-transform duration-300 md:translate-x-0 flex flex-col justify-between shadow-xl shadow-primary/5",
-          open ? "translate-x-0" : "-translate-x-full"
+          'fixed left-0 top-16 z-50 h-[calc(100vh-4rem)] w-64 transition-transform duration-300 md:translate-x-0 flex flex-col justify-between',
+          'bg-card border-r-2 border-foreground shadow-[6px_0_0_0_hsl(var(--foreground))]',
+          open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <NavContent />
-        <div className="p-3 border-t border-white/30 dark:border-white/10">
-          <p className="text-xs text-muted-foreground text-center font-semibold">EconNotes</p>
-          <p className="text-[10px] text-muted-foreground text-center mt-1">{APP_VERSION}</p>
+        {/* Sticker header strip */}
+        <div className="tape-strip h-3 border-b-2 border-foreground" />
+
+        <div className="flex-1 overflow-y-auto">
+          <NavContent />
+        </div>
+
+        <div className="p-3 border-t-2 border-foreground bg-secondary/40">
+          <div className="flex items-center justify-center gap-2">
+            <span className="chip chip-pink !text-[10px] !py-0.5 !px-2">EconNotes</span>
+            <span className="chip !text-[10px] !py-0.5 !px-2">{APP_VERSION}</span>
+          </div>
         </div>
       </aside>
     </>
