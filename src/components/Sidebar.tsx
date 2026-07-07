@@ -92,10 +92,14 @@ const Sidebar = () => {
               'transition-all duration-200 will-change-transform overflow-hidden',
               'hover:border-foreground hover:-translate-y-0.5 hover:-translate-x-0.5 hover:rotate-0',
               'hover:[box-shadow:5px_5px_0_0_hsl(var(--foreground))]',
+              'active:translate-y-0 active:translate-x-0 active:[box-shadow:2px_2px_0_0_hsl(var(--foreground))]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
               active
-                ? 'border-foreground text-foreground [box-shadow:5px_5px_0_0_hsl(var(--foreground))] scale-[1.02]'
-                : cn('text-foreground/75 hover:text-foreground bg-transparent', tilt),
+                ? 'border-foreground text-[hsl(240_20%_10%)] [box-shadow:5px_5px_0_0_hsl(var(--foreground))] scale-[1.02]'
+                : cn('text-foreground/80 bg-transparent hover:bg-foreground hover:text-background', tilt),
             )}
+
+
           >
             {/* Active fill */}
             {active && (
