@@ -244,18 +244,23 @@
     border-radius: 4px;
   }
 
-  /* Neon chip / tag */
+  /* Neon chip / tag — sticker bgs are bright, force ink text for AA contrast in BOTH themes */
   .chip {
     @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border-2;
-    border-color: hsl(var(--foreground));
+    border-color: hsl(240 20% 10%);
     background: hsl(var(--sticker-lime));
-    color: hsl(var(--foreground));
-    box-shadow: 3px 3px 0 0 hsl(var(--foreground));
+    color: hsl(240 20% 10%);
+    box-shadow: 3px 3px 0 0 hsl(240 20% 10%);
+    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
   }
-  .chip-pink   { background: hsl(var(--sticker-pink)); color: hsl(var(--primary-foreground)); }
-  .chip-cobalt { background: hsl(var(--sticker-cobalt)); color: hsl(var(--primary-foreground)); }
-  .chip-tang   { background: hsl(var(--sticker-tangerine)); color: hsl(var(--foreground)); }
-  .chip-lilac  { background: hsl(var(--sticker-lilac)); color: hsl(var(--foreground)); }
+  .chip:hover  { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 0 hsl(240 20% 10%); filter: saturate(1.1); }
+  .chip:active { transform: translate(1px,1px);  box-shadow: 1px 1px 0 0 hsl(240 20% 10%); }
+  /* Saturated blue/cobalt bgs → white text for contrast */
+  .chip-pink   { background: hsl(var(--sticker-pink));      color: hsl(0 0% 100%); }
+  .chip-cobalt { background: hsl(var(--sticker-cobalt));    color: hsl(0 0% 100%); }
+  .chip-tang   { background: hsl(var(--sticker-tangerine)); color: hsl(240 20% 10%); }
+  .chip-lilac  { background: hsl(var(--sticker-lilac));     color: hsl(240 20% 10%); }
+
 
   /* Retro tape strip — for banners */
   .tape-strip {
