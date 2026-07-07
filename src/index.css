@@ -307,20 +307,28 @@
   /* Gradient button base — keeps semantic Button variants happy */
   .gradient-primary {
     background: linear-gradient(120deg, hsl(var(--sticker-pink)), hsl(var(--sticker-cobalt)));
-    color: hsl(var(--primary-foreground));
-    border: 2px solid hsl(var(--foreground));
-    box-shadow: 4px 4px 0 0 hsl(var(--foreground));
-    transition: transform .15s ease, box-shadow .15s ease, filter .2s ease;
+    color: hsl(0 0% 100%);
+    text-shadow: 0 1px 0 hsl(240 20% 10% / 0.35);
+    border: 2px solid hsl(240 20% 10%);
+    box-shadow: 4px 4px 0 0 hsl(240 20% 10%);
+    transition: transform .15s ease, box-shadow .15s ease, filter .2s ease, background .2s ease;
   }
   .gradient-primary:hover {
     transform: translate(-2px, -2px);
-    box-shadow: 6px 6px 0 0 hsl(var(--foreground));
-    filter: saturate(1.15);
+    box-shadow: 6px 6px 0 0 hsl(240 20% 10%);
+    filter: saturate(1.2) brightness(1.05);
+    color: hsl(0 0% 100%);
   }
   .gradient-primary:active {
     transform: translate(2px, 2px);
-    box-shadow: 1px 1px 0 0 hsl(var(--foreground));
+    box-shadow: 1px 1px 0 0 hsl(240 20% 10%);
+    filter: saturate(1.1) brightness(0.95);
   }
+  .gradient-primary:focus-visible {
+    outline: 3px solid hsl(var(--ring));
+    outline-offset: 3px;
+  }
+
 
   /* Glass card kept as an alias for legacy usage → maps to sticker */
   .glass-card { @apply sticker-card; }
