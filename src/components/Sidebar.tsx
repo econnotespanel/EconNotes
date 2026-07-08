@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Sparkles } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -11,8 +11,6 @@ type LinkItem = {
   label: string;
   icon: any;
   path: string;
-  emoji: string;
-  color: string;
   badge?: number;
   isNew?: boolean;
 };
@@ -24,7 +22,6 @@ const Sidebar = () => {
   const [open, setOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
-  const asideRef = useRef<HTMLElement>(null);
   const firstItemRef = useRef<HTMLButtonElement>(null);
 
   const fetchUnread = useCallback(async () => {
@@ -57,17 +54,14 @@ const Sidebar = () => {
     return () => { supabase.removeChannel(channel); };
   }, [user, fetchUnread]);
 
-  // Close drawer whenever route changes (mobile)
   useEffect(() => { setOpen(false); }, [location.pathname]);
 
-  // Lock body scroll + ESC + focus first item when drawer opens on mobile
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     window.addEventListener('keydown', onKey);
-    // Focus first nav item for a11y
     const t = setTimeout(() => firstItemRef.current?.focus(), 120);
     return () => {
       document.body.style.overflow = prev;
@@ -76,117 +70,109 @@ const Sidebar = () => {
     };
   }, [open]);
 
-  const links: LinkItem[] = [
-    { label: 'Ana Sayfa',          icon: Home,          path: '/',              emoji: '🏠', color: 'sticker-pink' },
-    { label: 'Notlar',             icon: FileText,      path: '/notes',         emoji: '📚', color: 'sticker-cobalt' },
-    { label: 'Duyurular',          icon: Megaphone,     path: '/announcements', emoji: '📣', color: 'sticker-tangerine', badge: unreadAnnouncements },
-    { label: 'Mesajlar',           icon: MessageSquare, path: '/messages',      emoji: '💬', color: 'sticker-lime', badge: unreadMessages },
-    { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',         emoji: '⚡', color: 'sticker-cyan', isNew: true },
-    { label: 'Canlı Ders',         icon: Video,         path: '/live-class',    emoji: '🎬', color: 'sticker-lilac' },
-    { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant',     emoji: '🤖', color: 'sticker-cobalt' },
-    { label: 'Profilim',           icon: User,          path: '/profile',       emoji: '🎒', color: 'sticker-pink' },
-    { label: 'Hakkında',           icon: Info,          path: '/about',         emoji: '✨', color: 'sticker-tangerine' },
-    ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin', emoji: '🛡️', color: 'sticker-cyan' } as LinkItem] : []),
+  const primary: LinkItem[] = [
+    { label: 'Ana Sayfa',          icon: Home,          path: '/' },
+    { label: 'Notlar',             icon: FileText,      path: '/notes' },
+    { label: 'Duyurular',          icon: Megaphone,     path: '/announcements', badge: unreadAnnouncements },
+    { label: 'Mesajlar',           icon: MessageSquare, path: '/messages',      badge: unreadMessages },
+  ];
+
+  const tools: LinkItem[] = [
+    { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',      isNew: true },
+    { label: 'Canlı Ders',         icon: Video,         path: '/live-class' },
+    { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant' },
+  ];
+
+  const account: LinkItem[] = [
+    { label: 'Profilim',           icon: User,          path: '/profile' },
+    { label: 'Hakkında',           icon: Info,          path: '/about' },
+    ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
 
   const totalBadge = unreadMessages + unreadAnnouncements;
 
+  const renderItem = (link: LinkItem, isFirst = false) => {
+    const Icon = link.icon;
+    const active = location.pathname === link.path;
+    return (
+      <button
+        key={link.path}
+        ref={isFirst ? firstItemRef : undefined}
+        onClick={() => navigate(link.path)}
+        aria-current={active ? 'page' : undefined}
+        className={cn(
+          'group relative flex items-center gap-3 w-full rounded-lg pl-4 pr-3 min-h-[42px] py-2 text-sm font-medium',
+          'transition-all duration-200 ease-out',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sidebar-ring))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--sidebar-background))]',
+          active
+            ? 'text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-accent))]'
+            : 'text-[hsl(var(--sidebar-foreground)/0.75)] hover:text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent)/0.6)]',
+        )}
+      >
+        {/* Left neon indicator */}
+        <span
+          aria-hidden
+          className={cn(
+            'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-all duration-300',
+            active
+              ? 'h-6 opacity-100 bg-[hsl(var(--sidebar-primary))] shadow-[0_0_10px_hsl(var(--sidebar-primary)/0.8)]'
+              : 'h-3 opacity-0 group-hover:opacity-50 bg-[hsl(var(--sidebar-primary))]',
+          )}
+        />
+
+        <Icon
+          className={cn(
+            'h-[18px] w-[18px] shrink-0 transition-colors',
+            active ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--sidebar-foreground)/0.7)] group-hover:text-[hsl(var(--sidebar-primary))]',
+          )}
+          strokeWidth={2}
+        />
+
+        <span className="flex-1 text-left truncate tracking-tight">{link.label}</span>
+
+        {link.isNew && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-[hsl(var(--sidebar-primary)/0.5)] text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-primary)/0.1)]">
+            YENİ
+          </span>
+        )}
+        {link.badge && link.badge > 0 && (
+          <span className="h-5 min-w-5 px-1.5 rounded-full bg-[hsl(var(--destructive))] text-[10px] font-semibold text-[hsl(var(--destructive-foreground))] inline-flex items-center justify-center shadow-[0_0_10px_hsl(var(--destructive)/0.6)]">
+            {link.badge > 99 ? '99+' : link.badge}
+          </span>
+        )}
+      </button>
+    );
+  };
+
+  const Section = ({ title, items, startIdx = 0 }: { title: string; items: LinkItem[]; startIdx?: number }) => (
+    <div className="px-2 pt-4 first:pt-2">
+      <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--sidebar-foreground)/0.4)]">
+        {title}
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {items.map((l, i) => renderItem(l, startIdx === 0 && i === 0))}
+      </div>
+    </div>
+  );
+
   const NavContent = () => (
-    <nav className="flex flex-col gap-1.5 p-3" aria-label="Ana menü">
-      {links.map((link, idx) => {
-        const Icon = link.icon;
-        const active = location.pathname === link.path;
-        // Only tilt on desktop for playfulness; keep straight on touch for tap targets
-        const tilt = idx % 3 === 0 ? 'md:-rotate-1' : idx % 3 === 1 ? 'md:rotate-1' : 'md:rotate-0';
-        return (
-          <button
-            key={link.path}
-            ref={idx === 0 ? firstItemRef : undefined}
-            onClick={() => navigate(link.path)}
-            aria-current={active ? 'page' : undefined}
-            style={{ ['--item-color' as any]: `hsl(var(--${link.color}))` }}
-            className={cn(
-              'group relative flex items-center gap-3 rounded-2xl px-3 min-h-[48px] py-2.5 text-sm font-bold border-2 border-transparent',
-              'transition-[transform,box-shadow,background-color,color] duration-200 ease-out will-change-transform overflow-hidden',
-              'md:hover:border-foreground md:hover:-translate-y-0.5 md:hover:-translate-x-0.5 md:hover:rotate-0',
-              'md:hover:[box-shadow:5px_5px_0_0_hsl(var(--foreground))]',
-              'active:scale-[0.97] active:[box-shadow:2px_2px_0_0_hsl(var(--foreground))]',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-              active
-                ? 'border-foreground text-[hsl(240_20%_10%)] [box-shadow:4px_4px_0_0_hsl(var(--foreground))] md:scale-[1.02]'
-                : cn('text-foreground/85 bg-transparent md:hover:bg-foreground md:hover:text-background', tilt),
-            )}
-          >
-            {/* Animated active fill */}
-            <span
-              aria-hidden
-              className={cn(
-                'absolute inset-0 -z-10 transition-transform duration-300 ease-[cubic-bezier(.34,1.56,.64,1)] origin-left',
-                active ? 'scale-x-100' : 'scale-x-0',
-              )}
-              style={{ background: 'var(--item-color)' }}
-            />
-
-            {/* Left active indicator bar */}
-            <span
-              aria-hidden
-              className={cn(
-                'absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-md bg-foreground transition-all duration-300',
-                active ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0',
-              )}
-            />
-
-            {/* Desktop-only shine sweep */}
-            <span
-              aria-hidden
-              className="hidden md:block pointer-events-none absolute inset-0 -translate-x-full skew-x-[-20deg] bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-0 group-hover:opacity-100 group-hover:translate-x-full transition-all duration-700"
-            />
-
-            {/* Icon chip */}
-            <span
-              className={cn(
-                'relative shrink-0 w-9 h-9 grid place-items-center rounded-lg border-2 border-foreground transition-transform duration-300',
-                'md:group-hover:rotate-[-8deg] md:group-hover:scale-110',
-                active ? 'bg-background' : 'bg-card',
-              )}
-              style={!active ? { background: 'var(--item-color)' } : undefined}
-            >
-              <Icon className="h-4 w-4" strokeWidth={2.5} />
-              {active && (
-                <Sparkles className="absolute -top-2 -right-2 h-3.5 w-3.5 text-foreground motion-safe:animate-pulse" strokeWidth={3} />
-              )}
-            </span>
-
-            <span className="flex-1 text-left leading-tight truncate">{link.label}</span>
-
-            <span aria-hidden className="text-base opacity-80 md:group-hover:motion-safe:animate-wiggle">{link.emoji}</span>
-
-            {link.isNew && (
-              <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md border-2 border-foreground bg-background text-foreground shadow-[2px_2px_0_0_hsl(var(--foreground))] md:rotate-[-6deg]">
-                YENİ
-              </span>
-            )}
-            {link.badge && link.badge > 0 && (
-              <span className="h-5 min-w-5 px-1 rounded-full bg-destructive text-[10px] font-black text-destructive-foreground inline-flex items-center justify-center border-2 border-foreground shadow-[2px_2px_0_0_hsl(var(--foreground))]">
-                {link.badge > 99 ? '99+' : link.badge}
-              </span>
-            )}
-          </button>
-        );
-      })}
+    <nav className="flex flex-col py-2" aria-label="Ana menü">
+      <Section title="Panel" items={primary} startIdx={0} />
+      <Section title="Araçlar" items={tools} startIdx={1} />
+      <Section title="Hesap" items={account} startIdx={1} />
     </nav>
   );
 
   return (
     <>
-      {/* Hamburger — mobile only, animated icon swap + unread dot */}
+      {/* Hamburger — mobile */}
       <Button
         variant="ghost"
         size="icon"
         aria-label={open ? 'Menüyü kapat' : 'Menüyü aç'}
         aria-expanded={open}
         aria-controls="mobile-sidebar"
-        className="fixed top-3 left-3 z-[70] md:hidden h-11 w-11 rounded-xl border-2 border-foreground bg-card shadow-[3px_3px_0_0_hsl(var(--foreground))] active:translate-y-0.5 active:translate-x-0.5 active:shadow-[1px_1px_0_0_hsl(var(--foreground))] transition-all"
+        className="fixed top-3 left-3 z-[70] md:hidden h-10 w-10 rounded-lg border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-primary))] transition-all"
         onClick={() => setOpen(v => !v)}
       >
         <span className="relative block h-5 w-5">
@@ -194,7 +180,7 @@ const Sidebar = () => {
           <X className={cn('absolute inset-0 h-5 w-5 transition-all duration-300', open ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75')} />
         </span>
         {!open && totalBadge > 0 && (
-          <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-destructive border-2 border-foreground motion-safe:animate-pulse" />
+          <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[hsl(var(--neon-cyan))] shadow-[0_0_8px_hsl(var(--neon-cyan))]" />
         )}
       </Button>
 
@@ -203,35 +189,35 @@ const Sidebar = () => {
         aria-hidden
         onClick={() => setOpen(false)}
         className={cn(
-          'fixed inset-0 z-40 bg-foreground/40 backdrop-blur-[2px] md:hidden transition-opacity duration-300',
+          'fixed inset-0 z-40 bg-[hsl(222_47%_2%/0.7)] md:hidden transition-opacity duration-300',
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
         )}
       />
 
       <aside
-        ref={asideRef}
         id="mobile-sidebar"
         role="navigation"
-        aria-hidden={!open && typeof window !== 'undefined' && window.innerWidth < 768}
         className={cn(
-          'fixed left-0 top-16 z-50 h-[calc(100dvh-4rem)] w-[85vw] max-w-[19rem] md:w-64',
-          'flex flex-col justify-between',
-          'bg-card border-r-2 border-foreground shadow-[6px_0_0_0_hsl(var(--foreground))]',
+          'fixed left-0 top-16 z-50 h-[calc(100dvh-4rem)] w-[82vw] max-w-[18rem] md:w-64',
+          'flex flex-col',
+          'bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))]',
+          'border-r border-[hsl(var(--sidebar-border))]',
           'transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
           'md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-[105%]',
         )}
       >
-        <div className="tape-strip h-3 border-b-2 border-foreground" />
+        {/* Neon top scanline */}
+        <div className="h-[1px] bg-gradient-to-r from-transparent via-[hsl(var(--sidebar-primary))] to-transparent shadow-[0_0_10px_hsl(var(--sidebar-primary)/0.6)]" />
 
         <div className="flex-1 overflow-y-auto overscroll-contain">
           <NavContent />
         </div>
 
-        <div className="p-3 border-t-2 border-foreground bg-secondary/40">
-          <div className="flex items-center justify-center gap-2">
-            <span className="chip chip-pink !text-[10px] !py-0.5 !px-2">EconNotes</span>
-            <span className="chip !text-[10px] !py-0.5 !px-2">{APP_VERSION}</span>
+        <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
+          <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
+            <span className="font-semibold tracking-wider uppercase">EconNotes</span>
+            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">v{APP_VERSION}</span>
           </div>
         </div>
       </aside>
