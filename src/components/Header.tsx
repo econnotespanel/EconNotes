@@ -86,16 +86,20 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-white/30 dark:border-white/10 bg-card/50 dark:bg-card/40 backdrop-blur-2xl shadow-sm shadow-primary/5">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 relative">
+      <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-[hsl(var(--neon-cyan)/0.6)] to-transparent" />
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-3 cursor-pointer ml-12 md:ml-0" onClick={() => navigate('/')}>
-          <img 
-            src={logo} 
-            alt="EconNotes" 
-            className="h-8 w-8 object-contain"
-            style={{ filter: 'var(--logo-filter)' }}
-          />
-          <span className="text-lg font-bold gradient-text hidden sm:block">EconNotes</span>
+        <div className="flex items-center gap-3 cursor-pointer ml-12 md:ml-0 group" onClick={() => navigate('/')}>
+          <div className="relative">
+            <img
+              src={logo}
+              alt="EconNotes"
+              className="h-8 w-8 object-contain relative z-10"
+              style={{ filter: 'var(--logo-filter)' }}
+            />
+            <div className="absolute inset-0 rounded-full bg-[hsl(var(--neon-cyan)/0.35)] blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+          <span className="text-lg font-semibold gradient-text hidden sm:block tracking-tight">EconNotes</span>
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
