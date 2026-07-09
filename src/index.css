@@ -226,24 +226,38 @@
 }
 
 @layer utilities {
-  /* ---------------- Neon card ---------------- */
+  /* ---------------- Premium neon card ---------------- */
   .sticker-card,
   .glass-card {
-    @apply bg-card text-card-foreground rounded-2xl border;
-    border-color: hsl(var(--border));
+    @apply bg-card text-card-foreground rounded-2xl border relative overflow-hidden;
+    border-color: hsl(var(--hairline));
     box-shadow:
-      0 1px 0 hsl(var(--foreground) / 0.03),
-      0 12px 32px -18px hsl(var(--neon-blue) / 0.35);
-    transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+      inset 0 1px 0 hsl(210 40% 98% / 0.04),
+      0 1px 0 hsl(var(--foreground) / 0.02),
+      0 18px 40px -22px hsl(var(--neon-blue) / 0.4),
+      0 2px 8px -4px hsl(224 47% 4% / 0.35);
+    transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .3s ease;
+  }
+  .sticker-card::before,
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 40%;
+    background: var(--sheen);
+    pointer-events: none;
+    opacity: 0.6;
   }
   .sticker-card:hover,
   .glass-card:hover {
     transform: translateY(-2px);
-    border-color: hsl(var(--neon-cyan) / 0.55);
+    border-color: hsl(var(--neon-cyan) / 0.5);
     box-shadow:
-      0 1px 0 hsl(var(--foreground) / 0.03),
-      0 20px 44px -18px hsl(var(--neon-cyan) / 0.45);
+      inset 0 1px 0 hsl(210 40% 98% / 0.06),
+      0 24px 50px -22px hsl(var(--neon-cyan) / 0.5),
+      0 4px 14px -6px hsl(var(--neon-blue) / 0.35);
   }
+
 
   .tilt-left, .tilt-right, .tilt-none { transform: none; }
 
