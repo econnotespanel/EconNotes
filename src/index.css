@@ -11,42 +11,43 @@
 @layer base {
   :root {
     /* Light mode — refined platinum with cyan/indigo neon accents */
-    --background: 210 33% 97%;
-    --foreground: 222 55% 6%;
+    --background: 216 30% 96%;
+    --foreground: 224 60% 5%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 55% 6%;
+    --card-foreground: 224 60% 5%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 55% 6%;
+    --popover-foreground: 224 60% 5%;
 
-    --primary: 199 100% 40%;              /* deeper cyan for AA contrast on white */
+    --primary: 199 100% 38%;              /* deep cyan for AA on white */
     --primary-foreground: 210 40% 99%;
-    --primary-glow: 190 100% 55%;
+    --primary-glow: 190 100% 52%;
 
-    --secondary: 224 76% 48%;             /* deep neon blue */
+    --secondary: 224 78% 46%;             /* deep neon blue */
     --secondary-foreground: 210 40% 99%;
 
-    --muted: 214 30% 93%;
-    --muted-foreground: 220 18% 32%;      /* darker for readability */
+    --muted: 216 22% 92%;                 /* neutral cool grey, less lavender */
+    --muted-foreground: 222 20% 28%;      /* strong body text */
 
-    --accent: 234 78% 52%;                /* indigo accent */
+    --accent: 234 72% 50%;                /* indigo accent */
     --accent-foreground: 210 40% 99%;
 
-    --destructive: 0 78% 50%;
+    --destructive: 0 78% 48%;
     --destructive-foreground: 210 40% 99%;
 
-    --success: 158 74% 38%;
+    --success: 158 74% 34%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 32 98% 46%;
-    --warning-foreground: 222 55% 6%;
+    --warning: 32 98% 44%;
+    --warning-foreground: 224 60% 5%;
 
-    --border: 214 25% 86%;
-    --input: 214 25% 90%;
-    --ring: 199 100% 40%;
+    --border: 216 20% 84%;
+    --input: 216 22% 90%;
+    --ring: 199 100% 38%;
 
     --radius: 0.875rem;
+
 
     /* Sidebar — dark ink panel in both themes for identity */
     --sidebar-background: 222 55% 5%;
@@ -189,10 +190,11 @@
     background: hsl(var(--neon-blue) / 0.28);
     animation: aurora-b 28s ease-in-out infinite alternate;
   }
-  :root body::before { opacity: 0.35; }
-  :root body::after { opacity: 0.3; }
+  :root body::before { opacity: 0.22; }
+  :root body::after { opacity: 0.18; }
   .dark body::before { opacity: 0.55; }
   .dark body::after { opacity: 0.5; }
+
 
   @keyframes aurora-a {
     0%   { transform: translate(0,0) scale(1); }
