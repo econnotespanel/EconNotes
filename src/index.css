@@ -190,10 +190,11 @@
     background: hsl(var(--neon-blue) / 0.28);
     animation: aurora-b 28s ease-in-out infinite alternate;
   }
-  :root body::before { opacity: 0.35; }
-  :root body::after { opacity: 0.3; }
+  :root body::before { opacity: 0.22; }
+  :root body::after { opacity: 0.18; }
   .dark body::before { opacity: 0.55; }
   .dark body::after { opacity: 0.5; }
+
 
   @keyframes aurora-a {
     0%   { transform: translate(0,0) scale(1); }
