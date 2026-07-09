@@ -49,15 +49,16 @@
     --radius: 0.875rem;
 
 
-    /* Sidebar — dark ink panel in both themes for identity */
-    --sidebar-background: 222 55% 5%;
-    --sidebar-foreground: 210 40% 94%;
-    --sidebar-primary: 190 100% 60%;
-    --sidebar-primary-foreground: 222 55% 5%;
-    --sidebar-accent: 222 45% 11%;
-    --sidebar-accent-foreground: 210 40% 94%;
-    --sidebar-border: 222 45% 13%;
-    --sidebar-ring: 190 100% 60%;
+    /* Sidebar — matches theme surface for a unified look */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 224 60% 5%;
+    --sidebar-primary: 199 100% 38%;
+    --sidebar-primary-foreground: 210 40% 99%;
+    --sidebar-accent: 216 22% 92%;
+    --sidebar-accent-foreground: 224 60% 5%;
+    --sidebar-border: 216 20% 86%;
+    --sidebar-ring: 199 100% 38%;
+
 
     /* Neon palette */
     --neon-cyan: 189 100% 48%;
