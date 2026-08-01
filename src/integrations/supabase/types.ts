@@ -203,6 +203,89 @@ export type Database = {
         }
         Relationships: []
       }
+      kpss_attempts: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          material_id: string | null
+          score: number
+          subject: string | null
+          total_questions: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          material_id?: string | null
+          score?: number
+          subject?: string | null
+          total_questions?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          material_id?: string | null
+          score?: number
+          subject?: string | null
+          total_questions?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpss_attempts_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "kpss_materials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kpss_materials: {
+        Row: {
+          content: Json
+          created_at: string
+          difficulty: string
+          id: string
+          material_type: string
+          model: string | null
+          subject: string
+          title: string
+          topic: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          difficulty?: string
+          id?: string
+          material_type: string
+          model?: string | null
+          subject: string
+          title: string
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          difficulty?: string
+          id?: string
+          material_type?: string
+          model?: string | null
+          subject?: string
+          title?: string
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       message_reports: {
         Row: {
           created_at: string
