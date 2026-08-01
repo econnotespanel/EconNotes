@@ -79,6 +79,7 @@ const Sidebar = () => {
 
   const tools: LinkItem[] = [
     { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',      isNew: true },
+    { label: 'KPSS Merkezi',       icon: Target,        path: '/kpss',       isNew: true },
     { label: 'Canlı Ders',         icon: Video,         path: '/live-class' },
     { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant' },
   ];
