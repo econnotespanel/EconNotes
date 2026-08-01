@@ -296,7 +296,7 @@ const Study = () => {
                   <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
                   Sistem hazır · AI çevrimiçi
                 </div>
-                <h1 className="mt-1.5 flex flex-wrap items-center gap-2 font-heading text-2xl font-bold tracking-tight md:text-4xl">
+                <h1 className="mt-1.5 flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-tight md:text-4xl">
                   <GraduationCap className="h-7 w-7 text-primary" />
                   <span className="holo-text">Çalışma Stüdyosu</span>
                   <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Yeni</span>
@@ -336,7 +336,7 @@ const Study = () => {
                     <s.icon className={`h-3.5 w-3.5 ${s.tone}`} />
                   </div>
                   <div className="mt-1 flex items-end gap-1.5">
-                    <span className="font-heading text-2xl font-bold leading-none">{s.value}</span>
+                    <span className="font-display text-2xl font-bold leading-none">{s.value}</span>
                     <span className="text-[11px] text-muted-foreground">{s.label}</span>
                   </div>
                   <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
@@ -368,7 +368,7 @@ const Study = () => {
                   <div className={`mt-3 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 ${meta.tint} ${meta.tone} transition-transform duration-300 group-hover:scale-110`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-3 font-heading font-semibold transition-colors group-hover:text-primary">{meta.label}</h3>
+                  <h3 className="mt-3 font-display font-semibold transition-colors group-hover:text-primary">{meta.label}</h3>
                   <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{meta.desc}</p>
                   <div className="mt-3 flex items-center gap-1 text-[11px] font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
                     Üret <ChevronRight className="h-3 w-3" />
