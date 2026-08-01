@@ -282,55 +282,74 @@ const Study = () => {
   return (
     <Layout>
       <div className="space-y-6 animate-fade-in">
-        {/* Hero */}
-        <div className="aurora-border relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/20 via-fuchsia-500/10 to-cyan-400/10 p-6 md:p-8">
-          <div className="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-primary/30 blur-3xl animate-loader-aurora" />
-          <div className="absolute -bottom-24 left-1/3 h-72 w-72 rounded-full bg-fuchsia-500/25 blur-3xl animate-loader-aurora" />
-          <div className="absolute top-10 left-1/4 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
-          <div className="relative flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-            <div>
-              <Badge variant="secondary" className="mb-3 gap-1.5 backdrop-blur bg-white/40 dark:bg-white/10 border border-white/30">
-                <Sparkles className="h-3 w-3 animate-pulse" /> Yeni nesil · Çalışma Stüdyosu
-              </Badge>
-              <h1 className="text-3xl md:text-5xl font-bold tracking-tight flex items-center gap-3 flex-wrap">
-                <GraduationCap className="h-9 w-9 text-primary neon-glow" />
-                <span className="holo-text">Çalışma Stüdyosu</span>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white shadow animate-pulse-glow">YENİ</span>
-              </h1>
-              <p className="text-muted-foreground mt-2 max-w-xl">
-                Notlarını, PDF'leri ve sesli kayıtları yükle. Sınav türünü ve hedefini söyle — Çalışma Stüdyosu sana özel kart, quiz, özet ve video taslakları üretsin.
-              </p>
+        {/* HUD command band */}
+        <div className="hud-panel p-5 md:p-7">
+          <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(hsl(var(--neon-cyan))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--neon-cyan))_1px,transparent_1px)] [background-size:32px_32px]" />
+          <div className="pointer-events-none absolute -top-24 -right-16 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 left-1/4 h-56 w-56 rounded-full bg-accent/20 blur-3xl" />
+
+          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="hud-bar mt-1 h-14 w-1.5 shrink-0" aria-hidden="true" />
+              <div>
+                <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-primary">
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+                  Sistem hazır · AI çevrimiçi
+                </div>
+                <h1 className="mt-1.5 flex flex-wrap items-center gap-2 font-heading text-2xl font-bold tracking-tight md:text-4xl">
+                  <GraduationCap className="h-7 w-7 text-primary" />
+                  <span className="holo-text">Çalışma Stüdyosu</span>
+                  <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Yeni</span>
+                </h1>
+                <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                  Notlarını, PDF'leri ve ses kayıtlarını yükle. Sınav türünü ve hedefini gir — stüdyo sana özel kart, quiz, özet ve video taslağı üretsin.
+                </p>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="lg" onClick={() => setReportOpen(true)} className="gap-2 backdrop-blur bg-white/40 dark:bg-white/5 border-white/30">
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setReportOpen(true)} className="gap-2">
                 <Bug className="h-4 w-4" /> Platforma Bildir
               </Button>
-              <Button size="lg" onClick={() => setCreateOpen(true)} className="gap-2 gradient-primary text-white border-0">
+              <Button onClick={() => setCreateOpen(true)} className="gap-2 gradient-primary border-0 text-primary-foreground">
                 <Plus className="h-4 w-4" /> Yeni Materyal
               </Button>
             </div>
           </div>
-          <div className="relative mt-6 grid grid-cols-2 md:grid-cols-5 gap-3">
+
+          {/* Signal readouts */}
+          <div className="relative mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
             {[
-              { label: 'Toplam', value: stats.total, icon: BookOpen },
-              { label: 'Kart', value: stats.flashcards, icon: Layers },
-              { label: 'Quiz', value: stats.quiz, icon: ClipboardList },
-              { label: 'Özet', value: stats.summary, icon: FileTextIcon },
-              { label: 'Video', value: stats.video, icon: VideoIcon },
-            ].map((s, i) => (
-              <div key={i} className="glass-card p-3 lift-on-hover">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{s.label}</span>
-                  <s.icon className="h-3.5 w-3.5 text-primary" />
+              { label: 'Toplam', value: stats.total, icon: BookOpen, tone: 'text-primary', code: 'ALL' },
+              { label: 'Kart', value: stats.flashcards, icon: Layers, tone: 'text-primary', code: 'FC' },
+              { label: 'Quiz', value: stats.quiz, icon: ClipboardList, tone: 'text-accent', code: 'QZ' },
+              { label: 'Özet', value: stats.summary, icon: FileTextIcon, tone: 'text-success', code: 'SM' },
+              { label: 'Video', value: stats.video, icon: VideoIcon, tone: 'text-warning', code: 'VD' },
+            ].map((s, i) => {
+              const pct = stats.total ? Math.round((s.value / stats.total) * 100) : 0;
+              const ratio = s.label === 'Toplam' ? 100 : pct;
+              return (
+                <div key={i} className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/70 p-3">
+                  <div className="hud-scanline" />
+                  <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <span>{s.code}</span>
+                    <s.icon className={`h-3.5 w-3.5 ${s.tone}`} />
+                  </div>
+                  <div className="mt-1 flex items-end gap-1.5">
+                    <span className="font-heading text-2xl font-bold leading-none">{s.value}</span>
+                    <span className="text-[11px] text-muted-foreground">{s.label}</span>
+                  </div>
+                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+                    <div className={`h-full rounded-full bg-current ${s.tone} transition-all duration-700`} style={{ width: `${ratio}%` }} />
+                  </div>
                 </div>
-                <div className="text-2xl font-bold mt-1">{s.value}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
-        {/* Type quick picker */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Generator modules */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {(Object.keys(TYPE_META) as MaterialType[]).map(t => {
             const meta = TYPE_META[t];
             const Icon = meta.icon;
@@ -338,26 +357,62 @@ const Study = () => {
               <button
                 key={t}
                 onClick={() => { setMaterialType(t); setCreateOpen(true); }}
-                className="group relative overflow-hidden rounded-2xl border border-border bg-card p-5 text-left transition-all hover:border-primary/60 hover:shadow-xl hover:shadow-primary/20 hover:-translate-y-1"
+                className="hud-panel group p-5 text-left"
               >
-                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-br ${meta.color} transition-opacity duration-500`} style={{ filter: 'blur(40px)', opacity: 0.2 }} />
+                <div className="hud-scanline" />
                 <div className="relative">
-                  <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${meta.color} text-white shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
+                  <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <span>{meta.code}</span>
+                    <span className={`h-1.5 w-1.5 rounded-full bg-current ${meta.tone}`} />
+                  </div>
+                  <div className={`mt-3 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 ${meta.tint} ${meta.tone} transition-transform duration-300 group-hover:scale-110`}>
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-3 font-semibold group-hover:text-primary transition-colors">{meta.label}</h3>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{meta.desc}</p>
+                  <h3 className="mt-3 font-heading font-semibold transition-colors group-hover:text-primary">{meta.label}</h3>
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{meta.desc}</p>
+                  <div className="mt-3 flex items-center gap-1 text-[11px] font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                    Üret <ChevronRight className="h-3 w-3" />
+                  </div>
                 </div>
               </button>
             );
           })}
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Materyal ara..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+        {/* Console filters */}
+        <div className="hud-panel p-4">
+          <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Materyal ara..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+            </div>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Materyal türü filtresi">
+              {([['all', 'Tümü'], ...(Object.keys(TYPE_META) as MaterialType[]).map(t => [t, TYPE_META[t].label] as const)] as [string, string][]).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setTypeFilter(val as 'all' | MaterialType)}
+                  aria-pressed={typeFilter === val}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${typeFilter === val ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1.5" role="group" aria-label="Zaman filtresi">
+              {([['all', 'Hepsi'], ['today', 'Bugün'], ['week', '7 gün']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setTimeFilter(val)}
+                  aria-pressed={timeFilter === val}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${timeFilter === val ? 'border-accent bg-accent text-accent-foreground' : 'border-border text-muted-foreground hover:border-accent/50 hover:text-foreground'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
+
 
         {/* List */}
         {loading ? (
