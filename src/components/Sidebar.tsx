@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -79,6 +79,7 @@ const Sidebar = () => {
 
   const tools: LinkItem[] = [
     { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',      isNew: true },
+    { label: 'KPSS Merkezi',       icon: Target,        path: '/kpss',       isNew: true },
     { label: 'Canlı Ders',         icon: Video,         path: '/live-class' },
     { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant' },
   ];
