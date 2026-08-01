@@ -431,36 +431,39 @@ const Study = () => {
               const meta = TYPE_META[m.material_type];
               const Icon = meta.icon;
               return (
-                <Card key={m.id} className="group overflow-hidden hover:shadow-lg hover:-translate-y-0.5 transition-all">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br ${meta.color} text-white`}>
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => handleDelete(m.id)}>
+                <div key={m.id} className="hud-panel group flex flex-col p-4">
+                  <div className="hud-scanline" />
+                  <div className="relative flex items-start justify-between gap-2">
+                    <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 ${meta.tint} ${meta.tone}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{meta.code}</span>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100" onClick={() => handleDelete(m.id)} aria-label="Materyali sil">
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
-                    <CardTitle className="text-base line-clamp-2">{m.title}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 text-xs flex-wrap">
-                      <Badge variant="outline" className="text-[10px]">{meta.label}</Badge>
-                      {m.course && <span className="truncate">{m.course}</span>}
-                      {m.exam_profile?.examType && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          {m.exam_profile.examType === 'test' ? 'Test' : m.exam_profile.examType === 'classic' ? 'Klasik' : 'Karma'}
-                        </Badge>
-                      )}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-0">
+                  </div>
+                  <h3 className="relative mt-3 line-clamp-2 font-display text-base font-semibold">{m.title}</h3>
+                  <div className="relative mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="outline" className="text-[10px]">{meta.label}</Badge>
+                    {m.course && <span className="truncate">{m.course}</span>}
+                    {m.exam_profile?.examType && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {m.exam_profile.examType === 'test' ? 'Test' : m.exam_profile.examType === 'classic' ? 'Klasik' : 'Karma'}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="relative mt-auto pt-4">
                     <Button variant="secondary" className="w-full gap-2" onClick={() => setActiveMaterial(m)}>
                       <Play className="h-3.5 w-3.5" /> Çalışmaya Başla
                     </Button>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               );
             })}
           </div>
+
         )}
       </div>
 
