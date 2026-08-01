@@ -229,6 +229,46 @@
 }
 
 @layer utilities {
+  /* ---------------- HUD console (Çalışma Stüdyosu) ---------------- */
+  .hud-panel {
+    @apply relative overflow-hidden rounded-3xl border bg-card/60;
+    border-color: hsl(var(--hairline));
+    box-shadow:
+      inset 0 1px 0 hsl(210 40% 98% / 0.05),
+      0 20px 44px -28px hsl(var(--neon-blue) / 0.45);
+    transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .3s ease;
+  }
+  .hud-panel:hover {
+    transform: translateY(-4px);
+    border-color: hsl(var(--neon-cyan) / 0.45);
+    box-shadow: 0 26px 52px -24px hsl(var(--neon-cyan) / 0.45);
+  }
+  .hud-scanline {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, hsl(var(--neon-cyan)), transparent);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .group:hover .hud-scanline {
+    animation: hud-scan 2.1s linear infinite;
+  }
+  @keyframes hud-scan {
+    0% { transform: translateY(0); opacity: 0; }
+    12% { opacity: .9; }
+    88% { opacity: .9; }
+    100% { transform: translateY(210px); opacity: 0; }
+  }
+  .hud-bar {
+    @apply rounded-full;
+    background: hsl(var(--neon-cyan));
+    box-shadow: 0 0 16px hsl(var(--neon-cyan) / 0.8);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .group:hover .hud-scanline { animation: none; opacity: .5; }
+  }
+
   /* ---------------- Premium neon card ---------------- */
   .sticker-card,
   .glass-card {
