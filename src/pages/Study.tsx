@@ -99,6 +99,9 @@ const Study = () => {
   const [examDate, setExamDate] = useState('');
   const [focus, setFocus] = useState('');
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | MaterialType>('all');
+  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week'>('all');
+
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState('');
