@@ -51,12 +51,13 @@ interface StudyMaterial {
   exam_profile?: any;
 }
 
-const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string; desc: string }> = {
-  flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-blue-500 to-indigo-600', desc: 'Hızlı tekrar için çevrilebilir kartlar' },
-  quiz: { label: 'Quiz', icon: ClipboardList, color: 'from-violet-500 to-fuchsia-600', desc: 'Test veya klasik sınav simülasyonu' },
-  summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-emerald-500 to-teal-600', desc: 'Özet, anahtar noktalar, infografik' },
-  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-orange-500 to-rose-600', desc: 'Sahne sahne anlatım + öneriler' },
+const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string; desc: string; tone: string; tint: string; code: string }> = {
+  flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Hızlı tekrar için çevrilebilir kartlar', tone: 'text-primary', tint: 'bg-primary/10', code: 'FC-01' },
+  quiz: { label: 'Quiz', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Test veya klasik sınav simülasyonu', tone: 'text-accent', tint: 'bg-accent/10', code: 'QZ-02' },
+  summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Özet, anahtar noktalar, infografik', tone: 'text-success', tint: 'bg-success/10', code: 'SM-03' },
+  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-warning to-destructive', desc: 'Sahne sahne anlatım + öneriler', tone: 'text-warning', tint: 'bg-warning/10', code: 'VD-04' },
 };
+
 
 const MOTIVATIONS_WRONG = [
   'Hatalar öğrenmenin parçası. Açıklamayı oku, bir sonraki sefere kapacaksın.',
