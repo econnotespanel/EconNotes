@@ -251,10 +251,21 @@ const Study = () => {
     void load();
   };
 
+  const timeMatches = (m: StudyMaterial) => {
+    if (timeFilter === 'all') return true;
+    const created = new Date(m.created_at).getTime();
+    const now = Date.now();
+    const span = timeFilter === 'today' ? 86400000 : 7 * 86400000;
+    return now - created <= span;
+  };
+
   const filtered = materials.filter(m =>
-    !search || m.title.toLowerCase().includes(search.toLowerCase()) ||
-    (m.course || '').toLowerCase().includes(search.toLowerCase())
+    (!search || m.title.toLowerCase().includes(search.toLowerCase()) ||
+      (m.course || '').toLowerCase().includes(search.toLowerCase()))
+    && (typeFilter === 'all' || m.material_type === typeFilter)
+    && timeMatches(m)
   );
+
 
   const stats = {
     total: materials.length,
