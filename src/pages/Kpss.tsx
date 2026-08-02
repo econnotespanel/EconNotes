@@ -545,7 +545,7 @@ const CardsView = ({ content }: { content: any }) => {
 };
 
 const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () => void }) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const questions: any[] = material.content?.questions || [];
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
@@ -555,6 +555,47 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
   const score = questions.reduce((s, q, i) => s + (answers[i] === q.correctIndex ? 1 : 0), 0);
   const answeredCount = Object.keys(answers).length;
 
+  const detailed = () =>
+    questions.map((q, i) => ({
+      question: q.question,
+      options: q.options || [],
+      correctIndex: q.correctIndex,
+      picked: answers[i] ?? null,
+      solution: q.solution || '',
+      optionAnalysis: q.optionAnalysis || [],
+      topic: q.topic || material.topic || material.subject,
+    }));
+
+  const wrongTopics = () => {
+    const map = new Map<string, { wrong: number; total: number }>();
+    detailed().forEach(q => {
+      const k = String(q.topic || 'Genel');
+      const cur = map.get(k) || { wrong: 0, total: 0 };
+      cur.total += 1;
+      if (q.picked == null || q.picked !== q.correctIndex) cur.wrong += 1;
+      map.set(k, cur);
+    });
+    return [...map.entries()]
+      .filter(([, v]) => v.wrong > 0)
+      .map(([topic, v]) => ({ topic, ...v }))
+      .sort((a, b) => b.wrong - a.wrong);
+  };
+
+  const exportPdf = () => {
+    downloadKpssReport({
+      title: material.title,
+      subject: material.subject,
+      topic: material.topic,
+      difficulty: material.difficulty,
+      score,
+      total: questions.length,
+      date: new Date().toLocaleString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      userName: profile?.full_name,
+      questions: detailed(),
+      weakTopics: wrongTopics(),
+    });
+  };
+
   const finish = async () => {
     setSaving(true);
     setFinished(true);
@@ -563,8 +604,11 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
         user_id: user.id,
         material_id: material.id,
         subject: material.subject,
+        topic: material.topic,
+        difficulty: material.difficulty,
         score,
         total_questions: questions.length,
+        answers: detailed() as any,
       });
       onSaved();
     }
@@ -572,6 +616,8 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
   };
 
   if (!questions.length) return <p className="text-muted-foreground">Soru bulunamadı.</p>;
+
+  const weak = finished ? wrongTopics() : [];
 
   return (
     <div className="space-y-5">
@@ -581,16 +627,35 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
       </div>
 
       {finished && (
-        <div className="rounded-2xl border border-primary/40 bg-primary/10 p-4 text-center">
-          <Trophy className="mx-auto mb-2 h-8 w-8 text-primary" />
-          <p className="font-display text-xl font-bold">{score} / {questions.length} doğru</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {score / questions.length >= 0.8 ? 'Mükemmel. Bu konuyu kavradın.'
-              : score / questions.length >= 0.5 ? 'İyi gidiyorsun. Yanlışların çözümlerini oku.'
-              : 'Konuyu tekrar et, çözümler aşağıda açık.'}
-          </p>
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-primary/40 bg-primary/10 p-4 text-center">
+            <Trophy className="mx-auto mb-2 h-8 w-8 text-primary" />
+            <p className="font-display text-xl font-bold">{score} / {questions.length} doğru</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {score / questions.length >= 0.8 ? 'Mükemmel. Bu konuyu kavradın.'
+                : score / questions.length >= 0.5 ? 'İyi gidiyorsun. Yanlışların çözümlerini oku.'
+                : 'Konuyu tekrar et, çözümler aşağıda açık.'}
+            </p>
+            <Button variant="secondary" className="mt-3 gap-2" onClick={exportPdf}>
+              <FileDown className="h-4 w-4" /> Sonuç raporunu PDF indir
+            </Button>
+          </div>
+
+          {weak.length > 0 && (
+            <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4">
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-warning">
+                <Lightbulb className="h-3.5 w-3.5" /> Tekrar etmen gereken konular
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                {weak.map(w => (
+                  <li key={w.topic}>• <span className="font-medium text-foreground">{w.topic}</span> — {w.wrong}/{w.total} hatalı</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
+
 
       {questions.map((q, i) => {
         const picked = answers[i];
