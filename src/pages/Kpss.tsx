@@ -55,12 +55,14 @@ const EXAM_GROUPS = ['KPSS Lisans', 'KPSS Önlisans', 'KPSS Ortaöğretim', 'KPS
 const Kpss = () => {
   const { user } = useAuth();
   const [materials, setMaterials] = useState<KpssMaterial[]>([]);
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<KpssType | null>(null);
   const [active, setActive] = useState<KpssMaterial | null>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [setupType, setSetupType] = useState<KpssType>('quiz');
 
-  // form
+  // session settings
   const [examGroup, setExamGroup] = useState(EXAM_GROUPS[0]);
   const [subject, setSubject] = useState('Tarih');
   const [topic, setTopic] = useState('');
@@ -73,12 +75,13 @@ const Kpss = () => {
     if (!user) return;
     const [m, a] = await Promise.all([
       supabase.from('kpss_materials').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('kpss_attempts').select('id, subject, score, total_questions, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50),
+      supabase.from('kpss_attempts').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(60),
     ]);
     setMaterials((m.data as KpssMaterial[]) || []);
-    setAttempts((a.data as Attempt[]) || []);
+    setAttempts(((a.data as any[]) || []) as AttemptRow[]);
     setLoading(false);
   };
+
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [user]);
 
