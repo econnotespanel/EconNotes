@@ -205,32 +205,41 @@ export type Database = {
       }
       kpss_attempts: {
         Row: {
+          answers: Json
           created_at: string
+          difficulty: string | null
           duration_seconds: number | null
           id: string
           material_id: string | null
           score: number
           subject: string | null
+          topic: string | null
           total_questions: number
           user_id: string
         }
         Insert: {
+          answers?: Json
           created_at?: string
+          difficulty?: string | null
           duration_seconds?: number | null
           id?: string
           material_id?: string | null
           score?: number
           subject?: string | null
+          topic?: string | null
           total_questions?: number
           user_id: string
         }
         Update: {
+          answers?: Json
           created_at?: string
+          difficulty?: string | null
           duration_seconds?: number | null
           id?: string
           material_id?: string | null
           score?: number
           subject?: string | null
+          topic?: string | null
           total_questions?: number
           user_id?: string
         }
