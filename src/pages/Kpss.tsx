@@ -123,7 +123,18 @@ const Kpss = () => {
     void load();
   };
 
+  const openSetup = (type: KpssType) => {
+    setSetupType(type);
+    setSetupOpen(true);
+  };
+
+  const startSession = async () => {
+    setSetupOpen(false);
+    await generate(setupType);
+  };
+
   const filtered = materials.filter(m => typeFilter === 'all' || m.material_type === typeFilter);
+
 
   const netAvg = useMemo(() => {
     const quizAttempts = attempts.filter(a => a.total_questions > 0);
