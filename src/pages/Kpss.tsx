@@ -192,11 +192,158 @@ const Kpss = () => {
           </div>
         </div>
 
-        {/* Setup console */}
-        <div className="hud-panel p-5">
-          <div className="relative">
-            <h2 className="font-display text-lg font-semibold">Çalışma parametreleri</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Tabs defaultValue="olustur" className="space-y-5">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="olustur" className="gap-1.5"><Wand2 className="h-3.5 w-3.5" /> Üretim</TabsTrigger>
+            <TabsTrigger value="performans" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" /> Performansım</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="olustur" className="space-y-5">
+            {/* Active session summary */}
+            <div className="hud-panel p-4 md:p-5">
+              <div className="relative flex flex-wrap items-center gap-3">
+                <div className="hud-bar h-10 w-1.5 shrink-0" aria-hidden="true" />
+                <div className="min-w-[180px] flex-1">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Aktif oturum</p>
+                  <p className="mt-0.5 font-display text-base font-semibold">
+                    {subject}{topic.trim() ? ` · ${topic.trim()}` : ''}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <Badge variant="outline" className="text-[10px]">{examGroup}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      {difficulty === 'easy' ? 'Kolay' : difficulty === 'hard' ? 'Zor' : 'Orta'}
+                    </Badge>
+                    <Badge variant="outline" className="gap-1 text-[10px]"><Timer className="h-3 w-3" /> {count} soru / kart</Badge>
+                  </div>
+                </div>
+                <Button variant="outline" className="gap-2" onClick={() => setSetupOpen(true)}>
+                  <SlidersHorizontal className="h-4 w-4" /> Oturum ayarları
+                </Button>
+              </div>
+            </div>
+
+            {/* Generators */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {(Object.keys(TYPE_META) as KpssType[]).map(t => {
+                const meta = TYPE_META[t];
+                const Icon = meta.icon;
+                const busy = generating === t;
+                return (
+                  <button
+                    key={t}
+                    disabled={!!generating}
+                    onClick={() => openSetup(t)}
+                    className="hud-panel group p-5 text-left transition-transform duration-300 hover:-translate-y-1 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    <div className="hud-scanline" />
+                    <div className="relative">
+                      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                        <span>{meta.code}</span>
+                        <span className={`h-1.5 w-1.5 rounded-full bg-current ${meta.tone}`} />
+                      </div>
+                      <div className={`mt-3 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 ${meta.tint} ${meta.tone} transition-transform duration-300 group-hover:scale-110`}>
+                        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Icon className="h-5 w-5" />}
+                      </div>
+                      <h3 className="mt-3 font-display font-semibold transition-colors group-hover:text-primary">{meta.label}</h3>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{meta.desc}</p>
+                      <div className="mt-3 flex items-center gap-1 text-[11px] font-medium text-primary">
+                        {busy ? 'Üretiliyor…' : <>Ayarla ve üret <ChevronRight className="h-3 w-3" /></>}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Materyal türü filtresi">
+              {([['all', 'Tümü'], ...(Object.keys(TYPE_META) as KpssType[]).map(t => [t, TYPE_META[t].label] as const)] as [string, string][]).map(([val, label]) => (
+                <button
+                  key={val}
+                  onClick={() => setTypeFilter(val as 'all' | KpssType)}
+                  aria-pressed={typeFilter === val}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${typeFilter === val ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Library */}
+            {loading ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {[0, 1, 2].map(i => <Skeleton key={i} className="h-40 rounded-2xl" />)}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="hud-panel p-12 text-center">
+                <BookOpen className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
+                <p className="text-muted-foreground">Henüz KPSS materyali yok. Yukarıdan bir modül seçip üretmeye başla.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filtered.map(m => {
+                  const meta = TYPE_META[m.material_type];
+                  const Icon = meta.icon;
+                  return (
+                    <div key={m.id} className="hud-panel group flex flex-col p-4 transition-transform duration-300 hover:-translate-y-1">
+                      <div className="hud-scanline" />
+                      <div className="relative flex items-start justify-between gap-2">
+                        <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 ${meta.tint} ${meta.tone}`}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{meta.code}</span>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100" onClick={() => void remove(m.id)} aria-label="Materyali sil">
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                      <h3 className="relative mt-3 line-clamp-2 font-display text-base font-semibold">{m.title}</h3>
+                      <div className="relative mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline" className="text-[10px]">{m.subject}</Badge>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {m.difficulty === 'easy' ? 'Kolay' : m.difficulty === 'hard' ? 'Zor' : 'Orta'}
+                        </Badge>
+                      </div>
+                      <div className="relative mt-auto pt-4">
+                        <Button variant="secondary" className="w-full gap-2" onClick={() => setActive(m)}>
+                          <Play className="h-3.5 w-3.5" /> Aç
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="performans">
+            {loading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-24 rounded-2xl" />
+                <Skeleton className="h-64 rounded-2xl" />
+              </div>
+            ) : (
+              <KpssPerformance attempts={attempts} userName={profile?.full_name} />
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Session setup */}
+      <Dialog open={setupOpen} onOpenChange={setSetupOpen}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-display">
+              <SlidersHorizontal className="h-4 w-4 text-primary" /> Oturum ayarları
+            </DialogTitle>
+            <DialogDescription>
+              {TYPE_META[setupType].label} üretilecek. Ders, konu, zorluk ve soru sayısını buradan belirle.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Sınav grubu</Label>
                 <Select value={examGroup} onValueChange={setExamGroup}>
@@ -220,127 +367,54 @@ const Kpss = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label>Alt konu (opsiyonel)</Label>
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>Konu seçimi (opsiyonel)</Label>
                 <Input value={topic} onChange={e => setTopic(e.target.value)} placeholder="Örn. Kurtuluş Savaşı, Temel Haklar" />
               </div>
-              <div className="space-y-1.5">
-                <Label>Zorluk</Label>
-                <Select value={difficulty} onValueChange={(v: any) => setDifficulty(v)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="easy">Kolay</SelectItem>
-                    <SelectItem value="medium">Orta</SelectItem>
-                    <SelectItem value="hard">Zor (çıkmış soru seviyesi)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Soru / kart sayısı</Label>
-                <Input type="number" min={5} max={30} value={count} onChange={e => setCount(Math.min(30, Math.max(5, Number(e.target.value) || 10)))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Özel odak (opsiyonel)</Label>
-                <Input value={focus} onChange={e => setFocus(e.target.value)} placeholder="Örn. sürekli karıştırdığım kavramlar" />
-              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Generators */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {(Object.keys(TYPE_META) as KpssType[]).map(t => {
-            const meta = TYPE_META[t];
-            const Icon = meta.icon;
-            const busy = generating === t;
-            return (
-              <button
-                key={t}
-                disabled={!!generating}
-                onClick={() => void generate(t)}
-                className="hud-panel group p-5 text-left disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                <div className="hud-scanline" />
-                <div className="relative">
-                  <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    <span>{meta.code}</span>
-                    <span className={`h-1.5 w-1.5 rounded-full bg-current ${meta.tone}`} />
-                  </div>
-                  <div className={`mt-3 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 ${meta.tint} ${meta.tone} transition-transform duration-300 group-hover:scale-110`}>
-                    {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Icon className="h-5 w-5" />}
-                  </div>
-                  <h3 className="mt-3 font-display font-semibold transition-colors group-hover:text-primary">{meta.label}</h3>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{meta.desc}</p>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] font-medium text-primary">
-                    {busy ? 'Üretiliyor…' : <>Üret <ChevronRight className="h-3 w-3" /></>}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+            <div className="space-y-1.5">
+              <Label>Zorluk seviyesi</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {([['easy', 'Kolay'], ['medium', 'Orta'], ['hard', 'Zor']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setDifficulty(val)}
+                    aria-pressed={difficulty === val}
+                    className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${difficulty === val ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {difficulty === 'easy' ? 'Temel kavram ve tanım ağırlıklı sorular.' : difficulty === 'hard' ? 'Çıkmış soru seviyesinde, yorum ve ayırt etme gerektiren sorular.' : 'ÖSYM ortalamasına yakın dengeli seviye.'}
+              </p>
+            </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Materyal türü filtresi">
-          {([['all', 'Tümü'], ...(Object.keys(TYPE_META) as KpssType[]).map(t => [t, TYPE_META[t].label] as const)] as [string, string][]).map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => setTypeFilter(val as 'all' | KpssType)}
-              aria-pressed={typeFilter === val}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${typeFilter === val ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Soru / kart sayısı</Label>
+                <span className="font-display text-lg font-bold text-primary">{count}</span>
+              </div>
+              <Slider value={[count]} min={5} max={30} step={1} onValueChange={v => setCount(v[0])} />
+              <div className="flex justify-between font-mono text-[10px] text-muted-foreground"><span>5</span><span>30</span></div>
+            </div>
 
-        {/* Library */}
-        {loading ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map(i => <Skeleton key={i} className="h-40 rounded-2xl" />)}
+            <div className="space-y-1.5">
+              <Label>Özel odak (opsiyonel)</Label>
+              <Input value={focus} onChange={e => setFocus(e.target.value)} placeholder="Örn. sürekli karıştırdığım kavramlar" />
+            </div>
+
+            <Button className="w-full gap-2 gradient-primary border-0 text-primary-foreground" disabled={!!generating} onClick={() => void startSession()}>
+              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Oturumu başlat
+            </Button>
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="hud-panel p-12 text-center">
-            <BookOpen className="mx-auto mb-3 h-12 w-12 text-muted-foreground/50" />
-            <p className="text-muted-foreground">Henüz KPSS materyali yok. Yukarıdan bir modül seçip üretmeye başla.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filtered.map(m => {
-              const meta = TYPE_META[m.material_type];
-              const Icon = meta.icon;
-              return (
-                <div key={m.id} className="hud-panel group flex flex-col p-4">
-                  <div className="hud-scanline" />
-                  <div className="relative flex items-start justify-between gap-2">
-                    <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 ${meta.tint} ${meta.tone}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{meta.code}</span>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100" onClick={() => void remove(m.id)} aria-label="Materyali sil">
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                  <h3 className="relative mt-3 line-clamp-2 font-display text-base font-semibold">{m.title}</h3>
-                  <div className="relative mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-[10px]">{m.subject}</Badge>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {m.difficulty === 'easy' ? 'Kolay' : m.difficulty === 'hard' ? 'Zor' : 'Orta'}
-                    </Badge>
-                  </div>
-                  <div className="relative mt-auto pt-4">
-                    <Button variant="secondary" className="w-full gap-2" onClick={() => setActive(m)}>
-                      <Play className="h-3.5 w-3.5" /> Aç
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+        </DialogContent>
+      </Dialog>
+
 
       <Dialog open={!!active} onOpenChange={o => { if (!o) setActive(null); }}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
