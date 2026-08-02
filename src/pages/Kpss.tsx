@@ -10,11 +10,16 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Slider } from '@/components/ui/slider';
 import {
   Target, Sparkles, ListChecks, FileText, Layers, Loader2, Trash2, Play, Check, X,
   ChevronLeft, ChevronRight, Trophy, Lightbulb, AlertTriangle, BookOpen, Percent, Plus,
+  SlidersHorizontal, BarChart3, FileDown, Wand2, Timer,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import KpssPerformance, { type AttemptRow } from '@/components/kpss/KpssPerformance';
+import { downloadKpssReport } from '@/lib/kpssReport';
 
 type KpssType = 'topics' | 'summary' | 'quiz' | 'flashcards';
 
@@ -30,13 +35,6 @@ interface KpssMaterial {
   created_at: string;
 }
 
-interface Attempt {
-  id: string;
-  subject: string | null;
-  score: number;
-  total_questions: number;
-  created_at: string;
-}
 
 const SUBJECT_GROUPS: { group: string; subjects: string[] }[] = [
   { group: 'Genel Yetenek', subjects: ['Türkçe', 'Matematik', 'Geometri'] },
