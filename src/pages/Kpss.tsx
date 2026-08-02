@@ -53,7 +53,8 @@ const TYPE_META: Record<KpssType, { label: string; icon: any; desc: string; tone
 const EXAM_GROUPS = ['KPSS Lisans', 'KPSS Önlisans', 'KPSS Ortaöğretim', 'KPSS A Grubu', 'KPSS Eğitim Bilimleri (ÖABT dahil)'];
 
 const Kpss = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+
   const [materials, setMaterials] = useState<KpssMaterial[]>([]);
   const [attempts, setAttempts] = useState<AttemptRow[]>([]);
   const [loading, setLoading] = useState(true);
