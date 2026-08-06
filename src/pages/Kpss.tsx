@@ -15,11 +15,15 @@ import { Slider } from '@/components/ui/slider';
 import {
   Target, Sparkles, ListChecks, FileText, Layers, Loader2, Trash2, Play, Check, X,
   ChevronLeft, ChevronRight, Trophy, Lightbulb, AlertTriangle, BookOpen, Percent, Plus,
-  SlidersHorizontal, BarChart3, FileDown, Wand2, Timer,
+  SlidersHorizontal, BarChart3, FileDown, Wand2, Timer, Flag, Repeat,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import KpssPerformance, { type AttemptRow } from '@/components/kpss/KpssPerformance';
+import KpssGoals from '@/components/kpss/KpssGoals';
+import KpssPresets, { type PresetRow } from '@/components/kpss/KpssPresets';
+import KpssReviewPlan from '@/components/kpss/KpssReviewPlan';
 import { downloadKpssReport } from '@/lib/kpssReport';
+
 
 type KpssType = 'topics' | 'summary' | 'quiz' | 'flashcards';
 
