@@ -253,6 +253,45 @@ export type Database = {
           },
         ]
       }
+      kpss_goals: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          label: string | null
+          metric: string
+          notified: boolean
+          target: number
+          updated_at: string
+          user_id: string
+          week_start: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          metric?: string
+          notified?: boolean
+          target?: number
+          updated_at?: string
+          user_id: string
+          week_start: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          metric?: string
+          notified?: boolean
+          target?: number
+          updated_at?: string
+          user_id?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       kpss_materials: {
         Row: {
           content: Json
@@ -290,6 +329,93 @@ export type Database = {
           subject?: string
           title?: string
           topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      kpss_presets: {
+        Row: {
+          created_at: string
+          difficulty: string
+          exam_group: string
+          focus: string | null
+          id: string
+          last_used_at: string | null
+          material_type: string
+          name: string
+          question_count: number
+          subject: string
+          topic: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          difficulty?: string
+          exam_group: string
+          focus?: string | null
+          id?: string
+          last_used_at?: string | null
+          material_type?: string
+          name: string
+          question_count?: number
+          subject: string
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          difficulty?: string
+          exam_group?: string
+          focus?: string | null
+          id?: string
+          last_used_at?: string | null
+          material_type?: string
+          name?: string
+          question_count?: number
+          subject?: string
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      kpss_reviews: {
+        Row: {
+          created_at: string
+          due_at: string
+          id: string
+          last_result: number | null
+          stage: number
+          status: string
+          subject: string | null
+          topic: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          due_at?: string
+          id?: string
+          last_result?: number | null
+          stage?: number
+          status?: string
+          subject?: string | null
+          topic: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          due_at?: string
+          id?: string
+          last_result?: number | null
+          stage?: number
+          status?: string
+          subject?: string | null
+          topic?: string
           updated_at?: string
           user_id?: string
         }
