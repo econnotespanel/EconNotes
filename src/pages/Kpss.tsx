@@ -90,23 +90,33 @@ const Kpss = () => {
 
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [user]);
 
-  const generate = async (type: KpssType) => {
+  const generate = async (
+    type: KpssType,
+    override?: { subject?: string; topic?: string; examGroup?: string; difficulty?: string; count?: number; focus?: string },
+  ) => {
     if (!user) return;
+    const s = override?.subject ?? subject;
+    const tp = (override?.topic ?? topic).trim();
+    const eg = override?.examGroup ?? examGroup;
+    const df = override?.difficulty ?? difficulty;
+    const ct = override?.count ?? count;
+    const fc = (override?.focus ?? focus).trim();
+
     setGenerating(type);
     try {
       const { data, error } = await supabase.functions.invoke('generate-kpss', {
-        body: { type, subject, topic: topic.trim() || undefined, examGroup, difficulty, count, extraFocus: focus.trim() || undefined },
+        body: { type, subject: s, topic: tp || undefined, examGroup: eg, difficulty: df, count: ct, extraFocus: fc || undefined },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      const title = `${TYPE_META[type].label}: ${subject}${topic.trim() ? ' · ' + topic.trim() : ''}`;
+      const title = `${TYPE_META[type].label}: ${s}${tp ? ' · ' + tp : ''}`;
       const { error: insErr } = await supabase.from('kpss_materials').insert({
         user_id: user.id,
-        subject,
-        topic: topic.trim() || null,
+        subject: s,
+        topic: tp || null,
         material_type: type,
-        difficulty,
+        difficulty: df,
         title,
         content: data.content,
         model: data.model,
@@ -137,6 +147,32 @@ const Kpss = () => {
     setSetupOpen(false);
     await generate(setupType);
   };
+
+  const runPreset = async (p: PresetRow) => {
+    setExamGroup(p.exam_group);
+    setSubject(p.subject);
+    setTopic(p.topic || '');
+    setDifficulty((p.difficulty as 'easy' | 'medium' | 'hard') || 'medium');
+    setCount(p.question_count);
+    setFocus(p.focus || '');
+    toast.info(`${p.name} oturumu başlatılıyor…`);
+    await generate((p.material_type as KpssType) || 'quiz', {
+      subject: p.subject,
+      topic: p.topic || '',
+      examGroup: p.exam_group,
+      difficulty: p.difficulty,
+      count: p.question_count,
+      focus: p.focus || '',
+    });
+  };
+
+  const studyTopic = async (subj: string | null, tp: string) => {
+    if (subj) setSubject(subj);
+    setTopic(tp);
+    toast.info(`${tp} konusundan çözümlü test üretiliyor…`);
+    await generate('quiz', { subject: subj || subject, topic: tp });
+  };
+
 
   const filtered = materials.filter(m => typeFilter === 'all' || m.material_type === typeFilter);
 
