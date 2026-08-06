@@ -266,6 +266,26 @@ const Kpss = () => {
               </div>
             </div>
 
+            {/* Presets */}
+            {user && (
+              <KpssPresets
+                userId={user.id}
+                busy={!!generating}
+                draft={{
+                  exam_group: examGroup,
+                  subject,
+                  topic: topic.trim() || null,
+                  difficulty,
+                  question_count: count,
+                  focus: focus.trim() || null,
+                  material_type: setupType,
+                }}
+                onRun={p => void runPreset(p)}
+              />
+            )}
+
+
+
             {/* Generators */}
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {(Object.keys(TYPE_META) as KpssType[]).map(t => {
