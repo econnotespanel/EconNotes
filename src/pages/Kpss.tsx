@@ -234,10 +234,13 @@ const Kpss = () => {
         </div>
 
         <Tabs defaultValue="olustur" className="space-y-5">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full grid-cols-2 md:max-w-2xl md:grid-cols-4">
             <TabsTrigger value="olustur" className="gap-1.5"><Wand2 className="h-3.5 w-3.5" /> Üretim</TabsTrigger>
+            <TabsTrigger value="hedefler" className="gap-1.5"><Flag className="h-3.5 w-3.5" /> Hedefler</TabsTrigger>
+            <TabsTrigger value="tekrar" className="gap-1.5"><Repeat className="h-3.5 w-3.5" /> Tekrar planı</TabsTrigger>
             <TabsTrigger value="performans" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" /> Performansım</TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="olustur" className="space-y-5">
             {/* Active session summary */}
