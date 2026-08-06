@@ -381,6 +381,24 @@ const Kpss = () => {
             )}
           </TabsContent>
 
+          <TabsContent value="hedefler">
+            {loading || !user ? (
+              <div className="space-y-4"><Skeleton className="h-28 rounded-2xl" /><Skeleton className="h-56 rounded-2xl" /></div>
+            ) : (
+              <KpssGoals userId={user.id} attempts={attempts} materialDates={materials.map(m => m.created_at)} />
+            )}
+          </TabsContent>
+
+          <TabsContent value="tekrar">
+            {loading || !user ? (
+              <div className="space-y-4"><Skeleton className="h-28 rounded-2xl" /><Skeleton className="h-56 rounded-2xl" /></div>
+            ) : (
+              <KpssReviewPlan userId={user.id} attempts={attempts} onStudyTopic={(s, t) => void studyTopic(s, t)} />
+            )}
+          </TabsContent>
+
+
+
           <TabsContent value="performans">
             {loading ? (
               <div className="space-y-4">
