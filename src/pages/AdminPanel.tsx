@@ -222,7 +222,18 @@ const AdminPanel = () => {
     fetchAll();
   };
   const deleteAnnouncement = async (id: string) => { await supabase.from('announcements').delete().eq('id', id); toast.success('Duyuru silindi!'); fetchAll(); };
-  const deleteUser = async (userId: string) => { await supabase.from('profiles').delete().eq('user_id', userId); toast.success('Kullanıcı silindi!'); fetchAll(); };
+  const deleteUser = async (userId: string) => {
+    const t = toast.loading('Kullanıcı siliniyor...');
+    const { data, error } = await supabase.functions.invoke('admin-delete-user', { body: { userId } });
+    toast.dismiss(t);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || 'Kullanıcı silinemedi.');
+      return;
+    }
+    toast.success('Kullanıcı ve tüm verileri kalıcı olarak silindi.');
+    fetchAll();
+  };
+
 
   const getUserRole = (userId: string) => { const role = userRoles.find(r => r.user_id === userId); return role?.role || 'student'; };
   const getRoleLabel = (role: string) => ({ admin: 'Admin', student: 'Öğrenci', akademisyen: 'Akademisyen' }[role] || role);
