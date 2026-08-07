@@ -70,26 +70,43 @@ const Profile = () => {
     setPasswordForm({ current: '', newPass: '', confirm: '' });
   };
 
+  const [sendingCode, setSendingCode] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const handleSendDeleteVerification = async () => {
-    // Send a password reset email as verification mechanism
-    const { error } = await supabase.auth.resetPasswordForEmail(user!.email!, {
-      redirectTo: window.location.origin + '/profile',
+    setSendingCode(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: user!.email!,
+      options: { shouldCreateUser: false },
     });
+    setSendingCode(false);
     if (error) {
-      toast.error('Doğrulama e-postası gönderilemedi.');
+      toast.error('Doğrulama kodu gönderilemedi: ' + error.message);
       return;
     }
     setDeleteStep('sent');
-    toast.success('Doğrulama e-postası gönderildi! Lütfen e-postanızı kontrol edin.');
+    toast.success('6 haneli doğrulama kodu e-posta adresinize gönderildi.');
   };
 
   const handleDeleteAccount = async () => {
-    // Delete profile and sign out
-    await supabase.from('profiles').delete().eq('user_id', user!.id);
-    await signOut();
-    toast.success('Hesabınız silindi.');
+    if (!/^\d{6}$/.test(verificationCode.trim())) {
+      toast.error('Lütfen e-postanıza gelen 6 haneli kodu girin.');
+      return;
+    }
+    setDeleting(true);
+    const { data, error } = await supabase.functions.invoke('delete-my-account', {
+      body: { code: verificationCode.trim() },
+    });
+    setDeleting(false);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || 'Hesap silinemedi. Kodu kontrol edip tekrar deneyin.');
+      return;
+    }
+    await supabase.auth.signOut();
+    toast.success('Hesabınız kalıcı olarak silindi.');
     navigate('/login');
   };
+
 
   return (
     <Layout>
