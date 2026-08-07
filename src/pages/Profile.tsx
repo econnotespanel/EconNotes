@@ -233,14 +233,14 @@ const Profile = () => {
             <CardTitle className="text-lg text-destructive flex items-center gap-2"><Trash2 className="h-5 w-5" /> Hesabı Sil</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Hesabınızı silmek için önce e-posta doğrulaması yapmanız gerekmektedir.</p>
-            <Button variant="destructive" onClick={() => { setDeleteDialogOpen(true); setDeleteStep('verify'); }}>
+            <p className="text-sm text-muted-foreground">Hesabınızı silmek için e-posta adresinize gönderilen 6 haneli doğrulama kodunu girmeniz gerekir. Silme işlemi tüm verilerinizi kalıcı olarak kaldırır.</p>
+            <Button variant="destructive" onClick={() => { setDeleteDialogOpen(true); setDeleteStep('verify'); setVerificationCode(''); }}>
               Hesabımı Sil
             </Button>
           </CardContent>
         </Card>
 
-        <Dialog open={deleteDialogOpen} onOpenChange={(v) => { setDeleteDialogOpen(v); if (!v) setDeleteStep('idle'); }}>
+        <Dialog open={deleteDialogOpen} onOpenChange={(v) => { setDeleteDialogOpen(v); if (!v) { setDeleteStep('idle'); setVerificationCode(''); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-destructive">
@@ -250,39 +250,54 @@ const Profile = () => {
             {deleteStep === 'verify' && (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Hesabınızı silmek için <strong>{user?.email}</strong> adresine bir doğrulama e-postası göndereceğiz.
-                  E-postadaki bağlantıya tıkladıktan sonra hesabınızı silebilirsiniz.
+                  <strong>{user?.email}</strong> adresine 6 haneli bir doğrulama kodu göndereceğiz. Kodu girmeden hesabınız silinmez.
                 </p>
-                <div className="flex gap-2">
-                  <Button onClick={handleSendDeleteVerification} className="w-full">
-                    Doğrulama E-postası Gönder
-                  </Button>
-                </div>
+                <Button onClick={handleSendDeleteVerification} className="w-full" disabled={sendingCode}>
+                  {sendingCode ? 'Gönderiliyor...' : 'Doğrulama Kodu Gönder'}
+                </Button>
               </div>
             )}
             {deleteStep === 'sent' && (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Doğrulama e-postası <strong>{user?.email}</strong> adresine gönderildi. 
-                  E-postanızı kontrol edip bağlantıya tıkladıktan sonra aşağıdaki butona basarak hesabınızı silebilirsiniz.
+                  <strong>{user?.email}</strong> adresine gönderilen 6 haneli kodu girin. Kod kısa süre içinde geçerliliğini yitirir.
                 </p>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" className="w-full">E-postamı Doğruladım, Hesabımı Sil</Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Son onay - Hesabınız kalıcı olarak silinecek!</AlertDialogTitle>
-                      <AlertDialogDescription>Bu işlem geri alınamaz. Tüm verileriniz, notlarınız ve mesajlarınız silinecektir.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>İptal</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDeleteAccount}>Evet, Hesabımı Sil</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                <div>
+                  <Label>Doğrulama Kodu</Label>
+                  <Input
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    className="tracking-[0.5em] text-center text-lg font-mono"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={handleSendDeleteVerification} disabled={sendingCode}>
+                    Kodu Tekrar Gönder
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" className="flex-1" disabled={verificationCode.length !== 6 || deleting}>
+                        {deleting ? 'Siliniyor...' : 'Hesabımı Sil'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Son onay - Hesabınız kalıcı olarak silinecek.</AlertDialogTitle>
+                        <AlertDialogDescription>Bu işlem geri alınamaz. Tüm verileriniz, notlarınız, puanlarınız ve mesajlarınız silinecektir.</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>İptal</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteAccount}>Evet, Hesabımı Sil</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
               </div>
             )}
+
           </DialogContent>
         </Dialog>
       </div>
