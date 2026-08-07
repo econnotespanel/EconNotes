@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { LogOut, Sun, Moon, Bell, User, MessageSquare } from 'lucide-react';
+import { LogOut, Sun, Moon, Bell, User, MessageSquare, Sparkles, Flame } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { usePoints } from '@/hooks/usePoints';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
@@ -25,6 +26,7 @@ const Header = () => {
   const navigate = useNavigate();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
+  const { points } = usePoints(3);
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
