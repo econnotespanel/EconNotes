@@ -114,6 +114,23 @@ const Header = () => {
             </div>
           )}
 
+          {points && (
+            <button
+              onClick={() => navigate('/')}
+              title={`${points.points} puan • ${points.current_streak} günlük seri`}
+              className="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {points.points}
+              {points.current_streak > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-warning">
+                  <Flame className="h-3.5 w-3.5" />{points.current_streak}
+                </span>
+              )}
+            </button>
+          )}
+
+
           <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/messages')}>
             <MessageSquare className="h-5 w-5" />
             {unreadMessages > 0 && (
