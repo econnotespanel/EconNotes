@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
+import LeaderboardCard from '@/components/LeaderboardCard';
+
 
 const BannerContent = ({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
