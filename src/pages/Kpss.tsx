@@ -691,8 +691,13 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
         total_questions: questions.length,
         answers: detailed() as any,
       });
+      const bonus = Math.min(30, 10 + Math.round((score / Math.max(questions.length, 1)) * 20));
+      const { awardPoints } = await import('@/hooks/usePoints');
+      await awardPoints('kpss_attempt', bonus);
+      toast.success(`Deneme kaydedildi. +${bonus} puan kazandın.`);
       onSaved();
     }
+
     setSaving(false);
   };
 
