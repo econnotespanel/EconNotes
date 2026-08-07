@@ -213,6 +213,8 @@ const Notes = () => {
       const { data: insertedData, error } = await supabase.from('notes').insert(noteData).select('id').single();
       if (error) { toast.error('Not eklenemedi: ' + error.message); return; }
       await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_created', `"${form.title}" notu paylaşıldı`, 'note', insertedData?.id);
+      const { awardPoints } = await import('@/hooks/usePoints');
+      await awardPoints('note_upload', 25);
       if (isAdmin) {
         toast.success('Not başarıyla yayınlandı.');
       } else {

@@ -84,7 +84,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             import('@/lib/activityLogger').then(({ logActivity }) => {
               logActivity(session.user.id, session.user.user_metadata?.full_name || '', session.user.email || '', 'user_login', 'Panele giriş yaptı');
             });
+            setTimeout(() => {
+              (supabase as any).rpc('award_daily_login').then(({ data }: any) => {
+                const result = Array.isArray(data) ? data[0] : data;
+                if (result && !result.already_claimed && result.awarded > 0) {
+                  import('sonner').then(({ toast }) => {
+                    toast.success(`Günlük giriş puanı: +${result.awarded}`, {
+                      description: `${result.current_streak} günlük serideysin. Toplam puanın: ${result.points}`,
+                    });
+                  });
+                }
+              });
+            }, 400);
           }
+
         } else {
           setProfile(null);
           setIsAdmin(false);

@@ -625,6 +625,30 @@ export type Database = {
         }
         Relationships: []
       }
+      point_events: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          reason: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          reason: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          reason?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -858,6 +882,42 @@ export type Database = {
         }
         Relationships: []
       }
+      user_points: {
+        Row: {
+          created_at: string
+          current_streak: number
+          id: string
+          last_login_date: string | null
+          longest_streak: number
+          points: number
+          total_logins: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_login_date?: string | null
+          longest_streak?: number
+          points?: number
+          total_logins?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_streak?: number
+          id?: string
+          last_login_date?: string | null
+          longest_streak?: number
+          points?: number
+          total_logins?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -881,6 +941,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      award_daily_login: {
+        Args: never
+        Returns: {
+          already_claimed: boolean
+          awarded: number
+          current_streak: number
+          longest_streak: number
+          points: number
+        }[]
+      }
+      award_points: {
+        Args: { _amount: number; _reason: string }
+        Returns: number
+      }
       get_download_quota: {
         Args: { _user_id: string }
         Returns: {
@@ -890,6 +964,19 @@ export type Database = {
           is_admin: boolean
           remaining: number
           total_downloads: number
+        }[]
+      }
+      get_leaderboard: {
+        Args: { _limit?: number }
+        Returns: {
+          avatar_url: string
+          current_streak: number
+          full_name: string
+          points: number
+          rank: number
+          total_logins: number
+          university: string
+          user_id: string
         }[]
       }
       has_role: {

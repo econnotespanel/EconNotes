@@ -22,6 +22,7 @@ import KpssPerformance, { type AttemptRow } from '@/components/kpss/KpssPerforma
 import KpssGoals from '@/components/kpss/KpssGoals';
 import KpssPresets, { type PresetRow } from '@/components/kpss/KpssPresets';
 import KpssReviewPlan from '@/components/kpss/KpssReviewPlan';
+import KpssMomentum from '@/components/kpss/KpssMomentum';
 import { downloadKpssReport } from '@/lib/kpssReport';
 
 
@@ -215,6 +216,8 @@ const Kpss = () => {
               </p>
             </div>
           </div>
+
+          <KpssMomentum />
 
           <div className="relative mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             {stats.map(s => (
@@ -691,8 +694,13 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
         total_questions: questions.length,
         answers: detailed() as any,
       });
+      const bonus = Math.min(30, 10 + Math.round((score / Math.max(questions.length, 1)) * 20));
+      const { awardPoints } = await import('@/hooks/usePoints');
+      await awardPoints('kpss_attempt', bonus);
+      toast.success(`Deneme kaydedildi. +${bonus} puan kazandın.`);
       onSaved();
     }
+
     setSaving(false);
   };
 

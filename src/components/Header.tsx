@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { LogOut, Sun, Moon, Bell, User, MessageSquare } from 'lucide-react';
+import { LogOut, Sun, Moon, Bell, User, MessageSquare, Sparkles, Flame } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import logo from '@/assets/econnotes-logo.png';
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { usePoints } from '@/hooks/usePoints';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
@@ -25,6 +26,7 @@ const Header = () => {
   const navigate = useNavigate();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
+  const { points } = usePoints(3);
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
@@ -113,6 +115,23 @@ const Header = () => {
               )}
             </div>
           )}
+
+          {points && (
+            <button
+              onClick={() => navigate('/')}
+              title={`${points.points} puan • ${points.current_streak} günlük seri`}
+              className="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {points.points}
+              {points.current_streak > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-warning">
+                  <Flame className="h-3.5 w-3.5" />{points.current_streak}
+                </span>
+              )}
+            </button>
+          )}
+
 
           <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/messages')}>
             <MessageSquare className="h-5 w-5" />
