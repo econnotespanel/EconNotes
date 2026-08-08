@@ -686,9 +686,13 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
     });
   };
 
-  const finish = async () => {
+  const finish = async (auto = false) => {
+    if (finished || saving) return;
+    setConfirmOpen(false);
+    setAwayLeft(null);
     setSaving(true);
     setFinished(true);
+    if (auto) setAutoEnded(true);
     if (user) {
       await supabase.from('kpss_attempts').insert({
         user_id: user.id,
@@ -703,12 +707,66 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
       const bonus = Math.min(30, 10 + Math.round((score / Math.max(questions.length, 1)) * 20));
       const { awardPoints } = await import('@/hooks/usePoints');
       await awardPoints('kpss_attempt', bonus);
-      toast.success(`Deneme kaydedildi. +${bonus} puan kazandın.`);
+      toast.success('Test başarıyla tamamlandı.', {
+        description: `${score}/${questions.length} doğru · +${bonus} puan. Aşağıdan tüm cevaplarınızı ve tam çözümleri kontrol edebilirsiniz.`,
+      });
       onSaved();
     }
 
     setSaving(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const finishRef = useRef(finish);
+  finishRef.current = finish;
+
+  // Session boot: 3 second "oturum başlatılıyor" screen before the test opens.
+  useEffect(() => {
+    if (!booting) return;
+    const started = Date.now();
+    const id = setInterval(() => {
+      const left = 3 - Math.floor((Date.now() - started) / 1000);
+      if (left <= 0) { clearInterval(id); setBootLeft(0); setBooting(false); toast.info('Test oturumu başladı. Başarılar.'); }
+      else setBootLeft(left);
+    }, 200);
+    return () => clearInterval(id);
+  }, [booting]);
+
+  // Tab-away guard: warn the user and auto-submit after 10 seconds away.
+  useEffect(() => {
+    if (booting || finished) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        const started = Date.now();
+        setAwayLeft(10);
+        toast.warning('Test sekmesinden ayrıldınız.', {
+          description: '10 saniye içinde teste dönmezseniz test otomatik olarak sonlandırılacak.',
+          duration: 10000,
+        });
+        stop();
+        timer = setInterval(() => {
+          const left = 10 - Math.floor((Date.now() - started) / 1000);
+          if (left <= 0) { stop(); setAwayLeft(null); void finishRef.current(true); }
+          else setAwayLeft(left);
+        }, 250);
+      } else {
+        stop();
+        setAwayLeft(null);
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onVisibility);
+    };
+  }, [booting, finished]);
+
 
   if (!questions.length) return <p className="text-muted-foreground">Soru bulunamadı.</p>;
 
