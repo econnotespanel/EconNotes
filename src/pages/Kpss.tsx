@@ -781,7 +781,17 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
 
       {finished && (
         <div className="space-y-3">
+          {autoEnded && (
+            <div className="flex items-center gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Sekmeden ayrıldığınız için test otomatik olarak sonlandırıldı ve mevcut cevaplarınız kaydedildi.
+            </div>
+          )}
+          <div className="rounded-2xl border border-success/40 bg-success/10 p-3 text-center text-sm font-semibold text-success">
+            Test başarıyla tamamlandı. Aşağıdan tüm cevaplarınızı, doğru şıkları ve tam çözümleri kontrol edebilirsiniz.
+          </div>
           <div className="rounded-2xl border border-primary/40 bg-primary/10 p-4 text-center">
+
             <Trophy className="mx-auto mb-2 h-8 w-8 text-primary" />
             <p className="font-display text-xl font-bold">{score} / {questions.length} doğru</p>
             <p className="mt-1 text-sm text-muted-foreground">
