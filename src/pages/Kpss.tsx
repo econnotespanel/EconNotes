@@ -635,9 +635,15 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [finished, setFinished] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [booting, setBooting] = useState(true);
+  const [bootLeft, setBootLeft] = useState(3);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [awayLeft, setAwayLeft] = useState<number | null>(null);
+  const [autoEnded, setAutoEnded] = useState(false);
 
   const score = questions.reduce((s, q, i) => s + (answers[i] === q.correctIndex ? 1 : 0), 0);
   const answeredCount = Object.keys(answers).length;
+
 
   const detailed = () =>
     questions.map((q, i) => ({
