@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner';
 import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import BadgesCard from '@/components/BadgesCard';
 
 const Profile = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
@@ -205,6 +206,8 @@ const Profile = () => {
             </div>
           </CardContent>
         </Card>
+
+        <BadgesCard />
 
         {/* Password Change */}
         <Card className="glass-card">

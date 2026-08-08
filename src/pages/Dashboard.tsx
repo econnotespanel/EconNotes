@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import LeaderboardCard from '@/components/LeaderboardCard';
+import DailyMissions from '@/components/DailyMissions';
 
 
 const BannerContent = ({ content }: { content: string }) => {
@@ -253,6 +254,8 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+
+        <DailyMissions />
 
         <LeaderboardCard />
 

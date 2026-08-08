@@ -28,6 +28,7 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Study = lazy(() => import("./pages/Study"));
 const Kpss = lazy(() => import("./pages/Kpss"));
 const Welcome = lazy(() => import("./pages/Welcome"));
+const Points = lazy(() => import("./pages/Points"));
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ const App = () => {
                   <Route path="/study" element={<Study />} />
                   <Route path="/kpss" element={<Kpss />} />
                   <Route path="/welcome" element={<Welcome />} />
+                  <Route path="/points" element={<Points />} />
                   <Route path="/live-class" element={<LiveClass />} />
                   <Route path="/install" element={<Install />} />
                   <Route path="*" element={<NotFound />} />

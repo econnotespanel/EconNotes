@@ -1,6 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -86,6 +86,7 @@ const Sidebar = () => {
 
   const account: LinkItem[] = [
     { label: 'Profilim',           icon: User,          path: '/profile' },
+    { label: 'Puan Geçmişim',      icon: Sparkles,      path: '/points',     isNew: true },
     { label: 'Hakkında',           icon: Info,          path: '/about' },
     ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
