@@ -865,12 +865,53 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
       })}
 
       {!finished && (
-        <Button className="w-full gap-2 gradient-primary border-0 text-primary-foreground" disabled={answeredCount === 0 || saving} onClick={() => void finish()}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Testi bitir ve kaydet
+        <Button className="w-full gap-2 gradient-primary border-0 text-primary-foreground" disabled={answeredCount === 0 || saving} onClick={() => setConfirmOpen(true)}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Flag className="h-4 w-4" />} Testi bitir ve kaydet
         </Button>
+      )}
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" /> Testi bitirmeyi onaylıyor musunuz?
+            </DialogTitle>
+            <DialogDescription>
+              {answeredCount}/{questions.length} soruyu cevapladınız
+              {answeredCount < questions.length ? ` · ${questions.length - answeredCount} soru boş kalacak.` : '.'}
+              {' '}Onayladıktan sonra cevaplarınız kilitlenir ve sonuç raporunuz oluşturulur.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmOpen(false)}>Teste dön</Button>
+            <Button className="flex-1 gap-2 gradient-primary border-0 text-primary-foreground" disabled={saving} onClick={() => void finish()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Evet, testi bitir
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {booting && (
+        <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-4 bg-background/90 backdrop-blur-sm" role="status" aria-live="polite">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="font-display text-lg font-bold">Test oturumu başlatılıyor, lütfen bekleyiniz.</p>
+          <p className="text-sm text-muted-foreground">{material.title}</p>
+          <p className="font-mono text-3xl font-bold text-primary">{bootLeft}</p>
+          <p className="max-w-sm text-center text-xs text-muted-foreground">
+            Test başladıktan sonra sekmeden ayrılmayın. 10 saniyeden uzun süre ayrı kalırsanız test otomatik olarak sonlandırılır.
+          </p>
+        </div>
+      )}
+
+      {awayLeft !== null && !finished && (
+        <div className="fixed inset-x-0 top-0 z-[90] flex items-center justify-center gap-2 bg-destructive px-4 py-2 text-center text-sm font-semibold text-destructive-foreground" role="alert">
+          <AlertTriangle className="h-4 w-4" />
+          Test sekmesinden ayrıldınız. {awayLeft} saniye içinde dönmezseniz test otomatik sonlanacak.
+        </div>
       )}
     </div>
   );
+
 };
 
 export default Kpss;
