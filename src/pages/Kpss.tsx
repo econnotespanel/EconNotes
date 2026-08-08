@@ -1,6 +1,6 @@
 import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -635,9 +635,15 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [finished, setFinished] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [booting, setBooting] = useState(true);
+  const [bootLeft, setBootLeft] = useState(3);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [awayLeft, setAwayLeft] = useState<number | null>(null);
+  const [autoEnded, setAutoEnded] = useState(false);
 
   const score = questions.reduce((s, q, i) => s + (answers[i] === q.correctIndex ? 1 : 0), 0);
   const answeredCount = Object.keys(answers).length;
+
 
   const detailed = () =>
     questions.map((q, i) => ({
@@ -680,9 +686,13 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
     });
   };
 
-  const finish = async () => {
+  const finish = async (auto = false) => {
+    if (finished || saving) return;
+    setConfirmOpen(false);
+    setAwayLeft(null);
     setSaving(true);
     setFinished(true);
+    if (auto) setAutoEnded(true);
     if (user) {
       await supabase.from('kpss_attempts').insert({
         user_id: user.id,
@@ -697,12 +707,66 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
       const bonus = Math.min(30, 10 + Math.round((score / Math.max(questions.length, 1)) * 20));
       const { awardPoints } = await import('@/hooks/usePoints');
       await awardPoints('kpss_attempt', bonus);
-      toast.success(`Deneme kaydedildi. +${bonus} puan kazandın.`);
+      toast.success('Test başarıyla tamamlandı.', {
+        description: `${score}/${questions.length} doğru · +${bonus} puan. Aşağıdan tüm cevaplarınızı ve tam çözümleri kontrol edebilirsiniz.`,
+      });
       onSaved();
     }
 
     setSaving(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const finishRef = useRef(finish);
+  finishRef.current = finish;
+
+  // Session boot: 3 second "oturum başlatılıyor" screen before the test opens.
+  useEffect(() => {
+    if (!booting) return;
+    const started = Date.now();
+    const id = setInterval(() => {
+      const left = 3 - Math.floor((Date.now() - started) / 1000);
+      if (left <= 0) { clearInterval(id); setBootLeft(0); setBooting(false); toast.info('Test oturumu başladı. Başarılar.'); }
+      else setBootLeft(left);
+    }, 200);
+    return () => clearInterval(id);
+  }, [booting]);
+
+  // Tab-away guard: warn the user and auto-submit after 10 seconds away.
+  useEffect(() => {
+    if (booting || finished) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+
+    const onVisibility = () => {
+      if (document.hidden) {
+        const started = Date.now();
+        setAwayLeft(10);
+        toast.warning('Test sekmesinden ayrıldınız.', {
+          description: '10 saniye içinde teste dönmezseniz test otomatik olarak sonlandırılacak.',
+          duration: 10000,
+        });
+        stop();
+        timer = setInterval(() => {
+          const left = 10 - Math.floor((Date.now() - started) / 1000);
+          if (left <= 0) { stop(); setAwayLeft(null); void finishRef.current(true); }
+          else setAwayLeft(left);
+        }, 250);
+      } else {
+        stop();
+        setAwayLeft(null);
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onVisibility);
+    };
+  }, [booting, finished]);
+
 
   if (!questions.length) return <p className="text-muted-foreground">Soru bulunamadı.</p>;
 
@@ -717,7 +781,17 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
 
       {finished && (
         <div className="space-y-3">
+          {autoEnded && (
+            <div className="flex items-center gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Sekmeden ayrıldığınız için test otomatik olarak sonlandırıldı ve mevcut cevaplarınız kaydedildi.
+            </div>
+          )}
+          <div className="rounded-2xl border border-success/40 bg-success/10 p-3 text-center text-sm font-semibold text-success">
+            Test başarıyla tamamlandı. Aşağıdan tüm cevaplarınızı, doğru şıkları ve tam çözümleri kontrol edebilirsiniz.
+          </div>
           <div className="rounded-2xl border border-primary/40 bg-primary/10 p-4 text-center">
+
             <Trophy className="mx-auto mb-2 h-8 w-8 text-primary" />
             <p className="font-display text-xl font-bold">{score} / {questions.length} doğru</p>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -801,12 +875,53 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
       })}
 
       {!finished && (
-        <Button className="w-full gap-2 gradient-primary border-0 text-primary-foreground" disabled={answeredCount === 0 || saving} onClick={() => void finish()}>
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Testi bitir ve kaydet
+        <Button className="w-full gap-2 gradient-primary border-0 text-primary-foreground" disabled={answeredCount === 0 || saving} onClick={() => setConfirmOpen(true)}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Flag className="h-4 w-4" />} Testi bitir ve kaydet
         </Button>
+      )}
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" /> Testi bitirmeyi onaylıyor musunuz?
+            </DialogTitle>
+            <DialogDescription>
+              {answeredCount}/{questions.length} soruyu cevapladınız
+              {answeredCount < questions.length ? ` · ${questions.length - answeredCount} soru boş kalacak.` : '.'}
+              {' '}Onayladıktan sonra cevaplarınız kilitlenir ve sonuç raporunuz oluşturulur.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmOpen(false)}>Teste dön</Button>
+            <Button className="flex-1 gap-2 gradient-primary border-0 text-primary-foreground" disabled={saving} onClick={() => void finish()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Evet, testi bitir
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {booting && (
+        <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-4 bg-background/90 backdrop-blur-sm" role="status" aria-live="polite">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="font-display text-lg font-bold">Test oturumu başlatılıyor, lütfen bekleyiniz.</p>
+          <p className="text-sm text-muted-foreground">{material.title}</p>
+          <p className="font-mono text-3xl font-bold text-primary">{bootLeft}</p>
+          <p className="max-w-sm text-center text-xs text-muted-foreground">
+            Test başladıktan sonra sekmeden ayrılmayın. 10 saniyeden uzun süre ayrı kalırsanız test otomatik olarak sonlandırılır.
+          </p>
+        </div>
+      )}
+
+      {awayLeft !== null && !finished && (
+        <div className="fixed inset-x-0 top-0 z-[90] flex items-center justify-center gap-2 bg-destructive px-4 py-2 text-center text-sm font-semibold text-destructive-foreground" role="alert">
+          <AlertTriangle className="h-4 w-4" />
+          Test sekmesinden ayrıldınız. {awayLeft} saniye içinde dönmezseniz test otomatik sonlanacak.
+        </div>
       )}
     </div>
   );
+
 };
 
 export default Kpss;
