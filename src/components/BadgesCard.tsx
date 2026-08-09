@@ -46,31 +46,46 @@ const BadgesCard = () => {
           <span className="flex items-center gap-2"><Award className="h-5 w-5 text-primary" /> Rozetlerim</span>
           <span className="font-mono text-xs text-muted-foreground">{unlocked}/{badges.length}</span>
         </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Her rozetin kazanılma koşulu ve ilerlemen aşağıda gösterilir. Koşulu tamamladığında rozet otomatik açılır.
+        </p>
       </CardHeader>
       <CardContent>
         {loading ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            <Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" />
+            <Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" />
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {badges.map(b => {
               const done = b.value >= b.goal;
               const Icon = done ? b.icon : Lock;
+              const pct = Math.min(100, Math.round((b.value / b.goal) * 100));
+              const left = Math.max(0, b.goal - b.value);
               return (
                 <div
                   key={b.key}
-                  className={`rounded-xl border p-3 transition-colors ${done ? 'border-primary/40 bg-primary/5' : 'border-border/60 bg-card/50 opacity-80'}`}
+                  className={`rounded-xl border p-3 transition-colors ${done ? 'border-primary/40 bg-primary/5' : 'border-border/60 bg-card/50'}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon className={`h-4 w-4 ${done ? b.tone : 'text-muted-foreground'}`} />
-                    <p className="text-sm font-semibold">{b.label}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Icon className={`h-4 w-4 ${done ? b.tone : 'text-muted-foreground'}`} />
+                      <p className="text-sm font-semibold">{b.label}</p>
+                    </div>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${done ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'}`}>
+                      {done ? 'Kazanıldı' : 'Kilitli'}
+                    </span>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{b.description}</p>
-                  <Progress value={Math.min(100, (b.value / b.goal) * 100)} className="mt-2 h-1.5" />
-                  <p className="mt-1 text-right font-mono text-[10px] text-muted-foreground">
-                    {Math.min(b.value, b.goal)}/{b.goal}
-                  </p>
+                  <p className="mt-1.5 text-xs font-medium text-foreground/80">Nasıl kazanılır?</p>
+                  <p className="text-xs text-muted-foreground">{b.requirement}</p>
+                  <Progress value={pct} className="mt-2 h-1.5" />
+                  <div className="mt-1 flex items-center justify-between font-mono text-[10px] text-muted-foreground">
+                    <span>{pct}% tamamlandı</span>
+                    <span>
+                      {Math.min(b.value, b.goal)}/{b.goal} {b.unit}
+                      {!done && ` · ${left} ${b.unit} kaldı`}
+                    </span>
+                  </div>
                 </div>
               );
             })}
@@ -79,6 +94,7 @@ const BadgesCard = () => {
       </CardContent>
     </Card>
   );
+
 };
 
 export default BadgesCard;

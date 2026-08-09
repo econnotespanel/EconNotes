@@ -443,10 +443,18 @@
   .animate-fade-in { animation: fade-in .35s ease both; }
 
   @keyframes letter-pulse {
-    0%, 100% { opacity: 0.3; transform: translateY(1px); }
-    50%      { opacity: 1; transform: translateY(0); }
+    0%, 100% { opacity: 0.32; }
+    50%      { opacity: 1; }
   }
-  .animate-letter-pulse { display: inline-block; animation: letter-pulse 1.4s ease-in-out infinite; }
+  /* Opacity-only pulse keeps every glyph (incl. the capital N) on the same baseline. */
+  .animate-letter-pulse {
+    display: inline-block;
+    vertical-align: baseline;
+    font-variant-ligatures: none;
+    font-feature-settings: "kern" 1;
+    animation: letter-pulse 1.4s ease-in-out infinite;
+  }
+
 
   @keyframes loader-bar {
     0%   { transform: translateX(-120%); }

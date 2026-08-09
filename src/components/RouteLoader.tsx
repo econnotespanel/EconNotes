@@ -50,7 +50,7 @@ const RouteLoader = () => {
       />
       <div className="flex flex-col items-center gap-6">
         <div
-          className="flex items-baseline gap-0.5 text-4xl md:text-5xl font-extrabold tracking-tight"
+          className="flex items-baseline text-4xl md:text-5xl font-extrabold tracking-tight leading-none"
           aria-hidden="true"
         >
           {word.split('').map((ch, i) => (
@@ -63,6 +63,7 @@ const RouteLoader = () => {
             </span>
           ))}
         </div>
+
         <div
           className="h-1 w-44 rounded-full bg-muted/60 overflow-hidden"
           aria-hidden="true"

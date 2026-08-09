@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ShieldCheck, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ShieldCheck, Search, CalendarRange, RotateCcw, Download } from 'lucide-react';
+
 
 interface LogRow {
   id: string;
@@ -37,6 +39,9 @@ const AuditLogPanel = () => {
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState('all');
   const [q, setQ] = useState('');
+  const [userFilter, setUserFilter] = useState('all');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   useEffect(() => {
     const run = async () => {
@@ -52,12 +57,42 @@ const AuditLogPanel = () => {
     void run();
   }, []);
 
+  const users = Array.from(new Set(logs.map(l => l.user_email).filter(Boolean))).sort();
+
   const filtered = logs.filter(l => {
     if (action !== 'all' && l.action !== action) return false;
+    if (userFilter !== 'all' && l.user_email !== userFilter) return false;
+    const ts = new Date(l.created_at).getTime();
+    if (from && ts < new Date(`${from}T00:00:00`).getTime()) return false;
+    if (to && ts > new Date(`${to}T23:59:59`).getTime()) return false;
     if (!q.trim()) return true;
     const s = q.toLowerCase();
     return [l.user_name, l.user_email, l.details, l.entity_id].some(v => (v || '').toLowerCase().includes(s));
   });
+
+  const resetFilters = () => { setAction('all'); setUserFilter('all'); setQ(''); setFrom(''); setTo(''); };
+
+  /** Exports the currently filtered rows as an Excel-friendly CSV file. */
+  const exportCsv = () => {
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const head = ['Tarih', 'Kullanıcı', 'E-posta', 'İşlem', 'Detay', 'Varlık Türü', 'Kayıt No'];
+    const rows = filtered.map(l => [
+      new Date(l.created_at).toLocaleString('tr-TR'),
+      l.user_name,
+      l.user_email,
+      ACTION_META[l.action]?.label || l.action,
+      l.details,
+      l.entity_type,
+      l.entity_id,
+    ].map(esc).join(';'));
+    const csv = '\uFEFF' + [head.map(esc).join(';'), ...rows].join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `econnotes-denetim-kaydi-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Card className="glass-card">
@@ -84,7 +119,30 @@ const AuditLogPanel = () => {
               ))}
             </SelectContent>
           </Select>
+          <Select value={userFilter} onValueChange={setUserFilter}>
+            <SelectTrigger className="w-56"><SelectValue placeholder="Kullanıcı" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tüm kullanıcılar</SelectItem>
+              {users.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
+            </SelectContent>
+          </Select>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <CalendarRange className="h-4 w-4 text-muted-foreground" />
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" aria-label="Başlangıç tarihi" />
+            <span className="text-xs text-muted-foreground">—</span>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" aria-label="Bitiş tarihi" />
+          </div>
+          <Button variant="outline" size="sm" onClick={resetFilters} className="gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Filtreleri sıfırla
+          </Button>
+          <Button size="sm" onClick={exportCsv} disabled={filtered.length === 0} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> CSV dışa aktar ({filtered.length})
+          </Button>
+        </div>
+
 
         {loading ? (
           <div className="space-y-2"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>
