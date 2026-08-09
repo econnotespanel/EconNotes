@@ -831,12 +831,29 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
         <span className="font-mono text-xs text-muted-foreground">{answeredCount}/{questions.length}</span>
       </div>
 
+      {!finished && resumed && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/40 bg-primary/10 p-3 text-sm">
+          <span className="flex items-center gap-2 font-medium">
+            <RotateCcw className="h-4 w-4 text-primary" />
+            Yarım kalan oturumunuz geri yüklendi. Kaldığınız yerden devam ediyorsunuz.
+          </span>
+          <Button variant="outline" size="sm" onClick={retry} className="gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" /> Sıfırdan başlat
+          </Button>
+        </div>
+      )}
+
       {finished && (
         <div className="space-y-3">
           {autoEnded && (
-            <div className="flex items-center gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              Sekmeden ayrıldığınız için test otomatik olarak sonlandırıldı ve mevcut cevaplarınız kaydedildi.
+            <div className="space-y-2 rounded-2xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              <p className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                Sekmeden ayrıldığınız için test otomatik olarak sonlandırıldı ve mevcut cevaplarınız kaydedildi.
+              </p>
+              <Button size="sm" variant="outline" onClick={retry} className="gap-1.5">
+                <RotateCcw className="h-3.5 w-3.5" /> Testi yeniden dene
+              </Button>
             </div>
           )}
           <div className="rounded-2xl border border-success/40 bg-success/10 p-3 text-center text-sm font-semibold text-success">
@@ -851,10 +868,17 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
                 : score / questions.length >= 0.5 ? 'İyi gidiyorsun. Yanlışların çözümlerini oku.'
                 : 'Konuyu tekrar et, çözümler aşağıda açık.'}
             </p>
-            <Button variant="secondary" className="mt-3 gap-2" onClick={exportPdf}>
-              <FileDown className="h-4 w-4" /> Sonuç raporunu PDF indir
-            </Button>
+            <p className="mt-1 font-mono text-[11px] text-muted-foreground">{attemptNo}. deneme</p>
+            <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <Button variant="secondary" className="gap-2" onClick={exportPdf}>
+                <FileDown className="h-4 w-4" /> Sonuç raporunu PDF indir
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={retry}>
+                <RotateCcw className="h-4 w-4" /> Yeniden dene
+              </Button>
+            </div>
           </div>
+
 
           {weak.length > 0 && (
             <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4">
