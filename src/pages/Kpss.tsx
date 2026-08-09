@@ -16,7 +16,9 @@ import {
   Target, Sparkles, ListChecks, FileText, Layers, Loader2, Trash2, Play, Check, X,
   ChevronLeft, ChevronRight, Trophy, Lightbulb, AlertTriangle, BookOpen, Percent, Plus,
   SlidersHorizontal, BarChart3, FileDown, Wand2, Timer, Flag, Repeat,
+  RotateCcw,
 } from 'lucide-react';
+
 import { toast } from 'sonner';
 import KpssPerformance, { type AttemptRow } from '@/components/kpss/KpssPerformance';
 import KpssGoals from '@/components/kpss/KpssGoals';
