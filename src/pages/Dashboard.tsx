@@ -255,9 +255,10 @@ const Dashboard = () => {
           </Card>
         )}
 
+        <LeaderboardCard />
+
         <DailyMissions />
 
-        <LeaderboardCard />
 
 
         <div className="grid gap-6 md:grid-cols-2">
