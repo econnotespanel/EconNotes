@@ -747,6 +747,7 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
     setSaving(true);
     setFinished(true);
     if (auto) setAutoEnded(true);
+    clearDraft();
     if (user) {
       await supabase.from('kpss_attempts').insert({
         user_id: user.id,
