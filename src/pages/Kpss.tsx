@@ -628,6 +628,9 @@ const CardsView = ({ content }: { content: any }) => {
   );
 };
 
+/** LocalStorage key holding the in-progress (folyo) session for a material. */
+const draftKey = (id: string) => `kpss-draft-${id}`;
+
 const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () => void }) => {
   const { user, profile } = useAuth();
   const questions: any[] = material.content?.questions || [];
@@ -640,9 +643,58 @@ const QuizView = ({ material, onSaved }: { material: KpssMaterial; onSaved: () =
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [awayLeft, setAwayLeft] = useState<number | null>(null);
   const [autoEnded, setAutoEnded] = useState(false);
+  const [resumed, setResumed] = useState(false);
+  const [attemptNo, setAttemptNo] = useState(1);
 
   const score = questions.reduce((s, q, i) => s + (answers[i] === q.correctIndex ? 1 : 0), 0);
   const answeredCount = Object.keys(answers).length;
+
+  // Restore an unfinished (folyo) session so the user continues where they left off.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey(material.id));
+      if (!raw) return;
+      const d = JSON.parse(raw) as { answers?: Record<number, number>; revealed?: Record<number, boolean> };
+      if (d.answers && Object.keys(d.answers).length) {
+        setAnswers(d.answers);
+        setRevealed(d.revealed || {});
+        setResumed(true);
+        toast.info('Yarım kalan test oturumu geri yüklendi.', {
+          description: 'Kaldığınız yerden devam edebilir veya sıfırdan yeniden deneyebilirsiniz.',
+        });
+      }
+    } catch { /* ignore corrupt drafts */ }
+  }, [material.id]);
+
+  // Persist the folyo session on every answer so a tab-away never loses progress.
+  useEffect(() => {
+    if (finished) return;
+    try {
+      if (Object.keys(answers).length) {
+        localStorage.setItem(draftKey(material.id), JSON.stringify({ answers, revealed, savedAt: Date.now() }));
+      }
+    } catch { /* storage full */ }
+  }, [answers, revealed, finished, material.id]);
+
+  const clearDraft = () => { try { localStorage.removeItem(draftKey(material.id)); } catch { /* noop */ } };
+
+  /** Restarts the same test from scratch (used after an auto-ended session). */
+  const retry = () => {
+    clearDraft();
+    setAnswers({});
+    setRevealed({});
+    setFinished(false);
+    setSaving(false);
+    setAutoEnded(false);
+    setResumed(false);
+    setAwayLeft(null);
+    setAttemptNo(n => n + 1);
+    setBootLeft(3);
+    setBooting(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+
 
 
   const detailed = () =>
