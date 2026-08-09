@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ShieldCheck, Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ShieldCheck, Search, CalendarRange, RotateCcw, Download } from 'lucide-react';
+
 
 interface LogRow {
   id: string;
