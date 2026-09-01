@@ -27,7 +27,7 @@ const Index = () => {
     return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
   }
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Landing />;
 
   return <Dashboard />;
 };
