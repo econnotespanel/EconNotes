@@ -15,6 +15,7 @@ import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building, ShieldCheck, Us
 import { useSystemStatus } from '@/hooks/useSystemStatus';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
 import { useTheme } from '@/contexts/ThemeContext';
+import SecurityCaptcha from '@/components/SecurityCaptcha';
 
 const APP_VERSION = 'v2.5.0';
 
@@ -47,6 +48,8 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [captchaOk, setCaptchaOk] = useState(false);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const navigate = useNavigate();
   const { systemOpen, closedUntil, closureTitle, closureMessage, closureImageUrl, closureMode } = useSystemStatus();
   const { theme, toggleTheme } = useTheme();
@@ -88,6 +91,11 @@ const Register = () => {
       toast.error('Panel kurallarını kabul etmeniz gerekmektedir.');
       return;
     }
+    if (!captchaOk) {
+      toast.error('Lütfen güvenlik kodunu doğru şekilde girin.');
+      setCaptchaReset((v) => v + 1);
+      return;
+    }
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email: formData.email,
@@ -103,6 +111,7 @@ const Register = () => {
     });
     setLoading(false);
     if (error) {
+      setCaptchaReset((v) => v + 1);
       toast.error(error.message);
     } else {
       // Yeni kullanıcı bayrağı — ilk girişte /welcome kurulum ekranına yönlendirilecek
@@ -269,6 +278,7 @@ const Register = () => {
                 'nı okudum ve kabul ediyorum. Paylaşılan içeriklerden sorumluluk tarafıma aittir.
               </Label>
             </div>
+            <SecurityCaptcha onVerifiedChange={setCaptchaOk} resetKey={captchaReset} />
             <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(221, 83%, 53%)', color: 'white' }}>
               {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}
             </Button>

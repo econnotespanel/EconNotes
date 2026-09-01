@@ -11,6 +11,7 @@ import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, Tren
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION } from '@/lib/version';
+import SecurityCaptcha from '@/components/SecurityCaptcha';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -20,6 +21,8 @@ const Login = () => {
   const [penaltyInfo, setPenaltyInfo] = useState<{ reason: string; until: string | null; is_permanent: boolean; expired?: boolean } | null>(null);
   const [penaltyCountdown, setPenaltyCountdown] = useState(0);
   const [loginBanners, setLoginBanners] = useState<any[]>([]);
+  const [captchaOk, setCaptchaOk] = useState(false);
+  const [captchaReset, setCaptchaReset] = useState(0);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
@@ -74,6 +77,11 @@ const Login = () => {
       toast.error('Lütfen tüm alanları doldurun.');
       return;
     }
+    if (!captchaOk) {
+      toast.error('Lütfen güvenlik kodunu doğru şekilde girin.');
+      setCaptchaReset((v) => v + 1);
+      return;
+    }
     setLoading(true);
     setPenaltyInfo(null);
 
@@ -81,6 +89,7 @@ const Login = () => {
     
     if (error) {
       setLoading(false);
+      setCaptchaReset((v) => v + 1);
       if (error.message?.includes('Email not confirmed')) {
         toast.error('E-posta adresinizi doğrulamanız gerekmektedir. Lütfen mail kutunuzu kontrol edin.');
       } else {
@@ -304,6 +313,7 @@ const Login = () => {
                 </button>
               </div>
             </div>
+            <SecurityCaptcha onVerifiedChange={setCaptchaOk} resetKey={captchaReset} />
             <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(221, 83%, 53%)', color: 'white' }}>
               {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </Button>
