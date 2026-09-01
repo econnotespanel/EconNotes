@@ -166,8 +166,8 @@
 
   .dark body {
     background-image:
-      linear-gradient(hsl(var(--neon-cyan) / 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(var(--neon-cyan) / 0.05) 1px, transparent 1px);
+      linear-gradient(hsl(var(--neon-cyan) / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--neon-cyan) / 0.025) 1px, transparent 1px);
   }
 
   /* Ambient aurora glows — behind everything, no blur on content */
@@ -194,8 +194,8 @@
   }
   :root body::before { opacity: 0.22; }
   :root body::after { opacity: 0.18; }
-  .dark body::before { opacity: 0.55; }
-  .dark body::after { opacity: 0.5; }
+  .dark body::before { opacity: 0.20; }
+  .dark body::after { opacity: 0.16; }
 
 
   @keyframes aurora-a {
