@@ -1,8 +1,9 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import Dashboard from './Dashboard';
+import Landing from './Landing';
 import { toast } from 'sonner';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
@@ -27,7 +28,7 @@ const Index = () => {
     return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
   }
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Landing />;
 
   return <Dashboard />;
 };
