@@ -533,6 +533,7 @@ export type Database = {
           file_type: string | null
           file_url: string | null
           grade: number
+          has_password: boolean | null
           id: string
           note_password: string | null
           rejection_reason: string | null
@@ -556,6 +557,7 @@ export type Database = {
           file_type?: string | null
           file_url?: string | null
           grade: number
+          has_password?: boolean | null
           id?: string
           note_password?: string | null
           rejection_reason?: string | null
@@ -579,6 +581,7 @@ export type Database = {
           file_type?: string | null
           file_url?: string | null
           grade?: number
+          has_password?: boolean | null
           id?: string
           note_password?: string | null
           rejection_reason?: string | null
@@ -685,6 +688,39 @@ export type Database = {
           university?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      site_config: {
+        Row: {
+          brand_name: string
+          created_at: string
+          id: string
+          logo_url: string | null
+          pages: Json
+          tagline: string | null
+          theme: Json
+          updated_at: string
+        }
+        Insert: {
+          brand_name?: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          pages?: Json
+          tagline?: string | null
+          theme?: Json
+          updated_at?: string
+        }
+        Update: {
+          brand_name?: string
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          pages?: Json
+          tagline?: string | null
+          theme?: Json
+          updated_at?: string
         }
         Relationships: []
       }
@@ -941,6 +977,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_get_note_password: { Args: { _note_id: string }; Returns: string }
       award_daily_login: {
         Args: never
         Returns: {
@@ -993,6 +1030,10 @@ export type Database = {
           graduated_total: number
           promoted_total: number
         }[]
+      }
+      verify_note_password: {
+        Args: { _note_id: string; _password: string }
+        Returns: boolean
       }
     }
     Enums: {
