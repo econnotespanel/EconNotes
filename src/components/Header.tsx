@@ -19,10 +19,12 @@ import {
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePoints } from '@/hooks/usePoints';
+import { useSiteConfig } from '@/contexts/SiteConfigContext';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { config } = useSiteConfig();
   const navigate = useNavigate();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
@@ -94,14 +96,14 @@ const Header = () => {
         <div className="flex items-center gap-3 cursor-pointer ml-12 md:ml-0 group" onClick={() => navigate('/')}>
           <div className="relative">
             <img
-              src={logo}
-              alt="EconNotes"
+              src={config.logo_url || logo}
+              alt={config.brand_name}
               className="h-8 w-8 object-contain relative z-10"
               style={{ filter: 'var(--logo-filter)' }}
             />
             <div className="absolute inset-0 rounded-full bg-[hsl(var(--neon-cyan)/0.35)] blur-md opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
-          <span className="text-lg font-semibold gradient-text hidden sm:block tracking-tight">EconNotes</span>
+          <span className="text-lg font-semibold gradient-text hidden sm:block tracking-tight">{config.brand_name}</span>
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
