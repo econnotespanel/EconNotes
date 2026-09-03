@@ -67,8 +67,9 @@ const Notes = () => {
   ];
 
   const fetchNotes = async () => {
-    const { data } = await supabase.from('notes').select('*').order('created_at', { ascending: sortOrder === 'asc' });
-    setNotes(data || []);
+    const { data, error } = await supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: sortOrder === 'asc' });
+    if (error) toast.error('Notlar yüklenemedi: ' + error.message);
+    setNotes((data as any[]) || []);
     setLoading(false);
 
     // Fetch counts
