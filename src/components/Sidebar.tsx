@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { APP_VERSION } from '@/lib/version';
+import { useSiteConfig } from '@/contexts/SiteConfigContext';
 
 type LinkItem = {
   label: string;
@@ -17,6 +18,7 @@ type LinkItem = {
 
 const Sidebar = () => {
   const { isAdmin, user } = useAuth();
+  const { isPageEnabled, config } = useSiteConfig();
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -91,6 +93,8 @@ const Sidebar = () => {
     ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
 
+  const visible = (items: LinkItem[]) => items.filter(l => isAdmin || isPageEnabled(l.path));
+
   const totalBadge = unreadMessages + unreadAnnouncements;
 
   const renderItem = (link: LinkItem, isFirst = false) => {
@@ -159,9 +163,9 @@ const Sidebar = () => {
 
   const NavContent = () => (
     <nav className="flex flex-col py-2" aria-label="Ana menü">
-      <Section title="Panel" items={primary} startIdx={0} />
-      <Section title="Araçlar" items={tools} startIdx={1} />
-      <Section title="Hesap" items={account} startIdx={1} />
+      <Section title="Panel" items={visible(primary)} startIdx={0} />
+      <Section title="Araçlar" items={visible(tools)} startIdx={1} />
+      <Section title="Hesap" items={visible(account)} startIdx={1} />
     </nav>
   );
 
@@ -218,7 +222,7 @@ const Sidebar = () => {
 
         <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
-            <span className="font-semibold tracking-wider uppercase">EconNotes</span>
+            <span className="font-semibold tracking-wider uppercase">{config.brand_name}</span>
             <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">v{APP_VERSION}</span>
           </div>
         </div>
