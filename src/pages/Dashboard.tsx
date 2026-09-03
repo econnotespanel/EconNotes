@@ -2,6 +2,7 @@ import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { NOTE_SELECT } from '@/lib/noteColumns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
@@ -49,7 +50,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       const [notesRes, announcementsRes, settingsRes, bannersRes] = await Promise.all([
-        supabase.from('notes').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
+        supabase.from('notes').select(NOTE_SELECT, { count: 'exact' }).order('created_at', { ascending: false }),
         supabase.from('announcements').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
         supabase.from('system_settings').select('*').limit(1).maybeSingle(),
         supabase.from('banners').select('*').eq('is_active', true).order('created_at', { ascending: false }),
