@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { SiteConfigProvider } from "@/contexts/SiteConfigContext";
+import PageGuard from "@/components/PageGuard";
 import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
 import RouteLoader, { prefetchRoutes } from "@/components/RouteLoader";
@@ -51,6 +53,7 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        <SiteConfigProvider>
         <AuthProvider>
           <TooltipProvider>
             <Toaster />
@@ -65,18 +68,18 @@ const App = () => {
                   <Route path="/register" element={<Register />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/notes" element={<Notes />} />
-                  <Route path="/announcements" element={<Announcements />} />
-                  <Route path="/profile" element={<Profile />} />
-                  <Route path="/messages" element={<Messages />} />
+                  <Route path="/notes" element={<PageGuard path="/notes"><Notes /></PageGuard>} />
+                  <Route path="/announcements" element={<PageGuard path="/announcements"><Announcements /></PageGuard>} />
+                  <Route path="/profile" element={<PageGuard path="/profile"><Profile /></PageGuard>} />
+                  <Route path="/messages" element={<PageGuard path="/messages"><Messages /></PageGuard>} />
                   <Route path="/admin" element={<AdminPanel />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/assistant" element={<AcademicAssistant />} />
-                  <Route path="/study" element={<Study />} />
-                  <Route path="/kpss" element={<Kpss />} />
+                  <Route path="/about" element={<PageGuard path="/about"><About /></PageGuard>} />
+                  <Route path="/assistant" element={<PageGuard path="/assistant"><AcademicAssistant /></PageGuard>} />
+                  <Route path="/study" element={<PageGuard path="/study"><Study /></PageGuard>} />
+                  <Route path="/kpss" element={<PageGuard path="/kpss"><Kpss /></PageGuard>} />
                   <Route path="/welcome" element={<Welcome />} />
-                  <Route path="/points" element={<Points />} />
-                  <Route path="/live-class" element={<LiveClass />} />
+                  <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
+                  <Route path="/live-class" element={<PageGuard path="/live-class"><LiveClass /></PageGuard>} />
                   <Route path="/install" element={<Install />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
@@ -84,6 +87,7 @@ const App = () => {
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>
+        </SiteConfigProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

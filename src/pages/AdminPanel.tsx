@@ -14,11 +14,13 @@ import AuditLogPanel from '@/components/admin/AuditLogPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { NOTE_SELECT } from '@/lib/noteColumns';
+import SiteDesignPanel from '@/components/admin/SiteDesignPanel';
 
 const PENALTY_DURATIONS = [
   { warning: 1, label: '1. Uyarı - 5 Dakika', minutes: 5 },
@@ -33,6 +35,8 @@ const AdminPanel = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
+  const [userEmails, setUserEmails] = useState<Record<string, string>>({});
+  const [notePasswords, setNotePasswords] = useState<Record<string, string>>({});
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
@@ -81,10 +85,26 @@ const AdminPanel = () => {
     fetchAll();
   }, [isAdmin]);
 
+  /** Kayıt e-postalarını yönetici yetkili edge fonksiyonu üzerinden getirir. */
+  const fetchUserEmails = async () => {
+    const { data, error } = await supabase.functions.invoke('admin-user-emails');
+    if (error) { console.error('admin-user-emails', error); return; }
+    const map: Record<string, string> = {};
+    for (const u of (data as any)?.users || []) if (u.email) map[u.id] = u.email;
+    setUserEmails(map);
+  };
+
+  /** Şifreli notun şifresini yalnızca yönetici için sunucudan çeker. */
+  const revealNotePassword = async (noteId: string) => {
+    const { data, error } = await supabase.rpc('admin_get_note_password', { _note_id: noteId });
+    if (error) { toast.error('Şifre alınamadı.'); return; }
+    setNotePasswords(prev => ({ ...prev, [noteId]: (data as string) || '(boş)' }));
+  };
+
   const fetchAll = async () => {
     const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      supabase.from('notes').select('*').order('created_at', { ascending: false }),
+      supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }),
       supabase.from('announcements').select('*').order('created_at', { ascending: false }),
       supabase.from('penalties').select('*').order('created_at', { ascending: false }),
       supabase.from('system_settings').select('*').limit(1).maybeSingle(),
@@ -95,7 +115,7 @@ const AdminPanel = () => {
       supabase.from('study_materials').select('*').order('created_at', { ascending: false }).limit(500),
     ]);
     setUsers(usersRes.data || []);
-    setNotes(notesRes.data || []);
+    setNotes((notesRes.data as any[]) || []);
     setAnnouncements(announcementsRes.data || []);
     setPenalties(penaltiesRes.data || []);
     setActivityLogs(logsRes.data || []);
@@ -103,6 +123,7 @@ const AdminPanel = () => {
     setMessageReports(reportsRes.data || []);
     setBanners(bannersRes.data || []);
     setStudyMaterials(studyRes.data || []);
+    void fetchUserEmails();
     if (settingsRes.data) {
       setSystemOpen(settingsRes.data.is_system_open);
       setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
@@ -424,7 +445,7 @@ const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="users">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-10">
             <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5 hidden sm:inline" />Kullanıcılar</TabsTrigger>
             <TabsTrigger value="notes"><FileText className="h-4 w-4 mr-1.5 hidden sm:inline" />Notlar</TabsTrigger>
             <TabsTrigger value="announcements"><Megaphone className="h-4 w-4 mr-1.5 hidden sm:inline" />Duyurular</TabsTrigger>
@@ -433,6 +454,7 @@ const AdminPanel = () => {
             <TabsTrigger value="reports"><Flag className="h-4 w-4 mr-1.5 hidden sm:inline" />Raporlar{messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">{messageReports.filter(r => r.status === 'pending').length}</span>}</TabsTrigger>
             <TabsTrigger value="activity"><Activity className="h-4 w-4 mr-1.5 hidden sm:inline" />Aktiviteler</TabsTrigger>
             <TabsTrigger value="audit"><Shield className="h-4 w-4 mr-1.5 hidden sm:inline" />Denetim</TabsTrigger>
+            <TabsTrigger value="design"><Palette className="h-4 w-4 mr-1.5 hidden sm:inline" />Tasarım</TabsTrigger>
             <TabsTrigger value="study"><Sparkles className="h-4 w-4 mr-1.5 hidden sm:inline" />Stüdyo</TabsTrigger>
           </TabsList>
 
@@ -441,11 +463,12 @@ const AdminPanel = () => {
               <CardContent className="p-4">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="border-b border-border"><th className="text-left p-2">Ad Soyad</th><th className="text-left p-2 hidden md:table-cell">Üniversite</th><th className="text-left p-2 hidden md:table-cell">Bölüm</th><th className="text-left p-2">Rol</th><th className="text-left p-2 hidden lg:table-cell">Son Giriş</th><th className="text-left p-2">İşlemler</th></tr></thead>
+                    <thead><tr className="border-b border-border"><th className="text-left p-2">Ad Soyad</th><th className="text-left p-2">E-posta</th><th className="text-left p-2 hidden md:table-cell">Üniversite</th><th className="text-left p-2 hidden md:table-cell">Bölüm</th><th className="text-left p-2">Rol</th><th className="text-left p-2 hidden lg:table-cell">Son Giriş</th><th className="text-left p-2">İşlemler</th></tr></thead>
                     <tbody>
                       {users.map((u) => (
                         <tr key={u.id} className="border-b border-border/50 hover:bg-accent/50">
                           <td className="p-2 font-medium">{u.full_name || '-'}</td>
+                          <td className="p-2 text-xs break-all">{userEmails[u.user_id] || '—'}</td>
                           <td className="p-2 hidden md:table-cell">{u.university || '-'}</td>
                           <td className="p-2 hidden md:table-cell">{u.department || '-'}</td>
                           <td className="p-2"><Badge variant="outline" className="text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge></td>
@@ -481,7 +504,9 @@ const AdminPanel = () => {
                   {notes.filter(n => n.status === 'pending').map((n) => (
                     <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-warning/10 border border-warning/30">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{n.title} <Badge variant="outline" className="text-[10px] ml-1 bg-warning/20 text-warning">Beklemede</Badge> {n.note_password && <Badge variant="outline" className="text-[10px] ml-1">🔒 {n.note_password}</Badge>}</p>
+                        <p className="font-medium text-sm">{n.title} <Badge variant="outline" className="text-[10px] ml-1 bg-warning/20 text-warning">Beklemede</Badge> {n.has_password && (notePasswords[n.id]
+                          ? <Badge variant="outline" className="text-[10px] ml-1">🔒 {notePasswords[n.id]}</Badge>
+                          : <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] ml-1" onClick={() => revealNotePassword(n.id)}>🔒 Şifreyi göster</Button>)}</p>
                         <p className="text-xs text-muted-foreground">{n.uploader_name} • {n.course} • {n.department} • {new Date(n.created_at).toLocaleString('tr-TR')}</p>
                         {n.file_url && <a href={n.file_url} target="_blank" rel="noopener" className="text-xs text-primary hover:underline">Dosyayı görüntüle</a>}
                       </div>
@@ -501,7 +526,9 @@ const AdminPanel = () => {
                     <p className="font-medium text-sm">{n.title}
                       {n.status === 'rejected' && <Badge variant="outline" className="text-[10px] ml-1 bg-destructive/10 text-destructive">Reddedildi</Badge>}
                       {n.status === 'approved' && <Badge variant="outline" className="text-[10px] ml-1 bg-green-500/10 text-green-500">Onaylı</Badge>}
-                      {n.note_password && <Badge variant="outline" className="text-[10px] ml-1">🔒 {n.note_password}</Badge>}
+                      {n.has_password && (notePasswords[n.id]
+                        ? <Badge variant="outline" className="text-[10px] ml-1">🔒 {notePasswords[n.id]}</Badge>
+                        : <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] ml-1" onClick={() => revealNotePassword(n.id)}>🔒 Şifreyi göster</Button>)}
                     </p>
                     <p className="text-xs text-muted-foreground">{n.uploader_name} • {n.course} • {new Date(n.created_at).toLocaleString('tr-TR')}</p>
                   </div>
@@ -647,6 +674,10 @@ const AdminPanel = () => {
                 })
               )}
             </CardContent></Card>
+          </TabsContent>
+
+          <TabsContent value="design">
+            <SiteDesignPanel />
           </TabsContent>
 
           <TabsContent value="audit">
