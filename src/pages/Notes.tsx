@@ -19,6 +19,7 @@ import { downloadWithWatermark } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import { Progress } from '@/components/ui/progress';
+import { NOTE_SELECT } from '@/lib/noteColumns';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
@@ -245,7 +246,7 @@ const Notes = () => {
     setForm({
       title: note.title, description: note.description || '', grade: String(note.grade),
       department: note.department, course: note.course, semester: note.semester, file: null,
-      note_password: note.note_password || '', university: note.university || '',
+      note_password: '', university: note.university || '',
     });
     setAcceptOwnership(true);
     setDialogOpen(true);
@@ -282,18 +283,20 @@ const Notes = () => {
   };
 
   const isNoteLocked = (note: any) => {
-    if (!note.note_password || note.note_password.trim() === '') return false;
+    if (!note.has_password) return false;
     if (isAdmin) return false;
     if (note.user_id === user?.id) return false;
     return !unlockedNotes.has(note.id);
   };
 
-  const unlockNote = (noteId: string, password: string, correctPassword: string) => {
-    if (password === correctPassword) {
+  const unlockNote = async (noteId: string, password: string) => {
+    const { data, error } = await supabase.rpc('verify_note_password', { _note_id: noteId, _password: password });
+    if (error) { toast.error('Şifre doğrulanamadı.'); return; }
+    if (data === true) {
       setUnlockedNotes(prev => new Set(prev).add(noteId));
-      toast.success('Not kilidi açıldı!');
+      toast.success('Not kilidi açıldı.');
     } else {
-      toast.error('Yanlış şifre!');
+      toast.error('Yanlış şifre.');
     }
   };
 
@@ -589,7 +592,7 @@ const Notes = () => {
                             onChange={(e) => setPasswordInput(prev => ({ ...prev, [note.id]: e.target.value }))}
                             className="text-sm"
                           />
-                          <Button size="sm" onClick={() => unlockNote(note.id, passwordInput[note.id] || '', note.note_password)}>Aç</Button>
+                          <Button size="sm" onClick={() => unlockNote(note.id, passwordInput[note.id] || '')}>Aç</Button>
                         </div>
                       </CardContent>
                     ) : (
@@ -629,7 +632,7 @@ const Notes = () => {
                             <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{note.grade}. Sınıf</span>
                             <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground">{note.course}</span>
                             <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{note.semester}</span>
-                            {note.note_password && <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning flex items-center gap-0.5"><Lock className="h-2.5 w-2.5" /> Şifreli</span>}
+                            {note.has_password && <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning flex items-center gap-0.5"><Lock className="h-2.5 w-2.5" /> Şifreli</span>}
                           </div>
                           <div className="rounded-lg border border-border/60 bg-muted/40 p-2.5 space-y-1 text-xs">
                             {note.university && (
