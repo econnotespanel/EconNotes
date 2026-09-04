@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BadgesCard from '@/components/BadgesCard';
+import { Switch } from '@/components/ui/switch';
 
 const Profile = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
@@ -28,6 +29,18 @@ const Profile = () => {
   const [deleteStep, setDeleteStep] = useState<'idle' | 'verify' | 'sent'>('idle');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
+  const hideSurname = (profile as any)?.hide_surname !== false;
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+
+  /** Liderlik tablosunda soyadının sansürlenip sansürlenmeyeceğini belirler. */
+  const toggleHideSurname = async (value: boolean) => {
+    setSavingPrivacy(true);
+    const { error } = await supabase.from('profiles').update({ hide_surname: value } as any).eq('user_id', user!.id);
+    setSavingPrivacy(false);
+    if (error) { toast.error('Tercih kaydedilemedi.'); return; }
+    toast.success(value ? 'Soyadın artık listelerde sansürlü görünecek.' : 'Soyadın listelerde tam görünecek.');
+    refreshProfile();
+  };
 
   const handleUpdate = async () => {
     const { error } = await supabase.from('profiles').update(form).eq('user_id', user!.id);
@@ -197,6 +210,15 @@ const Profile = () => {
                       <p className="text-xs text-muted-foreground">Son Giriş</p>
                       <p className="text-sm font-medium">{profile?.last_login ? new Date(profile.last_login).toLocaleString('tr-TR') : '-'}</p>
                     </div>
+                  </div>
+                  <div className="flex items-start justify-between gap-3 p-3 rounded-lg bg-accent/50">
+                    <div>
+                      <p className="text-sm font-medium">Soyadımı listelerde gizle</p>
+                      <p className="text-xs text-muted-foreground">
+                        Açık olduğunda liderlik tablosunda adın "{(profile?.full_name || 'Kaan Çolakoğulları').split(' ')[0]} {(profile?.full_name || 'Kaan Çolakoğulları').split(' ')[1]?.charAt(0).toUpperCase() || 'Ç'}..." biçiminde görünür.
+                      </p>
+                    </div>
+                    <Switch checked={hideSurname} disabled={savingPrivacy} onCheckedChange={toggleHideSurname} />
                   </div>
                   <Button onClick={() => { setForm({ full_name: profile?.full_name || '', university: profile?.university || '', department: profile?.department || '' }); setEditing(true); }}>
                     Profili Düzenle
