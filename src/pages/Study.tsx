@@ -664,8 +664,7 @@ const ReportDialog = ({ open, onOpenChange, materialId, user }: { open: boolean;
         const path = `study-reports/${user.id}/${Date.now()}-${screenshot.name}`;
         const { error: upErr } = await supabase.storage.from('notes').upload(path, screenshot, { upsert: false });
         if (!upErr) {
-          const { data } = supabase.storage.from('notes').getPublicUrl(path);
-          screenshotUrl = data.publicUrl;
+          screenshotUrl = path;
         }
       }
       const { error } = await supabase.from('study_reports').insert({

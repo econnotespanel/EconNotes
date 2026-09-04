@@ -1,4 +1,5 @@
 import Layout from '@/components/Layout';
+import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -508,7 +509,7 @@ const AdminPanel = () => {
                           ? <Badge variant="outline" className="text-[10px] ml-1">🔒 {notePasswords[n.id]}</Badge>
                           : <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] ml-1" onClick={() => revealNotePassword(n.id)}>🔒 Şifreyi göster</Button>)}</p>
                         <p className="text-xs text-muted-foreground">{n.uploader_name} • {n.course} • {n.department} • {new Date(n.created_at).toLocaleString('tr-TR')}</p>
-                        {n.file_url && <a href={n.file_url} target="_blank" rel="noopener" className="text-xs text-primary hover:underline">Dosyayı görüntüle</a>}
+                        {n.file_url && <button type="button" onClick={() => { void openSignedNote(n.file_url); }} className="text-xs text-primary hover:underline">Dosyayı görüntüle</button>}
                       </div>
                       <div className="flex gap-1 ml-2">
                         <Button size="sm" variant="outline" className="text-green-500" onClick={() => approveNote(n.id)} title="Onayla"><Check className="h-3 w-3" /></Button>

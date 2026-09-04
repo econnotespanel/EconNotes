@@ -659,6 +659,7 @@ export type Database = {
           department: string
           full_name: string
           grade: number | null
+          hide_surname: boolean
           id: string
           last_login: string | null
           university: string
@@ -671,6 +672,7 @@ export type Database = {
           department?: string
           full_name?: string
           grade?: number | null
+          hide_surname?: boolean
           id?: string
           last_login?: string | null
           university?: string
@@ -683,6 +685,7 @@ export type Database = {
           department?: string
           full_name?: string
           grade?: number | null
+          hide_surname?: boolean
           id?: string
           last_login?: string | null
           university?: string
@@ -1024,6 +1027,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
+      mask_display_name: {
+        Args: { _full_name: string; _hide: boolean }
+        Returns: string
+      }
       promote_students_annual: {
         Args: never
         Returns: {
