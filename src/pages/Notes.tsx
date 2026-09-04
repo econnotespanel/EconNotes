@@ -258,12 +258,13 @@ const Notes = () => {
   };
 
   const shareNote = (note: any, platform: string) => {
-    const text = `📝 ${note.title} - ${note.course} (${note.semester})\n${note.file_url || ''}`;
+    const shareLink = `${window.location.origin}/notes`;
+    const text = `📝 ${note.title} - ${note.course} (${note.semester})\n${shareLink}`;
     const encoded = encodeURIComponent(text);
     const urls: Record<string, string> = {
       whatsapp: `https://wa.me/?text=${encoded}`,
       twitter: `https://twitter.com/intent/tweet?text=${encoded}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(note.file_url || '')}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareLink)}`,
     };
     window.open(urls[platform], '_blank');
   };
