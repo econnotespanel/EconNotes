@@ -1,4 +1,6 @@
 import Layout from '@/components/Layout';
+import SignedImage from '@/components/SignedImage';
+import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -80,8 +82,7 @@ const Announcements = () => {
       const filePath = `announcements/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
       const { error: uploadError } = await supabase.storage.from('notes').upload(filePath, attachmentFile);
       if (uploadError) { toast.error('Dosya yüklenemedi.'); setUploadingFile(false); return; }
-      const { data: urlData } = supabase.storage.from('notes').getPublicUrl(filePath);
-      attachmentUrl = urlData.publicUrl;
+      attachmentUrl = filePath;
       attachmentName = attachmentFile.name;
       attachmentType = attachmentFile.type.startsWith('image/') ? 'image' : 'file';
       setUploadingFile(false);
@@ -263,12 +264,12 @@ const Announcements = () => {
                   {a.attachment_url && (
                     <div className="mt-2">
                       {a.attachment_type === 'image' ? (
-                        <img src={a.attachment_url} alt={a.attachment_name} className="max-w-full max-h-64 rounded-lg border border-border object-contain" />
+                        <SignedImage source={a.attachment_url} alt={a.attachment_name} className="max-w-full max-h-64 rounded-lg border border-border object-contain" />
                       ) : (
-                        <a href={a.attachment_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 text-sm hover:bg-accent transition-colors">
+                        <button type="button" onClick={() => { void openSignedNote(a.attachment_url); }} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 text-sm hover:bg-accent transition-colors">
                           <FileIcon className="h-4 w-4 text-primary" />
                           <span>{a.attachment_name || 'Dosya'}</span>
-                        </a>
+                        </button>
                       )}
                     </div>
                   )}

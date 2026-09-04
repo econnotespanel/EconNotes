@@ -1,4 +1,6 @@
 import Layout from '@/components/Layout';
+import SignedImage from '@/components/SignedImage';
+import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -237,12 +239,11 @@ const Messages = () => {
     const path = `messages/${user!.id}/${Date.now()}.${ext}`;
     const { error: uploadErr } = await supabase.storage.from('notes').upload(path, file);
     if (uploadErr) { toast.error('Dosya gönderilemedi.'); return; }
-    const { data: urlData } = supabase.storage.from('notes').getPublicUrl(path);
-    
+
     const { error } = await supabase.from('messages').insert({
       sender_id: user!.id,
       receiver_id: selectedFriend.user_id,
-      content: `📎 [Dosya: ${file.name}](${urlData.publicUrl})`,
+      content: `📎 [Dosya: ${file.name}](${path})`,
     });
     if (error) { toast.error('Mesaj gönderilemedi.'); return; }
     fetchMessages(selectedFriend.user_id);
@@ -299,11 +300,11 @@ const Messages = () => {
       return (
         <div>
           {isImage ? (
-            <img src={fileUrl} alt={fileName} className="max-w-[200px] rounded-lg mb-1" />
+            <SignedImage source={fileUrl} alt={fileName} className="max-w-[200px] rounded-lg mb-1" />
           ) : null}
-          <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline">
+          <button type="button" onClick={() => { void openSignedNote(fileUrl); }} className="text-xs underline">
             📎 {fileName}
-          </a>
+          </button>
         </div>
       );
     }

@@ -1,4 +1,6 @@
 import Layout from '@/components/Layout';
+import SignedImage from '@/components/SignedImage';
+import { signedNoteUrl } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -117,7 +119,9 @@ const Notes = () => {
     }
     trackView(note.id);
     if (isPreviewable(note.file_type, note.file_url)) {
-      setPreviewUrl(note.file_url);
+      const signed = await signedNoteUrl(note.file_url);
+      if (!signed) { toast.error('Dosya bağlantısı oluşturulamadı.'); return; }
+      setPreviewUrl(signed);
       setPreviewType(note.file_type);
     }
   };
@@ -160,7 +164,9 @@ const Notes = () => {
       return;
     }
     trackDownload(note.id);
-    downloadWithWatermark(note.file_url, note.file_name, note.file_type);
+    const signed = await signedNoteUrl(note.file_url);
+    if (!signed) { toast.error('Dosya bağlantısı oluşturulamadı.'); return; }
+    downloadWithWatermark(signed, note.file_name, note.file_type);
   };
 
   const handleSubmit = async () => {
@@ -186,8 +192,7 @@ const Notes = () => {
       const path = `${user!.id}/${Date.now()}.${ext}`;
       const { error: uploadErr } = await supabase.storage.from('notes').upload(path, form.file);
       if (uploadErr) { toast.error('Dosya yüklenemedi: ' + uploadErr.message); return; }
-      const { data: urlData } = supabase.storage.from('notes').getPublicUrl(path);
-      fileUrl = urlData.publicUrl;
+      fileUrl = path;
       fileName = form.file.name;
       fileType = form.file.type;
     }
@@ -599,7 +604,7 @@ const Notes = () => {
                       <>
                         {thumbnail ? (
                           <div className="relative h-40 w-full overflow-hidden bg-muted cursor-pointer" onClick={() => handlePreviewClick(note)}>
-                            <img src={thumbnail} alt={note.title} className="w-full h-full object-cover" />
+                            <SignedImage source={thumbnail} alt={note.title} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                             <div className="absolute bottom-2 left-2 right-2">
                               <p className="text-white text-sm font-semibold truncate">{note.title}</p>
