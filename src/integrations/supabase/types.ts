@@ -534,6 +534,8 @@ export type Database = {
           file_url: string | null
           grade: number
           has_password: boolean | null
+          hidden_by: string | null
+          hidden_until: string | null
           id: string
           note_password: string | null
           rejection_reason: string | null
@@ -544,6 +546,7 @@ export type Database = {
           updated_at: string
           uploader_name: string
           user_id: string
+          visibility_status: string
         }
         Insert: {
           approved_at?: string | null
@@ -558,6 +561,8 @@ export type Database = {
           file_url?: string | null
           grade: number
           has_password?: boolean | null
+          hidden_by?: string | null
+          hidden_until?: string | null
           id?: string
           note_password?: string | null
           rejection_reason?: string | null
@@ -568,6 +573,7 @@ export type Database = {
           updated_at?: string
           uploader_name?: string
           user_id: string
+          visibility_status?: string
         }
         Update: {
           approved_at?: string | null
@@ -582,6 +588,8 @@ export type Database = {
           file_url?: string | null
           grade?: number
           has_password?: boolean | null
+          hidden_by?: string | null
+          hidden_until?: string | null
           id?: string
           note_password?: string | null
           rejection_reason?: string | null
@@ -592,6 +600,7 @@ export type Database = {
           updated_at?: string
           uploader_name?: string
           user_id?: string
+          visibility_status?: string
         }
         Relationships: []
       }
@@ -654,6 +663,9 @@ export type Database = {
       }
       profiles: {
         Row: {
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
           avatar_url: string | null
           created_at: string
           department: string
@@ -667,6 +679,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           avatar_url?: string | null
           created_at?: string
           department?: string
@@ -680,6 +695,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           avatar_url?: string | null
           created_at?: string
           department?: string
