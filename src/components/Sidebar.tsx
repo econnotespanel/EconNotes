@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { APP_VERSION } from '@/lib/version';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
+import EconLogo from '@/components/EconLogo';
 
 type LinkItem = {
   label: string;
@@ -222,7 +223,7 @@ const Sidebar = () => {
 
         <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
-            <span className="font-semibold tracking-wider uppercase">{config.brand_name}</span>
+            <EconLogo className="h-6 w-28" />
             <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">v{APP_VERSION}</span>
           </div>
         </div>

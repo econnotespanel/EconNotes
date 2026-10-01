@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import logo from '@/assets/econnotes-logo.png';
+import EconLogo from '@/components/EconLogo';
 import { Mail, CheckCircle, KeyRound, BookOpen, Users, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -55,8 +55,7 @@ const ForgotPassword = () => {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: theme === 'dark' ? 'linear-gradient(135deg, hsl(217, 91%, 12%), hsl(221, 83%, 18%), hsl(213, 80%, 22%))' : 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-8">
-            <img src={logo} alt="EconNotes" className="h-12 w-12 object-contain brightness-0 invert" />
-            <h1 className="text-2xl font-bold text-white">EconNotes</h1>
+            <EconLogo className="h-16 w-72" />
           </div>
           <p className="text-white/80 text-lg mb-12">EconNotes ile notların hep yanında!</p>
           <div className="space-y-4">
@@ -96,8 +95,7 @@ const ForgotPassword = () => {
 
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-6">
-          <img src={logo} alt="EconNotes" className="h-10 w-10 object-contain" style={{ filter: 'var(--logo-filter)' }} />
-          <h1 className="text-xl font-bold text-foreground">EconNotes</h1>
+          <EconLogo className="h-14 w-56" />
         </div>
 
         <div className="w-full max-w-sm space-y-6">

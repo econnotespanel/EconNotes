@@ -1,5 +1,5 @@
 import { AlertTriangle, Sun, Palmtree, Waves, Sailboat } from 'lucide-react';
-import logo from '@/assets/econnotes-logo.png';
+import EconLogo from '@/components/EconLogo';
 
 interface MaintenanceScreenProps {
   closedUntil: string | null;
@@ -44,12 +44,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
       <div className="max-w-lg w-full text-center space-y-5 relative z-10">
         <div className="rounded-3xl p-8 bg-white/40 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-2xl">
           <div className="flex justify-center mb-4">
-            <img
-              src={logo}
-              alt="EconNotes"
-              className="h-20 w-20 object-contain"
-              style={{ filter: 'var(--logo-filter)' }}
-            />
+            <EconLogo className="h-20 w-72 max-w-full" />
           </div>
 
           {imageUrl ? (

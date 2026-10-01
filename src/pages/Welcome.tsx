@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { Sparkles, BookOpen, Users, Rocket, MessageSquare, Bot, PartyPopper, ChevronRight, ChevronLeft } from 'lucide-react';
-import logo from '@/assets/econnotes-logo.png';
+import EconLogo from '@/components/EconLogo';
 
 type Slide = {
   emoji: string;
@@ -104,7 +104,7 @@ const Welcome = () => {
       <div className="relative w-full max-w-3xl">
         {/* Progress tape */}
         <div className="mb-4 flex items-center gap-3">
-          <img src={logo} alt="EconNotes" className="h-8 w-8" style={{ filter: 'var(--logo-filter)' }} />
+          <EconLogo className="h-10 w-40" />
           <div className="flex-1 h-3 border-2 border-foreground rounded-full bg-card overflow-hidden shadow-[3px_3px_0_0_hsl(var(--foreground))]">
             <div
               className="h-full transition-[width] duration-500 ease-out"

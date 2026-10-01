@@ -5,7 +5,7 @@ import {
   BookOpen, Brain, MessageSquare, Megaphone, GraduationCap, FileText,
   ShieldCheck, Lock, KeyRound, EyeOff, ServerCog, ArrowRight, Sparkles, Download,
 } from 'lucide-react';
-import logo from '@/assets/econnotes-logo.png';
+import EconLogo from '@/components/EconLogo';
 import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION } from '@/lib/version';
 
@@ -34,10 +34,7 @@ const Landing = () => {
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85">
         <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-2.5">
-            <img src={logo} alt="EconNotes logosu" className="h-9 w-9 object-contain" style={{ filter: 'var(--logo-filter)' }} />
-            <span className="font-display text-lg font-bold text-foreground">EconNotes</span>
-          </div>
+          <EconLogo className="h-11 w-40 sm:w-48" />
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
@@ -55,11 +52,9 @@ const Landing = () => {
       <main className="mx-auto max-w-6xl space-y-16 px-4 py-12">
         {/* Hero */}
         <section className="space-y-6 text-center animate-fade-in">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground">
-            <ShieldCheck className="h-3.5 w-3.5 text-primary" /> 256 bit SSL ile korunan akademik platform
-          </span>
+          <EconLogo className="mx-auto h-20 w-[min(80vw,440px)]" />
           <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight text-foreground md:text-5xl">
-            Akademik hayatının tamamı <span className="gradient-text">tek bir platformda</span>
+            Daha iyi notlar, <span className="gradient-text">daha güçlü bir sen.</span>
           </h1>
           <p className="mx-auto max-w-2xl text-base text-muted-foreground md:text-lg">
             Ders notları, çalışma araçları, sınav hazırlığı ve iletişim. EconNotes, öğrencilerin akademik süreçlerini

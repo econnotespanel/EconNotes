@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Download, Monitor, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import logo from "@/assets/econnotes-logo.png";
+import EconLogo from '@/components/EconLogo';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -44,12 +44,7 @@ const Install = () => {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center space-y-2">
-          <img
-            src={logo}
-            alt="EconNotes Logo"
-            className="h-16 mx-auto"
-            style={{ filter: "var(--logo-filter)" }}
-          />
+          <EconLogo className="h-16 w-64 mx-auto" />
           <h1 className="text-2xl font-bold text-foreground">EconNotes Uygulamasını İndir</h1>
           <p className="text-muted-foreground">
             EconNotes'u telefonuna veya bilgisayarına kurarak hızlı erişim sağla.

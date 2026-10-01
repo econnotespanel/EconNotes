@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import EconLogo from '@/components/EconLogo';
 
-const word = 'EconNotes';
 const MIN_VISIBLE_MS = 450;
 const FADE_MS = 350;
 
@@ -49,20 +49,7 @@ const RouteLoader = () => {
         }}
       />
       <div className="flex flex-col items-center gap-6">
-        <div
-          className="flex items-baseline text-4xl md:text-5xl font-extrabold tracking-tight leading-none"
-          aria-hidden="true"
-        >
-          {word.split('').map((ch, i) => (
-            <span
-              key={i}
-              className="gradient-text animate-letter-pulse drop-shadow-[0_4px_24px_hsl(var(--primary)/0.55)]"
-              style={{ animationDelay: `${i * 110}ms` }}
-            >
-              {ch}
-            </span>
-          ))}
-        </div>
+        <EconLogo className="h-20 w-72 animate-pulse" />
 
         <div
           className="h-1 w-44 rounded-full bg-muted/60 overflow-hidden"

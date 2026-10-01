@@ -1,7 +1,7 @@
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BookOpen, Users, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone, ShieldCheck } from 'lucide-react';
-import logo from '@/assets/econnotes-logo.png';
+import EconLogo from '@/components/EconLogo';
 
 const About = () => {
   const features = [
@@ -18,9 +18,8 @@ const About = () => {
       <div className="max-w-3xl mx-auto space-y-8 animate-fade-in">
         <div className="text-center space-y-4">
           <div className="flex justify-center">
-            <img src={logo} alt="EconNotes" className="h-20 w-20 object-contain" style={{ filter: 'var(--logo-filter)' }} />
+            <EconLogo className="h-20 w-80 max-w-full" />
           </div>
-          <h1 className="text-3xl font-bold gradient-text">EconNotes</h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
             EconNotes, üniversite öğrencilerinin ders notlarına daha iyi, hızlı ve pratik bir şekilde ulaşabilmesini sağlayan bir ders notu paylaşım modülüdür.
           </p>
