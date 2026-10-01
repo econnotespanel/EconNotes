@@ -90,7 +90,7 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 relative">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-xl relative">
       <div className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-[hsl(var(--neon-cyan)/0.6)] to-transparent" />
       <div className="flex h-16 items-center justify-between px-4 md:px-6">
         <div className="flex items-center gap-3 cursor-pointer ml-12 md:ml-0 group" onClick={() => navigate('/')}>

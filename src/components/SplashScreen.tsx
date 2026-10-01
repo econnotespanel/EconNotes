@@ -14,9 +14,7 @@ const SplashScreen = ({ onFinish }: { onFinish: () => void }) => {
   return (
     <div
       className={`fixed inset-0 z-[10000] flex items-center justify-center transition-opacity duration-500 ${phase >= 2 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
-      style={{
-        background: 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))',
-      }}
+      style={{ background: 'hsl(var(--background))' }}
     >
       <div className={`flex flex-col items-center gap-4 transition-all duration-700 ${phase >= 1 ? 'opacity-100 scale-100' : 'opacity-0 scale-90'}`}>
         <EconLogo className="h-24 w-80 max-w-[85vw]" />

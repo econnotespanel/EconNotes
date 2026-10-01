@@ -5,18 +5,18 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold ring-offset-background transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border-2 border-foreground shadow-[4px_4px_0_0_hsl(var(--foreground))] hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-[6px_6px_0_0_hsl(var(--foreground))] active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_hsl(var(--foreground))]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold ring-offset-background transition-[background,border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-transparent",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground",
         destructive: "bg-destructive text-destructive-foreground",
-        outline: "bg-card text-foreground hover:bg-[hsl(var(--sticker-lime)/0.4)]",
+        outline: "border-border bg-card text-foreground hover:bg-accent/20",
         secondary: "bg-secondary text-secondary-foreground",
         ghost:
-          "border-transparent shadow-none hover:bg-accent/20 hover:text-accent-foreground hover:translate-x-0 hover:translate-y-0 hover:shadow-none active:translate-x-0 active:translate-y-0 active:shadow-none",
+          "hover:bg-accent/20 hover:text-foreground",
         link:
-          "border-transparent shadow-none text-primary underline-offset-4 hover:underline hover:translate-x-0 hover:translate-y-0 hover:shadow-none active:translate-x-0 active:translate-y-0 active:shadow-none",
+          "text-primary underline-offset-4 hover:underline",
       },
       size: {
         default: "h-10 px-5 py-2",

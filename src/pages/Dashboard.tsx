@@ -165,6 +165,14 @@ const Dashboard = () => {
           </Card>
         )}
 
+        <section className="dashboard-welcome relative overflow-hidden rounded-lg border border-border px-5 py-7 md:px-8 md:py-9">
+          <div className="relative z-10 max-w-xl">
+            <h1 className="text-2xl md:text-3xl font-bold">Daha iyi notlar,<br /><span className="text-primary">daha güçlü bir sen.</span></h1>
+            <p className="mt-2 text-sm text-muted-foreground">EconNotes ile derslerine odaklan, hedeflerine bir adım daha yaklaş.</p>
+            <Button size="sm" variant="outline" className="mt-5" onClick={() => navigate('/notes')}>Notları keşfet</Button>
+          </div>
+        </section>
+
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Ana Sayfa</h1>
