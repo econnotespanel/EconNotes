@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { APP_VERSION } from '@/lib/version';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
+import EconLogo from '@/components/EconLogo';
 
 type LinkItem = {
   label: string;
@@ -110,9 +111,9 @@ const Sidebar = () => {
           'group relative flex items-center gap-3 w-full rounded-lg pl-4 pr-3 min-h-[42px] py-2 text-sm font-medium',
           'transition-all duration-200 ease-out',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sidebar-ring))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--sidebar-background))]',
-          active
-            ? 'text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-accent))]'
-            : 'text-[hsl(var(--sidebar-foreground)/0.75)] hover:text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent)/0.6)]',
+           active
+             ? 'text-sidebar-primary bg-sidebar-accent'
+             : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/60',
         )}
       >
         {/* Left neon indicator */}
@@ -121,15 +122,15 @@ const Sidebar = () => {
           className={cn(
             'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-all duration-300',
             active
-              ? 'h-6 opacity-100 bg-[hsl(var(--sidebar-primary))] shadow-[0_0_10px_hsl(var(--sidebar-primary)/0.8)]'
-              : 'h-3 opacity-0 group-hover:opacity-50 bg-[hsl(var(--sidebar-primary))]',
+               ? 'h-6 opacity-100 bg-sidebar-primary'
+               : 'h-3 opacity-0 group-hover:opacity-50 bg-sidebar-primary',
           )}
         />
 
         <Icon
           className={cn(
             'h-[18px] w-[18px] shrink-0 transition-colors',
-            active ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--sidebar-foreground)/0.7)] group-hover:text-[hsl(var(--sidebar-primary))]',
+             active ? 'text-sidebar-primary' : 'text-sidebar-foreground/70 group-hover:text-sidebar-primary',
           )}
           strokeWidth={2}
         />
@@ -194,7 +195,7 @@ const Sidebar = () => {
       <div
         aria-hidden
         onClick={() => setOpen(false)}
-        className={cn(
+         className={cn(
           'fixed inset-0 z-40 bg-[hsl(222_47%_2%/0.7)] md:hidden transition-opacity duration-300',
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
         )}
@@ -206,7 +207,7 @@ const Sidebar = () => {
         className={cn(
           'fixed left-0 top-16 z-50 h-[calc(100dvh-4rem)] w-[82vw] max-w-[18rem] md:w-64',
           'flex flex-col',
-          'bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))]',
+           'bg-sidebar-background/90 backdrop-blur-xl text-sidebar-foreground',
           'border-r border-[hsl(var(--sidebar-border))]',
           'transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
           'md:translate-x-0',
@@ -222,7 +223,7 @@ const Sidebar = () => {
 
         <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
-            <span className="font-semibold tracking-wider uppercase">{config.brand_name}</span>
+            <EconLogo className="h-6 w-28" />
             <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">v{APP_VERSION}</span>
           </div>
         </div>
