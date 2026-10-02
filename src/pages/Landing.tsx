@@ -34,7 +34,7 @@ const Landing = () => {
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85">
         <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <EconLogo className="h-11 w-40 sm:w-48" />
+          <EconLogo className="h-8 w-32 sm:w-36" />
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
@@ -52,7 +52,7 @@ const Landing = () => {
       <main className="mx-auto max-w-6xl space-y-16 px-4 py-12">
         {/* Hero */}
         <section className="space-y-6 text-center animate-fade-in">
-          <EconLogo className="mx-auto h-20 w-[min(80vw,440px)]" />
+          <EconLogo className="mx-auto h-12 w-52" />
           <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight text-foreground md:text-5xl">
             Daha iyi notlar, <span className="gradient-text">daha güçlü bir sen.</span>
           </h1>

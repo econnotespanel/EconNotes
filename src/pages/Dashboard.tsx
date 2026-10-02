@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload } from 'lucide-react';
+import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -165,18 +165,10 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <section className="dashboard-welcome relative overflow-hidden rounded-lg border border-border px-5 py-7 md:px-8 md:py-9">
-          <div className="relative z-10 max-w-xl">
-            <h1 className="text-2xl md:text-3xl font-bold">Daha iyi notlar,<br /><span className="text-primary">daha güçlü bir sen.</span></h1>
-            <p className="mt-2 text-sm text-muted-foreground">EconNotes ile derslerine odaklan, hedeflerine bir adım daha yaklaş.</p>
-            <Button size="sm" variant="outline" className="mt-5" onClick={() => navigate('/notes')}>Notları keşfet</Button>
-          </div>
-        </section>
-
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
           <div>
-            <h1 className="text-2xl font-bold">Ana Sayfa</h1>
-            <p className="text-muted-foreground text-sm">Hoş Geldiniz</p>
+            <h1 className="text-3xl font-bold">Merhaba, {profile?.full_name?.split(' ')[0] || 'öğrenci'}</h1>
+            <p className="text-muted-foreground mt-1">Bugün küçük bir adım, hedeflerine büyük bir katkı.</p>
           </div>
           {academicWeek.week && (
             <Card className="glass-card">
@@ -194,10 +186,24 @@ const Dashboard = () => {
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: 'Notları keşfet', detail: 'Dersine uygun kaynaklara göz at.', icon: BookOpen, path: '/notes', tone: 'primary' },
+            { label: 'Çalışma Stüdyosu', detail: 'Notlarından yeni çalışma araçları üret.', icon: Brain, path: '/study', tone: 'success' },
+            { label: 'KPSS Merkezi', detail: 'Sorularla sınava hazırlanmaya devam et.', icon: Target, path: '/kpss', tone: 'warning' },
+            { label: 'Mesajlar', detail: 'Arkadaşlarınla iletişimde kal.', icon: MessageSquare, path: '/messages', tone: 'secondary' },
+          ].map((item) => (
+            <Button key={item.path} variant="outline" onClick={() => navigate(item.path)} className="h-auto min-h-36 flex-col items-start justify-between gap-3 p-5 text-left whitespace-normal bg-card border-border shadow-[var(--panel-shadow)]">
+              <span className={`inline-flex rounded-lg bg-${item.tone}/10 p-2.5 text-${item.tone}`}><item.icon className="h-5 w-5" /></span>
+              <span className="w-full"><span className="flex items-center justify-between font-bold text-foreground">{item.label}<ArrowRight className="h-4 w-4 text-muted-foreground" /></span><span className="mt-1 block text-xs font-normal text-muted-foreground">{item.detail}</span></span>
+            </Button>
+          ))}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-3">
           {loading
             ? Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-stretch flex-1">
+                <div key={i} className="flex items-stretch min-w-0">
                   <Card className="glass-card flex-1">
                     <CardContent className="p-4 flex items-center gap-4">
                       <Skeleton className="h-12 w-12 rounded-xl" />
@@ -207,14 +213,13 @@ const Dashboard = () => {
                       </div>
                     </CardContent>
                   </Card>
-                  {i < 2 && <Separator orientation="vertical" className="mx-2 hidden sm:block h-auto bg-border" />}
                 </div>
               ))
             : statCards.map((stat, i) => (
-            <div key={stat.label} className="flex items-stretch flex-1">
+            <div key={stat.label} className="flex items-stretch min-w-0">
               <Card className="glass-card flex-1 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => i < 2 ? navigate('/notes') : navigate('/announcements')}>
                 <CardContent className="p-4 flex items-center gap-4">
-                  <div className={`p-3 rounded-xl bg-accent ${stat.color}`}>
+                  <div className={`p-3 rounded-lg bg-muted ${stat.color}`}>
                     <stat.icon className="h-6 w-6" />
                   </div>
                   <div>
@@ -223,9 +228,6 @@ const Dashboard = () => {
                   </div>
                 </CardContent>
               </Card>
-              {i < statCards.length - 1 && (
-                <Separator orientation="vertical" className="mx-2 hidden sm:block h-auto bg-border" />
-              )}
             </div>
           ))}
         </div>
