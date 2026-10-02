@@ -207,23 +207,20 @@ const Sidebar = () => {
         className={cn(
           'fixed left-0 top-16 z-50 h-[calc(100dvh-4rem)] w-[82vw] max-w-[18rem] md:w-64',
           'flex flex-col',
-           'bg-sidebar-background/90 backdrop-blur-xl text-sidebar-foreground',
+          'bg-sidebar-background text-sidebar-foreground',
           'border-r border-[hsl(var(--sidebar-border))]',
           'transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
           'md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-[105%]',
         )}
       >
-        {/* Neon top scanline */}
-        <div className="h-[1px] bg-gradient-to-r from-transparent via-[hsl(var(--sidebar-primary))] to-transparent shadow-[0_0_10px_hsl(var(--sidebar-primary)/0.6)]" />
-
         <div className="flex-1 overflow-y-auto overscroll-contain">
           <NavContent />
         </div>
 
         <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
-            <EconLogo className="h-6 w-28" />
+            <EconLogo className="h-5 w-24" />
             <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">v{APP_VERSION}</span>
           </div>
         </div>

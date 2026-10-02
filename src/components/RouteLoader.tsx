@@ -49,7 +49,7 @@ const RouteLoader = () => {
         }}
       />
       <div className="flex flex-col items-center gap-6">
-        <EconLogo className="h-20 w-72 animate-pulse" />
+        <EconLogo className="h-12 w-52 animate-pulse" />
 
         <div
           className="h-1 w-44 rounded-full bg-muted/60 overflow-hidden"
