@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -194,7 +193,7 @@ const Dashboard = () => {
             { label: 'Mesajlar', detail: 'Arkadaşlarınla iletişimde kal.', icon: MessageSquare, path: '/messages', tone: 'secondary' },
           ].map((item) => (
             <Button key={item.path} variant="outline" onClick={() => navigate(item.path)} className="h-auto min-h-36 flex-col items-start justify-between gap-3 p-5 text-left whitespace-normal bg-card border-border shadow-[var(--panel-shadow)]">
-              <span className={`inline-flex rounded-lg bg-${item.tone}/10 p-2.5 text-${item.tone}`}><item.icon className="h-5 w-5" /></span>
+              <span className={item.tone === 'primary' ? 'inline-flex rounded-lg bg-primary/10 p-2.5 text-primary' : item.tone === 'success' ? 'inline-flex rounded-lg bg-success/10 p-2.5 text-success' : item.tone === 'warning' ? 'inline-flex rounded-lg bg-warning/10 p-2.5 text-warning' : 'inline-flex rounded-lg bg-secondary/10 p-2.5 text-secondary'}><item.icon className="h-5 w-5" /></span>
               <span className="w-full"><span className="flex items-center justify-between font-bold text-foreground">{item.label}<ArrowRight className="h-4 w-4 text-muted-foreground" /></span><span className="mt-1 block text-xs font-normal text-muted-foreground">{item.detail}</span></span>
             </Button>
           ))}
