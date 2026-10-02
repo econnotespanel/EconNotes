@@ -421,6 +421,36 @@ export type Database = {
         }
         Relationships: []
       }
+      member_directory: {
+        Row: {
+          avatar_url: string | null
+          department: string
+          full_name: string
+          grade: number | null
+          hide_surname: boolean
+          university: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          department: string
+          full_name: string
+          grade?: number | null
+          hide_surname: boolean
+          university: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          department?: string
+          full_name?: string
+          grade?: number | null
+          hide_surname?: boolean
+          university?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       message_reports: {
         Row: {
           created_at: string
@@ -709,6 +739,51 @@ export type Database = {
           university?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      public_system_status: {
+        Row: {
+          academic_semester: string | null
+          academic_week: number | null
+          academic_week_label: string | null
+          closed_until: string | null
+          closure_image_url: string | null
+          closure_message: string | null
+          closure_mode: string
+          closure_title: string | null
+          id: string
+          is_system_open: boolean
+          note_upload_restricted: boolean
+          note_view_restricted: boolean
+        }
+        Insert: {
+          academic_semester?: string | null
+          academic_week?: number | null
+          academic_week_label?: string | null
+          closed_until?: string | null
+          closure_image_url?: string | null
+          closure_message?: string | null
+          closure_mode: string
+          closure_title?: string | null
+          id: string
+          is_system_open: boolean
+          note_upload_restricted: boolean
+          note_view_restricted: boolean
+        }
+        Update: {
+          academic_semester?: string | null
+          academic_week?: number | null
+          academic_week_label?: string | null
+          closed_until?: string | null
+          closure_image_url?: string | null
+          closure_message?: string | null
+          closure_mode?: string
+          closure_title?: string | null
+          id?: string
+          is_system_open?: boolean
+          note_upload_restricted?: boolean
+          note_view_restricted?: boolean
         }
         Relationships: []
       }
@@ -1037,22 +1112,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_public_system_status: {
-        Args: never
-        Returns: {
-          academic_semester: string
-          academic_week: number
-          academic_week_label: string
-          closed_until: string
-          closure_image_url: string
-          closure_message: string
-          closure_mode: string
-          closure_title: string
-          is_system_open: boolean
-          note_upload_restricted: boolean
-          note_view_restricted: boolean
-        }[]
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1070,18 +1129,6 @@ export type Database = {
         Returns: {
           graduated_total: number
           promoted_total: number
-        }[]
-      }
-      search_member_profiles: {
-        Args: never
-        Returns: {
-          avatar_url: string
-          department: string
-          full_name: string
-          grade: number
-          hide_surname: boolean
-          university: string
-          user_id: string
         }[]
       }
       verify_note_password: {
