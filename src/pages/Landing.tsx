@@ -52,7 +52,6 @@ const Landing = () => {
       <main className="mx-auto max-w-6xl space-y-16 px-4 py-12">
         {/* Hero */}
         <section className="space-y-6 text-center animate-fade-in">
-          <EconLogo className="mx-auto h-12 w-52" />
           <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight text-foreground md:text-5xl">
             Daha iyi notlar, <span className="gradient-text">daha güçlü bir sen.</span>
           </h1>
