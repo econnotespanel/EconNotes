@@ -6,7 +6,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
     <div className="min-h-screen bg-background overflow-x-hidden">
       <Header />
       <Sidebar />
-      <main className="relative z-10 md:ml-64 min-h-[calc(100vh-4rem)] p-4 md:p-8 pb-16 opacity-100 visible">
+      <main className="relative z-10 min-h-[calc(100vh-4rem)] min-w-0 px-3 py-5 pb-16 sm:px-4 md:ml-64 md:p-8 opacity-100 visible">
         <div className="mx-auto w-full max-w-7xl opacity-100 visible text-foreground">
           {children}
         </div>

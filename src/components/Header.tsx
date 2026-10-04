@@ -91,12 +91,12 @@ const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card relative">
-      <div className="flex h-16 items-center justify-between px-4 md:px-6">
-        <div className="flex items-center gap-3 cursor-pointer ml-12 md:ml-0 group" onClick={() => navigate('/')}>
-          <EconLogo className="h-8 w-32 sm:w-36" />
+      <div className="flex h-16 min-w-0 items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
+        <div className="ml-12 flex min-w-0 cursor-pointer items-center md:ml-0" onClick={() => navigate('/')}>
+          <EconLogo className="h-7 w-28 sm:h-8 sm:w-36" />
         </div>
 
-        <div className="flex items-center gap-2 md:gap-4">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 md:gap-3">
           {profile && (
             <div className="hidden md:flex flex-col items-end text-xs">
               <span className="font-semibold text-foreground">
@@ -112,7 +112,7 @@ const Header = () => {
             <button
               onClick={() => navigate('/')}
               title={`${points.points} puan • ${points.current_streak} günlük seri`}
-              className="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+              className="hidden lg:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
             >
               <Sparkles className="h-3.5 w-3.5" />
               {points.points}
@@ -125,7 +125,7 @@ const Header = () => {
           )}
 
 
-          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/messages')}>
+          <Button variant="ghost" size="icon" className="relative hidden sm:inline-flex" onClick={() => navigate('/messages')}>
             <MessageSquare className="h-5 w-5" />
             {unreadMessages > 0 && (
               <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-[9px] text-destructive-foreground inline-flex items-center justify-center">
@@ -147,13 +147,13 @@ const Header = () => {
             {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           </Button>
 
-          <Button variant="ghost" size="icon" onClick={() => navigate('/profile')}>
+          <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={() => navigate('/profile')}>
             <User className="h-5 w-5" />
           </Button>
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+              <Button variant="ghost" size="icon" className="hidden text-destructive hover:text-destructive md:inline-flex">
                 <LogOut className="h-5 w-5" />
               </Button>
             </AlertDialogTrigger>

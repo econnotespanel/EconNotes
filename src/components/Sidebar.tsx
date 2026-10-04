@@ -205,7 +205,7 @@ const Sidebar = () => {
         id="mobile-sidebar"
         role="navigation"
         className={cn(
-          'fixed left-0 top-16 z-50 h-[calc(100dvh-4rem)] w-[82vw] max-w-[18rem] md:w-64',
+          'fixed left-0 top-16 z-50 h-[calc(100dvh-4rem)] w-full max-w-none sm:w-[22rem] md:w-64',
           'flex flex-col',
           'bg-sidebar-background text-sidebar-foreground',
           'border-r border-[hsl(var(--sidebar-border))]',
@@ -221,7 +221,7 @@ const Sidebar = () => {
         <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
             <EconLogo className="h-5 w-24" />
-            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">v{APP_VERSION}</span>
+            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">Versiyon {APP_VERSION}</span>
           </div>
         </div>
       </aside>

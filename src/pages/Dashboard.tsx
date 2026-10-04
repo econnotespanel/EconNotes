@@ -121,7 +121,7 @@ const Dashboard = () => {
         {/* Banners */}
         {banners.filter(b => !dismissedBanners.has(b.id)).map(banner => (
           <Card key={banner.id} className="border-primary/30 bg-primary/5">
-            <CardContent className="p-4 flex items-center justify-between">
+            <CardContent className="flex items-start justify-between gap-2 p-4 sm:items-center">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <Megaphone className="h-5 w-5 text-primary shrink-0" />
               <div className="min-w-0 flex-1">
@@ -164,9 +164,9 @@ const Dashboard = () => {
           </Card>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+        <div className="flex flex-col items-start justify-between gap-4 pt-2 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-3xl font-bold">Merhaba, {profile?.full_name?.split(' ')[0] || 'öğrenci'}</h1>
+            <h1 className="text-2xl font-bold sm:text-3xl">Merhaba, {profile?.full_name?.split(' ')[0] || 'öğrenci'}</h1>
             <p className="text-muted-foreground mt-1">Bugün küçük bir adım, hedeflerine büyük bir katkı.</p>
           </div>
           {academicWeek.week && (
@@ -297,15 +297,15 @@ const Dashboard = () => {
               ) : (
                 <>
                   {displayedNotes.map((note, idx) => (
-                    <div key={note.id} className="flex items-center justify-between p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer" onClick={() => navigate('/notes')}>
-                      <div className="flex items-center gap-2">
+                    <div key={note.id} className="flex min-w-0 flex-col gap-1 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between" onClick={() => navigate('/notes')}>
+                      <div className="flex min-w-0 items-center gap-2">
                         <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
-                        <div>
-                          <p className="text-sm font-medium">{note.title}</p>
-                          <p className="text-xs text-muted-foreground">{note.uploader_name} • {note.course} • {note.semester}</p>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{note.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">{note.uploader_name} • {note.course} • {note.semester}</p>
                         </div>
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDateTime(note.created_at)}</span>
+                      <span className="pl-7 text-[11px] text-muted-foreground sm:pl-0 sm:text-xs">{formatDateTime(note.created_at)}</span>
                     </div>
                   ))}
                   {recentNotes.length > 5 && (
