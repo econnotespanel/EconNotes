@@ -35,6 +35,9 @@ const AuthContext = createContext<AuthContextType>({
   refreshProfile: async () => {},
 });
 
+const INACTIVE_DAYS = 90;
+const RETURN_TOUR_VERSION = 'v2.7.0';
+
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -44,13 +47,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, detectInactivity = false) => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
-    if (data) setProfile(data as Profile);
+    if (data) {
+      const previousLogin = data.last_login ? new Date(data.last_login).getTime() : null;
+      const inactiveSince = Date.now() - INACTIVE_DAYS * 24 * 60 * 60 * 1000;
+      const tourKey = `econnotes_return_tour_${RETURN_TOUR_VERSION}_${userId}`;
+      if (detectInactivity && previousLogin && previousLogin < inactiveSince && !localStorage.getItem(tourKey)) {
+        sessionStorage.setItem('econnotes_return_tour_pending', '1');
+      }
+      setProfile({ ...data, last_login: new Date().toISOString() } as Profile);
+    }
 
     const { data: roleData } = await supabase
       .from('user_roles')
@@ -78,8 +89,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          setTimeout(() => fetchProfile(session.user.id), 0);
-          supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
+          setTimeout(async () => {
+            await fetchProfile(session.user.id, _event === 'SIGNED_IN');
+            await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id);
+          }, 0);
           if (_event === 'SIGNED_IN') {
             import('@/lib/activityLogger').then(({ logActivity }) => {
               logActivity(session.user.id, session.user.user_metadata?.full_name || '', session.user.email || '', 'user_login', 'Panele giriş yaptı');
@@ -110,8 +123,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
-        supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
+        fetchProfile(session.user.id).then(() => {
+          supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
+        });
       }
       setLoading(false);
     });

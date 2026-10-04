@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
 import { useTheme } from '@/contexts/ThemeContext';
-import { APP_VERSION } from '@/lib/version';
+import { APP_VERSION_LABEL } from '@/lib/version';
 
 const modules = [
   { icon: FileText, title: 'Ders Notu Paylaşımı', desc: 'PDF, PNG, JPG ve PPTX notları sınıf, bölüm ve ders bazında kategorilendirilmiş biçimde paylaşın.' },
@@ -33,26 +33,26 @@ const Landing = () => {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <EconLogo className="h-8 w-32 sm:w-36" />
-          <div className="flex items-center gap-2">
+        <nav className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:px-4">
+          <EconLogo className="h-7 w-28 sm:h-8 sm:w-36" />
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               onClick={toggleTheme}
-              className="rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="h-9 w-9 rounded-md border border-border text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:h-auto sm:w-auto sm:rounded-full sm:px-3 sm:py-1.5 sm:text-xs"
               title={theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}
             >
-              {theme === 'dark' ? '☀️ Açık Mod' : '🌙 Koyu Mod'}
+              <span aria-hidden>{theme === 'dark' ? '☀️' : '🌙'}</span><span className="sr-only sm:not-sr-only sm:ml-1">{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
             </button>
             <Button asChild variant="outline" size="sm"><Link to="/login">Giriş Yap</Link></Button>
-            <Button asChild size="sm"><Link to="/register">Kayıt Ol</Link></Button>
+            <Button asChild size="sm" className="hidden min-[390px]:inline-flex"><Link to="/register">Kayıt Ol</Link></Button>
           </div>
         </nav>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-16 px-4 py-12">
+      <main className="mx-auto max-w-6xl space-y-12 px-4 py-10 sm:space-y-16 sm:py-12">
         {/* Hero */}
         <section className="space-y-6 text-center animate-fade-in">
-          <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight text-foreground md:text-5xl">
+          <h1 className="mx-auto max-w-3xl font-display text-3xl font-bold leading-tight text-foreground sm:text-4xl md:text-5xl">
             Daha iyi notlar, <span className="gradient-text">daha güçlü bir sen.</span>
           </h1>
           <p className="mx-auto max-w-2xl text-base text-muted-foreground md:text-lg">
@@ -150,7 +150,7 @@ const Landing = () => {
           {' · '}
           <Link to="/about" className="text-primary hover:underline">Hakkında ve KVKK</Link>
         </p>
-        <p className="mt-1">© 2026 EconNotes — Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir. {APP_VERSION}</p>
+        <p className="mt-1">© 2026 EconNotes — Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir. {APP_VERSION_LABEL}</p>
       </footer>
     </div>
   );

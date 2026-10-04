@@ -1,5 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import Dashboard from './Dashboard';
@@ -29,6 +29,11 @@ const Index = () => {
   }
 
   if (!user) return <Landing />;
+
+  if (sessionStorage.getItem('econnotes_return_tour_pending') === '1') {
+    sessionStorage.removeItem('econnotes_return_tour_pending');
+    return <Navigate to="/welcome?mode=return" replace />;
+  }
 
   return <Dashboard />;
 };
