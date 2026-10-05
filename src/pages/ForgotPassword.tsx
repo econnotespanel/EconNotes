@@ -5,13 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
 import { Mail, CheckCircle, KeyRound, BookOpen, Users, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
 
-const APP_VERSION = 'v2.5.0';
+
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
@@ -55,7 +56,7 @@ const ForgotPassword = () => {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: theme === 'dark' ? 'linear-gradient(135deg, hsl(217, 91%, 12%), hsl(221, 83%, 18%), hsl(213, 80%, 22%))' : 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-8">
-            <EconLogo onDark className="h-16 w-72" />
+            <EconLogo allWhite className="h-16 w-72" />
           </div>
           <p className="text-white/80 text-lg mb-12">EconNotes ile notların hep yanında!</p>
           <div className="space-y-4">

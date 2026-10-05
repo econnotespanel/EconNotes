@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { APP_VERSION, APP_VERSION_LABEL } from '@/lib/version';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { Sparkles, BookOpen, Users, Rocket, MessageSquare, Bot, PartyPopper, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Sparkles, BookOpen, Users, Rocket, MessageSquare, Bot, PartyPopper, ChevronRight, ChevronLeft, GraduationCap, Target, Trophy, Smartphone } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
 
 type Slide = {
@@ -19,13 +20,15 @@ const Welcome = () => {
   const navigate = useNavigate();
   const { profile, user, loading } = useAuth();
   const [step, setStep] = useState(0);
+  const [params] = useSearchParams();
+  const isReturn = params.get('mode') === 'return';
 
   const firstName = useMemo(() => {
     const name = profile?.full_name || (user?.user_metadata as any)?.full_name || '';
     return name.trim().split(' ')[0] || 'Öğrenci';
   }, [profile, user]);
 
-  const slides: Slide[] = [
+  const newSlides: Slide[] = [
     {
       emoji: '👋',
       eyebrow: 'Aramıza hoş geldin',
@@ -73,6 +76,40 @@ const Welcome = () => {
     },
   ];
 
+  const returnSlides: Slide[] = [
+    {
+      emoji: '👋', eyebrow: 'Tekrar hoş geldin', color: 'sticker-pink', icon: Sparkles,
+      title: `${firstName}, seni özledik.`,
+      desc: `Bir süredir görüşemedik. Bu sürede EconNotes epey değişti. ${APP_VERSION_LABEL} ile gelen yenilikleri kısaca gösterelim.`,
+      bullets: ['Yenilenen tasarım', 'Yeni çalışma araçları', 'Daha güçlü güvenlik'],
+    },
+    {
+      emoji: '🎓', eyebrow: 'Yeni', color: 'sticker-cobalt', icon: GraduationCap,
+      title: 'Çalışma Stüdyosu yenilendi.',
+      desc: 'Notlarından tek dokunuşla flashcard, test, özet ve infografik üret. İlerlemeni ve başarı oranını tek ekranda takip et.',
+      bullets: ['Yapay zekâ ile materyal', 'İlerleme istatistikleri', 'Akıl Hocası desteği'],
+    },
+    {
+      emoji: '🎯', eyebrow: 'Yeni', color: 'sticker-lime', icon: Target,
+      title: 'KPSS Merkezi açıldı.',
+      desc: 'Konu ve zorluk seçerek yapay zekâ destekli testler çöz, haftalık hedefler belirle ve tekrar planınla eksiklerini kapat.',
+      bullets: ['Kişisel testler', 'PDF performans raporu', 'Akıllı tekrar planı'],
+    },
+    {
+      emoji: '🏆', eyebrow: 'Yeni', color: 'sticker-tangerine', icon: Trophy,
+      title: 'Puan, seri ve rozetler.',
+      desc: 'Her gün giriş yaparak puan topla, serini koru, haftalık mini görevleri tamamla ve liderlik listesinde yüksel.',
+      bullets: ['Günlük giriş puanı', 'Haftalık görevler', 'Liderlik listesi'],
+    },
+    {
+      emoji: '📱', eyebrow: 'Hazırsın', color: 'sticker-cyan', icon: Smartphone,
+      title: 'Telefonda da rahat.',
+      desc: 'Mobil görünüm baştan düzenlendi. EconNotes’u ana ekranına ekleyerek uygulama gibi kullanabilirsin.',
+      bullets: ['Yeni mobil menü', 'Ana ekrana ekle', 'Hızlı erişim kartları'],
+    },
+  ];
+  const slides = isReturn ? returnSlides : newSlides;
+
   const total = slides.length;
   const current = slides[step];
   const Icon = current.icon;
@@ -84,7 +121,10 @@ const Welcome = () => {
   };
   const prev = () => step > 0 && setStep(step - 1);
   const finish = () => {
-    try { localStorage.setItem('econnotes_welcome_seen', '1'); } catch {}
+    try {
+      localStorage.setItem('econnotes_welcome_seen', '1');
+      if (user) localStorage.setItem(`econnotes_return_tour_${APP_VERSION}_${user.id}`, '1');
+    } catch {}
     navigate('/');
   };
 

@@ -207,7 +207,7 @@ const Sidebar = () => {
         className={cn(
           'fixed left-0 top-16 z-50 h-[calc(100dvh-4rem)] w-full max-w-none sm:w-[22rem] md:w-64',
           'flex flex-col',
-          'bg-sidebar-background text-sidebar-foreground',
+          'bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] shadow-xl',
           'border-r border-[hsl(var(--sidebar-border))]',
           'transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
           'md:translate-x-0',

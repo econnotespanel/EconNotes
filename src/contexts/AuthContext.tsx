@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
+import { APP_VERSION } from '@/lib/version';
 
 interface Profile {
   id: string;
@@ -36,7 +37,7 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 const INACTIVE_DAYS = 90;
-const RETURN_TOUR_VERSION = 'v2.7.0';
+const RETURN_TOUR_VERSION = APP_VERSION;
 
 export const useAuth = () => useContext(AuthContext);
 
