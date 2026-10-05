@@ -100,7 +100,7 @@ const Notes = () => {
 
   const [viewRestricted, setViewRestricted] = useState(false);
   const fetchSettings = async () => {
-    const { data } = await supabase.from('system_settings').select('*').limit(1).maybeSingle();
+    const { data } = await supabase.from('public_system_status').select('*').limit(1).maybeSingle();
     if (data) {
       setUploadRestricted((data as any).note_upload_restricted ?? true);
       setViewRestricted((data as any).note_view_restricted ?? false);
