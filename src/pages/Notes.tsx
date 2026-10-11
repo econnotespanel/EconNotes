@@ -670,11 +670,13 @@ const Notes = () => {
                 const thumbnail = getThumbnail(note);
                 const locked = isNoteLocked(note);
                 return (
-                  <Card key={note.id} className="glass-card hover:shadow-xl transition-all duration-300 overflow-hidden">
+                  <Card key={note.id} className="group relative overflow-hidden rounded-2xl border-border/70 bg-card/95 shadow-[0_8px_24px_hsl(var(--primary)/0.04)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_18px_40px_hsl(var(--primary)/0.12)]">
                     {locked ? (
                       <CardContent className="p-6 text-center space-y-3">
-                        <Lock className="h-10 w-10 text-muted-foreground mx-auto" />
-                        <p className="font-medium">{note.title}</p>
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/15 to-secondary/15 text-primary shadow-inner">
+                          <Lock className="h-6 w-6" />
+                        </div>
+                        <p className="font-semibold">{note.title}</p>
                         <p className="text-xs text-muted-foreground">Bu not şifreli. Görüntülemek için şifre girin.</p>
                         <div className="flex gap-2">
                           <Input
@@ -690,82 +692,92 @@ const Notes = () => {
                     ) : (
                       <>
                         {thumbnail ? (
-                          <div className="relative h-40 w-full overflow-hidden bg-muted cursor-pointer" onClick={() => handlePreviewClick(note)}>
-                            <SignedImage source={thumbnail} alt={note.title} className="w-full h-full object-cover" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                            <div className="absolute bottom-2 left-2 right-2">
-                              <p className="text-white text-sm font-semibold truncate">{note.title}</p>
+                          <div className="relative h-44 w-full cursor-pointer overflow-hidden bg-muted" onClick={() => handlePreviewClick(note)}>
+                            <SignedImage source={thumbnail} alt={note.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/10 to-transparent" />
+                            <div className="absolute left-3 top-3">
+                              <span className="rounded-full border border-white/20 bg-slate-950/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur-md">
+                                {note.file_type?.includes('pdf') ? 'PDF notu' : 'Görsel not'}
+                              </span>
+                            </div>
+                            <div className="absolute bottom-0 left-0 right-0 p-4">
+                              <p className="truncate text-base font-semibold text-white drop-shadow-sm">{note.title}</p>
+                              {note.file_name && <p className="mt-1 truncate text-xs text-white/70">{note.file_name}</p>}
                             </div>
                           </div>
                         ) : note.file_url ? (
-                          <div className="relative h-40 w-full overflow-hidden bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center cursor-pointer" onClick={() => handlePreviewClick(note)}>
-                            <div className="text-center">
-                              <span className="text-4xl">{getFileIcon(note.file_type)}</span>
-                              <p className="text-xs text-muted-foreground mt-2 px-4 truncate max-w-[200px]">{note.file_name}</p>
+                          <div className="relative flex h-44 w-full cursor-pointer items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/20" onClick={() => handlePreviewClick(note)}>
+                            <div className="absolute -left-10 -top-16 h-40 w-40 rounded-full bg-primary/20 blur-3xl transition-all duration-500 group-hover:bg-primary/30" />
+                            <div className="absolute -bottom-20 -right-8 h-44 w-44 rounded-full bg-secondary/20 blur-3xl transition-all duration-500 group-hover:bg-secondary/30" />
+                            <div className="relative flex max-w-[85%] flex-col items-center text-center">
+                              <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/60 bg-background/75 text-3xl shadow-lg shadow-primary/10 backdrop-blur-sm transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-105 dark:border-white/10">{getFileIcon(note.file_type)}</span>
+                              <p className="mt-3 max-w-full truncate text-xs font-medium text-foreground/75">{note.file_name}</p>
                             </div>
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-                            <div className="absolute bottom-2 left-2 right-2">
-                              <p className="text-white text-sm font-semibold truncate">{note.title}</p>
+                            <div className="absolute bottom-0 left-0 right-0 border-t border-white/40 bg-background/75 px-4 py-2.5 backdrop-blur-md dark:border-white/10">
+                              <p className="truncate text-sm font-semibold text-foreground">{note.title}</p>
                             </div>
                           </div>
                         ) : (
-                          <CardHeader className="pb-2">
+                          <CardHeader className="border-b border-border/50 bg-gradient-to-br from-primary/5 via-transparent to-secondary/10 pb-3">
                             <CardTitle className="text-base flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-primary shrink-0" />
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><FileText className="h-4 w-4" /></span>
                               <span className="truncate">{note.title}</span>
                             </CardTitle>
                           </CardHeader>
                         )}
-                        <CardContent className="p-4 space-y-3">
+                        <CardContent className="space-y-4 p-4 sm:p-5">
                           {note.description && (
-                            <p className="text-sm text-muted-foreground line-clamp-2">{note.description}</p>
+                            <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{note.description}</p>
                           )}
                           <div className="flex flex-wrap gap-1.5">
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{note.grade}. Sınıf</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground">{note.course}</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{note.semester}</span>
-                            {note.has_password && <span className="text-xs px-2 py-0.5 rounded-full bg-warning/10 text-warning flex items-center gap-0.5"><Lock className="h-2.5 w-2.5" /> Şifreli</span>}
+                            <span className="rounded-full border border-primary/15 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">{note.grade}. Sınıf</span>
+                            <span className="rounded-full bg-gradient-to-r from-primary to-secondary px-2.5 py-1 text-xs font-medium text-white shadow-sm shadow-primary/20">{note.course}</span>
+                            <span className="rounded-full border border-border/70 bg-muted/70 px-2.5 py-1 text-xs font-medium text-muted-foreground">{note.semester}</span>
+                            {note.has_password && <span className="flex items-center gap-1 rounded-full border border-warning/20 bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning"><Lock className="h-3 w-3" /> Şifreli</span>}
                           </div>
-                          <div className="rounded-lg border border-border/60 bg-muted/40 p-2.5 space-y-1 text-xs">
+                          <div className="space-y-2.5 rounded-xl border border-border/60 bg-gradient-to-br from-muted/50 to-muted/20 p-3 text-xs">
                             {note.university && (
                               <div className="flex items-start gap-1.5">
-                                <span className="font-medium text-foreground/80 shrink-0">🏛️ Üniversite:</span>
-                                <span className="text-muted-foreground">{note.university}</span>
+                                <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/75" />
+                                <span className="font-medium text-foreground/80">Üniversite</span>
+                                <span className="min-w-0 truncate text-muted-foreground">{note.university}</span>
                               </div>
                             )}
                             {note.department && (
                               <div className="flex items-start gap-1.5">
-                                <span className="font-medium text-foreground/80 shrink-0">🎓 Bölüm{splitDepartments(note.department).length > 1 ? 'ler' : ''}:</span>
+                                <GraduationCap className="mt-0.5 h-3.5 w-3.5 shrink-0 text-secondary" />
+                                <span className="shrink-0 font-medium text-foreground/80">Bölüm{splitDepartments(note.department).length > 1 ? 'ler' : ''}</span>
                                 <div className="flex flex-wrap gap-1">
                                   {splitDepartments(note.department).map((department) => (
-                                    <span key={department} className="rounded-md bg-background/80 px-1.5 py-0.5 text-muted-foreground">{department}</span>
+                                    <span key={department} className="rounded-md border border-border/50 bg-background/70 px-1.5 py-0.5 text-muted-foreground">{department}</span>
                                   ))}
                                 </div>
                               </div>
                             )}
                             <div className="flex items-start gap-1.5">
-                              <span className="font-medium text-foreground/80 shrink-0">👤 Yükleyen:</span>
-                              <span className="text-muted-foreground">{note.uploader_name} • {formatDateTime(note.created_at)}</span>
+                              <span className="shrink-0 text-primary/75">♙</span>
+                              <span className="font-medium text-foreground/80">Yükleyen</span>
+                              <span className="min-w-0 truncate text-muted-foreground">{note.uploader_name} · {formatDateTime(note.created_at)}</span>
                             </div>
                             {note.edited_at && (
-                              <div className="flex items-center gap-1.5 text-muted-foreground">
-                                <Pencil className="h-2.5 w-2.5" /> {formatDateTime(note.edited_at)}
+                              <div className="flex items-center gap-1.5 border-t border-border/50 pt-2 text-muted-foreground">
+                                <Pencil className="h-3 w-3 text-primary/75" /> <span>Düzenlendi</span><span>· {formatDateTime(note.edited_at)}</span>
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {viewCounts[note.id] || 0}</span>
-                            <span className="flex items-center gap-1"><Download className="h-3 w-3" /> {downloadCounts[note.id] || 0}</span>
-                            <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" /> {(comments[note.id] || []).length}</span>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-1.5"><Eye className="h-3.5 w-3.5 text-primary/80" /> {viewCounts[note.id] || 0}</span>
+                            <span className="flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-1.5"><Download className="h-3.5 w-3.5 text-secondary" /> {downloadCounts[note.id] || 0}</span>
+                            <span className="flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-1.5"><MessageSquare className="h-3.5 w-3.5 text-primary/80" /> {(comments[note.id] || []).length}</span>
                           </div>
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-2 border-t border-border/50 pt-3">
                             {note.file_url && (
                               <>
-                                <Button size="sm" variant="outline" onClick={() => handleDownloadClick(note)}>
+                                <Button size="sm" onClick={() => handleDownloadClick(note)} className="bg-gradient-to-r from-primary to-secondary text-white shadow-sm shadow-primary/20 transition-all hover:brightness-105 hover:shadow-md">
                                   <Download className="h-3 w-3 mr-1" /> İndir
                                 </Button>
                                 {isPreviewable(note.file_type, note.file_url) && (
-                                  <Button size="sm" variant="outline" onClick={() => handlePreviewClick(note)}>
+                                  <Button size="sm" variant="outline" onClick={() => handlePreviewClick(note)} className="border-border/70 bg-background/70 hover:border-primary/30 hover:bg-primary/5">
                                     <Eye className="h-3 w-3 mr-1" /> Önizle
                                   </Button>
                                 )}
@@ -773,10 +785,10 @@ const Notes = () => {
                             )}
                             {(note.user_id === user?.id || isAdmin) && (
                               <>
-                                <Button size="sm" variant="outline" onClick={() => handleEdit(note)}><Edit className="h-3 w-3" /></Button>
+                                <Button size="icon" variant="outline" onClick={() => handleEdit(note)} aria-label="Notu düzenle" className="h-9 w-9 border-border/70 bg-background/70 hover:border-primary/30 hover:bg-primary/5"><Edit className="h-3.5 w-3.5" /></Button>
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                                    <Button size="icon" variant="outline" aria-label="Notu sil" className="h-9 w-9 border-border/70 bg-background/70 text-destructive hover:border-destructive/30 hover:bg-destructive/5"><Trash2 className="h-3.5 w-3.5" /></Button>
                                   </AlertDialogTrigger>
                                   <AlertDialogContent>
                                     <AlertDialogHeader>
@@ -793,7 +805,7 @@ const Notes = () => {
                             )}
                             <Popover>
                               <PopoverTrigger asChild>
-                                <Button size="sm" variant="ghost"><Smile className="h-3 w-3" /></Button>
+                                <Button size="icon" variant="ghost" aria-label="Tepki ekle" className="h-9 w-9 text-muted-foreground hover:bg-primary/5 hover:text-primary"><Smile className="h-4 w-4" /></Button>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-2" side="top">
                                 <div className="grid grid-cols-5 gap-1">
