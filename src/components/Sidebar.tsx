@@ -11,7 +11,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target, Sparkles, LogOut, type LucideIcon } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target, Sparkles, LogOut, LifeBuoy, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -102,6 +102,7 @@ const Sidebar = () => {
   const account: LinkItem[] = [
     { label: 'Profilim',           icon: User,          path: '/profile' },
     { label: 'Puan Geçmişim',      icon: Sparkles,      path: '/points',     isNew: true },
+    { label: 'Destek Merkezi',     icon: LifeBuoy,      path: '/support' },
     { label: 'Hakkında',           icon: Info,          path: '/about' },
     ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];

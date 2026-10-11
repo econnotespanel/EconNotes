@@ -31,6 +31,7 @@ const Study = lazy(() => import("./pages/Study"));
 const Kpss = lazy(() => import("./pages/Kpss"));
 const Welcome = lazy(() => import("./pages/Welcome"));
 const Points = lazy(() => import("./pages/Points"));
+const Support = lazy(() => import("./pages/Support"));
 
 const queryClient = new QueryClient();
 
@@ -80,6 +81,7 @@ const App = () => {
                   <Route path="/welcome" element={<Welcome />} />
                   <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
                   <Route path="/live-class" element={<PageGuard path="/live-class"><LiveClass /></PageGuard>} />
+                  <Route path="/support" element={<Support />} />
                   <Route path="/install" element={<Install />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
