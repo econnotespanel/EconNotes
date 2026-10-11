@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, X } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -25,6 +25,8 @@ import { NOTE_SELECT } from '@/lib/noteColumns';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
+const splitDepartments = (value: string | null | undefined) =>
+  (value || '').split('|').map((department) => department.trim()).filter(Boolean);
 
 const Notes = () => {
   const { user, profile, isAdmin } = useAuth();
@@ -40,6 +42,7 @@ const Notes = () => {
   const [previewType, setPreviewType] = useState<string | null>(null);
   const [uploadRestricted, setUploadRestricted] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [departmentInputs, setDepartmentInputs] = useState<string[]>(['']);
   const [filterUniversity, setFilterUniversity] = useState<string>('all');
   const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
@@ -50,7 +53,7 @@ const Notes = () => {
   const [passwordInput, setPasswordInput] = useState<Record<string, string>>({});
   const [unlockedNotes, setUnlockedNotes] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({
-    title: '', description: '', grade: '1', department: '', course: '',
+    title: '', description: '', grade: '1', course: '',
     semester: 'Güz Dönemi', file: null as File | null, note_password: '',
     university: '',
   });
@@ -170,7 +173,8 @@ const Notes = () => {
   };
 
   const handleSubmit = async () => {
-    if (!form.title || !form.department || !form.course) {
+    const departments = departmentInputs.map((department) => department.trim()).filter(Boolean);
+    if (!form.title || departments.length === 0 || !form.course || !(form.university || profile?.university)) {
       toast.error('Lütfen tüm zorunlu alanları doldurun.');
       return;
     }
@@ -199,7 +203,7 @@ const Notes = () => {
 
     const noteData: any = {
       title: form.title, description: form.description, grade: parseInt(form.grade),
-      department: form.department, course: form.course, semester: form.semester,
+      department: departments.join(' | '), course: form.course, semester: form.semester,
       file_url: fileUrl, file_name: fileName, file_type: fileType,
       user_id: user!.id, uploader_name: profile?.full_name || '',
       note_password: form.note_password || null,
@@ -231,7 +235,8 @@ const Notes = () => {
 
     setDialogOpen(false);
     setEditingNote(null);
-    setForm({ title: '', description: '', grade: '1', department: '', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
+    setForm({ title: '', description: '', grade: '1', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
+    setDepartmentInputs(['']);
     setConfirmUpload(false);
     setAcceptOwnership(false);
     fetchNotes();
@@ -250,9 +255,10 @@ const Notes = () => {
     setEditingNote(note);
     setForm({
       title: note.title, description: note.description || '', grade: String(note.grade),
-      department: note.department, course: note.course, semester: note.semester, file: null,
+      course: note.course, semester: note.semester, file: null,
       note_password: '', university: note.university || '',
     });
+    setDepartmentInputs(splitDepartments(note.department).length ? splitDepartments(note.department) : ['']);
     setAcceptOwnership(true);
     setDialogOpen(true);
   };
@@ -306,11 +312,11 @@ const Notes = () => {
     }
   };
 
-  const universityOptions = Array.from(new Set(notes.map(n => (n.university || '').trim()).filter(Boolean))).sort();
+  const universityOptions = Array.from(new Set(notes.map(n => (n.university || '').trim() || 'Üniversite bilgisi yok'))).sort();
   const departmentOptions = Array.from(new Set(
     notes
-      .filter(n => filterUniversity === 'all' || (n.university || '').trim() === filterUniversity)
-      .map(n => (n.department || '').trim())
+      .filter(n => filterUniversity === 'all' || ((n.university || '').trim() || 'Üniversite bilgisi yok') === filterUniversity)
+      .flatMap(n => splitDepartments(n.department))
       .filter(Boolean)
   )).sort();
 
@@ -322,8 +328,8 @@ const Notes = () => {
       (n.department || '').toLowerCase().includes(term) ||
       (n.university || '').toLowerCase().includes(term) ||
       (n.uploader_name || '').toLowerCase().includes(term);
-    const matchesUni = filterUniversity === 'all' || (n.university || '').trim() === filterUniversity;
-    const matchesDept = filterDepartment === 'all' || (n.department || '').trim() === filterDepartment;
+    const matchesUni = filterUniversity === 'all' || ((n.university || '').trim() || 'Üniversite bilgisi yok') === filterUniversity;
+    const matchesDept = filterDepartment === 'all' || splitDepartments(n.department).includes(filterDepartment);
     return matchesSearch && matchesUni && matchesDept;
   });
 
@@ -334,7 +340,14 @@ const Notes = () => {
     return acc;
   }, {});
 
-  const displayNotes = selectedCourse ? (courseGroups[selectedCourse] || []) : filteredNotes;
+  const showingNotes = Boolean(selectedCourse || searchTerm || filterDepartment !== 'all');
+  const displayNotes = selectedCourse ? (courseGroups[selectedCourse] || []) : (showingNotes ? filteredNotes : []);
+  const universityGroups = filteredNotes.reduce((acc: Record<string, any[]>, note) => {
+    const key = (note.university || '').trim() || 'Üniversite bilgisi yok';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(note);
+    return acc;
+  }, {});
 
   const isPreviewable = (fileType: string | null, fileUrl: string | null) => {
     if (!fileType || !fileUrl) return false;
@@ -421,6 +434,8 @@ const Notes = () => {
             <DialogTrigger asChild>
               <Button className="gradient-primary text-primary-foreground" onClick={() => {
                 if (!editingNote) {
+                  setForm({ title: '', description: '', grade: '1', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
+                  setDepartmentInputs(['']);
                   const key = `econotes_upload_rules_${user?.id}`;
                   if (!localStorage.getItem(key)) {
                     setShowUploadRules(true);
@@ -465,11 +480,38 @@ const Notes = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Üniversite *</Label>
-                    <Input value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} placeholder="Üniversite adını yazın" />
+                    <Input value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} placeholder={profile?.university || 'Üniversite adını yazın'} />
+                    {!form.university && profile?.university && (
+                      <p className="text-xs text-muted-foreground">Profilinizdeki üniversite kullanılacak: {profile.university}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Bölüm *</Label>
-                    <Input value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} placeholder="Bölüm adını yazın" />
+                    <div className="flex items-center justify-between gap-3">
+                      <Label>Bölüm{departmentInputs.length > 1 ? 'ler' : ''} *</Label>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setDepartmentInputs((current) => [...current, ''])}>
+                        <Plus className="mr-1 h-3.5 w-3.5" /> Bölüm ekle
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {departmentInputs.map((department, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            value={department}
+                            onChange={(e) => setDepartmentInputs((current) => current.map((value, i) => i === index ? e.target.value : value))}
+                            placeholder={index === 0 ? 'Bölüm adını yazın' : 'Diğer bölüm'}
+                            aria-label={`${index + 1}. bölüm`}
+                          />
+                          {departmentInputs.length > 1 && (
+                            <Button type="button" size="icon" variant="ghost" aria-label="Bölümü kaldır" onClick={() => setDepartmentInputs((current) => current.filter((_, i) => i !== index))}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {departmentInputs.length > 1 && (
+                      <p className="text-xs text-muted-foreground">Bu not, eklediğiniz tüm bölümler için listelenecek.</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Ders *</Label>
@@ -508,59 +550,99 @@ const Notes = () => {
           </Dialog>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Not, ders, üniversite, bölüm veya kişi ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
-          </div>
-          <Button variant="outline" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
-            {sortOrder === 'desc' ? <SortDesc className="h-4 w-4 mr-2" /> : <SortAsc className="h-4 w-4 mr-2" />}
-            {sortOrder === 'desc' ? 'Yeniden Eskiye' : 'Eskiden Yeniye'}
-          </Button>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Select value={filterUniversity} onValueChange={(v) => { setFilterUniversity(v); setFilterDepartment('all'); setSelectedCourse(null); }}>
-            <SelectTrigger className="sm:w-64"><SelectValue placeholder="🏛️ Üniversite seç" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">🏛️ Tüm Üniversiteler</SelectItem>
-              {universityOptions.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterDepartment} onValueChange={(v) => { setFilterDepartment(v); setSelectedCourse(null); }}>
-            <SelectTrigger className="sm:w-64"><SelectValue placeholder="🎓 Bölüm seç" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">🎓 Tüm Bölümler</SelectItem>
-              {departmentOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {(filterUniversity !== 'all' || filterDepartment !== 'all') && (
-            <Button variant="ghost" onClick={() => { setFilterUniversity('all'); setFilterDepartment('all'); }}>
-              Filtreleri Temizle
+        <section className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/75 p-4 shadow-sm backdrop-blur sm:p-5">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-accent to-primary opacity-80" />
+          <div className="flex flex-col gap-3 lg:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Not, ders, üniversite, bölüm veya kişi ara..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setSelectedCourse(null); }} className="h-11 rounded-xl border-border/70 bg-background/80 pl-10" />
+            </div>
+            <Button variant="outline" className="h-11 rounded-xl" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
+              {sortOrder === 'desc' ? <SortDesc className="mr-2 h-4 w-4" /> : <SortAsc className="mr-2 h-4 w-4" />}
+              {sortOrder === 'desc' ? 'Yeniden Eskiye' : 'Eskiden Yeniye'}
             </Button>
-          )}
-        </div>
+          </div>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Select value={filterUniversity} onValueChange={(v) => { setFilterUniversity(v); setFilterDepartment('all'); setSelectedCourse(null); }}>
+              <SelectTrigger className="h-10 rounded-xl bg-background/80 sm:w-72"><Building2 className="mr-2 h-4 w-4 text-primary" /><SelectValue placeholder="Üniversite seç" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Üniversiteler</SelectItem>
+                {universityOptions.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterDepartment} onValueChange={(v) => { setFilterDepartment(v); setSelectedCourse(null); }}>
+              <SelectTrigger className="h-10 rounded-xl bg-background/80 sm:w-72"><GraduationCap className="mr-2 h-4 w-4 text-primary" /><SelectValue placeholder="Bölüm seç" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tüm Bölümler</SelectItem>
+                {departmentOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {(filterUniversity !== 'all' || filterDepartment !== 'all' || searchTerm) && (
+              <Button variant="ghost" className="h-10 rounded-xl" onClick={() => { setFilterUniversity('all'); setFilterDepartment('all'); setSearchTerm(''); setSelectedCourse(null); }}>
+                Filtreleri Temizle
+              </Button>
+            )}
+          </div>
+        </section>
 
         {/* Course folders view */}
-        {!selectedCourse && !searchTerm && filterUniversity === 'all' && filterDepartment === 'all' && (
-          <div>
-            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-              <FolderOpen className="h-5 w-5 text-primary" /> Ders Klasörleri
-            </h2>
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {Object.entries(courseGroups).map(([course, courseNotes]) => (
-                <button
-                  key={course}
-                  onClick={() => setSelectedCourse(course)}
-                  className="flex flex-col items-center gap-2 p-4 rounded-xl bg-accent/50 hover:bg-accent transition-colors border border-border/40 hover:shadow-md"
-                >
-                  <FolderOpen className="h-10 w-10 text-primary" />
-                  <span className="text-sm font-medium text-center truncate w-full">{course}</span>
-                  <span className="text-xs text-muted-foreground">{(courseNotes as any[]).length} not</span>
-                </button>
-              ))}
+        {!selectedCourse && !searchTerm && filterDepartment === 'all' && (
+          <section className="space-y-4">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-semibold">
+                  {filterUniversity === 'all' ? <Building2 className="h-5 w-5 text-primary" /> : <FolderOpen className="h-5 w-5 text-primary" />}
+                  {filterUniversity === 'all' ? 'Üniversitelere Göre Notlar' : `${filterUniversity} · Ders Klasörleri`}
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {filterUniversity === 'all' ? 'Notları üniversite seçerek keşfedin.' : 'Ders seçerek bu üniversitedeki notları görüntüleyin.'}
+                </p>
+              </div>
+              {filterUniversity !== 'all' && (
+                <Button variant="ghost" size="sm" onClick={() => { setFilterUniversity('all'); setSelectedCourse(null); }}>
+                  <ChevronLeft className="mr-1 h-4 w-4" /> Üniversiteler
+                </Button>
+              )}
             </div>
-          </div>
+            {filterUniversity === 'all' ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {Object.entries(universityGroups).map(([university, universityNotes]) => (
+                  <button
+                    key={university}
+                    onClick={() => { setFilterUniversity(university); setSelectedCourse(null); }}
+                    className="group relative flex min-h-36 flex-col justify-between overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-primary/10 via-card to-accent/20 p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
+                  >
+                    <div className="absolute -right-5 -top-7 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition-colors group-hover:bg-primary/20" />
+                    <div className="relative flex w-full items-start justify-between gap-3">
+                      <span className="rounded-xl border border-primary/15 bg-background/70 p-2.5 text-primary"><Building2 className="h-5 w-5" /></span>
+                      <span className="rounded-full bg-background/75 px-2.5 py-1 text-xs font-medium text-muted-foreground">{universityNotes.length} not</span>
+                    </div>
+                    <span className="relative mt-4 text-base font-semibold text-foreground">{university}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+                {Object.entries(courseGroups).map(([course, courseNotes]) => (
+                  <button
+                    key={course}
+                    onClick={() => setSelectedCourse(course)}
+                    className="group flex min-h-32 flex-col items-start justify-between rounded-2xl border border-border/70 bg-card p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.04] hover:shadow-lg"
+                  >
+                    <div className="flex w-full items-start justify-between">
+                      <span className="rounded-xl bg-primary/10 p-2.5 text-primary transition-transform group-hover:scale-105"><FolderOpen className="h-5 w-5" /></span>
+                      <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">{courseNotes.length}</span>
+                    </div>
+                    <span className="mt-3 w-full truncate text-sm font-semibold text-foreground">{course}</span>
+                    <span className="text-xs text-muted-foreground">ders notu</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {Object.keys(filterUniversity === 'all' ? universityGroups : courseGroups).length === 0 && (
+              <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Henüz paylaşılmış not bulunmuyor.</CardContent></Card>
+            )}
+          </section>
         )}
 
         {selectedCourse && (
@@ -575,7 +657,7 @@ const Notes = () => {
 
         {loading ? (
           <p className="text-center text-muted-foreground">Yükleniyor...</p>
-        ) : (selectedCourse || searchTerm || filterUniversity !== 'all' || filterDepartment !== 'all') ? (
+        ) : showingNotes ? (
           displayNotes.length === 0 ? (
             <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Bu klasörde henüz not yok.</CardContent></Card>
           ) : (
@@ -649,8 +731,12 @@ const Notes = () => {
                             )}
                             {note.department && (
                               <div className="flex items-start gap-1.5">
-                                <span className="font-medium text-foreground/80 shrink-0">🎓 Bölüm:</span>
-                                <span className="text-muted-foreground">{note.department}</span>
+                                <span className="font-medium text-foreground/80 shrink-0">🎓 Bölüm{splitDepartments(note.department).length > 1 ? 'ler' : ''}:</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {splitDepartments(note.department).map((department) => (
+                                    <span key={department} className="rounded-md bg-background/80 px-1.5 py-0.5 text-muted-foreground">{department}</span>
+                                  ))}
+                                </div>
                               </div>
                             )}
                             <div className="flex items-start gap-1.5">
