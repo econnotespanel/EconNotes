@@ -243,18 +243,21 @@ const Sidebar = () => {
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" className="mt-3 w-full justify-start gap-2 text-destructive hover:text-destructive md:hidden">
+              <Button
+                variant="ghost"
+                className="mt-3 h-12 w-full justify-center gap-2 rounded-xl border border-destructive/15 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive md:hidden"
+              >
                 <LogOut className="h-4 w-4" /> Çıkış Yap
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className="w-[calc(100%-2rem)] !rounded-2xl border-border/70 bg-background/95 p-5 shadow-2xl backdrop-blur-sm sm:w-full sm:p-6">
               <AlertDialogHeader>
                 <AlertDialogTitle>Çıkış yapmak istediğinize emin misiniz?</AlertDialogTitle>
                 <AlertDialogDescription>Hesabınızdan güvenli şekilde çıkış yapılacaktır.</AlertDialogDescription>
               </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>İptal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <AlertDialogFooter className="gap-2 sm:gap-2">
+                <AlertDialogCancel className="mt-0 w-full rounded-xl sm:w-auto">İptal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleLogout} className="w-full rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto">
                   Çıkış Yap
                 </AlertDialogAction>
               </AlertDialogFooter>
