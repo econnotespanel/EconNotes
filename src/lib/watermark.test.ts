@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { addPersonalWatermarkToPresentation } from './watermark';
 
 describe('PowerPoint personal watermarking', () => {
-  it('tiles a translucent centered personal stamp across every slide', async () => {
+  it('tiles small translucent personal stamps in a regular grid across every slide', async () => {
     const source = new JSZip();
     source.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
     source.file('ppt/presentation.xml', '<p:presentation><p:sldSz cx="9144000" cy="6858000"/></p:presentation>');
@@ -29,10 +29,19 @@ describe('PowerPoint personal watermarking', () => {
       expect(slide).toContain('EconNotes kişisel filigranı');
       expect(slide).toContain('r:embed="rId1"');
       expect(slide).toContain('<a:alphaModFix amt="14000"/>');
-      expect(slide).toContain('<a:alphaModFix amt="30000"/>');
-      expect((slide?.match(/<p:pic>/g) ?? []).length).toBeGreaterThan(20);
-      expect(slide).toContain('<a:off x="182880" y="2864685"/>');
-      expect(slide).toContain('<a:ext cx="8778240" cy="1128631"/>');
+      expect(slide).not.toContain('<a:alphaModFix amt="30000"/>');
+      expect((slide?.match(/<p:pic>/g) ?? []).length).toBe(24);
+
+      const positions = [...(slide?.matchAll(/<a:off x="(\d+)" y="(\d+)"\/>/g) ?? [])]
+        .map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
+      const columns = [...new Set(positions.map(({ x }) => x))];
+      const rows = [...new Set(positions.map(({ y }) => y))];
+      expect(columns).toHaveLength(3);
+      expect(rows).toHaveLength(8);
+      expect(columns[1] - columns[0]).toBe(columns[2] - columns[1]);
+      expect(rows[1] - rows[0]).toBe(rows[7] - rows[6]);
+      expect(positions[0]).toEqual({ x: 274320, y: 178689 });
+      expect(slide).toContain('<a:ext cx="2499360" cy="499872"/>');
       expect(relationships).toContain('Target="../media/econnotes-personal-watermark.png"');
     }
 

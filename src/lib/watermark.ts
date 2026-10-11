@@ -4,11 +4,35 @@ import { toast } from 'sonner';
 import logoUrl from '@/assets/econnotes-brand-light.png';
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+const WATERMARK_COLUMNS = 3;
+const WATERMARK_ROWS = 8;
+const STAMP_WIDTH = 1000;
+const STAMP_HEIGHT = 200;
+const STAMP_ASPECT_RATIO = STAMP_WIDTH / STAMP_HEIGHT;
+const WATERMARK_OPACITY = 0.14;
+
+const getWatermarkTiles = (width: number, height: number) => {
+  const cellWidth = width / WATERMARK_COLUMNS;
+  const cellHeight = height / WATERMARK_ROWS;
+  const tileWidth = Math.min(cellWidth * 0.82, cellHeight * 0.82 * STAMP_ASPECT_RATIO);
+  const tileHeight = tileWidth / STAMP_ASPECT_RATIO;
+
+  return Array.from({ length: WATERMARK_COLUMNS * WATERMARK_ROWS }, (_, index) => {
+    const column = index % WATERMARK_COLUMNS;
+    const row = Math.floor(index / WATERMARK_COLUMNS);
+    return {
+      x: (column + 0.5) * cellWidth - tileWidth / 2,
+      y: (row + 0.5) * cellHeight - tileHeight / 2,
+      width: tileWidth,
+      height: tileHeight,
+    };
+  });
+};
 
 const createAttributionStamp = async (fullName: string): Promise<Uint8Array> => {
   const canvas = document.createElement('canvas');
-  canvas.width = 1400;
-  canvas.height = 180;
+  canvas.width = STAMP_WIDTH;
+  canvas.height = STAMP_HEIGHT;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Filigran görseli oluşturulamadı.');
 
@@ -19,22 +43,22 @@ const createAttributionStamp = async (fullName: string): Promise<Uint8Array> => 
     logo.onerror = () => reject(new Error('EconNotes logosu yüklenemedi.'));
   });
 
-  const logoWidth = 420;
+  const logoWidth = 360;
   const logoHeight = logoWidth * logo.naturalHeight / logo.naturalWidth;
   context.drawImage(logo, 20, (canvas.height - logoHeight) / 2, logoWidth, logoHeight);
 
   context.fillStyle = '#172033';
   context.textBaseline = 'middle';
   const attribution = `Bu not ${fullName} tarafından indirilmiştir`;
-  const textX = 470;
+  const textX = 405;
   const maxTextWidth = canvas.width - textX - 24;
-  let fontSize = 30;
+  let fontSize = 24;
   context.font = `600 ${fontSize}px Arial, sans-serif`;
-  while (fontSize > 18 && context.measureText(attribution).width > maxTextWidth) {
+  while (fontSize > 16 && context.measureText(attribution).width > maxTextWidth) {
     fontSize -= 1;
     context.font = `600 ${fontSize}px Arial, sans-serif`;
   }
-  context.fillText(attribution, textX, 90, maxTextWidth);
+  context.fillText(attribution, textX, canvas.height / 2, maxTextWidth);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((result) => {
@@ -56,22 +80,9 @@ export async function addWatermarkToPdf(pdfUrl: string, fullName: string): Promi
 
   for (const page of pages) {
     const { width, height } = page.getSize();
-    const tileWidth = Math.min(width * 0.58, height * 0.58 * 1400 / 180);
-    const tileHeight = tileWidth * stamp.height / stamp.width;
-    for (let y = -tileHeight / 2; y < height; y += tileHeight * 1.45) {
-      for (let x = -tileWidth * 0.32; x < width; x += tileWidth * 0.68) {
-        page.drawImage(stamp, { x, y, width: tileWidth, height: tileHeight, opacity: 0.10 });
-      }
+    for (const tile of getWatermarkTiles(width, height)) {
+      page.drawImage(stamp, { ...tile, opacity: WATERMARK_OPACITY });
     }
-    const stampWidth = Math.min(width * 0.96, height * 0.96 * 1400 / 180);
-    const stampHeight = stampWidth * stamp.height / stamp.width;
-    page.drawImage(stamp, {
-      x: (width - stampWidth) / 2,
-      y: (height - stampHeight) / 2,
-      width: stampWidth,
-      height: stampHeight,
-      opacity: 0.30,
-    });
   }
 
   const watermarkedBytes = await pdfDoc.save();
@@ -104,19 +115,10 @@ export async function addWatermarkToImage(imageUrl: string, fullName: string): P
       stampImage.onerror = () => reject(new Error('Kişiye özel filigran görseli yüklenemedi.'));
     });
 
-    const tileWidth = canvas.width * 0.56;
-    const tileHeight = tileWidth * stampImage.naturalHeight / stampImage.naturalWidth;
-    for (let y = -tileHeight / 2; y < canvas.height; y += tileHeight * 1.45) {
-      for (let x = -tileWidth * 0.32; x < canvas.width; x += tileWidth * 0.68) {
-        ctx.globalAlpha = 0.10;
-        ctx.drawImage(stampImage, x, y, tileWidth, tileHeight);
-      }
+    ctx.globalAlpha = WATERMARK_OPACITY;
+    for (const tile of getWatermarkTiles(canvas.width, canvas.height)) {
+      ctx.drawImage(stampImage, tile.x, tile.y, tile.width, tile.height);
     }
-
-    ctx.globalAlpha = 0.30;
-    const stampWidth = canvas.width * 0.96;
-    const stampHeight = stampWidth * stampImage.naturalHeight / stampImage.naturalWidth;
-    ctx.drawImage(stampImage, (canvas.width - stampWidth) / 2, (canvas.height - stampHeight) / 2, stampWidth, stampHeight);
     ctx.globalAlpha = 1;
   } finally {
     URL.revokeObjectURL(stampImage.src);
@@ -173,26 +175,18 @@ export const addPersonalWatermarkToPresentation = async (pptxBytes: ArrayBuffer,
 
     const shapeIds = [...slideXml.matchAll(/<p:cNvPr\b[^>]*\bid="(\d+)"/g)].map((match) => Number(match[1]));
     let shapeId = Math.max(0, ...shapeIds) + 1;
-    const tileWidth = Math.round(slideWidth * 0.54);
-    const tileHeight = Math.round(tileWidth * 180 / 1400);
     const pictures: string[] = [];
-    for (let y = -Math.round(tileHeight / 2); y < slideHeight; y += Math.round(slideWidth * 0.10)) {
-      for (let x = -Math.round(slideWidth * 0.15); x < slideWidth; x += Math.round(slideWidth * 0.38)) {
-        pictures.push(createPptxWatermarkPicture(shapeId++, relationId, x, y, tileWidth, tileHeight, 14000));
-      }
+    for (const tile of getWatermarkTiles(slideWidth, slideHeight)) {
+      pictures.push(createPptxWatermarkPicture(
+        shapeId++,
+        relationId,
+        Math.round(tile.x),
+        Math.round(tile.y),
+        Math.round(tile.width),
+        Math.round(tile.height),
+        Math.round(WATERMARK_OPACITY * 100_000),
+      ));
     }
-
-    const centerWidth = Math.round(slideWidth * 0.96);
-    const centerHeight = Math.round(centerWidth * 180 / 1400);
-    pictures.push(createPptxWatermarkPicture(
-      shapeId,
-      relationId,
-      Math.round((slideWidth - centerWidth) / 2),
-      Math.round((slideHeight - centerHeight) / 2),
-      centerWidth,
-      centerHeight,
-      30000,
-    ));
     zip.file(slidePath, slideXml.replace('</p:spTree>', `${pictures.join('')}</p:spTree>`));
   }
 
