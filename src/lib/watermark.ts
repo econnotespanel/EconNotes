@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, degrees } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
 import JSZip from 'jszip';
 import { toast } from 'sonner';
 import logoUrl from '@/assets/econnotes-brand-light.png';
@@ -19,23 +19,22 @@ const createAttributionStamp = async (fullName: string): Promise<Uint8Array> => 
     logo.onerror = () => reject(new Error('EconNotes logosu yüklenemedi.'));
   });
 
-  const logoWidth = 330;
+  const logoWidth = 420;
   const logoHeight = logoWidth * logo.naturalHeight / logo.naturalWidth;
-  context.drawImage(logo, 24, (canvas.height - logoHeight) / 2, logoWidth, logoHeight);
+  context.drawImage(logo, 20, (canvas.height - logoHeight) / 2, logoWidth, logoHeight);
 
   context.fillStyle = '#172033';
   context.textBaseline = 'middle';
   const attribution = `Bu not ${fullName} tarafından indirilmiştir`;
-  const maxTextWidth = canvas.width - 400;
-  let fontSize = 32;
+  const textX = 470;
+  const maxTextWidth = canvas.width - textX - 24;
+  let fontSize = 30;
   context.font = `600 ${fontSize}px Arial, sans-serif`;
   while (fontSize > 18 && context.measureText(attribution).width > maxTextWidth) {
     fontSize -= 1;
     context.font = `600 ${fontSize}px Arial, sans-serif`;
   }
-  context.globalAlpha = 0.72;
-  context.fillText(attribution, 390, 90, maxTextWidth);
-  context.globalAlpha = 1;
+  context.fillText(attribution, textX, 90, maxTextWidth);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((result) => {
@@ -51,33 +50,27 @@ export async function addWatermarkToPdf(pdfUrl: string, fullName: string): Promi
   if (!response.ok) throw new Error(`PDF indirilemedi (${response.status}).`);
 
   const pdfDoc = await PDFDocument.load(await response.arrayBuffer(), { ignoreEncryption: true });
-  const font = await pdfDoc.embedFont('Helvetica');
   const pages = pdfDoc.getPages();
   const attributionStamp = await createAttributionStamp(fullName);
   const stamp = await pdfDoc.embedPng(attributionStamp);
 
   for (const page of pages) {
     const { width, height } = page.getSize();
-    for (let y = 80; y < height; y += 180) {
-      for (let x = 60; x < width; x += 280) {
-        page.drawText('EconNotes', {
-          x,
-          y,
-          size: 28,
-          font,
-          color: rgb(0.5, 0.5, 0.5),
-          opacity: 0.12,
-          rotate: degrees(-35),
-        });
+    const tileWidth = Math.min(width * 0.58, height * 0.58 * 1400 / 180);
+    const tileHeight = tileWidth * stamp.height / stamp.width;
+    for (let y = -tileHeight / 2; y < height; y += tileHeight * 1.45) {
+      for (let x = -tileWidth * 0.32; x < width; x += tileWidth * 0.68) {
+        page.drawImage(stamp, { x, y, width: tileWidth, height: tileHeight, opacity: 0.10 });
       }
     }
-    const stampWidth = Math.min(360, width * 0.94);
+    const stampWidth = Math.min(width * 0.96, height * 0.96 * 1400 / 180);
     const stampHeight = stampWidth * stamp.height / stamp.width;
     page.drawImage(stamp, {
-      x: width * 0.03,
-      y: height * 0.015,
+      x: (width - stampWidth) / 2,
+      y: (height - stampHeight) / 2,
       width: stampWidth,
       height: stampHeight,
+      opacity: 0.30,
     });
   }
 
@@ -102,17 +95,6 @@ export async function addWatermarkToImage(imageUrl: string, fullName: string): P
 
   ctx.drawImage(img, 0, 0);
 
-  ctx.save();
-  ctx.font = `${Math.max(canvas.width, canvas.height) * 0.05}px Arial, sans-serif`;
-  ctx.fillStyle = 'rgba(80, 80, 80, 0.2)';
-  ctx.rotate((-35 * Math.PI) / 180);
-  for (let y = -canvas.height; y < canvas.height * 2; y += 160) {
-    for (let x = -canvas.width; x < canvas.width * 2; x += 260) {
-      ctx.fillText('EconNotes', x, y);
-    }
-  }
-  ctx.restore();
-
   const stamp = await createAttributionStamp(fullName);
   const stampImage = new Image();
   stampImage.src = URL.createObjectURL(new Blob([stamp], { type: 'image/png' }));
@@ -121,9 +103,21 @@ export async function addWatermarkToImage(imageUrl: string, fullName: string): P
       stampImage.onload = () => resolve();
       stampImage.onerror = () => reject(new Error('Kişiye özel filigran görseli yüklenemedi.'));
     });
-    const stampWidth = canvas.width * 0.92;
+
+    const tileWidth = canvas.width * 0.56;
+    const tileHeight = tileWidth * stampImage.naturalHeight / stampImage.naturalWidth;
+    for (let y = -tileHeight / 2; y < canvas.height; y += tileHeight * 1.45) {
+      for (let x = -tileWidth * 0.32; x < canvas.width; x += tileWidth * 0.68) {
+        ctx.globalAlpha = 0.10;
+        ctx.drawImage(stampImage, x, y, tileWidth, tileHeight);
+      }
+    }
+
+    ctx.globalAlpha = 0.30;
+    const stampWidth = canvas.width * 0.96;
     const stampHeight = stampWidth * stampImage.naturalHeight / stampImage.naturalWidth;
-    ctx.drawImage(stampImage, canvas.width * 0.04, canvas.height - stampHeight - canvas.height * 0.025, stampWidth, stampHeight);
+    ctx.drawImage(stampImage, (canvas.width - stampWidth) / 2, (canvas.height - stampHeight) / 2, stampWidth, stampHeight);
+    ctx.globalAlpha = 1;
   } finally {
     URL.revokeObjectURL(stampImage.src);
   }
@@ -178,17 +172,42 @@ export const addPersonalWatermarkToPresentation = async (pptxBytes: ArrayBuffer,
     ));
 
     const shapeIds = [...slideXml.matchAll(/<p:cNvPr\b[^>]*\bid="(\d+)"/g)].map((match) => Number(match[1]));
-    const shapeId = Math.max(0, ...shapeIds) + 1;
-    const width = Math.min(8_400_000, slideWidth * 0.92);
-    const height = width * 180 / 1400;
-    const x = slideWidth * 0.04;
-    const y = slideHeight * 0.015;
-    const picture = `<p:pic><p:nvPicPr><p:cNvPr id="${shapeId}" name="EconNotes kişisel filigranı"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${width}" cy="${height}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
-    zip.file(slidePath, slideXml.replace('</p:spTree>', `${picture}</p:spTree>`));
+    let shapeId = Math.max(0, ...shapeIds) + 1;
+    const tileWidth = Math.round(slideWidth * 0.54);
+    const tileHeight = Math.round(tileWidth * 180 / 1400);
+    const pictures: string[] = [];
+    for (let y = -Math.round(tileHeight / 2); y < slideHeight; y += Math.round(slideWidth * 0.10)) {
+      for (let x = -Math.round(slideWidth * 0.15); x < slideWidth; x += Math.round(slideWidth * 0.38)) {
+        pictures.push(createPptxWatermarkPicture(shapeId++, relationId, x, y, tileWidth, tileHeight, 14000));
+      }
+    }
+
+    const centerWidth = Math.round(slideWidth * 0.96);
+    const centerHeight = Math.round(centerWidth * 180 / 1400);
+    pictures.push(createPptxWatermarkPicture(
+      shapeId,
+      relationId,
+      Math.round((slideWidth - centerWidth) / 2),
+      Math.round((slideHeight - centerHeight) / 2),
+      centerWidth,
+      centerHeight,
+      30000,
+    ));
+    zip.file(slidePath, slideXml.replace('</p:spTree>', `${pictures.join('')}</p:spTree>`));
   }
 
   return zip.generateAsync({ type: 'blob', mimeType: PPTX_MIME });
 };
+
+const createPptxWatermarkPicture = (
+  shapeId: number,
+  relationId: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  opacity: number,
+) => `<p:pic><p:nvPicPr><p:cNvPr id="${shapeId}" name="EconNotes kişisel filigranı"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationId}"><a:alphaModFix amt="${opacity}"/></a:blip><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${width}" cy="${height}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
 
 export async function downloadWithWatermark(fileUrl: string, fileName: string, fileType: string, fullName: string) {
   const toastId = toast.loading('Kişiye özel filigran ekleniyor...');

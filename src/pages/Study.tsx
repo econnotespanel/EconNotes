@@ -1091,22 +1091,31 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
     if (!completed || savedAttemptRef.current) return;
     savedAttemptRef.current = true;
     setSavingResult(true);
-    void supabase.from('study_progress').insert({
-      user_id: material.user_id,
-      material_id: material.id,
-      score,
-      total_questions: answeredMC,
-      attempts: 1,
-      completed_at: new Date().toISOString(),
-    }).then(({ error }) => {
-      if (error) {
-        toast.error(`Kısa sınav sonucu kaydedilemedi: ${error.message}`);
+    void (async () => {
+      try {
+        const { error } = await supabase.from('study_progress').insert({
+          user_id: material.user_id,
+          material_id: material.id,
+          score,
+          total_questions: answeredMC,
+          attempts: 1,
+          completed_at: new Date().toISOString(),
+        });
+        if (error) {
+          toast.error(`Kısa sınav sonucu kaydedilemedi: ${error.message}`);
+          savedAttemptRef.current = false;
+          return;
+        }
+        toast.success('Kısa sınav sonucu çalışma geçmişine kaydedildi.');
+        onProgressSaved();
+      } catch (error) {
+        console.error('Kısa sınav sonucu kaydedilemedi:', error);
+        toast.error('Kısa sınav sonucu kaydedilemedi. Lütfen tekrar deneyin.');
         savedAttemptRef.current = false;
-        return;
+      } finally {
+        setSavingResult(false);
       }
-      toast.success('Kısa sınav sonucu çalışma geçmişine kaydedildi.');
-      onProgressSaved();
-    }).finally(() => setSavingResult(false));
+    })();
   }, [answeredMC, completed, material.id, material.user_id, onProgressSaved, score]);
 
   if (!questions[idx]) return <p className="text-muted-foreground">Soru yok.</p>;

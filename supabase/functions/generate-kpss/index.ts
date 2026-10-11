@@ -1,8 +1,12 @@
 // KPSS Çalışma Merkezi — AI ile çıkabilecek konular, konu özeti, çözümlü test ve kart üretimi
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getAuthenticatedUser,
+  isTrustedOrigin,
+  jsonResponse,
+  preflightResponse,
+  readJsonBody,
+  RequestError,
+} from '../_shared/request-security.ts';
 
 type KpssType = 'topics' | 'summary' | 'quiz' | 'flashcards';
 
@@ -156,21 +160,35 @@ GÖREV: ${task}`;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return preflightResponse(req);
+  if (!isTrustedOrigin(req.headers.get('origin'))) {
+    return jsonResponse(req, { error: 'Bu kaynaktan isteğe izin verilmiyor.' }, 403);
+  }
+  if (req.method !== 'POST') return jsonResponse(req, { error: 'Yalnızca POST istekleri desteklenir.' }, 405);
 
   try {
-    const body: KpssRequest = await req.json();
+    const user = await getAuthenticatedUser(req);
+    if (!user) return jsonResponse(req, { error: 'Bu işlem için giriş yapmalısınız.' }, 401);
+
+    const body = await readJsonBody<KpssRequest>(req, 1_048_576);
     if (!body?.type || !schemas[body.type] || !body.subject) {
-      return new Response(JSON.stringify({ error: 'Geçersiz istek: ders ve materyal türü zorunlu.' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new RequestError('Geçersiz istek: ders ve materyal türü zorunlu.', 400);
+    }
+    if (
+      typeof body.subject !== 'string'
+      || body.subject.length > 200
+      || (body.topic !== undefined && (typeof body.topic !== 'string' || body.topic.length > 300))
+      || (body.examGroup !== undefined && (typeof body.examGroup !== 'string' || body.examGroup.length > 100))
+      || (body.extraFocus !== undefined && (typeof body.extraFocus !== 'string' || body.extraFocus.length > 2_000))
+      || (body.count !== undefined && (!Number.isInteger(body.count) || body.count < 1 || body.count > 50))
+      || (body.difficulty !== undefined && !['easy', 'medium', 'hard'].includes(body.difficulty))
+    ) {
+      throw new RequestError('İstek içeriği geçersiz.', 400);
     }
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: 'AI yapılandırılmamış.' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse(req, { error: 'AI yapılandırılmamış.' }, 500);
     }
 
     const { system, userText } = buildPrompt(body);
@@ -198,39 +216,28 @@ Deno.serve(async (req) => {
     });
 
     if (response.status === 429) {
-      return new Response(JSON.stringify({ error: 'Yoğunluk var: birazdan tekrar deneyin.' }), {
-        status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse(req, { error: 'Yoğunluk var: birazdan tekrar deneyin.' }, 429);
     }
     if (response.status === 402) {
-      return new Response(JSON.stringify({ error: 'AI kredisi tükendi.' }), {
-        status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse(req, { error: 'AI kredisi tükendi.' }, 402);
     }
     if (!response.ok) {
       const detail = await response.text();
       console.error(`AI gateway hata [${response.status}]: ${detail}`);
-      return new Response(JSON.stringify({ error: 'AI servisi yanıt vermedi.', status: response.status }), {
-        status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse(req, { error: 'AI servisi yanıt vermedi.' }, 502);
     }
 
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
-      return new Response(JSON.stringify({ error: 'Materyal üretilemedi, tekrar deneyin.' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return jsonResponse(req, { error: 'Materyal üretilemedi, tekrar deneyin.' }, 502);
     }
 
     const content = JSON.parse(toolCall.function.arguments);
-    return new Response(JSON.stringify({ content, model }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  } catch (e) {
-    console.error('generate-kpss hata:', (e as Error).message);
-    return new Response(JSON.stringify({ error: (e as Error).message }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return jsonResponse(req, { content, model });
+  } catch (error) {
+    if (error instanceof RequestError) return jsonResponse(req, { error: error.message }, error.status);
+    console.error('generate-kpss request failed:', error);
+    return jsonResponse(req, { error: 'İstek işlenemedi.' }, 500);
   }
 });

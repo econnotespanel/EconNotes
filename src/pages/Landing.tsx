@@ -21,7 +21,7 @@ const modules = [
 const security = [
   { icon: Lock, title: '256 Bit SSL/TLS Şifreleme', desc: 'Tüm veri aktarımı 256 bit AES şifreleme ve TLS 1.3 protokolü ile korunur. HTTP istekleri otomatik olarak HTTPS üzerine yönlendirilir.' },
   { icon: ShieldCheck, title: 'Satır Bazlı Erişim Denetimi', desc: 'Veritabanındaki her kayıt, satır bazlı güvenlik politikaları (RLS) ile yalnızca yetkili kullanıcıya açılır.' },
-  { icon: KeyRound, title: 'Bot Koruması ve Doğrulama', desc: 'Giriş ve kayıt adımlarında güvenlik kodu doğrulaması, e-posta onayı ve hesap silme için tek kullanımlık kod zorunluluğu.' },
+  { icon: KeyRound, title: 'Bot Koruması ve Doğrulama', desc: 'AI hizmetleri oturum, kaynak ve istek boyutu denetimleriyle korunur. Giriş ve kayıtta güvenlik kodu ve e-posta onayı, hesap silmede tek kullanımlık kod kullanılır.' },
   { icon: EyeOff, title: 'Şifreli Not ve Filigran', desc: 'Notlar şifre ile korunabilir; görüntülenen içerikler filigranlanarak izinsiz dağıtım engellenir.' },
   { icon: ServerCog, title: 'Denetim Kayıtları', desc: 'Kritik yönetici işlemleri ve hesap hareketleri zaman damgalı denetim kayıtlarında saklanır.' },
   { icon: Sparkles, title: 'KVKK Uyumu', desc: '6698 sayılı KVKK kapsamında veri minimizasyonu ilkesiyle yalnızca gerekli veriler işlenir.' },

@@ -1,9 +1,13 @@
 // Bağlamsal AI Akıl Hocası — kullanıcı üretilen bir çalışma materyali hakkında
 // takip soruları sorar; AI o materyalin içeriğini bağlam olarak kullanır.
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getAuthenticatedUser,
+  isTrustedOrigin,
+  jsonResponse,
+  preflightResponse,
+  readJsonBody,
+  RequestError,
+} from '../_shared/request-security.ts';
 
 interface ChatMsg { role: 'user' | 'assistant'; content: string }
 
@@ -16,12 +20,36 @@ interface Req {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return preflightResponse(req);
+  if (!isTrustedOrigin(req.headers.get('origin'))) {
+    return jsonResponse(req, { error: 'Bu kaynaktan isteğe izin verilmiyor.' }, 403);
+  }
+  if (req.method !== 'POST') return jsonResponse(req, { error: 'Yalnızca POST istekleri desteklenir.' }, 405);
+
   try {
-    const body: Req = await req.json();
+    const user = await getAuthenticatedUser(req);
+    if (!user) return jsonResponse(req, { error: 'Bu işlem için giriş yapmalısınız.' }, 401);
+
+    const body = await readJsonBody<Req>(req, 1_048_576);
+    if (
+      typeof body.materialTitle !== 'string'
+      || body.materialTitle.length > 300
+      || !['flashcards', 'quiz', 'summary', 'video'].includes(body.materialType)
+      || !Array.isArray(body.messages)
+      || body.messages.length > 40
+      || body.messages.some((message) =>
+        !message
+        || !['user', 'assistant'].includes(message.role)
+        || typeof message.content !== 'string'
+        || message.content.length > 8_000
+      )
+    ) {
+      throw new RequestError('İstek içeriği geçersiz.', 400);
+    }
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: 'AI yapılandırılmamış' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return jsonResponse(req, { error: 'AI yapılandırılmamış.' }, 500);
     }
 
     const contextJson = JSON.stringify(body.materialContent).slice(0, 60_000);
@@ -50,13 +78,19 @@ KURALLAR:
       body: JSON.stringify({ model: 'google/gemini-2.5-pro', messages }),
     });
 
-    if (r.status === 429) return new Response(JSON.stringify({ error: 'Yoğunluk: Birazdan tekrar deneyin.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    if (r.status === 402) return new Response(JSON.stringify({ error: 'AI kredisi tükendi.' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (r.status === 429) return jsonResponse(req, { error: 'Yoğunluk: Birazdan tekrar deneyin.' }, 429);
+    if (r.status === 402) return jsonResponse(req, { error: 'AI kredisi tükendi.' }, 402);
+    if (!r.ok) {
+      console.error(`study-coach gateway error: ${r.status}`);
+      return jsonResponse(req, { error: 'AI servisi yanıt vermedi.' }, 502);
+    }
 
     const data = await r.json();
     const reply = data.choices?.[0]?.message?.content ?? 'Yanıt üretilemedi.';
-    return new Response(JSON.stringify({ reply }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return jsonResponse(req, { reply });
+  } catch (error) {
+    if (error instanceof RequestError) return jsonResponse(req, { error: error.message }, error.status);
+    console.error('study-coach request failed:', error);
+    return jsonResponse(req, { error: 'İstek işlenemedi.' }, 500);
   }
 });

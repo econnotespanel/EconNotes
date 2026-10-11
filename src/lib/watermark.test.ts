@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { addPersonalWatermarkToPresentation } from './watermark';
 
 describe('PowerPoint personal watermarking', () => {
-  it('adds the EconNotes attribution stamp to every slide', async () => {
+  it('tiles a translucent centered personal stamp across every slide', async () => {
     const source = new JSZip();
     source.file('[Content_Types].xml', '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>');
     source.file('ppt/presentation.xml', '<p:presentation><p:sldSz cx="9144000" cy="6858000"/></p:presentation>');
@@ -28,8 +28,11 @@ describe('PowerPoint personal watermarking', () => {
       const relationships = await watermarked.file(`ppt/slides/_rels/slide${slideNumber}.xml.rels`)?.async('string');
       expect(slide).toContain('EconNotes kişisel filigranı');
       expect(slide).toContain('r:embed="rId1"');
-      expect(slide).toContain('<a:off x="365760" y="102870"/>');
-      expect(slide).toContain('<a:ext cx="8400000" cy="1080000"/>');
+      expect(slide).toContain('<a:alphaModFix amt="14000"/>');
+      expect(slide).toContain('<a:alphaModFix amt="30000"/>');
+      expect((slide?.match(/<p:pic>/g) ?? []).length).toBeGreaterThan(20);
+      expect(slide).toContain('<a:off x="182880" y="2864685"/>');
+      expect(slide).toContain('<a:ext cx="8778240" cy="1128631"/>');
       expect(relationships).toContain('Target="../media/econnotes-personal-watermark.png"');
     }
 

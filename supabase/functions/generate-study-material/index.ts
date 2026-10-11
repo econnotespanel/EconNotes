@@ -1,8 +1,12 @@
 // Generate study materials (flashcards, quiz, summary, video) from notes/files/audio
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getAuthenticatedUser,
+  isTrustedOrigin,
+  jsonResponse,
+  preflightResponse,
+  readJsonBody,
+  RequestError,
+} from '../_shared/request-security.ts';
 
 interface ExamProfile {
   examType?: 'test' | 'classic' | 'mixed';
@@ -190,13 +194,44 @@ GÖREV: ${task}`;
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return preflightResponse(req);
+  if (!isTrustedOrigin(req.headers.get('origin'))) {
+    return jsonResponse(req, { error: 'Bu kaynaktan isteğe izin verilmiyor.' }, 403);
+  }
+  if (req.method !== 'POST') return jsonResponse(req, { error: 'Yalnızca POST istekleri desteklenir.' }, 405);
 
   try {
-    const body: GenerateRequest = await req.json();
+    const user = await getAuthenticatedUser(req);
+    if (!user) return jsonResponse(req, { error: 'Bu işlem için giriş yapmalısınız.' }, 401);
+
+    const body = await readJsonBody<GenerateRequest>(req, 35 * 1024 * 1024);
+    if (
+      !['flashcards', 'quiz', 'summary', 'video'].includes(body.materialType)
+      || typeof body.noteTitle !== 'string'
+      || body.noteTitle.length > 300
+      || typeof body.noteContext !== 'string'
+      || body.noteContext.length > 200_000
+      || (body.course !== undefined && (typeof body.course !== 'string' || body.course.length > 300))
+      || (body.count !== undefined && (!Number.isInteger(body.count) || body.count < 1 || body.count > 50))
+      || (body.difficulty !== undefined && !['easy', 'medium', 'hard'].includes(body.difficulty))
+      || [body.audio, body.document].some((part) =>
+        part !== undefined
+        && (
+          typeof part.data !== 'string'
+          || part.data.length === 0
+          || part.data.length > 34 * 1024 * 1024
+          || typeof part.mimeType !== 'string'
+          || !/^(application\/pdf|image\/[a-z0-9.+-]+|audio\/[a-z0-9.+-]+)$/i.test(part.mimeType)
+        )
+      )
+      || (body.audio && body.document)
+    ) {
+      throw new RequestError('İstek içeriği geçersiz.', 400);
+    }
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: 'AI yapılandırılmamış' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return jsonResponse(req, { error: 'AI yapılandırılmamış.' }, 500);
     }
 
     const { system, userText } = buildPrompt(body);
@@ -242,18 +277,24 @@ Deno.serve(async (req) => {
       }),
     });
 
-    if (response.status === 429) return new Response(JSON.stringify({ error: 'Yoğunluk: Birazdan tekrar deneyin.' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-    if (response.status === 402) return new Response(JSON.stringify({ error: 'AI kredisi tükendi.' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    if (response.status === 429) return jsonResponse(req, { error: 'Yoğunluk: Birazdan tekrar deneyin.' }, 429);
+    if (response.status === 402) return jsonResponse(req, { error: 'AI kredisi tükendi.' }, 402);
+    if (!response.ok) {
+      console.error(`generate-study-material gateway error: ${response.status}`);
+      return jsonResponse(req, { error: 'AI servisi yanıt vermedi.' }, 502);
+    }
 
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
-      return new Response(JSON.stringify({ error: 'Materyal üretilemedi.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return jsonResponse(req, { error: 'Materyal üretilemedi.' }, 502);
     }
 
     const content = JSON.parse(toolCall.function.arguments);
-    return new Response(JSON.stringify({ content, model }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return jsonResponse(req, { content, model });
+  } catch (error) {
+    if (error instanceof RequestError) return jsonResponse(req, { error: error.message }, error.status);
+    console.error('generate-study-material request failed:', error);
+    return jsonResponse(req, { error: 'İstek işlenemedi.' }, 500);
   }
 });

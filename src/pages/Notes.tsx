@@ -337,7 +337,7 @@ const Notes = () => {
     return matchesSearch && matchesUni && matchesDept;
   });
 
-  const courseGroups = filteredNotes.reduce((acc: Record<string, any[]>, note) => {
+  const courseGroups = filteredNotes.reduce<Record<string, any[]>>((acc, note) => {
     const key = note.course;
     if (!acc[key]) acc[key] = [];
     acc[key].push(note);
@@ -346,7 +346,7 @@ const Notes = () => {
 
   const showingNotes = Boolean(selectedCourse || searchTerm || filterDepartment !== 'all');
   const displayNotes = selectedCourse ? (courseGroups[selectedCourse] || []) : (showingNotes ? filteredNotes : []);
-  const universityGroups = filteredNotes.reduce((acc: Record<string, any[]>, note) => {
+  const universityGroups = filteredNotes.reduce<Record<string, any[]>>((acc, note) => {
     const key = (note.university || '').trim() || 'Üniversite bilgisi yok';
     if (!acc[key]) acc[key] = [];
     acc[key].push(note);
