@@ -51,6 +51,14 @@ interface StudyMaterial {
   exam_profile?: any;
 }
 
+interface StudyProgress {
+  id: string;
+  material_id: string;
+  score: number | null;
+  total_questions: number | null;
+  completed_at: string | null;
+}
+
 const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string; desc: string; tone: string; tint: string; code: string }> = {
   flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Hızlı tekrar için çevrilebilir kartlar', tone: 'text-primary', tint: 'bg-primary/10', code: 'FC-01' },
   quiz: { label: 'Quiz', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Test veya klasik sınav simülasyonu', tone: 'text-accent', tint: 'bg-accent/10', code: 'QZ-02' },
@@ -78,6 +86,7 @@ const MOTIVATIONS_RIGHT = [
 const Study = () => {
   const { user } = useAuth();
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
+  const [studyProgress, setStudyProgress] = useState<StudyProgress[]>([]);
   const [ownNotes, setOwnNotes] = useState<Note[]>([]);
   const [platformNotes, setPlatformNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
@@ -129,14 +138,20 @@ const Study = () => {
 
   const load = async () => {
     setLoading(true);
-    const [m, own, platform] = await Promise.all([
+    const [m, own, platform, progress] = await Promise.all([
       supabase.from('study_materials').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }),
       supabase.from('notes').select('id,title,course,description,department,semester,user_id,status,file_name').eq('user_id', user!.id),
       supabase.from('notes').select('id,title,course,description,department,semester,user_id,status,file_name').eq('status', 'approved').limit(200),
+      supabase.from('study_progress').select('id,material_id,score,total_questions,completed_at').eq('user_id', user!.id).order('completed_at', { ascending: false }),
     ]);
+    if (m.error) toast.error(`Çalışma materyalleri yüklenemedi: ${m.error.message}`);
+    if (own.error) toast.error(`Notlarınız yüklenemedi: ${own.error.message}`);
+    if (platform.error) toast.error(`Platform notları yüklenemedi: ${platform.error.message}`);
+    if (progress.error) toast.error(`Çalışma geçmişi yüklenemedi: ${progress.error.message}`);
     setMaterials((m.data || []) as StudyMaterial[]);
     setOwnNotes((own.data || []) as Note[]);
     setPlatformNotes((platform.data || []) as Note[]);
+    setStudyProgress((progress.data || []) as StudyProgress[]);
     setLoading(false);
   };
 
@@ -278,6 +293,29 @@ const Study = () => {
     summary: materials.filter(m => m.material_type === 'summary').length,
     video: materials.filter(m => m.material_type === 'video').length,
   };
+  const quizMaterialIds = new Set(materials.filter((m) => m.material_type === 'quiz').map((m) => m.id));
+  const quizAttempts = studyProgress.filter((record) =>
+    quizMaterialIds.has(record.material_id) && record.score !== null && (record.total_questions || 0) > 0
+  );
+  const averageQuizScore = quizAttempts.length
+    ? Math.round(quizAttempts.reduce((sum, attempt) => sum + (attempt.score! / attempt.total_questions!) * 100, 0) / quizAttempts.length)
+    : null;
+  const today = new Date();
+  const weeklyStudy = Array.from({ length: 7 }, (_, offset) => {
+    const date = new Date(today);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(today.getDate() - (6 - offset));
+    const attempts = quizAttempts.filter((record) => {
+      if (!record.completed_at) return false;
+      const completed = new Date(record.completed_at);
+      return completed.getFullYear() === date.getFullYear() &&
+        completed.getMonth() === date.getMonth() &&
+        completed.getDate() === date.getDate();
+    }).length;
+    return { label: date.toLocaleDateString('tr-TR', { weekday: 'short' }), attempts };
+  });
+  const weeklyMax = Math.max(1, ...weeklyStudy.map((day) => day.attempts));
+  const weeklyAttempts = weeklyStudy.reduce((sum, day) => sum + day.attempts, 0);
 
   return (
     <Layout>
@@ -347,6 +385,66 @@ const Study = () => {
             })}
           </div>
         </div>
+
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+          <Card className="overflow-hidden rounded-2xl border-border/70 bg-card/80 shadow-sm">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Trophy className="h-4 w-4 text-primary" />
+                    Öğrenme performansın
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">Son 7 gündeki quiz aktiviten</p>
+                </div>
+                <Badge variant="outline" className="rounded-full">{weeklyAttempts} tamamlanan quiz</Badge>
+              </div>
+              <div className="mt-5 grid grid-cols-[auto_1fr] items-end gap-5">
+                <div>
+                  <p className="text-3xl font-bold tracking-tight">{averageQuizScore === null ? '—' : `${averageQuizScore}%`}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Quiz ortalaman</p>
+                </div>
+                <div className="flex h-16 items-end justify-between gap-2" role="img" aria-label="Son yedi günün quiz tamamlama grafiği">
+                  {weeklyStudy.map((day, index) => (
+                    <div key={`${day.label}-${index}`} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
+                      <span className="text-[10px] text-muted-foreground">{day.attempts || ''}</span>
+                      <div
+                        className={`w-full max-w-8 rounded-t-md transition-all ${day.attempts ? 'bg-primary/80' : 'bg-muted'}`}
+                        style={{ height: `${Math.max(5, (day.attempts / weeklyMax) * 38)}px` }}
+                        title={`${day.label}: ${day.attempts} quiz`}
+                      />
+                      <span className="text-[10px] capitalize text-muted-foreground">{day.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {quizAttempts.length === 0 && (
+                <p className="mt-4 rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                  İlk quizini tamamladığında buradan ilerlemeni takip edebilirsin.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="rounded-2xl border-primary/15 bg-gradient-to-br from-primary/10 via-card to-secondary/10 shadow-sm">
+            <CardContent className="flex h-full flex-col justify-between gap-4 p-5 sm:p-6">
+              <div>
+                <Badge variant="secondary" className="rounded-full">Bugünün çalışma hedefi</Badge>
+                <h2 className="mt-3 text-lg font-semibold">Kısa tekrar, kalıcı öğrenme.</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Bir kart setini gözden geçir veya sınavına uygun yeni bir quiz hazırla.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" className="rounded-xl" onClick={() => { setMaterialType('flashcards'); setCreateOpen(true); }}>
+                  <Layers className="mr-2 h-4 w-4" /> Kart hazırla
+                </Button>
+                <Button className="rounded-xl" onClick={() => { setMaterialType('quiz'); setCreateOpen(true); }}>
+                  <ClipboardList className="mr-2 h-4 w-4" /> Quiz çöz
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
 
         {/* Generator modules */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -614,7 +712,7 @@ const Study = () => {
       {/* Viewer */}
       <Dialog open={!!activeMaterial} onOpenChange={(o) => !o && setActiveMaterial(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          {activeMaterial && <MaterialViewer material={activeMaterial} onReport={() => setReportOpen(true)} />}
+          {activeMaterial && <MaterialViewer key={activeMaterial.id} material={activeMaterial} onReport={() => setReportOpen(true)} onProgressSaved={() => void load()} />}
         </DialogContent>
       </Dialog>
 
@@ -727,12 +825,12 @@ const ReportDialog = ({ open, onOpenChange, materialId, user }: { open: boolean;
 };
 
 // ============ Viewers ============
-const MaterialViewer = ({ material, onReport }: { material: StudyMaterial; onReport: () => void }) => {
+const MaterialViewer = ({ material, onReport, onProgressSaved }: { material: StudyMaterial; onReport: () => void; onProgressSaved: () => void }) => {
   const [coachOpen, setCoachOpen] = useState(false);
   const renderer = () => {
     switch (material.material_type) {
-      case 'flashcards': return <FlashcardViewer material={material} />;
-      case 'quiz': return <QuizViewer material={material} />;
+      case 'flashcards': return <FlashcardViewer material={material} onProgressSaved={onProgressSaved} />;
+      case 'quiz': return <QuizViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'summary': return <SummaryViewer material={material} />;
       case 'video': return <VideoViewer material={material} />;
     }
@@ -886,37 +984,99 @@ const StudyCoachPanel = ({ material, open, onClose }: { material: StudyMaterial;
   );
 };
 
-const FlashcardViewer = ({ material }: { material: StudyMaterial }) => {
+const FlashcardViewer = ({ material, onProgressSaved }: { material: StudyMaterial; onProgressSaved: () => void }) => {
   const cards: Array<{ front: string; back: string; hint?: string }> = material.content?.cards || [];
+  const [queue, setQueue] = useState(() => cards.map((_, index) => index));
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  if (!cards[idx]) return <p className="text-muted-foreground">Kart bulunamadı.</p>;
-  const card = cards[idx];
-  const next = () => { setIdx((idx + 1) % cards.length); setFlipped(false); };
-  const prev = () => { setIdx((idx - 1 + cards.length) % cards.length); setFlipped(false); };
+  const [mastered, setMastered] = useState<Set<number>>(new Set());
+  const savedSessionRef = useRef(false);
+  const cardIndex = queue[idx];
+
+  useEffect(() => {
+    if (!cards.length || mastered.size !== cards.length || savedSessionRef.current) return;
+    savedSessionRef.current = true;
+    void supabase.from('study_progress').insert({
+      user_id: material.user_id,
+      material_id: material.id,
+      score: cards.length,
+      total_questions: cards.length,
+      attempts: 1,
+      completed_at: new Date().toISOString(),
+    }).then(({ error }) => {
+      if (error) {
+        toast.error(`Kart ilerlemesi kaydedilemedi: ${error.message}`);
+        return;
+      }
+      toast.success('Kart seti tamamlandı ve ilerlemen kaydedildi.');
+      onProgressSaved();
+    });
+  }, [cards.length, mastered.size, material.id, material.user_id, onProgressSaved]);
+
+  const rateCard = (rating: 'again' | 'hard' | 'known') => {
+    if (rating === 'known') {
+      setMastered((current) => new Set(current).add(cardIndex));
+    }
+
+    setQueue((current) => {
+      const next = [...current];
+      if (rating === 'again') next.splice(Math.min(idx + 3, next.length), 0, cardIndex);
+      if (rating === 'hard') next.push(cardIndex);
+      return next;
+    });
+    setIdx((current) => current + 1);
+    setFlipped(false);
+  };
+
+  if (mastered.size === cards.length && cards.length > 0) {
+    return (
+      <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-secondary/10 p-8 text-center">
+        <Trophy className="mx-auto h-10 w-10 text-primary" />
+        <h3 className="mt-3 text-xl font-bold">Kart seti tamamlandı!</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{cards.length} kartı öğrendim olarak işaretledin.</p>
+        <Button variant="outline" className="mt-5" onClick={() => { setQueue(cards.map((_, index) => index)); setIdx(0); setMastered(new Set()); setFlipped(false); savedSessionRef.current = false; }}>
+          <RefreshCw className="mr-2 h-4 w-4" /> Baştan tekrar et
+        </Button>
+      </div>
+    );
+  }
+
+  if (cardIndex === undefined || !cards[cardIndex]) return <p className="text-muted-foreground">Kart bulunamadı.</p>;
+  const card = cards[cardIndex];
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>Kart {idx + 1} / {cards.length}</span>
-        <Progress value={((idx + 1) / cards.length) * 100} className="w-32 h-1.5" />
+        <span>{mastered.size} / {cards.length} öğrenildi · tekrar {idx + 1}</span>
+        <Progress value={(mastered.size / cards.length) * 100} className="w-32 h-1.5" />
       </div>
-      <div onClick={() => setFlipped(f => !f)} className="cursor-pointer min-h-[260px] rounded-2xl border border-border bg-gradient-to-br from-card to-muted/40 p-8 flex items-center justify-center text-center transition hover:shadow-lg">
+      <button type="button" onClick={() => setFlipped(f => !f)} className="min-h-[260px] w-full cursor-pointer rounded-2xl border border-border bg-gradient-to-br from-card to-primary/[0.06] p-8 text-center transition hover:border-primary/30 hover:shadow-lg">
         <div>
           <Badge variant="outline" className="mb-3">{flipped ? 'Cevap' : 'Soru'}</Badge>
           <p className="text-xl font-medium whitespace-pre-wrap">{flipped ? card.back : card.front}</p>
           {!flipped && card.hint && <p className="text-xs text-muted-foreground mt-4 italic">İpucu: {card.hint}</p>}
+          <p className="mt-5 text-xs text-muted-foreground">{flipped ? 'Cevabı hatırlama durumuna göre değerlendir' : 'Düşün ve cevabı görmek için karta dokun'}</p>
         </div>
-      </div>
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={prev} className="flex-1 gap-2"><ChevronLeft className="h-4 w-4" /> Önceki</Button>
-        <Button variant="outline" onClick={() => setFlipped(f => !f)} className="gap-2"><RotateCw className="h-4 w-4" /> Çevir</Button>
-        <Button onClick={next} className="flex-1 gap-2">Sonraki <ChevronRight className="h-4 w-4" /></Button>
-      </div>
+      </button>
+      {flipped ? (
+        <div className="grid grid-cols-3 gap-2">
+          <Button variant="outline" onClick={() => rateCard('again')} className="h-auto min-h-12 flex-col gap-0.5 border-destructive/30 px-2 py-2 text-destructive hover:bg-destructive/5">
+            <span className="text-sm font-semibold">Tekrar</span><span className="text-[10px] font-normal">Unuttum</span>
+          </Button>
+          <Button variant="outline" onClick={() => rateCard('hard')} className="h-auto min-h-12 flex-col gap-0.5 border-warning/40 px-2 py-2 text-warning hover:bg-warning/5">
+            <span className="text-sm font-semibold">Zorlandım</span><span className="text-[10px] font-normal">Tekrar göster</span>
+          </Button>
+          <Button onClick={() => rateCard('known')} className="h-auto min-h-12 flex-col gap-0.5 px-2 py-2">
+            <span className="text-sm font-semibold">Öğrendim</span><span className="text-[10px] font-normal">Kartı bitir</span>
+          </Button>
+        </div>
+      ) : (
+        <Button variant="outline" onClick={() => setFlipped(true)} className="w-full gap-2"><RotateCw className="h-4 w-4" /> Cevabı göster</Button>
+      )}
     </div>
   );
 };
 
-const QuizViewer = ({ material }: { material: StudyMaterial }) => {
+const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; onProgressSaved: () => void }) => {
   const questions: Array<any> = material.content?.questions || [];
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
@@ -924,6 +1084,33 @@ const QuizViewer = ({ material }: { material: StudyMaterial }) => {
   const [revealed, setRevealed] = useState<Record<number, boolean>>({});
   const [streak, setStreak] = useState(0);
   const [motiv, setMotiv] = useState<{ text: string; ok: boolean } | null>(null);
+  const [savingResult, setSavingResult] = useState(false);
+  const savedAttemptRef = useRef(false);
+  const score = questions.filter((qq: any, i: number) => qq.type !== 'open_ended' && answers[i] === qq.correctIndex).length;
+  const answeredMC = questions.filter((qq: any, i: number) => qq.type !== 'open_ended' && revealed[i]).length;
+  const completed = questions.length > 0 && questions.every((_, questionIndex) => revealed[questionIndex]);
+
+  useEffect(() => {
+    if (!completed || savedAttemptRef.current) return;
+    savedAttemptRef.current = true;
+    setSavingResult(true);
+    void supabase.from('study_progress').insert({
+      user_id: material.user_id,
+      material_id: material.id,
+      score,
+      total_questions: answeredMC,
+      attempts: 1,
+      completed_at: new Date().toISOString(),
+    }).then(({ error }) => {
+      if (error) {
+        toast.error(`Quiz sonucu kaydedilemedi: ${error.message}`);
+        savedAttemptRef.current = false;
+        return;
+      }
+      toast.success('Quiz sonucu çalışma geçmişine kaydedildi.');
+      onProgressSaved();
+    }).finally(() => setSavingResult(false));
+  }, [answeredMC, completed, material.id, material.user_id, onProgressSaved, score]);
 
   if (!questions[idx]) return <p className="text-muted-foreground">Soru yok.</p>;
   const q = questions[idx];
@@ -948,9 +1135,6 @@ const QuizViewer = ({ material }: { material: StudyMaterial }) => {
     setRevealed({ ...revealed, [idx]: true });
     setMotiv({ text: 'Cevabını model cevap ile karşılaştır. Eksik bıraktığın noktaları not al.', ok: true });
   };
-
-  const score = questions.filter((qq: any, i: number) => qq.type !== 'open_ended' && answers[i] === qq.correctIndex).length;
-  const answeredMC = questions.filter((qq: any, i: number) => qq.type !== 'open_ended' && revealed[i]).length;
 
   return (
     <div className="space-y-4">
@@ -1027,11 +1211,12 @@ const QuizViewer = ({ material }: { material: StudyMaterial }) => {
         <Button onClick={() => { setIdx(Math.min(questions.length - 1, idx + 1)); setMotiv(null); }} disabled={idx === questions.length - 1} className="flex-1 gap-2">Sonraki <ChevronRight className="h-4 w-4" /></Button>
       </div>
 
-      {idx === questions.length - 1 && answeredMC > 0 && (
+      {completed && (
         <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-fuchsia-500/10 p-4 text-center">
           <Trophy className="h-8 w-8 mx-auto text-primary mb-2" />
           <p className="font-bold text-lg">Quiz tamamlandı!</p>
           <p className="text-sm text-muted-foreground">{score} / {answeredMC} doğru. Yanlışlarını gözden geçir — bu seferki çalışman gerçek bir kazanım.</p>
+          {savingResult && <p className="mt-2 text-xs text-muted-foreground">Sonucun kaydediliyor...</p>}
         </div>
       )}
     </div>

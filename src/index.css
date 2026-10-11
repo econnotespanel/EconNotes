@@ -16,7 +16,7 @@
     --success: 163 77% 35%; --success-foreground: 0 0% 100%;
     --warning: 32 94% 44%; --warning-foreground: 224 34% 13%;
     --border: 221 31% 88%; --input: 221 31% 90%; --ring: 226 91% 58%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
     --sidebar-background: 0 0% 100%; --sidebar-foreground: 218 17% 40%;
     --sidebar-primary: 226 91% 58%; --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 222 100% 96%; --sidebar-accent-foreground: 226 91% 52%;
@@ -91,17 +91,15 @@
 @layer utilities {
   /* ---------------- HUD console (Çalışma Stüdyosu) ---------------- */
   .hud-panel {
-    @apply relative overflow-hidden rounded-3xl border bg-card/60;
+    @apply relative overflow-hidden rounded-3xl border bg-card/85 backdrop-blur-xl;
     border-color: hsl(var(--hairline));
-    box-shadow:
-      inset 0 1px 0 hsl(210 40% 98% / 0.05),
-      0 20px 44px -28px hsl(var(--neon-blue) / 0.45);
+    box-shadow: var(--panel-shadow);
     transition: transform .3s cubic-bezier(.22,1,.36,1), box-shadow .3s ease, border-color .3s ease;
   }
   .hud-panel:hover {
-    transform: translateY(-4px);
-    border-color: hsl(var(--neon-cyan) / 0.45);
-    box-shadow: 0 26px 52px -24px hsl(var(--neon-cyan) / 0.45);
+    transform: translateY(-2px);
+    border-color: hsl(var(--primary) / 0.35);
+    box-shadow: var(--panel-shadow-hover);
   }
   .hud-scanline {
     position: absolute;
@@ -123,7 +121,7 @@
   .hud-bar {
     @apply rounded-full;
     background: hsl(var(--neon-cyan));
-    box-shadow: 0 0 16px hsl(var(--neon-cyan) / 0.8);
+    box-shadow: 0 0 12px hsl(var(--neon-cyan) / 0.32);
   }
   @media (prefers-reduced-motion: reduce) {
     .group:hover .hud-scanline { animation: none; opacity: .5; }
