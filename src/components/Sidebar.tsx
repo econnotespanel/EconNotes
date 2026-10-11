@@ -27,6 +27,7 @@ type LinkItem = {
   path: string;
   badge?: number;
   isNew?: boolean;
+  isBeta?: boolean;
 };
 
 const Sidebar = () => {
@@ -102,7 +103,7 @@ const Sidebar = () => {
   const account: LinkItem[] = [
     { label: 'Profilim',           icon: User,          path: '/profile' },
     { label: 'Puan Geçmişim',      icon: Sparkles,      path: '/points',     isNew: true },
-    { label: 'Destek Merkezi',     icon: LifeBuoy,      path: '/support' },
+    { label: 'Destek Merkezi',     icon: LifeBuoy,      path: '/support',    isBeta: true },
     { label: 'Hakkında',           icon: Info,          path: '/about' },
     ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
@@ -159,6 +160,11 @@ const Sidebar = () => {
         {link.isNew && (
           <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-[hsl(var(--sidebar-primary)/0.5)] text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-primary)/0.1)]">
             YENİ
+          </span>
+        )}
+        {link.isBeta && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-[hsl(var(--sidebar-primary)/0.5)] text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-primary)/0.1)]">
+            BETA
           </span>
         )}
         {link.badge && link.badge > 0 && (
