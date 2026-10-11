@@ -60,10 +60,10 @@ interface StudyProgress {
 }
 
 const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string; desc: string; tone: string; tint: string; code: string }> = {
-  flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Hızlı tekrar için çevrilebilir kartlar', tone: 'text-primary', tint: 'bg-primary/10', code: 'FC-01' },
-  quiz: { label: 'Quiz', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Test veya klasik sınav simülasyonu', tone: 'text-accent', tint: 'bg-accent/10', code: 'QZ-02' },
-  summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Özet, anahtar noktalar, infografik', tone: 'text-success', tint: 'bg-success/10', code: 'SM-03' },
-  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-warning to-destructive', desc: 'Sahne sahne anlatım + öneriler', tone: 'text-warning', tint: 'bg-warning/10', code: 'VD-04' },
+  flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Hızlı tekrar için çevrilebilir kartlar', tone: 'text-primary', tint: 'bg-primary/10', code: 'KRT' },
+  quiz: { label: 'Kısa Sınav', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Test veya klasik sınav denemesi', tone: 'text-accent', tint: 'bg-accent/10', code: 'SNV' },
+  summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Özet, anahtar noktalar ve infografik', tone: 'text-success', tint: 'bg-success/10', code: 'ÖZT' },
+  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-warning to-destructive', desc: 'Sahne sahne anlatım ve öneriler', tone: 'text-warning', tint: 'bg-warning/10', code: 'VİD' },
 };
 
 
@@ -319,7 +319,7 @@ const Study = () => {
 
   return (
     <Layout>
-      <div className="space-y-6 animate-fade-in">
+      <div className="mx-auto w-full max-w-7xl space-y-5 animate-fade-in sm:space-y-6">
         {/* HUD command band */}
         <div className="hud-panel p-5 md:p-7">
           <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(hsl(var(--neon-cyan))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--neon-cyan))_1px,transparent_1px)] [background-size:32px_32px]" />
@@ -330,39 +330,35 @@ const Study = () => {
             <div className="flex items-start gap-4">
               <div className="hud-bar mt-1 h-14 w-1.5 shrink-0" aria-hidden="true" />
               <div>
-                <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-primary">
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
-                  Sistem hazır · AI çevrimiçi
-                </div>
-                <h1 className="mt-1.5 flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-tight md:text-4xl">
+                <h1 className="flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-tight md:text-4xl">
                   <GraduationCap className="h-7 w-7 text-primary" />
                   <span className="holo-text">Çalışma Stüdyosu</span>
-                  <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Yeni</span>
+                  <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Yeni</span>
                 </h1>
-                <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-                  Notlarını, PDF'leri ve ses kayıtlarını yükle. Sınav türünü ve hedefini gir — stüdyo sana özel kart, quiz, özet ve video taslağı üretsin.
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                  Notlarını, PDF dosyalarını ve ses kayıtlarını yükle. Sınav türünü ve hedefini seç; sana özel bilgi kartları, kısa sınavlar, özetler ve video taslakları hazırlansın.
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => setReportOpen(true)} className="gap-2">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button variant="outline" onClick={() => setReportOpen(true)} className="w-full gap-2 sm:w-auto">
                 <Bug className="h-4 w-4" /> Platforma Bildir
               </Button>
-              <Button onClick={() => setCreateOpen(true)} className="gap-2 gradient-primary border-0 text-primary-foreground">
+              <Button onClick={() => setCreateOpen(true)} className="w-full gap-2 gradient-primary border-0 text-primary-foreground sm:w-auto">
                 <Plus className="h-4 w-4" /> Yeni Materyal
               </Button>
             </div>
           </div>
 
           {/* Signal readouts */}
-          <div className="relative mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div className="relative mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-5">
             {[
-              { label: 'Toplam', value: stats.total, icon: BookOpen, tone: 'text-primary', code: 'ALL' },
-              { label: 'Kart', value: stats.flashcards, icon: Layers, tone: 'text-primary', code: 'FC' },
-              { label: 'Quiz', value: stats.quiz, icon: ClipboardList, tone: 'text-accent', code: 'QZ' },
-              { label: 'Özet', value: stats.summary, icon: FileTextIcon, tone: 'text-success', code: 'SM' },
-              { label: 'Video', value: stats.video, icon: VideoIcon, tone: 'text-warning', code: 'VD' },
+              { label: 'Toplam', value: stats.total, icon: BookOpen, tone: 'text-primary', code: 'TOP' },
+              { label: 'Kart', value: stats.flashcards, icon: Layers, tone: 'text-primary', code: 'KRT' },
+              { label: 'Sınav', value: stats.quiz, icon: ClipboardList, tone: 'text-accent', code: 'SNV' },
+              { label: 'Özet', value: stats.summary, icon: FileTextIcon, tone: 'text-success', code: 'ÖZT' },
+              { label: 'Video', value: stats.video, icon: VideoIcon, tone: 'text-warning', code: 'VİD' },
             ].map((s, i) => {
               const pct = stats.total ? Math.round((s.value / stats.total) * 100) : 0;
               const ratio = s.label === 'Toplam' ? 100 : pct;
@@ -395,23 +391,23 @@ const Study = () => {
                     <Trophy className="h-4 w-4 text-primary" />
                     Öğrenme performansın
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Son 7 gündeki quiz aktiviten</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Son 7 gündeki kısa sınav çalışmaların</p>
                 </div>
-                <Badge variant="outline" className="rounded-full">{weeklyAttempts} tamamlanan quiz</Badge>
+                <Badge variant="outline" className="rounded-full">{weeklyAttempts} tamamlanan sınav</Badge>
               </div>
               <div className="mt-5 grid grid-cols-[auto_1fr] items-end gap-5">
                 <div>
                   <p className="text-3xl font-bold tracking-tight">{averageQuizScore === null ? '—' : `${averageQuizScore}%`}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Quiz ortalaman</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Sınav ortalaman</p>
                 </div>
-                <div className="flex h-16 items-end justify-between gap-2" role="img" aria-label="Son yedi günün quiz tamamlama grafiği">
+                <div className="flex h-16 items-end justify-between gap-2" role="img" aria-label="Son yedi gündeki kısa sınav tamamlama grafiği">
                   {weeklyStudy.map((day, index) => (
                     <div key={`${day.label}-${index}`} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
                       <span className="text-[10px] text-muted-foreground">{day.attempts || ''}</span>
                       <div
                         className={`w-full max-w-8 rounded-t-md transition-all ${day.attempts ? 'bg-primary/80' : 'bg-muted'}`}
                         style={{ height: `${Math.max(5, (day.attempts / weeklyMax) * 38)}px` }}
-                        title={`${day.label}: ${day.attempts} quiz`}
+                        title={`${day.label}: ${day.attempts} kısa sınav`}
                       />
                       <span className="text-[10px] capitalize text-muted-foreground">{day.label}</span>
                     </div>
@@ -420,7 +416,7 @@ const Study = () => {
               </div>
               {quizAttempts.length === 0 && (
                 <p className="mt-4 rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                  İlk quizini tamamladığında buradan ilerlemeni takip edebilirsin.
+                  İlk kısa sınavını tamamladığında ilerlemeni buradan takip edebilirsin.
                 </p>
               )}
             </CardContent>
@@ -431,7 +427,7 @@ const Study = () => {
                 <Badge variant="secondary" className="rounded-full">Bugünün çalışma hedefi</Badge>
                 <h2 className="mt-3 text-lg font-semibold">Kısa tekrar, kalıcı öğrenme.</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Bir kart setini gözden geçir veya sınavına uygun yeni bir quiz hazırla.
+                  Bir kart setini gözden geçir veya sınavına uygun yeni bir kısa sınav hazırla.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -439,7 +435,7 @@ const Study = () => {
                   <Layers className="mr-2 h-4 w-4" /> Kart hazırla
                 </Button>
                 <Button className="rounded-xl" onClick={() => { setMaterialType('quiz'); setCreateOpen(true); }}>
-                  <ClipboardList className="mr-2 h-4 w-4" /> Quiz çöz
+                  <ClipboardList className="mr-2 h-4 w-4" /> Kısa sınav hazırla
                 </Button>
               </div>
             </CardContent>
@@ -447,7 +443,7 @@ const Study = () => {
         </section>
 
         {/* Generator modules */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-4">
           {(Object.keys(TYPE_META) as MaterialType[]).map(t => {
             const meta = TYPE_META[t];
             const Icon = meta.icon;
@@ -455,11 +451,11 @@ const Study = () => {
               <button
                 key={t}
                 onClick={() => { setMaterialType(t); setCreateOpen(true); }}
-                className="hud-panel group p-5 text-left"
+                className="hud-panel group p-4 text-left sm:p-5"
               >
                 <div className="hud-scanline" />
                 <div className="relative">
-                  <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <div className="flex items-center justify-between text-[10px] tracking-widest text-muted-foreground">
                     <span>{meta.code}</span>
                     <span className={`h-1.5 w-1.5 rounded-full bg-current ${meta.tone}`} />
                   </div>
@@ -496,8 +492,8 @@ const Study = () => {
                 </button>
               ))}
             </div>
-            <div className="flex gap-1.5" role="group" aria-label="Zaman filtresi">
-              {([['all', 'Hepsi'], ['today', 'Bugün'], ['week', '7 gün']] as const).map(([val, label]) => (
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Zaman filtresi">
+              {([['all', 'Tüm zamanlar'], ['today', 'Bugün'], ['week', 'Son 7 gün']] as const).map(([val, label]) => (
                 <button
                   key={val}
                   onClick={() => setTimeFilter(val)}
@@ -536,8 +532,8 @@ const Study = () => {
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{meta.code}</span>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 transition-opacity group-hover:opacity-100" onClick={() => handleDelete(m.id)} aria-label="Materyali sil">
+                      <span className="text-[10px] tracking-widest text-muted-foreground">{meta.code}</span>
+                      <Button variant="ghost" size="icon" className="h-9 w-9 transition-opacity sm:opacity-0 sm:group-hover:opacity-100" onClick={() => handleDelete(m.id)} aria-label="Materyali sil">
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
@@ -567,7 +563,7 @@ const Study = () => {
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={(o) => { if (!generating) setCreateOpen(o); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> Yeni Çalışma Materyali</DialogTitle>
             <DialogDescription>Kaynağını seç, sınav profilini doldur. Yapay zeka sana özel materyali hazırlasın.</DialogDescription>
@@ -629,7 +625,7 @@ const Study = () => {
                   </Select>
                 </TabsContent>
                 <TabsContent value="upload" className="mt-2 space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <Input placeholder="Başlık (örn. Mikro 1. Vize)" value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} />
                     <Input placeholder="Ders (opsiyonel)" value={uploadCourse} onChange={e => setUploadCourse(e.target.value)} />
                   </div>
@@ -681,12 +677,12 @@ const Study = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Sınav tarihi (ops.)</Label>
+                  <Label className="text-xs">Sınav tarihi (isteğe bağlı)</Label>
                   <Input type="date" className="h-9" value={examDate} onChange={e => setExamDate(e.target.value)} />
                 </div>
               </div>
               <div>
-                <Label className="text-xs">Odaklanmak istediğin konu (ops.)</Label>
+                <Label className="text-xs">Odaklanmak istediğin konu (isteğe bağlı)</Label>
                 <Input className="h-9" placeholder="örn. Talep esnekliği, integral uygulamaları..." value={focus} onChange={e => setFocus(e.target.value)} />
               </div>
             </div>
@@ -703,7 +699,7 @@ const Study = () => {
             )}
 
             <Button onClick={handleGenerate} disabled={generating} className="w-full gap-2" size="lg">
-              {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Üretiliyor...</> : <><Sparkles className="h-4 w-4" /> AI ile Üret</>}
+              {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Hazırlanıyor...</> : <><Sparkles className="h-4 w-4" /> Yapay zekâyla hazırla</>}
             </Button>
           </div>
         </DialogContent>
@@ -711,7 +707,7 @@ const Study = () => {
 
       {/* Viewer */}
       <Dialog open={!!activeMaterial} onOpenChange={(o) => !o && setActiveMaterial(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1.5rem)] max-w-3xl overflow-y-auto rounded-2xl">
           {activeMaterial && <MaterialViewer key={activeMaterial.id} material={activeMaterial} onReport={() => setReportOpen(true)} onProgressSaved={() => void load()} />}
         </DialogContent>
       </Dialog>
@@ -798,7 +794,7 @@ const ReportDialog = ({ open, onOpenChange, materialId, user }: { open: boolean;
             <Select value={section} onValueChange={setSection}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="quiz">Quiz</SelectItem>
+                <SelectItem value="quiz">Kısa sınav</SelectItem>
                 <SelectItem value="flashcards">Bilgi Kartları</SelectItem>
                 <SelectItem value="summary">Konu Özeti</SelectItem>
                 <SelectItem value="video">Video Özeti</SelectItem>
@@ -846,7 +842,7 @@ const MaterialViewer = ({ material, onReport, onProgressSaved }: { material: Stu
               onClick={() => setCoachOpen(true)}
               className="gap-1 bg-gradient-to-r from-primary to-fuchsia-500 text-primary-foreground hover:opacity-90"
             >
-              <Wand2 className="h-3.5 w-3.5" /> Akıl Hocası
+              <Wand2 className="h-3.5 w-3.5" /> Yapay Zekâ Akıl Hocası
             </Button>
             <Button size="sm" variant="ghost" onClick={onReport} className="gap-1">
               <Bug className="h-3.5 w-3.5" /> Bildir
@@ -921,14 +917,14 @@ const StudyCoachPanel = ({ material, open, onClose }: { material: StudyMaterial;
             <Wand2 className="h-3.5 w-3.5 text-primary-foreground" />
           </div>
           <div>
-            <p className="text-sm font-semibold leading-none">AI Akıl Hocası</p>
+            <p className="text-sm font-semibold leading-none">Yapay Zekâ Akıl Hocası</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Bu materyale özel yardımcın</p>
           </div>
         </div>
         <Button size="sm" variant="ghost" onClick={onClose} className="h-7 w-7 p-0"><X className="h-4 w-4" /></Button>
       </div>
 
-      <div className="max-h-[340px] overflow-y-auto p-4 space-y-3">
+      <div className="max-h-[min(45dvh,340px)] space-y-3 overflow-y-auto p-3 sm:p-4">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
@@ -967,7 +963,7 @@ const StudyCoachPanel = ({ material, open, onClose }: { material: StudyMaterial;
         </div>
       )}
 
-      <div className="p-3 border-t border-border bg-card/50 flex gap-2">
+      <div className="flex gap-2 border-t border-border bg-card/50 p-3">
         <Input
           placeholder="Bir soru sor..."
           value={input}
@@ -1103,11 +1099,11 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
       completed_at: new Date().toISOString(),
     }).then(({ error }) => {
       if (error) {
-        toast.error(`Quiz sonucu kaydedilemedi: ${error.message}`);
+        toast.error(`Kısa sınav sonucu kaydedilemedi: ${error.message}`);
         savedAttemptRef.current = false;
         return;
       }
-      toast.success('Quiz sonucu çalışma geçmişine kaydedildi.');
+      toast.success('Kısa sınav sonucu çalışma geçmişine kaydedildi.');
       onProgressSaved();
     }).finally(() => setSavingResult(false));
   }, [answeredMC, completed, material.id, material.user_id, onProgressSaved, score]);
@@ -1157,7 +1153,7 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
             {isRevealed && (
               <div className="space-y-2 animate-fade-in">
                 <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">MODEL CEVAP</p>
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-1">ÖRNEK CEVAP</p>
                   <p className="text-sm whitespace-pre-wrap">{q.sampleAnswer || '-'}</p>
                 </div>
                 {q.explanation && (
@@ -1214,7 +1210,7 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
       {completed && (
         <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-fuchsia-500/10 p-4 text-center">
           <Trophy className="h-8 w-8 mx-auto text-primary mb-2" />
-          <p className="font-bold text-lg">Quiz tamamlandı!</p>
+          <p className="font-bold text-lg">Kısa sınav tamamlandı!</p>
           <p className="text-sm text-muted-foreground">{score} / {answeredMC} doğru. Yanlışlarını gözden geçir — bu seferki çalışman gerçek bir kazanım.</p>
           {savingResult && <p className="mt-2 text-xs text-muted-foreground">Sonucun kaydediliyor...</p>}
         </div>
@@ -1267,7 +1263,7 @@ const VideoViewer = ({ material }: { material: StudyMaterial }) => {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Outline</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Konu akışı</p>
         <p className="text-sm leading-relaxed">{c.outline}</p>
       </div>
       {c.scenes?.map((s: any, i: number) => (
@@ -1281,7 +1277,7 @@ const VideoViewer = ({ material }: { material: StudyMaterial }) => {
       ))}
       {c.suggestedSearches?.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">YouTube önerileri</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">İzleme önerileri</p>
           <div className="flex flex-wrap gap-2">
             {c.suggestedSearches.map((q: string, i: number) => (
               <a key={i} href={`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-border bg-muted/50 hover:bg-primary/10 hover:border-primary/30 transition">
