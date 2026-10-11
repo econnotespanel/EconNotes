@@ -21,6 +21,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { extractFile } from '@/lib/extractFile';
+import LiveLectureCapture from '@/components/study/LiveLectureCapture';
 
 type MaterialType = 'flashcards' | 'quiz' | 'summary' | 'video';
 type ExamType = 'test' | 'classic' | 'mixed';
@@ -84,7 +85,7 @@ const MOTIVATIONS_RIGHT = [
 // (file → base64 helper moved into src/lib/extractFile.ts)
 
 const Study = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [studyProgress, setStudyProgress] = useState<StudyProgress[]>([]);
   const [ownNotes, setOwnNotes] = useState<Note[]>([]);
@@ -381,6 +382,13 @@ const Study = () => {
             })}
           </div>
         </div>
+
+        {isAdmin && (
+          <LiveLectureCapture
+            userId={user!.id}
+            onSaved={(material) => setMaterials((current) => [material, ...current])}
+          />
+        )}
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
           <Card className="overflow-hidden rounded-2xl border-border/70 bg-card/80 shadow-sm">
@@ -1264,6 +1272,12 @@ const SummaryViewer = ({ material }: { material: StudyMaterial }) => {
           {s.takeaway && <p className="mt-2 text-xs italic text-primary">💡 {s.takeaway}</p>}
         </div>
       ))}
+      {typeof c.transcript === 'string' && (
+        <details className="rounded-xl border border-border bg-card p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Kaydedilen ders dökümünü göster</summary>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{c.transcript}</p>
+        </details>
+      )}
     </div>
   );
 };
