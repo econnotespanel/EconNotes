@@ -7,14 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck, Megaphone, X } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck, Megaphone, X, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
 import SecurityCaptcha from '@/components/SecurityCaptcha';
+import { getReturningAccountName, rememberReturningAccount } from '@/lib/returningAccount';
 
 const Login = () => {
   const [email, setEmail] = useState('');
+  const [returningName, setReturningName] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -27,6 +29,24 @@ const Login = () => {
   const [captchaReset, setCaptchaReset] = useState(0);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    let cancelled = false;
+    setReturningName(null);
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return;
+
+    const timer = window.setTimeout(() => {
+      void getReturningAccountName(email).then((name) => {
+        if (!cancelled) setReturningName(name);
+      });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [email]);
 
   useEffect(() => {
     const fetchBanners = async () => {
@@ -141,6 +161,7 @@ const Login = () => {
       .eq('user_id', data.user!.id)
       .single();
     const fullName = profileData?.full_name || data.user!.user_metadata?.full_name || '';
+    await rememberReturningAccount(data.user!.email || email, fullName);
     
     setLoading(false);
     toast.success(`Giriş Başarılı! Hoş Geldiniz, ${fullName}`, {
@@ -289,6 +310,18 @@ const Login = () => {
               <span className="text-sm text-muted-foreground font-medium">Güvenli Giriş</span>
             </div>
           </div>
+
+          {returningName && (
+            <div role="status" className="flex items-center gap-3 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-accent/10 p-3.5 shadow-sm animate-fade-in">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground">Tekrar hoş geldin, {returningName}!</p>
+                <p className="text-xs text-muted-foreground">Seni yeniden EconNotes’ta görmek güzel.</p>
+              </div>
+            </div>
+          )}
 
           {penaltyInfo && !penaltyInfo.expired && (
             <Alert variant="destructive">

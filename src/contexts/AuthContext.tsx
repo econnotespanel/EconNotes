@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import { APP_VERSION } from '@/lib/version';
+import { rememberReturningAccount } from '@/lib/returningAccount';
 
 interface Profile {
   id: string;
@@ -49,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const activeUserIdRef = useRef<string | null>(null);
 
-  const fetchProfile = async (userId: string, recordLogin = false) => {
+  const fetchProfile = async (userId: string, recordLogin = false, email?: string, fallbackFullName?: string) => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
@@ -68,6 +69,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch {
           // Storage can be unavailable in private or restricted browsing contexts.
         }
+      }
+      if (recordLogin && email) {
+        await rememberReturningAccount(email, data.full_name || fallbackFullName || '');
       }
       const lastLogin = recordLogin ? new Date().toISOString() : data.last_login;
       if (recordLogin && activeUserIdRef.current === userId) {
@@ -112,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           const recordLogin = _event === 'SIGNED_IN' || _event === 'INITIAL_SESSION';
           setTimeout(async () => {
-            await fetchProfile(session.user.id, recordLogin);
+            await fetchProfile(session.user.id, recordLogin, session.user.email, session.user.user_metadata?.full_name);
           }, 0);
           if (_event === 'SIGNED_IN') {
             import('@/lib/activityLogger').then(({ logActivity }) => {
