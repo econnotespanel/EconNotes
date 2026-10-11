@@ -119,12 +119,17 @@ const Messages = () => {
   };
 
   const fetchMessages = async (friendUserId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('messages')
-      .select('*')
+      .select('id,sender_id,receiver_id,content,created_at,is_read')
       .or(`and(sender_id.eq.${user!.id},receiver_id.eq.${friendUserId}),and(sender_id.eq.${friendUserId},receiver_id.eq.${user!.id})`)
-      .order('created_at', { ascending: true });
-    setMessages(data || []);
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) {
+      toast.error(`Mesajlar yüklenemedi: ${error.message}`);
+      return;
+    }
+    setMessages((data || []).reverse());
     
     // Mark received messages as read
     await supabase.from('messages')
@@ -153,11 +158,30 @@ const Messages = () => {
 
   useEffect(() => {
     if (selectedFriend) {
-      fetchMessages(selectedFriend.user_id);
-      const interval = setInterval(() => fetchMessages(selectedFriend.user_id), 5000);
-      return () => clearInterval(interval);
+      const friendId = selectedFriend.user_id;
+      const channel = supabase
+        .channel(`messages-${user!.id}-${friendId}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `sender_id=eq.${friendId}`,
+        }, () => { void fetchMessages(friendId); })
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${friendId}`,
+        }, () => { void fetchMessages(friendId); })
+        .subscribe((status) => {
+          if (status === 'SUBSCRIBED') void fetchMessages(friendId);
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            toast.error('Canlı mesaj bağlantısı kurulamadı. Sayfayı yenileyip tekrar deneyin.');
+          }
+        });
+      return () => { void supabase.removeChannel(channel); };
     }
-  }, [selectedFriend]);
+  }, [selectedFriend, user]);
 
   const sendFriendRequest = async (receiverId: string) => {
     const { error } = await supabase.from('friend_requests').insert({
@@ -363,19 +387,19 @@ const Messages = () => {
 
   return (
     <Layout>
-      <div className="space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between">
+      <div className="mx-auto w-full max-w-7xl space-y-4 animate-fade-in sm:space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">Mesajlar</h1>
             <p className="text-sm text-muted-foreground">Arkadaşlarınızla özel mesajlaşın</p>
           </div>
           <Dialog open={addFriendOpen} onOpenChange={setAddFriendOpen}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground">
-                <UserPlus className="h-4 w-4 mr-2" /> Arkadaş Ekle
+              <Button className="w-full gap-2 rounded-xl gradient-primary text-primary-foreground sm:w-auto">
+                <UserPlus className="h-4 w-4" /> Arkadaş Ekle
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg rounded-2xl">
               <DialogHeader><DialogTitle>Kullanıcı Bul & Arkadaş Ekle</DialogTitle></DialogHeader>
               <div className="space-y-4">
                 <div className="relative">
@@ -413,15 +437,15 @@ const Messages = () => {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[calc(100dvh-12rem)] md:h-[calc(100vh-16rem)]">
+        <div className="grid min-h-[min(620px,calc(100dvh-13rem))] grid-cols-1 gap-3 md:min-h-[32rem] md:grid-cols-3 md:gap-4">
           {/* Left: Friends & Requests — hidden on mobile when a chat is open */}
-          <Card className={`glass-card md:col-span-1 overflow-hidden ${selectedFriend ? 'hidden md:block' : 'block'}`}>
-            <Tabs defaultValue="friends" className="h-full flex flex-col">
-              <TabsList className="w-full rounded-none">
-                <TabsTrigger value="friends" className="flex-1">
+          <Card className={`glass-card min-h-0 overflow-hidden rounded-2xl md:col-span-1 ${selectedFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
+            <Tabs defaultValue="friends" className="flex h-full min-h-0 flex-col">
+              <TabsList className="grid h-auto min-h-12 w-full shrink-0 grid-cols-2 rounded-none border-0 border-b border-border bg-muted/60 p-1 shadow-none">
+                <TabsTrigger value="friends" className="min-h-10 flex-1 rounded-lg border-0 px-2 text-xs font-semibold data-[state=active]:border-0 data-[state=active]:shadow-sm sm:text-sm">
                   <Users className="h-3 w-3 mr-1" /> Arkadaşlar
                 </TabsTrigger>
-                <TabsTrigger value="requests" className="flex-1 relative">
+                <TabsTrigger value="requests" className="relative min-h-10 flex-1 rounded-lg border-0 px-2 text-xs font-semibold data-[state=active]:border-0 data-[state=active]:shadow-sm sm:text-sm">
                   İstekler
                   {pendingRequests.length > 0 && (
                     <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">
@@ -430,7 +454,7 @@ const Messages = () => {
                   )}
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="friends" className="flex-1 overflow-y-auto p-2 space-y-1 m-0">
+              <TabsContent value="friends" className="m-0 min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
                 {friends.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center p-4">Henüz arkadaş yok. Kullanıcı ekleyin!</p>
                 ) : (
@@ -438,8 +462,8 @@ const Messages = () => {
                     <div key={f.id} className="group relative">
                       <button
                         onClick={() => setSelectedFriend(f)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg text-left transition-colors ${
-                          selectedFriend?.user_id === f.user_id ? 'bg-primary/10' : 'hover:bg-accent'
+                        className={`w-full flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
+                          selectedFriend?.user_id === f.user_id ? 'border-primary/30 bg-primary/10' : 'border-transparent hover:border-border hover:bg-accent/70'
                         }`}
                       >
                         <Avatar className="h-9 w-9">
@@ -455,7 +479,7 @@ const Messages = () => {
                       {/* Friend actions popover */}
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-accent">
+                          <button aria-label={`${f.full_name} için işlemler`} className="absolute right-2 top-2 rounded-lg p-2 opacity-100 transition-opacity hover:bg-accent sm:opacity-0 sm:group-hover:opacity-100">
                             <span className="text-xs">⋮</span>
                           </button>
                         </PopoverTrigger>
@@ -506,7 +530,7 @@ const Messages = () => {
                   ))
                 )}
               </TabsContent>
-              <TabsContent value="requests" className="flex-1 overflow-y-auto p-2 space-y-2 m-0">
+              <TabsContent value="requests" className="m-0 min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
                 {pendingRequests.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center p-4">Bekleyen istek yok.</p>
                 ) : (
@@ -533,17 +557,17 @@ const Messages = () => {
           </Card>
 
           {/* Right: Chat Area */}
-          <Card className={`glass-card md:col-span-2 flex-col overflow-hidden ${selectedFriend ? 'flex' : 'hidden md:flex'}`}>
+          <Card className={`glass-card min-h-0 flex-col overflow-hidden rounded-2xl md:col-span-2 ${selectedFriend ? 'flex' : 'hidden md:flex'}`}>
             {!selectedFriend ? (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
                 <MessageSquare className="h-16 w-16 mb-4 opacity-20" />
                 <p className="text-lg font-medium">Bir arkadaş seçin</p>
-                <p className="text-sm">Mesajlaşmaya başlamak için sol taraftan bir arkadaş seçin.</p>
+                <p className="px-4 text-center text-sm">Mesajlaşmaya başlamak için arkadaş listesinden birini seçin.</p>
               </div>
             ) : (
               <>
                 {/* Chat header */}
-                <div className="p-3 md:p-4 border-b border-border flex items-center gap-3">
+                <div className="flex items-center gap-3 border-b border-border bg-card/60 p-3 sm:p-4">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -565,18 +589,18 @@ const Messages = () => {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-4">
                   {messages.length === 0 ? (
                     <p className="text-center text-muted-foreground text-sm">Henüz mesaj yok. İlk mesajı gönderin!</p>
                   ) : (
                     messages.map(msg => (
                       <div key={msg.id} className={`group flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
-                        <div className="relative max-w-[85%]">
-                          <div className={`p-3 rounded-xl text-sm break-words ${
+                        <div className="group/bubble relative max-w-[85%] sm:max-w-[80%]">
+                          <div className={`w-fit max-w-full break-words rounded-2xl p-3 text-sm [overflow-wrap:anywhere] ${
                             msg.sender_id === user?.id
-                              ? 'bg-primary text-primary-foreground rounded-br-sm'
-                              : 'bg-accent rounded-bl-sm'
-                          }`} style={{ maxWidth: 'fit-content', minWidth: '60px' }}>
+                              ? 'bg-primary text-primary-foreground rounded-br-sm shadow-sm'
+                              : 'border border-border bg-muted/70 rounded-bl-sm shadow-sm'
+                          }`}>
                             {renderMessageContent(msg.content)}
                             <p className="text-[10px] mt-1 opacity-60">
                               {new Date(msg.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
@@ -585,8 +609,9 @@ const Messages = () => {
                           {msg.sender_id !== user?.id && (
                             <button
                               onClick={() => { setReportingMessage(msg); setReportDialogOpen(true); }}
-                              className="absolute -right-6 top-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                              title="Mesajı Raporla"
+                              aria-label="Mesajı raporla"
+                              className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm opacity-100 transition-colors hover:text-destructive sm:-right-9 sm:top-0 sm:opacity-0 sm:group-hover/bubble:opacity-100"
+                              title="Mesajı raporla"
                             >
                               <Flag className="h-3 w-3" />
                             </button>
@@ -599,7 +624,7 @@ const Messages = () => {
                 </div>
 
                 {/* Input area */}
-                <div className="p-2 md:p-3 border-t border-border bg-card/60 backdrop-blur-sm">
+                <div className="border-t border-border bg-card/80 p-2 pb-[calc(.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-3">
                   <div className="flex items-end gap-2">
                     <input
                       ref={fileInputRef}
@@ -611,16 +636,16 @@ const Messages = () => {
                         e.target.value = '';
                       }}
                     />
-                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => fileInputRef.current?.click()}>
+                    <Button variant="outline" size="icon" aria-label="Dosya ekle" className="h-10 w-10 shrink-0 rounded-xl" onClick={() => fileInputRef.current?.click()}>
                       <Paperclip className="h-4 w-4" />
                     </Button>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" className="shrink-0">
+                        <Button variant="outline" size="icon" aria-label="Emoji ekle" className="h-10 w-10 shrink-0 rounded-xl">
                           <Smile className="h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" side="top">
+                      <PopoverContent className="w-auto max-w-[calc(100vw-2rem)] p-2" side="top">
                         <div className="grid grid-cols-5 gap-1">
                           {EMOJIS.map(e => (
                             <button key={e} onClick={() => addEmoji(e)} className="text-lg hover:bg-accent rounded p-1 transition-colors">
@@ -635,10 +660,10 @@ const Messages = () => {
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                       placeholder="Mesajınızı yazın..."
-                      className="resize-none flex-1 min-h-10 max-h-32 text-base md:text-sm"
+                      className="min-h-10 max-h-32 flex-1 resize-none rounded-xl text-base md:text-sm"
                       rows={1}
                     />
-                    <Button onClick={sendMessage} className="gradient-primary text-primary-foreground shrink-0" aria-label="Gönder">
+                    <Button onClick={sendMessage} disabled={!newMessage.trim()} className="h-10 w-10 shrink-0 rounded-xl gradient-primary text-primary-foreground" aria-label="Gönder" size="icon">
                       <Send className="h-4 w-4" />
                     </Button>
                   </div>

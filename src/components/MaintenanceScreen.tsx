@@ -41,10 +41,10 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
         </>
       )}
 
-      <div className="max-w-lg w-full text-center space-y-5 relative z-10">
+      <div className="relative z-10 mx-auto w-full max-w-lg space-y-5 text-center">
         <div className="rounded-3xl p-8 bg-white/40 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-2xl">
-          <div className="flex justify-center mb-4">
-            <EconLogo className="h-20 w-72 max-w-full" />
+          <div className="mb-4 flex w-full justify-center">
+            <EconLogo className="mx-auto h-16 w-64 max-w-full sm:h-20 sm:w-72" />
           </div>
 
           {imageUrl ? (
@@ -94,7 +94,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             adresi üzerinden bizimle iletişime geçebilirsiniz.
           </p>
           <p className="text-xs text-slate-600 dark:text-slate-300 mt-3">
-            Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
+            EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
           </p>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 /** The supplied EconNotes logo with a dark-mode wordmark variant. */
 export default function EconLogo({ className = '', onDark = false, allWhite = false }: { className?: string; onDark?: boolean; allWhite?: boolean }) {
-  return <span className={cn('inline-flex max-h-10 max-w-44 shrink-0 items-center', className)}>
+  return <span className={cn('inline-flex max-w-full shrink-0 items-center', className)}>
     <img
       src={lightLogo}
       alt="EconNotes"

@@ -34,6 +34,7 @@ const ForgotPassword = () => {
     setLoading(false);
     if (error) {
       toast.error('Şifre sıfırlama bağlantısı gönderilemedi. Lütfen tekrar deneyin.');
+      toast.info('Hesabınıza erişemiyorsanız güvenlik nedeniyle yöneticinizle iletişime geçin.', { duration: 6000 });
     } else {
       setSent(true);
       toast.success('Şifre sıfırlama bağlantısı e-posta adresinize gönderildi!');
@@ -75,7 +76,7 @@ const ForgotPassword = () => {
           </div>
         </div>
         <div className="relative z-10 flex items-center justify-between">
-          <p className="text-white/50 text-sm">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+          <p className="text-white/50 text-sm">EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
           <span className="text-white/30 text-xs">{APP_VERSION}</span>
         </div>
         <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20" />
@@ -142,7 +143,7 @@ const ForgotPassword = () => {
             <p className="text-xs text-muted-foreground text-center">
               Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
-            <p className="text-xs text-muted-foreground/60 text-center lg:hidden">Bu platform, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+            <p className="text-xs text-muted-foreground/60 text-center lg:hidden">EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
             <p className="text-xs text-muted-foreground/40 text-center lg:hidden">{APP_VERSION}</p>
           </div>
         </div>
