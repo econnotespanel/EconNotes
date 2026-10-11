@@ -8,12 +8,9 @@ const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.
 const createAttributionStamp = async (fullName: string): Promise<Uint8Array> => {
   const canvas = document.createElement('canvas');
   canvas.width = 1400;
-  canvas.height = 140;
+  canvas.height = 180;
   const context = canvas.getContext('2d');
   if (!context) throw new Error('Filigran görseli oluşturulamadı.');
-
-  context.fillStyle = 'rgba(255, 255, 255, 0.76)';
-  context.fillRect(0, 0, canvas.width, canvas.height);
 
   const logo = new Image();
   logo.src = logoUrl;
@@ -22,20 +19,22 @@ const createAttributionStamp = async (fullName: string): Promise<Uint8Array> => 
     logo.onerror = () => reject(new Error('EconNotes logosu yüklenemedi.'));
   });
 
-  context.globalAlpha = 0.8;
-  context.drawImage(logo, 18, 40, 260, 58);
-  context.globalAlpha = 0.62;
+  const logoWidth = 330;
+  const logoHeight = logoWidth * logo.naturalHeight / logo.naturalWidth;
+  context.drawImage(logo, 24, (canvas.height - logoHeight) / 2, logoWidth, logoHeight);
+
   context.fillStyle = '#172033';
   context.textBaseline = 'middle';
   const attribution = `Bu not ${fullName} tarafından indirilmiştir`;
-  const maxTextWidth = canvas.width - 320;
-  let fontSize = 34;
+  const maxTextWidth = canvas.width - 400;
+  let fontSize = 32;
   context.font = `600 ${fontSize}px Arial, sans-serif`;
   while (fontSize > 18 && context.measureText(attribution).width > maxTextWidth) {
     fontSize -= 1;
     context.font = `600 ${fontSize}px Arial, sans-serif`;
   }
-  context.fillText(attribution, 310, 70, maxTextWidth);
+  context.globalAlpha = 0.72;
+  context.fillText(attribution, 390, 90, maxTextWidth);
   context.globalAlpha = 1;
 
   const blob = await new Promise<Blob>((resolve, reject) => {
@@ -72,11 +71,11 @@ export async function addWatermarkToPdf(pdfUrl: string, fullName: string): Promi
         });
       }
     }
-    const stampWidth = Math.min(320, width - 32);
+    const stampWidth = Math.min(360, width * 0.94);
     const stampHeight = stampWidth * stamp.height / stamp.width;
     page.drawImage(stamp, {
-      x: 16,
-      y: 10,
+      x: width * 0.03,
+      y: height * 0.015,
       width: stampWidth,
       height: stampHeight,
     });
@@ -180,10 +179,10 @@ export const addPersonalWatermarkToPresentation = async (pptxBytes: ArrayBuffer,
 
     const shapeIds = [...slideXml.matchAll(/<p:cNvPr\b[^>]*\bid="(\d+)"/g)].map((match) => Number(match[1]));
     const shapeId = Math.max(0, ...shapeIds) + 1;
-    const width = Math.min(4_000_000, slideWidth - 400_000);
-    const height = width * 0.1;
-    const x = 200_000;
-    const y = Math.max(0, slideHeight - height - 160_000);
+    const width = Math.min(8_400_000, slideWidth * 0.92);
+    const height = width * 180 / 1400;
+    const x = slideWidth * 0.04;
+    const y = slideHeight * 0.015;
     const picture = `<p:pic><p:nvPicPr><p:cNvPr id="${shapeId}" name="EconNotes kişisel filigranı"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${width}" cy="${height}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
     zip.file(slidePath, slideXml.replace('</p:spTree>', `${picture}</p:spTree>`));
   }

@@ -28,6 +28,8 @@ describe('PowerPoint personal watermarking', () => {
       const relationships = await watermarked.file(`ppt/slides/_rels/slide${slideNumber}.xml.rels`)?.async('string');
       expect(slide).toContain('EconNotes kişisel filigranı');
       expect(slide).toContain('r:embed="rId1"');
+      expect(slide).toContain('<a:off x="365760" y="102870"/>');
+      expect(slide).toContain('<a:ext cx="8400000" cy="1080000"/>');
       expect(relationships).toContain('Target="../media/econnotes-personal-watermark.png"');
     }
 
