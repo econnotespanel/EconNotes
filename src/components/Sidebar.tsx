@@ -197,12 +197,12 @@ const Sidebar = () => {
         aria-label={open ? 'Menüyü kapat' : 'Menüyü aç'}
         aria-expanded={open}
         aria-controls="mobile-sidebar"
-        className="fixed top-3 left-3 z-[70] md:hidden h-10 w-10 rounded-lg border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-primary))] transition-all"
+        className="fixed top-3 left-3 z-[70] inline-flex h-10 w-10 items-center justify-center p-0 md:hidden rounded-lg border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-primary))] transition-all"
         onClick={() => setOpen(v => !v)}
       >
-        <span className="relative block h-5 w-5">
-          <Menu className={cn('absolute inset-0 h-5 w-5 transition-all duration-300', open ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100')} />
-          <X className={cn('absolute inset-0 h-5 w-5 transition-all duration-300', open ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75')} />
+        <span className="relative grid h-5 w-5 place-items-center">
+          <Menu className={cn('absolute left-0 top-0 block h-5 w-5 transition-all duration-300', open ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100')} />
+          <X className={cn('absolute left-0 top-0 block h-5 w-5 transition-all duration-300', open ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75')} />
         </span>
         {!open && totalBadge > 0 && (
           <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[hsl(var(--neon-cyan))] shadow-[0_0_8px_hsl(var(--neon-cyan))]" />

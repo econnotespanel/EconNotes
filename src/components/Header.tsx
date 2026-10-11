@@ -92,7 +92,7 @@ const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card relative">
       <div className="flex h-16 min-w-0 items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
-        <div className="ml-12 flex min-w-0 cursor-pointer items-center md:ml-0" onClick={() => navigate('/')}>
+        <div className="ml-14 flex min-w-0 cursor-pointer items-center md:ml-0" onClick={() => navigate('/')}>
           <EconLogo className="h-6 w-24 sm:h-7 sm:w-32" />
         </div>
 

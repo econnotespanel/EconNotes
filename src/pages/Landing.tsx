@@ -39,7 +39,7 @@ const Landing = () => {
             <button
               onClick={toggleTheme}
               className="h-9 w-9 rounded-md border border-border text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:h-auto sm:w-auto sm:rounded-full sm:px-3 sm:py-1.5 sm:text-xs"
-              title={theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}
+              aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
             >
               <span aria-hidden>{theme === 'dark' ? '☀️' : '🌙'}</span><span className="sr-only sm:not-sr-only sm:ml-1">{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
             </button>

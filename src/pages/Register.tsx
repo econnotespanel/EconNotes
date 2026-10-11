@@ -164,12 +164,12 @@ const Register = () => {
       </div>
 
       {/* Right panel - register form */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 bg-background relative min-h-screen lg:min-h-0">
+      <div className="flex-1 flex flex-col items-center justify-center p-6 pt-20 bg-background relative min-h-screen lg:min-h-0 lg:pt-6">
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
           className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium text-muted-foreground hover:text-foreground"
-          title={theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}
+          aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
         >
           <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
           <span className={`transition-transform duration-300 ${theme === 'light' ? 'rotate-0' : 'rotate-90 scale-0 absolute'}`}>🌙</span>
