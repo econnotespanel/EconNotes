@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import { APP_VERSION } from '@/lib/version';
@@ -47,21 +47,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const activeUserIdRef = useRef<string | null>(null);
 
-  const fetchProfile = async (userId: string, detectInactivity = false) => {
+  const fetchProfile = async (userId: string, recordLogin = false) => {
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
+    if (activeUserIdRef.current !== userId) return;
     if (data) {
       const previousLogin = data.last_login ? new Date(data.last_login).getTime() : null;
       const inactiveSince = Date.now() - INACTIVE_DAYS * 24 * 60 * 60 * 1000;
       const tourKey = `econnotes_return_tour_${RETURN_TOUR_VERSION}_${userId}`;
-      if (detectInactivity && previousLogin && previousLogin < inactiveSince && !localStorage.getItem(tourKey)) {
-        sessionStorage.setItem('econnotes_return_tour_pending', '1');
+      if (recordLogin && previousLogin && previousLogin < inactiveSince) {
+        try {
+          if (!localStorage.getItem(tourKey)) {
+            sessionStorage.setItem('econnotes_return_tour_pending', '1');
+          }
+        } catch {
+          // Storage can be unavailable in private or restricted browsing contexts.
+        }
       }
-      setProfile({ ...data, last_login: new Date().toISOString() } as Profile);
+      const lastLogin = recordLogin ? new Date().toISOString() : data.last_login;
+      if (recordLogin && activeUserIdRef.current === userId) {
+        await supabase
+          .from('profiles')
+          .update({ last_login: lastLogin })
+          .eq('user_id', userId);
+      }
+      if (activeUserIdRef.current !== userId) return;
+      setProfile({ ...data, last_login: lastLogin } as Profile);
+    } else {
+      setProfile(null);
     }
 
     const { data: roleData } = await supabase
@@ -69,7 +87,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .select('role')
       .eq('user_id', userId)
       .single();
-    if (roleData) setIsAdmin(roleData.role === 'admin');
+    if (activeUserIdRef.current !== userId) return;
+    setIsAdmin(roleData?.role === 'admin');
   };
 
   const refreshProfile = async () => {
@@ -87,20 +106,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        activeUserIdRef.current = session?.user.id ?? null;
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
+          const recordLogin = _event === 'SIGNED_IN' || _event === 'INITIAL_SESSION';
           setTimeout(async () => {
-            await fetchProfile(session.user.id, _event === 'SIGNED_IN');
-            await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id);
+            await fetchProfile(session.user.id, recordLogin);
           }, 0);
           if (_event === 'SIGNED_IN') {
             import('@/lib/activityLogger').then(({ logActivity }) => {
               logActivity(session.user.id, session.user.user_metadata?.full_name || '', session.user.email || '', 'user_login', 'Panele giriş yaptı');
             });
             setTimeout(() => {
-              (supabase as any).rpc('award_daily_login').then(({ data }: any) => {
-                const result = Array.isArray(data) ? data[0] : data;
+              supabase.rpc('award_daily_login').then(({ data }) => {
+                const result = data?.[0];
                 if (result && !result.already_claimed && result.awarded > 0) {
                   import('sonner').then(({ toast }) => {
                     toast.success(`Günlük giriş puanı: +${result.awarded}`, {
@@ -119,17 +139,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
       }
     );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).then(() => {
-          supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
-        });
-      }
-      setLoading(false);
-    });
 
     return () => subscription.unsubscribe();
   }, []);

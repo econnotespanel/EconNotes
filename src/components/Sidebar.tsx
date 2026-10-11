@@ -1,24 +1,36 @@
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target, Sparkles } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target, Sparkles, LogOut, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { APP_VERSION } from '@/lib/version';
+import { APP_VERSION_LABEL } from '@/lib/version';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
+import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
 
 type LinkItem = {
   label: string;
-  icon: any;
+  icon: LucideIcon;
   path: string;
   badge?: number;
   isNew?: boolean;
 };
 
 const Sidebar = () => {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, signOut } = useAuth();
   const { isPageEnabled, config } = useSiteConfig();
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,12 +45,12 @@ const Sidebar = () => {
       .from('messages').select('sender_id')
       .eq('receiver_id', user.id).eq('is_read', false);
     if (unreadMsgs) {
-      const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));
+      const uniqueSenders = new Set(unreadMsgs.map((message) => message.sender_id));
       setUnreadMessages(uniqueSenders.size);
     }
     const { data: announcements } = await supabase.from('announcements').select('id');
     const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
-    const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
+    const viewedIds = new Set((views || []).map((view) => view.announcement_id));
     setUnreadAnnouncements((announcements || []).filter(a => !viewedIds.has(a.id)).length);
   }, [user]);
 
@@ -97,6 +109,12 @@ const Sidebar = () => {
   const visible = (items: LinkItem[]) => items.filter(l => isAdmin || isPageEnabled(l.path));
 
   const totalBadge = unreadMessages + unreadAnnouncements;
+
+  const handleLogout = async () => {
+    await signOut();
+    toast.success('Çıkış başarılı!');
+    navigate('/login');
+  };
 
   const renderItem = (link: LinkItem, isFirst = false) => {
     const Icon = link.icon;
@@ -221,8 +239,27 @@ const Sidebar = () => {
         <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
             <EconLogo className="h-5 w-24" />
-            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">Versiyon {APP_VERSION}</span>
+            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">{APP_VERSION_LABEL}</span>
           </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" className="mt-3 w-full justify-start gap-2 text-destructive hover:text-destructive md:hidden">
+                <LogOut className="h-4 w-4" /> Çıkış Yap
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Çıkış yapmak istediğinize emin misiniz?</AlertDialogTitle>
+                <AlertDialogDescription>Hesabınızdan güvenli şekilde çıkış yapılacaktır.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>İptal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Çıkış Yap
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </aside>
     </>
