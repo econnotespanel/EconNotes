@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, X } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -669,6 +669,10 @@ const Notes = () => {
               {displayNotes.map((note) => {
                 const thumbnail = getThumbnail(note);
                 const locked = isNoteLocked(note);
+                const createdAt = new Date(note.created_at).getTime();
+                const isNew = Number.isFinite(createdAt)
+                  && createdAt <= Date.now()
+                  && Date.now() - createdAt <= 7 * 24 * 60 * 60 * 1000;
                 return (
                   <Card key={note.id} className="group relative overflow-hidden rounded-2xl border-border/70 bg-card/95 shadow-[0_8px_24px_hsl(var(--primary)/0.04)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[0_18px_40px_hsl(var(--primary)/0.12)]">
                     {locked ? (
@@ -727,9 +731,10 @@ const Notes = () => {
                         )}
                         <CardContent className="space-y-4 p-4 sm:p-5">
                           {note.description && (
-                            <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{note.description}</p>
+                            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{note.description}</p>
                           )}
                           <div className="flex flex-wrap gap-1.5">
+                            {isNew && <span className="inline-flex items-center gap-1 rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success"><Sparkles className="h-3 w-3" /> Yeni</span>}
                             <span className="rounded-full border border-primary/15 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">{note.grade}. Sınıf</span>
                             <span className="rounded-full bg-gradient-to-r from-primary to-secondary px-2.5 py-1 text-xs font-medium text-white shadow-sm shadow-primary/20">{note.course}</span>
                             <span className="rounded-full border border-border/70 bg-muted/70 px-2.5 py-1 text-xs font-medium text-muted-foreground">{note.semester}</span>
