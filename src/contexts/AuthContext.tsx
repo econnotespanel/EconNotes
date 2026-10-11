@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import { APP_VERSION } from '@/lib/version';
@@ -47,6 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const activeUserIdRef = useRef<string | null>(null);
 
   const fetchProfile = async (userId: string, recordLogin = false) => {
     const { data } = await supabase
@@ -54,6 +55,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .select('*')
       .eq('user_id', userId)
       .single();
+    if (activeUserIdRef.current !== userId) return;
     if (data) {
       const previousLogin = data.last_login ? new Date(data.last_login).getTime() : null;
       const inactiveSince = Date.now() - INACTIVE_DAYS * 24 * 60 * 60 * 1000;
@@ -68,13 +70,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
       const lastLogin = recordLogin ? new Date().toISOString() : data.last_login;
-      if (recordLogin) {
+      if (recordLogin && activeUserIdRef.current === userId) {
         await supabase
           .from('profiles')
           .update({ last_login: lastLogin })
           .eq('user_id', userId);
       }
+      if (activeUserIdRef.current !== userId) return;
       setProfile({ ...data, last_login: lastLogin } as Profile);
+    } else {
+      setProfile(null);
     }
 
     const { data: roleData } = await supabase
@@ -82,7 +87,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .select('role')
       .eq('user_id', userId)
       .single();
-    if (roleData) setIsAdmin(roleData.role === 'admin');
+    if (activeUserIdRef.current !== userId) return;
+    setIsAdmin(roleData?.role === 'admin');
   };
 
   const refreshProfile = async () => {
@@ -100,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        activeUserIdRef.current = session?.user.id ?? null;
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {

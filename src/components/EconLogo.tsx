@@ -1,18 +1,26 @@
-import lightLogo from '@/assets/econnotes-logo-new.png.asset.json';
-import darkLogo from '@/assets/econnotes-logo-new-dark.png.asset.json';
-import whiteLogo from '@/assets/econnotes-logo-white.png.asset.json';
+import logoMark from '@/assets/econnotes-logo.png';
 import { cn } from '@/lib/utils';
 
-/** The supplied EconNotes logo, tightly cropped for compact placement. */
+/** A locally bundled EconNotes mark and wordmark for every app surface. */
 export default function EconLogo({ className = '', onDark = false, allWhite = false }: { className?: string; onDark?: boolean; allWhite?: boolean }) {
-  return <span className={cn('inline-flex max-h-10 max-w-44 shrink-0 items-center', className)}>
-    {allWhite ? (
-      <img src={whiteLogo.url} alt="EconNotes" className="h-full w-full object-contain object-left" />
-    ) : (
-      <>
-        <img src={lightLogo.url} alt="EconNotes" className={cn('h-full w-full object-contain object-left', onDark ? 'hidden' : 'block dark:hidden')} />
-        <img src={darkLogo.url} alt={onDark ? 'EconNotes' : ''} className={cn('h-full w-full object-contain object-left', onDark ? 'block' : 'hidden dark:block')} />
-      </>
-    )}
-  </span>;
+  const white = onDark || allWhite;
+
+  return (
+    <span
+      role="img"
+      aria-label="EconNotes"
+      className={cn('inline-flex max-h-10 max-w-44 shrink-0 items-center overflow-hidden', className)}
+    >
+      <img
+        src={logoMark}
+        alt=""
+        aria-hidden="true"
+        className={cn('aspect-square h-full w-auto shrink-0 object-contain', white ? 'brightness-0 invert' : 'dark:brightness-0 dark:invert')}
+      />
+      <span className={cn('ml-1 inline-flex shrink-0 whitespace-nowrap text-sm font-black tracking-tight', white ? 'text-white' : 'text-foreground')}>
+        <span>Econ</span>
+        <span className={white ? 'text-white' : 'text-primary'}>Notes</span>
+      </span>
+    </span>
+  );
 }
