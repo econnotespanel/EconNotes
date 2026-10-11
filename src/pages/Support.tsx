@@ -286,7 +286,7 @@ const Support = () => {
             <div className="flex items-start gap-4">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary"><LifeBuoy className="h-6 w-6" /></span>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">{isAdmin ? 'Yönetici destek kuyruğu' : 'EconNotes destek'}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">EconNotes destek</p>
                 <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Destek Merkezi</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">Sorun, öneri veya geri bildiriminizi bize iletin. Destek ekibi talepleri sırayla inceler.</p>
               </div>
