@@ -26,7 +26,7 @@ export const storagePathFromUrl = (url?: string | null, bucket = NOTES_BUCKET): 
  */
 export const signedNoteUrl = async (
   urlOrPath?: string | null,
-  expiresIn = 3600,
+  expiresIn = 300,
 ): Promise<string | null> => {
   const path = storagePathFromUrl(urlOrPath);
   if (!path) return null;

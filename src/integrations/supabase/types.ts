@@ -634,6 +634,32 @@ export type Database = {
         }
         Relationships: []
       }
+      note_password_unlocks: {
+        Row: {
+          expires_at: string
+          note_id: string
+          user_id: string
+        }
+        Insert: {
+          expires_at: string
+          note_id: string
+          user_id: string
+        }
+        Update: {
+          expires_at?: string
+          note_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_password_unlocks_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       penalties: {
         Row: {
           created_at: string
