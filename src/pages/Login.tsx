@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck, Megaphone, X } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
@@ -21,6 +21,8 @@ const Login = () => {
   const [penaltyInfo, setPenaltyInfo] = useState<{ reason: string; until: string | null; is_permanent: boolean; expired?: boolean } | null>(null);
   const [penaltyCountdown, setPenaltyCountdown] = useState(0);
   const [loginBanners, setLoginBanners] = useState<any[]>([]);
+  const [dismissedLoginBanners, setDismissedLoginBanners] = useState<Set<string>>(new Set());
+  const [expandedLoginBanners, setExpandedLoginBanners] = useState<Set<string>>(new Set());
   const [captchaOk, setCaptchaOk] = useState(false);
   const [captchaReset, setCaptchaReset] = useState(0);
   const navigate = useNavigate();
@@ -191,7 +193,7 @@ const Login = () => {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: theme === 'dark' ? 'linear-gradient(135deg, hsl(217, 91%, 12%), hsl(221, 83%, 18%), hsl(213, 80%, 22%))' : 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-8">
-            <EconLogo allWhite className="h-16 w-72" />
+            <EconLogo allWhite className="h-12 w-56" />
           </div>
           <p className="text-white/80 text-lg mb-12">EconNotes ile notların hep yanında!</p>
 
@@ -233,18 +235,45 @@ const Login = () => {
 
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-6">
-          <EconLogo className="h-14 w-56" />
+          <EconLogo className="h-12 w-48" />
         </div>
 
         <div className="w-full max-w-sm space-y-6">
           {/* Login banners */}
           {loginBanners.length > 0 && (
             <div className="space-y-2">
-              {loginBanners.map((banner) => (
-                <Alert key={banner.id} className="border-primary/30 bg-primary/5">
-                  <AlertTitle className="text-sm font-semibold">{banner.title}</AlertTitle>
-                  <AlertDescription className="text-xs">{banner.content}</AlertDescription>
-                </Alert>
+              {loginBanners.filter((banner) => !dismissedLoginBanners.has(banner.id)).map((banner) => (
+                <div key={banner.id} role="status" className="relative isolate flex items-start gap-3 overflow-hidden rounded-xl border border-primary/25 bg-gradient-to-r from-primary/[0.07] via-card to-accent/30 p-3.5 shadow-sm">
+                  <div className="pointer-events-none absolute -right-8 -top-10 -z-10 h-28 w-28 rounded-full bg-primary/10 blur-2xl" />
+                  <Megaphone className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="mb-1 break-words text-sm font-semibold leading-snug text-foreground">{banner.title}</p>
+                    <p className={`text-xs leading-relaxed text-muted-foreground ${expandedLoginBanners.has(banner.id) ? '' : 'line-clamp-2'}`}>{banner.content}</p>
+                    {banner.content.length > 100 && (
+                      <button
+                        type="button"
+                        aria-expanded={expandedLoginBanners.has(banner.id)}
+                        onClick={() => setExpandedLoginBanners((previous) => {
+                          const next = new Set(previous);
+                          if (next.has(banner.id)) next.delete(banner.id);
+                          else next.add(banner.id);
+                          return next;
+                        })}
+                        className="mt-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        {expandedLoginBanners.has(banner.id) ? 'Daha az göster' : 'Devamını oku'}
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Duyuruyu kapat"
+                    onClick={() => setDismissedLoginBanners((previous) => new Set(previous).add(banner.id))}
+                    className="-mr-1 -mt-1 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
           )}

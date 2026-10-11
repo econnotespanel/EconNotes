@@ -57,7 +57,7 @@ const ForgotPassword = () => {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: theme === 'dark' ? 'linear-gradient(135deg, hsl(217, 91%, 12%), hsl(221, 83%, 18%), hsl(213, 80%, 22%))' : 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-8">
-            <EconLogo allWhite className="h-16 w-72" />
+            <EconLogo allWhite className="h-12 w-56" />
           </div>
           <p className="text-white/80 text-lg mb-12">EconNotes ile notların hep yanında!</p>
           <div className="space-y-4">
@@ -97,7 +97,7 @@ const ForgotPassword = () => {
 
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-6">
-          <EconLogo className="h-14 w-56" />
+          <EconLogo className="h-12 w-48" />
         </div>
 
         <div className="w-full max-w-sm space-y-6">

@@ -34,7 +34,7 @@ const ForcePasswordChange = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <form onSubmit={submit} className="w-full max-w-md space-y-5 rounded-2xl border border-border bg-card p-6 shadow-xl">
-        <EconLogo className="h-9 w-40" />
+        <EconLogo className="h-8 w-36" />
         <div className="space-y-1">
           <h1 className="flex items-center gap-2 text-xl font-semibold"><KeyRound className="h-5 w-5 text-primary" />Yeni şifre belirleyin.</h1>
           <p className="text-sm text-muted-foreground">Hesabınıza yönetici tarafından verilen tek kullanımlık parola ile giriş yaptınız. Devam etmek için kendinize ait yeni bir şifre belirleyin.</p>

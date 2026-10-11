@@ -18,7 +18,7 @@ const About = () => {
       <div className="max-w-3xl mx-auto space-y-8 animate-fade-in">
         <div className="text-center space-y-4">
           <div className="flex w-full justify-center">
-            <EconLogo className="mx-auto h-16 w-72 max-w-full sm:h-20 sm:w-80" />
+            <EconLogo className="mx-auto h-14 w-64 max-w-full sm:h-16 sm:w-72" />
           </div>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
             EconNotes, üniversite öğrencilerinin ders notlarına daha iyi, hızlı ve pratik bir şekilde ulaşabilmesini sağlayan bir ders notu paylaşım modülüdür.

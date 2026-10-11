@@ -165,15 +165,23 @@ const Announcements = () => {
   return (
     <Layout>
       <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Duyurular</h1>
-            <p className="text-sm text-muted-foreground">Panel duyuruları</p>
-          </div>
+        <div className="relative isolate overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/30 p-5 shadow-sm sm:p-7">
+          <div className="pointer-events-none absolute -right-10 -top-16 -z-10 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="mt-1 rounded-xl border border-primary/15 bg-background/80 p-3 text-primary shadow-sm">
+                <Megaphone className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">EconNotes topluluğu</p>
+                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Duyurular</h1>
+                <p className="mt-1 text-sm text-muted-foreground">Platformdaki güncel haberleri ve önemli bilgilendirmeleri takip edin.</p>
+              </div>
+            </div>
           {isAdmin && (
             <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingItem(null); setConfirmUpload(false); setAttachmentFile(null); } }}>
               <DialogTrigger asChild>
-                <Button className="gradient-primary text-primary-foreground"><Plus className="h-4 w-4 mr-2" /> Duyuru Ekle</Button>
+                  <Button className="gradient-primary w-full text-primary-foreground shadow-sm sm:w-auto"><Plus className="mr-2 h-4 w-4" /> Duyuru Ekle</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -225,14 +233,15 @@ const Announcements = () => {
               </DialogContent>
             </Dialog>
           )}
+          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/70 p-3 shadow-sm sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Duyuru ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+            <Input placeholder="Duyurularda ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="h-10 border-border/60 bg-background/70 pl-10" />
           </div>
-          <Button variant="outline" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
+          <Button variant="outline" className="h-10 border-border/60 bg-background/70" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
             {sortOrder === 'desc' ? <SortDesc className="h-4 w-4 mr-2" /> : <SortAsc className="h-4 w-4 mr-2" />}
             {sortOrder === 'desc' ? 'Yeniden Eskiye' : 'Eskiden Yeniye'}
           </Button>
@@ -241,30 +250,38 @@ const Announcements = () => {
         {loading ? (
           <p className="text-center text-muted-foreground">Yükleniyor...</p>
         ) : filtered.length === 0 ? (
-          <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Henüz duyuru yok.</CardContent></Card>
+          <Card className="glass-card border-dashed"><CardContent className="p-8 text-center text-muted-foreground">Aramanızla eşleşen duyuru bulunamadı.</CardContent></Card>
         ) : (
           <div className="space-y-4">
             {filtered.map((a) => (
-              <Card key={a.id} className="glass-card hover:shadow-xl transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Megaphone className="h-4 w-4 text-warning shrink-0" />
-                    {a.title}
-                    {a.edited_at && (
-                      <span className="text-[10px] text-muted-foreground flex items-center gap-0.5 font-normal">
-                        <Pencil className="h-2.5 w-2.5" /> düzenlendi {formatDateTime(a.edited_at)}
-                      </span>
-                    )}
-                  </CardTitle>
+              <Card key={a.id} className="glass-card group relative overflow-hidden border-border/70 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg">
+                <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary via-primary/60 to-accent" />
+                <CardHeader className="pb-3 pl-5 sm:pl-7">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 rounded-lg bg-primary/10 p-2 text-primary">
+                      <Megaphone className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="break-words text-base leading-snug sm:text-lg">{a.title}</CardTitle>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span>{a.author_name || 'EconNotes'} · {formatDateTime(a.created_at)}</span>
+                        {a.edited_at && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2 py-0.5">
+                            <Pencil className="h-3 w-3" /> Düzenlendi
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{a.content}</p>
+                <CardContent className="space-y-4 pl-5 sm:pl-7">
+                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/80">{a.content}</p>
 
                   {/* Attachment display */}
                   {a.attachment_url && (
                     <div className="mt-2">
                       {a.attachment_type === 'image' ? (
-                        <SignedImage source={a.attachment_url} alt={a.attachment_name} className="max-w-full max-h-64 rounded-lg border border-border object-contain" />
+                        <SignedImage source={a.attachment_url} alt={a.attachment_name} className="max-h-72 max-w-full rounded-xl border border-border/70 object-contain" />
                       ) : (
                         <button type="button" onClick={() => { void openSignedNote(a.attachment_url); }} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/50 text-sm hover:bg-accent transition-colors">
                           <FileIcon className="h-4 w-4 text-primary" />
@@ -274,10 +291,9 @@ const Announcements = () => {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{a.author_name} • {formatDateTime(a.created_at)}</span>
-                    <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {viewCounts[a.id] || 0}</span>
-                    <span className="flex items-center gap-1"><MessageSquare className="h-3 w-3" /> {(comments[a.id] || []).length}</span>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/50 pt-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5"><Eye className="h-3.5 w-3.5" /> {viewCounts[a.id] || 0} görüntülenme</span>
+                    <span className="inline-flex items-center gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> {(comments[a.id] || []).length} etkileşim</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {isAdmin && (
@@ -345,7 +361,7 @@ const Announcements = () => {
                     {showComments[a.id] && (
                       <div className="mt-2 space-y-2">
                         {(comments[a.id] || []).filter(c => c.content.length > 2).map(c => (
-                          <div key={c.id} className="flex items-start gap-2 p-2 rounded bg-accent/30 text-xs">
+                          <div key={c.id} className="flex items-start gap-2 rounded-lg border border-border/50 bg-accent/30 p-3 text-xs">
                             <span className="font-medium">{c.user_name}:</span>
                             <span className="flex-1">{c.content}</span>
                             <span className="text-muted-foreground whitespace-nowrap">{formatDateTime(c.created_at)}</span>

@@ -44,7 +44,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
       <div className="relative z-10 mx-auto w-full max-w-lg space-y-5 text-center">
         <div className="rounded-3xl p-8 bg-white/40 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-2xl">
           <div className="mb-4 flex w-full justify-center">
-            <EconLogo className="mx-auto h-16 w-64 max-w-full sm:h-20 sm:w-72" />
+            <EconLogo className="mx-auto h-14 w-56 max-w-full sm:h-16 sm:w-64" />
           </div>
 
           {imageUrl ? (

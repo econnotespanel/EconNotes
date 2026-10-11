@@ -18,10 +18,10 @@ const BannerContent = ({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
   const isLong = content.length > 100;
   return (
-    <div>
-      <p className={`text-xs text-muted-foreground ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{content}</p>
+    <div className="min-w-0">
+      <p className={`text-sm leading-relaxed text-muted-foreground ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{content}</p>
       {isLong && (
-        <button onClick={() => setExpanded(!expanded)} className="text-xs text-primary hover:underline mt-1">
+        <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="mt-1 text-sm font-medium text-primary transition-colors hover:text-primary/80 hover:underline">
           {expanded ? 'Daha az göster' : 'Devamını oku'}
         </button>
       )}
@@ -120,16 +120,25 @@ const Dashboard = () => {
       <div className="relative z-10 space-y-6 opacity-100 visible text-foreground">
         {/* Banners */}
         {banners.filter(b => !dismissedBanners.has(b.id)).map(banner => (
-          <Card key={banner.id} className="border-primary/30 bg-primary/5">
-            <CardContent className="flex items-start justify-between gap-2 p-4 sm:items-center">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <Megaphone className="h-5 w-5 text-primary shrink-0" />
-              <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm">{banner.title}</p>
-                  <BannerContent content={banner.content} />
-                </div>
+          <Card key={banner.id} role="status" className="group relative isolate overflow-hidden border-primary/25 bg-gradient-to-r from-primary/[0.07] via-card to-accent/30 shadow-sm transition-shadow hover:shadow-md">
+            <div className="pointer-events-none absolute -right-10 -top-14 -z-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
+            <CardContent className="flex items-start gap-3 p-4 sm:items-center sm:gap-4 sm:px-5">
+              <div className="mt-0.5 shrink-0 text-primary sm:mt-0">
+                <Megaphone className="h-5 w-5" />
               </div>
-              <Button variant="ghost" size="sm" onClick={() => setDismissedBanners(prev => new Set(prev).add(banner.id))}><X className="h-4 w-4" /></Button>
+              <div className="min-w-0 flex-1">
+                <p className="mb-1 break-words text-sm font-semibold leading-snug text-foreground sm:text-base">{banner.title}</p>
+                <BannerContent content={banner.content} />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Duyuruyu kapat"
+                className="-mr-2 -mt-2 h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground sm:mr-0 sm:mt-0"
+                onClick={() => setDismissedBanners(prev => new Set(prev).add(banner.id))}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </CardContent>
           </Card>
         ))}
