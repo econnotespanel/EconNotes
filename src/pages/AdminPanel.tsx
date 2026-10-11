@@ -336,27 +336,27 @@ const AdminPanel = () => {
 
         {/* Academic Week Setting */}
         <Card className="glass-card">
-          <CardContent className="p-4 flex flex-wrap items-end gap-3">
+          <CardContent className="grid min-w-0 grid-cols-2 items-end gap-3 p-4 sm:grid-cols-[auto_5rem_7rem_minmax(0,1fr)_auto]">
             <GraduationCap className="h-5 w-5 text-primary" />
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <Label className="text-xs">Hafta No</Label>
-              <Input type="number" value={academicWeek} onChange={e => setAcademicWeek(e.target.value)} className="w-20 h-8" min="1" max="14" placeholder="—" />
+              <Input type="number" value={academicWeek} onChange={e => setAcademicWeek(e.target.value)} className="h-9 w-full sm:h-8" min="1" max="14" placeholder="—" />
             </div>
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <Label className="text-xs">Dönem</Label>
               <Select value={academicSemester} onValueChange={setAcademicSemester}>
-                <SelectTrigger className="w-28 h-8"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 w-full sm:h-8"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Güz">Güz</SelectItem>
                   <SelectItem value="Bahar">Bahar</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1 flex-1 min-w-[150px]">
+            <div className="col-span-2 min-w-0 space-y-1 sm:col-span-1">
               <Label className="text-xs">Etiket</Label>
-              <Input value={academicWeekLabel} onChange={e => setAcademicWeekLabel(e.target.value)} className="h-8" placeholder="ör: Vize Haftası" />
+              <Input value={academicWeekLabel} onChange={e => setAcademicWeekLabel(e.target.value)} className="h-9 w-full sm:h-8" placeholder="ör: Vize Haftası" />
             </div>
-            <Button size="sm" onClick={updateAcademicWeek}>Kaydet</Button>
+            <Button size="sm" className="col-span-2 w-full sm:col-span-1 sm:w-auto" onClick={updateAcademicWeek}>Kaydet</Button>
           </CardContent>
         </Card>
 
@@ -370,7 +370,7 @@ const AdminPanel = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-3">
+            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs">Kapanış Türü</Label>
                 <Select value={closureMode} onValueChange={setClosureMode}>
@@ -384,7 +384,7 @@ const AdminPanel = () => {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Tekrar Açılış Tarihi (opsiyonel)</Label>
-                <Input type="datetime-local" value={closedUntilInput} onChange={e => setClosedUntilInput(e.target.value)} className="h-9" />
+                <Input type="datetime-local" value={closedUntilInput} onChange={e => setClosedUntilInput(e.target.value)} className="h-9 w-full min-w-0" />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -446,17 +446,17 @@ const AdminPanel = () => {
         </div>
 
         <Tabs defaultValue="users">
-          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-10">
-            <TabsTrigger value="users"><Users className="h-4 w-4 mr-1.5 hidden sm:inline" />Kullanıcılar</TabsTrigger>
-            <TabsTrigger value="notes"><FileText className="h-4 w-4 mr-1.5 hidden sm:inline" />Notlar</TabsTrigger>
-            <TabsTrigger value="announcements"><Megaphone className="h-4 w-4 mr-1.5 hidden sm:inline" />Duyurular</TabsTrigger>
-            <TabsTrigger value="banners"><ImageIcon className="h-4 w-4 mr-1.5 hidden sm:inline" />Bannerlar</TabsTrigger>
-            <TabsTrigger value="penalties"><AlertTriangle className="h-4 w-4 mr-1.5 hidden sm:inline" />Cezalar</TabsTrigger>
-            <TabsTrigger value="reports"><Flag className="h-4 w-4 mr-1.5 hidden sm:inline" />Raporlar{messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">{messageReports.filter(r => r.status === 'pending').length}</span>}</TabsTrigger>
-            <TabsTrigger value="activity"><Activity className="h-4 w-4 mr-1.5 hidden sm:inline" />Aktiviteler</TabsTrigger>
-            <TabsTrigger value="audit"><Shield className="h-4 w-4 mr-1.5 hidden sm:inline" />Denetim</TabsTrigger>
-            <TabsTrigger value="design"><Palette className="h-4 w-4 mr-1.5 hidden sm:inline" />Tasarım</TabsTrigger>
-            <TabsTrigger value="study"><Sparkles className="h-4 w-4 mr-1.5 hidden sm:inline" />Stüdyo</TabsTrigger>
+          <TabsList className="flex h-auto w-full max-w-full justify-start overflow-x-auto">
+            <TabsTrigger className="shrink-0" value="users"><Users className="mr-1.5 hidden h-4 w-4 sm:inline" />Kullanıcılar</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="notes"><FileText className="mr-1.5 hidden h-4 w-4 sm:inline" />Notlar</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="announcements"><Megaphone className="mr-1.5 hidden h-4 w-4 sm:inline" />Duyurular</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="banners"><ImageIcon className="mr-1.5 hidden h-4 w-4 sm:inline" />Bannerlar</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="penalties"><AlertTriangle className="mr-1.5 hidden h-4 w-4 sm:inline" />Cezalar</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="reports"><Flag className="mr-1.5 hidden h-4 w-4 sm:inline" />Raporlar{messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">{messageReports.filter(r => r.status === 'pending').length}</span>}</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="activity"><Activity className="mr-1.5 hidden h-4 w-4 sm:inline" />Aktiviteler</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="audit"><Shield className="mr-1.5 hidden h-4 w-4 sm:inline" />Denetim</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="design"><Palette className="mr-1.5 hidden h-4 w-4 sm:inline" />Tasarım</TabsTrigger>
+            <TabsTrigger className="shrink-0" value="study"><Sparkles className="mr-1.5 hidden h-4 w-4 sm:inline" />Stüdyo</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users">

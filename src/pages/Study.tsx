@@ -563,7 +563,7 @@ const Study = () => {
 
       {/* Create dialog */}
       <Dialog open={createOpen} onOpenChange={(o) => { if (!generating) setCreateOpen(o); }}>
-        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1.5rem)] max-w-2xl overflow-y-auto rounded-2xl">
+        <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto rounded-2xl p-3 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> Yeni Çalışma Materyali</DialogTitle>
             <DialogDescription>Kaynağını seç, sınav profilini doldur. Yapay zeka sana özel materyali hazırlasın.</DialogDescription>
@@ -707,7 +707,7 @@ const Study = () => {
 
       {/* Viewer */}
       <Dialog open={!!activeMaterial} onOpenChange={(o) => !o && setActiveMaterial(null)}>
-        <DialogContent className="max-h-[90dvh] w-[calc(100vw-1.5rem)] max-w-3xl overflow-y-auto rounded-2xl">
+        <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-2xl p-3 sm:p-6">
           {activeMaterial && <MaterialViewer key={activeMaterial.id} material={activeMaterial} onReport={() => setReportOpen(true)} onProgressSaved={() => void load()} />}
         </DialogContent>
       </Dialog>
@@ -833,19 +833,20 @@ const MaterialViewer = ({ material, onReport, onProgressSaved }: { material: Stu
   };
   return (
     <div className="space-y-4">
-      <DialogHeader>
-        <DialogTitle className="flex items-center justify-between gap-2 pr-6">
-          <span className="line-clamp-2">{material.title}</span>
-          <div className="flex items-center gap-1 shrink-0">
+      <DialogHeader className="min-w-0">
+        <DialogTitle className="flex min-w-0 flex-col items-stretch gap-3 pr-8 sm:flex-row sm:items-center sm:justify-between">
+          <span className="min-w-0 break-words leading-snug">{material.title}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">
             <Button
               size="sm"
               onClick={() => setCoachOpen(true)}
-              className="gap-1 bg-gradient-to-r from-primary to-fuchsia-500 text-primary-foreground hover:opacity-90"
+              aria-label="Yapay Zekâ Akıl Hocası"
+              className="min-w-0 gap-1 bg-gradient-to-r from-primary to-fuchsia-500 text-primary-foreground hover:opacity-90"
             >
-              <Wand2 className="h-3.5 w-3.5" /> Yapay Zekâ Akıl Hocası
+              <Wand2 className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Yapay Zekâ Akıl Hocası</span>
             </Button>
-            <Button size="sm" variant="ghost" onClick={onReport} className="gap-1">
-              <Bug className="h-3.5 w-3.5" /> Bildir
+            <Button size="sm" variant="ghost" onClick={onReport} className="gap-1 px-2">
+              <Bug className="h-3.5 w-3.5 shrink-0" /> <span>Bildir</span>
             </Button>
           </div>
         </DialogTitle>
@@ -1134,17 +1135,17 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <Badge variant="outline">Soru {idx + 1} / {questions.length}</Badge>
           {streak > 1 && <Badge className="gap-1 bg-orange-500/10 text-orange-600 border-orange-500/30"><Flame className="h-3 w-3" /> {streak}'li seri</Badge>}
         </div>
-        <span className="text-muted-foreground">Doğru: <strong className="text-foreground">{score}/{answeredMC || 0}</strong></span>
+        <span className="shrink-0 text-muted-foreground">Doğru: <strong className="text-foreground">{score}/{answeredMC || 0}</strong></span>
       </div>
       <Progress value={((idx + 1) / questions.length) * 100} className="h-1.5" />
 
-      <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
-        <p className="font-medium text-base">{q.question}</p>
+      <div className="min-w-0 space-y-4 rounded-2xl border border-border bg-card p-3 sm:p-5">
+        <p className="break-words text-base font-medium">{q.question}</p>
 
         {isOpen ? (
           <div className="space-y-3">
@@ -1179,7 +1180,7 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
               return (
                 <button key={i} onClick={() => choose(i)} disabled={isRevealed} className={`w-full text-left px-4 py-3 rounded-lg border-2 transition flex items-center gap-3 ${cls}`}>
                   <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-background border text-xs font-bold shrink-0">{String.fromCharCode(65 + i)}</span>
-                  <span className="text-sm flex-1">{opt}</span>
+                  <span className="min-w-0 flex-1 break-words text-sm">{opt}</span>
                   {isRevealed && correct && <Check className="h-5 w-5 text-emerald-500 shrink-0" />}
                   {isRevealed && chosen && !correct && <X className="h-5 w-5 text-red-500 shrink-0" />}
                 </button>
@@ -1202,9 +1203,9 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
         )}
       </div>
 
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={() => { setIdx(Math.max(0, idx - 1)); setMotiv(null); }} disabled={idx === 0} className="flex-1 gap-2"><ChevronLeft className="h-4 w-4" /> Önceki</Button>
-        <Button onClick={() => { setIdx(Math.min(questions.length - 1, idx + 1)); setMotiv(null); }} disabled={idx === questions.length - 1} className="flex-1 gap-2">Sonraki <ChevronRight className="h-4 w-4" /></Button>
+      <div className="flex min-w-0 gap-2">
+        <Button variant="outline" onClick={() => { setIdx(Math.max(0, idx - 1)); setMotiv(null); }} disabled={idx === 0} className="min-w-0 flex-1 gap-1 px-2 sm:gap-2"><ChevronLeft className="h-4 w-4 shrink-0" /> Önceki</Button>
+        <Button onClick={() => { setIdx(Math.min(questions.length - 1, idx + 1)); setMotiv(null); }} disabled={idx === questions.length - 1} className="min-w-0 flex-1 gap-1 px-2 sm:gap-2">Sonraki <ChevronRight className="h-4 w-4 shrink-0" /></Button>
       </div>
 
       {completed && (

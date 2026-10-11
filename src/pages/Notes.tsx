@@ -169,7 +169,11 @@ const Notes = () => {
     trackDownload(note.id);
     const signed = await signedNoteUrl(note.file_url);
     if (!signed) { toast.error('Dosya bağlantısı oluşturulamadı.'); return; }
-    downloadWithWatermark(signed, note.file_name, note.file_type);
+    const fullName = profile?.full_name?.trim()
+      || String(user.user_metadata?.full_name || '').trim()
+      || user.email?.split('@')[0]
+      || 'EconNotes kullanıcısı';
+    await downloadWithWatermark(signed, note.file_name, note.file_type, fullName);
   };
 
   const handleSubmit = async () => {

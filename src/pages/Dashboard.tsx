@@ -310,8 +310,8 @@ const Dashboard = () => {
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">{note.title}</p>
-                          <p className="truncate text-xs text-muted-foreground">{note.uploader_name} • {note.course} • {note.semester}</p>
+                          <p className="break-words text-sm font-medium sm:truncate">{note.title}</p>
+                          <p className="break-words text-xs text-muted-foreground sm:truncate">{note.uploader_name} • {note.course} • {note.semester}</p>
                         </div>
                       </div>
                       <span className="pl-7 text-[11px] text-muted-foreground sm:pl-0 sm:text-xs">{formatDateTime(note.created_at)}</span>
@@ -358,8 +358,8 @@ const Dashboard = () => {
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{a.title}</p>
-                          <p className="text-xs text-muted-foreground">{a.author_name} • {formatDateTime(a.created_at)}</p>
+                          <p className="break-words text-sm font-medium">{a.title}</p>
+                          <p className="break-words text-xs text-muted-foreground">{a.author_name} • {formatDateTime(a.created_at)}</p>
                         </div>
                       </div>
                     </div>
