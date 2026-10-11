@@ -50,6 +50,7 @@ const Notes = () => {
   const [comments, setComments] = useState<Record<string, any[]>>({});
   const [newComment, setNewComment] = useState<Record<string, string>>({});
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
   const [passwordInput, setPasswordInput] = useState<Record<string, string>>({});
   const [unlockedNotes, setUnlockedNotes] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({
@@ -731,7 +732,24 @@ const Notes = () => {
                         )}
                         <CardContent className="space-y-4 p-4 sm:p-5">
                           {note.description && (
-                            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">{note.description}</p>
+                            <div className="min-w-0">
+                              <p className={`whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground ${expandedDescriptions[note.id] ? 'line-clamp-none' : 'line-clamp-3'}`}>
+                                {note.description}
+                              </p>
+                              {note.description.length > 180 && (
+                                <button
+                                  type="button"
+                                  className="mt-1 text-xs font-semibold text-primary underline-offset-4 hover:underline"
+                                  aria-expanded={Boolean(expandedDescriptions[note.id])}
+                                  onClick={() => setExpandedDescriptions((current) => ({
+                                    ...current,
+                                    [note.id]: !current[note.id],
+                                  }))}
+                                >
+                                  {expandedDescriptions[note.id] ? 'Daha az göster' : 'Açıklamanın tamamını gör'}
+                                </button>
+                              )}
+                            </div>
                           )}
                           <div className="flex flex-wrap gap-1.5">
                             {isNew && <span className="inline-flex items-center gap-1 rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success"><Sparkles className="h-3 w-3" /> Yeni</span>}
