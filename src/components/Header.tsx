@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { LogOut, Sun, Moon, Bell, User, MessageSquare, Sparkles, Flame } from 'lucide-react';
+import { LogOut, Sun, Moon, Bell, BellRing, User, MessageSquare, Sparkles, Flame } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePoints } from '@/hooks/usePoints';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
 import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
+import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
@@ -29,6 +30,7 @@ const Header = () => {
   const navigate = useNavigate();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
+  const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(false);
   const { points } = usePoints(3);
 
   const fetchUnread = useCallback(async () => {
@@ -59,6 +61,15 @@ const Header = () => {
     return () => clearInterval(interval);
   }, [fetchUnread]);
 
+  useEffect(() => {
+    const syncNotificationPreference = () => {
+      setDeviceNotificationsEnabled(Boolean(user && isDeviceNotificationEnabled(user.id) && 'Notification' in window && Notification.permission === 'granted'));
+    };
+    syncNotificationPreference();
+    window.addEventListener('econnotes-device-notification-preference', syncNotificationPreference);
+    return () => window.removeEventListener('econnotes-device-notification-preference', syncNotificationPreference);
+  }, [user]);
+
   // Subscribe to realtime message changes
   useEffect(() => {
     if (!user) return;
@@ -83,6 +94,40 @@ const Header = () => {
     await signOut();
     toast.success('Çıkış başarılı!');
     navigate('/login');
+  };
+
+  const toggleDeviceNotifications = async () => {
+    if (!user) return;
+    if (!('Notification' in window)) {
+      toast.error('Bu tarayıcı cihaz bildirimlerini desteklemiyor.');
+      return;
+    }
+    if (deviceNotificationsEnabled) {
+      setDeviceNotificationEnabled(user.id, false);
+      setDeviceNotificationsEnabled(false);
+      toast.success('Cihaz bildirimleri kapatıldı.');
+      return;
+    }
+    try {
+      const permission = Notification.permission === 'default'
+        ? await Notification.requestPermission()
+        : Notification.permission;
+      if (permission !== 'granted') {
+        toast.error(permission === 'denied'
+          ? 'Bildirim izni tarayıcı ayarlarından engellenmiş. Site ayarlarından izin verip tekrar deneyin.'
+          : 'Bildirim izni verilmedi.');
+        return;
+      }
+      const now = new Date().toISOString();
+      setDeviceNotificationEnabled(user.id, true);
+      localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);
+      localStorage.setItem(getNotificationCursorKey(user.id, 'announcements'), now);
+      setDeviceNotificationsEnabled(true);
+      toast.success('Yeni not ve duyuru bildirimleri açıldı.');
+    } catch (error) {
+      console.error('Device notification permission setup failed:', error);
+      toast.error('Cihaz bildirimleri etkinleştirilemedi. Lütfen tarayıcı ayarlarınızı kontrol edin.');
+    }
   };
 
   const formatLastLogin = () => {
@@ -144,6 +189,18 @@ const Header = () => {
               </span>
             )}
           </Button>
+
+          {user && (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={deviceNotificationsEnabled ? 'Cihaz bildirimlerini kapat' : 'Cihaz bildirimlerini aç'}
+              title={deviceNotificationsEnabled ? 'Cihaz bildirimleri açık' : 'Cihaz bildirimlerini aç'}
+              onClick={() => void toggleDeviceNotifications()}
+            >
+              <BellRing className={`h-5 w-5 ${deviceNotificationsEnabled ? 'text-primary' : ''}`} />
+            </Button>
+          )}
 
           <Button variant="ghost" size="icon" onClick={toggleTheme}>
             {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}

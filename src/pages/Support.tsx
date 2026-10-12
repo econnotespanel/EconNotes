@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useNavigate } from 'react-router-dom';
+import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 import {
   encodeSupportMessage,
   getAssignedSupportAdmin,
@@ -148,8 +149,17 @@ const Support = () => {
   const [reply, setReply] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(
-    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted',
+    typeof window !== 'undefined' && Boolean(user && isDeviceNotificationEnabled(user.id) && 'Notification' in window && Notification.permission === 'granted'),
   );
+
+  useEffect(() => {
+    const syncNotificationPreference = () => {
+      setNotificationsEnabled(Boolean(user && isDeviceNotificationEnabled(user.id) && 'Notification' in window && Notification.permission === 'granted'));
+    };
+    syncNotificationPreference();
+    window.addEventListener('econnotes-device-notification-preference', syncNotificationPreference);
+    return () => window.removeEventListener('econnotes-device-notification-preference', syncNotificationPreference);
+  }, [user]);
 
   const loadTickets = useCallback(async () => {
     if (!user) return;
@@ -257,9 +267,17 @@ const Support = () => {
       return;
     }
     try {
-      const permission = await Notification.requestPermission();
+      const permission = Notification.permission === 'default'
+        ? await Notification.requestPermission()
+        : Notification.permission;
       setNotificationsEnabled(permission === 'granted');
-      if (permission === 'granted') toast.success('Destek talepleri için cihaz bildirimleri açıldı.');
+      if (permission === 'granted' && user) {
+        const now = new Date().toISOString();
+        setDeviceNotificationEnabled(user.id, true);
+        localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);
+        localStorage.setItem(getNotificationCursorKey(user.id, 'announcements'), now);
+        toast.success('Yeni not, duyuru ve destek bildirimleri açıldı.');
+      }
       else toast.error('Bildirim izni verilmedi. Tarayıcı ayarlarından izin verebilirsiniz.');
     } catch (error) {
       console.error('Support notification permission request failed:', error);
@@ -478,9 +496,15 @@ const Support = () => {
                         emerald: reached ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/25' : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300',
                         violet: reached ? 'border-violet-500 bg-violet-500 text-white shadow-violet-500/25' : 'border-violet-500/30 bg-violet-500/5 text-violet-700 dark:text-violet-300',
                       }[step.color];
+                      const connectorColorClasses = {
+                        sky: 'bg-sky-500',
+                        amber: 'bg-amber-500',
+                        emerald: 'bg-emerald-500',
+                        violet: 'bg-violet-500',
+                      }[progressSteps[index - 1]?.color ?? 'sky'];
                       return (
                         <li key={step.label} className="relative flex min-w-0 flex-col items-center text-center">
-                          {index > 0 && <span aria-hidden="true" className={`absolute left-0 top-5 h-1 w-1/2 -translate-y-1/2 ${complete || current ? 'support-progress-flow bg-gradient-to-r from-sky-500 via-amber-500 to-emerald-500' : 'bg-border'}`} />}
+                          {index > 0 && <span aria-hidden="true" className={`absolute left-0 top-5 h-1 w-1/2 -translate-y-1/2 transition-colors duration-500 ${complete || current ? connectorColorClasses : 'bg-border'}`} />}
                           <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 shadow-md transition-all duration-500 ${colorClasses} ${current ? 'animate-pulse motion-reduce:animate-none' : ''}`}>
                             {complete ? <Check className="h-5 w-5" /> : index === 0 ? <MessageSquareText className="h-4 w-4" /> : index === 1 ? <Search className="h-4 w-4" /> : index === 2 ? <MessageCircle className="h-4 w-4" /> : <Check className="h-5 w-5" />}
                           </span>

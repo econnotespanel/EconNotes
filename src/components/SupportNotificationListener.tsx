@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { parseSupportMessage } from '@/lib/support';
+import { isDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 
 const SupportNotificationListener = () => {
   const { user, isAdmin } = useAuth();
@@ -17,7 +18,7 @@ const SupportNotificationListener = () => {
         ({ new: row }) => {
           if (!row || typeof row.content !== 'string') return;
           const payload = parseSupportMessage(row.content);
-          if (!payload || payload.kind !== 'ticket' || row.sender_id === user.id || Notification.permission !== 'granted') return;
+          if (!payload || payload.kind !== 'ticket' || row.sender_id === user.id || Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
 
           const notification = new Notification('Yeni destek talebi', {
             body: payload.subject,
