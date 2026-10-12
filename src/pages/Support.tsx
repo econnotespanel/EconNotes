@@ -140,19 +140,32 @@ const Support = () => {
     setLoading(true);
 
     const adminIdsResult = await supabase.from('user_roles').select('user_id').eq('role', 'admin');
-    if (adminIdsResult.error) {
-      console.error('Support admin lookup failed:', adminIdsResult.error);
-      setLoadError('Destek ekibi şu anda belirlenemiyor. Lütfen daha sonra tekrar deneyin.');
-      setLoading(false);
-      return;
-    }
     const adminIds = [...new Set((adminIdsResult.data ?? []).map((row) => row.user_id))];
-    const assigned = isAdmin ? user.id : getAssignedSupportAdmin(user.id, adminIds);
+    let availableAdminIds = adminIds;
+    if (!isAdmin && availableAdminIds.length === 0) {
+      if (adminIdsResult.error) {
+        console.warn('Support admin role list is unavailable; falling back to the latest admin announcement author:', adminIdsResult.error);
+      } else {
+        console.warn('Support admin role list is empty; falling back to the latest admin announcement author.');
+      }
+      const announcementResult = await supabase
+        .from('announcements')
+        .select('user_id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (announcementResult.error) {
+        console.error('Support announcement admin fallback failed:', announcementResult.error);
+      } else if (announcementResult.data?.user_id) {
+        availableAdminIds = [announcementResult.data.user_id];
+      }
+    }
+    const assigned = isAdmin ? user.id : getAssignedSupportAdmin(user.id, availableAdminIds);
     setAssignedAdminId(assigned);
     if (!assigned) {
       setTickets([]);
       setUserNames({});
-      setLoadError('Destek ekibinde şu anda yanıt verebilecek yönetici bulunmuyor.');
+      setLoadError('Yönetici hesabı destek için belirlenemedi. Yöneticinin en az bir duyurusu olmalı veya yönetici rolü sorgulanabilmeli.');
       setLoading(false);
       return;
     }
