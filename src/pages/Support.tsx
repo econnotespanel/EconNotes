@@ -90,7 +90,7 @@ const TicketProgress = ({ ticket }: { ticket: Ticket }) => {
                     ? 'border-primary bg-primary text-primary-foreground shadow-[0_0_18px_hsl(var(--primary)/0.3)]'
                     : 'border-primary/50 bg-primary/10 text-primary'
                   : 'border-border bg-background text-muted-foreground'
-              } $              {current && !closed ? 'animate-pulse' : ''}`}
+              } ${current && !closed ? 'animate-pulse' : ''}`}
             >
               {visible ? <Icon className="h-4 w-4" /> : <Circle className="h-3.5 w-3.5" />}
             </span>
