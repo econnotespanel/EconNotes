@@ -16,6 +16,7 @@ import {
   getAssignedSupportAdmin,
   getSupportMessageBody,
   getSupportTicketStage,
+  isSupportMessageValid,
   parseSupportMessage,
   SUPPORT_MESSAGE_PREFIX,
   type SupportMessagePayload,
@@ -252,6 +253,10 @@ const Support = () => {
   const createTicket = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || !assignedAdminId || submitting) return;
+    if (subject.trim().length < 3 || !isSupportMessageValid(initialMessage)) {
+      toast.error('Başlık en az 3 karakter, mesaj ise boşluksuz en az 1 karakter olmalıdır.');
+      return;
+    }
     setSubmitting(true);
     const success = await insertSupportMessage(assignedAdminId, {
       version: 1,
@@ -470,12 +475,12 @@ const Support = () => {
             </label>
             <label className="block space-y-1.5 text-sm font-medium">
               Mesajınız
-              <Textarea value={initialMessage} onChange={(event) => setInitialMessage(event.target.value)} minLength={10} maxLength={5000} rows={5} placeholder="Sorunu veya önerinizi ayrıntılı olarak anlatın…" required />
+              <Textarea value={initialMessage} onChange={(event) => setInitialMessage(event.target.value)} minLength={1} maxLength={5000} rows={5} placeholder="Sorunu veya önerinizi ayrıntılı olarak anlatın…" required />
               <span className="block text-right text-xs font-normal text-muted-foreground">{initialMessage.length}/5000</span>
             </label>
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Vazgeç</Button>
-              <Button type="submit" disabled={submitting || subject.trim().length < 3 || initialMessage.trim().length < 10} className="gap-2">
+              <Button type="submit" disabled={submitting || subject.trim().length < 3 || !isSupportMessageValid(initialMessage)} className="gap-2">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Talebi gönder
               </Button>

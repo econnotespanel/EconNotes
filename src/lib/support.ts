@@ -65,6 +65,8 @@ export const getSupportMessageBody = (content: string) => {
   return payload.message;
 };
 
+export const isSupportMessageValid = (message: string) => message.trim().length > 0 && message.length <= 5000;
+
 export const getAssignedSupportAdmin = (userId: string, adminIds: string[]) => {
   if (adminIds.length === 0) return null;
   const sortedAdminIds = [...new Set(adminIds)].sort();

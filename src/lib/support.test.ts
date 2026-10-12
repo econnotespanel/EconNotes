@@ -4,6 +4,7 @@ import {
   getAssignedSupportAdmin,
   getSupportMessageBody,
   getSupportTicketStage,
+  isSupportMessageValid,
   parseSupportMessage,
 } from './support';
 
@@ -26,6 +27,12 @@ describe('support ticket progress', () => {
 });
 
 describe('support messages', () => {
+  it('allows short non-empty ticket messages while rejecting whitespace-only content', () => {
+    expect(isSupportMessageValid('denemeun')).toBe(true);
+    expect(isSupportMessageValid('  ')).toBe(false);
+    expect(isSupportMessageValid('x'.repeat(5001))).toBe(false);
+  });
+
   it('encodes and parses ticket and reply messages', () => {
     const ticket = {
       version: 1 as const,
