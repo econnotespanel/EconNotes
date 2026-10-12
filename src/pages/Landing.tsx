@@ -61,7 +61,7 @@ const Landing = () => {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg">
-              <Link to="/register">Ücretsiz Hesap Oluştur <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              <Link to="/register">Başlayalım! <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
             <Button asChild size="lg" variant="outline"><Link to="/login">Zaten Hesabım Var</Link></Button>
           </div>

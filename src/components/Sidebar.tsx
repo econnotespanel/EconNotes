@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,24 +11,22 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target, Sparkles, LogOut, LifeBuoy, type LucideIcon } from 'lucide-react';
+import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target, Sparkles, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { APP_VERSION_LABEL } from '@/lib/version';
+import { APP_VERSION } from '@/lib/version';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
-import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import { toast } from 'sonner';
 
 type LinkItem = {
   label: string;
-  icon: LucideIcon;
+  icon: any;
   path: string;
   badge?: number;
   isNew?: boolean;
-  isBeta?: boolean;
 };
 
 const Sidebar = () => {
@@ -46,12 +45,12 @@ const Sidebar = () => {
       .from('messages').select('sender_id')
       .eq('receiver_id', user.id).eq('is_read', false);
     if (unreadMsgs) {
-      const uniqueSenders = new Set(unreadMsgs.map((message) => message.sender_id));
+      const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));
       setUnreadMessages(uniqueSenders.size);
     }
     const { data: announcements } = await supabase.from('announcements').select('id');
     const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
-    const viewedIds = new Set((views || []).map((view) => view.announcement_id));
+    const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
     setUnreadAnnouncements((announcements || []).filter(a => !viewedIds.has(a.id)).length);
   }, [user]);
 
@@ -103,7 +102,6 @@ const Sidebar = () => {
   const account: LinkItem[] = [
     { label: 'Profilim',           icon: User,          path: '/profile' },
     { label: 'Puan Geçmişim',      icon: Sparkles,      path: '/points',     isNew: true },
-    { label: 'Destek Merkezi',     icon: LifeBuoy,      path: '/support',    isBeta: true },
     { label: 'Hakkında',           icon: Info,          path: '/about' },
     ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
@@ -160,11 +158,6 @@ const Sidebar = () => {
         {link.isNew && (
           <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-[hsl(var(--sidebar-primary)/0.5)] text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-primary)/0.1)]">
             YENİ
-          </span>
-        )}
-        {link.isBeta && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-[hsl(var(--sidebar-primary)/0.5)] text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-primary)/0.1)]">
-            BETA
           </span>
         )}
         {link.badge && link.badge > 0 && (
@@ -246,7 +239,7 @@ const Sidebar = () => {
         <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
             <EconLogo className="h-5 w-24" />
-            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">{APP_VERSION_LABEL}</span>
+            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">Versiyon {APP_VERSION}</span>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>

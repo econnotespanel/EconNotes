@@ -2,7 +2,7 @@ import Layout from '@/components/Layout';
 import SignedImage from '@/components/SignedImage';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import { Progress } from '@/components/ui/progress';
 import { NOTE_SELECT } from '@/lib/noteColumns';
-import { hasActiveNoteUnlock, NOTE_PASSWORD_UNLOCK_DURATION_MS } from '@/lib/noteAccess';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
@@ -53,8 +52,7 @@ const Notes = () => {
   const [showComments, setShowComments] = useState<Record<string, boolean>>({});
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
   const [passwordInput, setPasswordInput] = useState<Record<string, string>>({});
-  const [unlockedNotes, setUnlockedNotes] = useState<Record<string, number>>({});
-  const unlockTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [unlockedNotes, setUnlockedNotes] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({
     title: '', description: '', grade: '1', course: '',
     semester: 'Güz Dönemi', file: null as File | null, note_password: '',
@@ -63,10 +61,6 @@ const Notes = () => {
   const [confirmUpload, setConfirmUpload] = useState(false);
   const [acceptOwnership, setAcceptOwnership] = useState(false);
   const [showUploadRules, setShowUploadRules] = useState(false);
-
-  useEffect(() => () => {
-    Object.values(unlockTimers.current).forEach(clearTimeout);
-  }, []);
 
   const NOTE_UPLOAD_RULES = [
     'Yüklenen notlar telif hakkına uygun olmalıdır. Başkasının notunu paylaşmadan önce izin alınmalıdır.',
@@ -119,10 +113,6 @@ const Notes = () => {
 
   const handlePreviewClick = async (note: any) => {
     if (!user) return;
-    if (isNoteLocked(note)) {
-      toast.error('Bu notu görüntülemek için önce şifresini girin.');
-      return;
-    }
     if (viewRestricted && !isAdmin) {
       const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
       const q = (data && data[0]) as typeof quota;
@@ -170,10 +160,6 @@ const Notes = () => {
   // Quota-aware download handler. Blocks when user has not uploaded enough notes.
   const handleDownloadClick = async (note: any) => {
     if (!user) return;
-    if (isNoteLocked(note)) {
-      toast.error('Bu notu indirmek için önce şifresini girin.');
-      return;
-    }
     // Re-fetch quota fresh to avoid race conditions
     const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
     const q = (data && data[0]) as typeof quota;
@@ -317,26 +303,14 @@ const Notes = () => {
     if (!note.has_password) return false;
     if (isAdmin) return false;
     if (note.user_id === user?.id) return false;
-    return !hasActiveNoteUnlock(unlockedNotes[note.id]);
+    return !unlockedNotes.has(note.id);
   };
 
   const unlockNote = async (noteId: string, password: string) => {
     const { data, error } = await supabase.rpc('verify_note_password', { _note_id: noteId, _password: password });
     if (error) { toast.error('Şifre doğrulanamadı.'); return; }
     if (data === true) {
-      const expiresAt = Date.now() + NOTE_PASSWORD_UNLOCK_DURATION_MS;
-      const timer = unlockTimers.current[noteId];
-      if (timer) clearTimeout(timer);
-      setUnlockedNotes((previous) => ({ ...previous, [noteId]: expiresAt }));
-      unlockTimers.current[noteId] = setTimeout(() => {
-        setUnlockedNotes((previous) => {
-          if (previous[noteId] !== expiresAt) return previous;
-          const next = { ...previous };
-          delete next[noteId];
-          return next;
-        });
-        delete unlockTimers.current[noteId];
-      }, NOTE_PASSWORD_UNLOCK_DURATION_MS);
+      setUnlockedNotes(prev => new Set(prev).add(noteId));
       toast.success('Not kilidi açıldı.');
     } else {
       toast.error('Yanlış şifre.');
@@ -441,7 +415,7 @@ const Notes = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>İndirme hakkınız doldu</AlertDialogTitle>
               <AlertDialogDescription>
-                EconNotes'ta her 2 indirme için en az 1 onaylı ders notu yüklemeniz gerekmektedir. Devam etmek için yeni bir not yükleyin; notunuz yönetici tarafından onaylandığında indirme hakkınız otomatik olarak artacaktır.
+                Yeni kullanıcılar 2 indirme hakkı ile başlar. Daha fazla indirme için onaylanan en az 1 ders notu yüklemeniz gerekir; notunuz yönetici tarafından onaylandığında kota otomatik olarak güncellenir.
                 {quota && (
                   <span className="block mt-3 text-foreground">
                     Onaylı yüklemeniz: <b>{quota.approved_uploads}</b> · İndirmeniz: <b>{quota.total_downloads}</b> · Hak: <b>{quota.allowed_downloads}</b>

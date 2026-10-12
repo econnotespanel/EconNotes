@@ -255,7 +255,7 @@ const Dashboard = () => {
                     </span>
                   </div>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Her 2 indirme için en az 1 onaylı not yüklemelisiniz. İlk indirmeniz için de bir not yüklemiş olmanız gerekir.
+                    Yeni kullanıcılar 2 indirme hakkı ile başlar. Kotalarınızı açmak için onaylanan en az 1 ders notu yüklemeniz gerekir.
                   </p>
                   <Progress
                     value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
