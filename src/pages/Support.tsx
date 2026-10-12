@@ -485,7 +485,7 @@ const Support = () => {
                   )}
                 </CardHeader>
                 <CardContent className="p-4 sm:p-5">
-                  <ol aria-label="Talep durumu" className="grid grid-cols-4">
+                  <ol aria-label="Talep durumu" className="grid grid-cols-4 rounded-2xl border border-border/70 bg-muted/20 px-1 py-5 sm:px-3 sm:py-6">
                     {progressSteps.map((step, index) => {
                       const complete = index < currentStage;
                       const current = index === currentStage;
@@ -501,15 +501,20 @@ const Support = () => {
                         amber: 'bg-amber-500',
                         emerald: 'bg-emerald-500',
                         violet: 'bg-violet-500',
-                      }[progressSteps[index - 1]?.color ?? 'sky'];
+                      }[step.color];
                       return (
-                        <li key={step.label} className="relative flex min-w-0 flex-col items-center text-center">
-                          {index > 0 && <span aria-hidden="true" className={`absolute left-0 top-5 h-1 w-1/2 -translate-y-1/2 transition-colors duration-500 ${complete || current ? connectorColorClasses : 'bg-border'}`} />}
-                          <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 shadow-md transition-all duration-500 ${colorClasses} ${current ? 'animate-pulse motion-reduce:animate-none' : ''}`}>
+                        <li key={step.label} aria-current={current ? 'step' : undefined} className="relative flex min-w-0 flex-col items-center text-center">
+                          {index < progressSteps.length - 1 && (
+                            <span
+                              aria-hidden="true"
+                              className={`absolute left-1/2 top-5 z-0 h-1 w-full -translate-y-1/2 rounded-full transition-colors duration-500 sm:top-6 ${complete ? connectorColorClasses : 'bg-border'}`}
+                            />
+                          )}
+                          <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 shadow-md ring-4 ring-background transition-all duration-500 sm:h-12 sm:w-12 ${colorClasses} ${current ? 'animate-pulse motion-reduce:animate-none' : ''}`}>
                             {complete ? <Check className="h-5 w-5" /> : index === 0 ? <MessageSquareText className="h-4 w-4" /> : index === 1 ? <Search className="h-4 w-4" /> : index === 2 ? <MessageCircle className="h-4 w-4" /> : <Check className="h-5 w-5" />}
                           </span>
-                          <span className={`mt-2 max-w-full px-1 text-[10px] font-semibold sm:text-xs ${reached ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
-                          {reached && <span className="mt-1 text-[9px] text-muted-foreground sm:text-[10px]">{index === 0 ? dateTime(selectedTicket.createdAt) : index === 1 ? dateTime(selectedTicket.reviewingAt) : index === 2 ? dateTime(selectedTicket.firstResponseAt) : selectedTicket.status === 'closed' ? dateTime(selectedTicket.closedAt) : null}</span>}
+                          <span className={`mt-3 max-w-full px-1 text-[10px] font-semibold sm:text-xs ${reached ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
+                          {reached && <span className="mt-1 min-h-4 text-[9px] text-muted-foreground sm:text-[10px]">{index === 0 ? dateTime(selectedTicket.createdAt) : index === 1 ? dateTime(selectedTicket.reviewingAt) : index === 2 ? dateTime(selectedTicket.firstResponseAt) : selectedTicket.status === 'closed' ? dateTime(selectedTicket.closedAt) : null}</span>}
                         </li>
                       );
                     })}
@@ -521,9 +526,12 @@ const Support = () => {
                 <CardHeader className="border-b border-border/70 px-4 py-3 sm:px-5"><CardTitle className="text-sm">Talep yazışması</CardTitle></CardHeader>
                 <CardContent className="p-4 sm:p-5">
                   <div className="max-h-[45vh] space-y-3 overflow-y-auto">
-                    <div className="rounded-xl border border-border bg-muted/40 p-3.5 sm:p-4">
+                    <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-muted/40 p-4 shadow-sm sm:p-5">
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs font-semibold">{userNames[selectedTicket.userId] ?? profile?.full_name ?? 'Talep sahibi'}</span>
+                        <span className="flex items-center gap-2 text-xs font-semibold">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary"><MessageSquareText className="h-3.5 w-3.5" /></span>
+                          {userNames[selectedTicket.userId] ?? profile?.full_name ?? 'Talep sahibi'}
+                        </span>
                         <span className="text-[11px] text-muted-foreground">{dateTime(selectedTicket.createdAt)}</span>
                       </div>
                       <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{selectedTicket.initialMessage}</p>
@@ -533,7 +541,7 @@ const Support = () => {
                       const payload = parseSupportMessage(message.content);
                       const isStatus = payload?.kind === 'status';
                       return (
-                        <div key={message.id} className={`max-w-[94%] rounded-xl border p-3.5 sm:max-w-[85%] sm:p-4 ${isStatus ? 'mx-auto border-border bg-muted/40 text-center' : fromAdmin ? 'border-primary/20 bg-primary/5' : 'ml-auto border-border bg-muted/40'}`}>
+                        <div key={message.id} className={`max-w-[94%] rounded-2xl border p-3.5 shadow-sm sm:max-w-[85%] sm:p-4 ${isStatus ? 'mx-auto border-border/80 bg-muted/40 text-center' : fromAdmin ? 'border-primary/20 bg-gradient-to-br from-primary/5 to-card' : 'ml-auto border-border/80 bg-muted/40'}`}>
                           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                             <span className="flex items-center gap-1.5 text-xs font-semibold">
                               {fromAdmin && !isStatus && <ShieldCheck className="h-3.5 w-3.5 text-primary" />}
