@@ -1,9 +1,11 @@
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
+import SupportNotificationListener from '@/components/SupportNotificationListener';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
+      <SupportNotificationListener />
       <Header />
       <Sidebar />
       <main className="relative z-10 min-h-[calc(100vh-4rem)] min-w-0 px-3 py-5 pb-16 sm:px-4 md:ml-64 md:p-8 opacity-100 visible">

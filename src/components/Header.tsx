@@ -20,6 +20,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePoints } from '@/hooks/usePoints';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
+import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
@@ -38,7 +39,8 @@ const Header = () => {
       .from('messages')
       .select('sender_id')
       .eq('receiver_id', user.id)
-      .eq('is_read', false);
+      .eq('is_read', false)
+      .not('content', 'like', `${SUPPORT_MESSAGE_PREFIX}%`);
     
     if (unreadMsgs) {
       const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));

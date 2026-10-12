@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Clock3, LifeBuoy, Loader2, MessageCircle, MessageSquareText, Plus, Search, Send, ShieldCheck, XCircle } from 'lucide-react';
+import { Check, Clock3, LifeBuoy, Loader2, MessageCircle, MessageSquareText, Plus, Search, Send, ShieldCheck, Smartphone, Trash2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useNavigate } from 'react-router-dom';
 import {
   encodeSupportMessage,
@@ -39,6 +40,13 @@ type Ticket = {
   closedAt: string | null;
   replies: { id: string; senderId: string; content: string; createdAt: string; kind: 'reply' | 'status' }[];
 };
+
+const progressSteps = [
+  { label: 'Talep alındı', color: 'sky' },
+  { label: 'İnceleniyor', color: 'amber' },
+  { label: 'Yanıtlandı', color: 'emerald' },
+  { label: 'Tamamlandı', color: 'violet' },
+] as const;
 
 const categories: { value: SupportTicketCategory; label: string }[] = [
   { value: 'technical', label: 'Teknik sorun' },
@@ -106,6 +114,10 @@ const buildTickets = (rows: StoredMessage[], adminView: boolean, currentUserId: 
       else ticket.closedAt = row.created_at;
       ticket.replies.push({ id: row.id, senderId: row.sender_id, content: row.content, createdAt: row.created_at, kind: 'status' });
     } else {
+      if (payload.kind === 'deleted') {
+        if (row.sender_id === ticket.adminId) tickets.delete(ticket.id);
+        continue;
+      }
       ticket.replies.push({ id: row.id, senderId: row.sender_id, content: row.content, createdAt: row.created_at, kind: 'reply' });
       if (row.sender_id === ticket.adminId) {
         ticket.firstResponseAt ??= row.created_at;
@@ -135,6 +147,9 @@ const Support = () => {
   const [initialMessage, setInitialMessage] = useState('');
   const [reply, setReply] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted',
+  );
 
   const loadTickets = useCallback(async () => {
     if (!user) return;
@@ -234,6 +249,23 @@ const Support = () => {
   const selectedStage = selectedTicket
     ? getSupportTicketStage(selectedTicket.status, selectedTicket.firstResponseAt, selectedTicket.reviewingAt)
     : 0;
+  const currentStage = selectedTicket?.status === 'closed' ? 3 : selectedStage;
+
+  const enableNotifications = async () => {
+    if (!('Notification' in window)) {
+      toast.error('Bu tarayıcı cihaz bildirimlerini desteklemiyor.');
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setNotificationsEnabled(permission === 'granted');
+      if (permission === 'granted') toast.success('Destek talepleri için cihaz bildirimleri açıldı.');
+      else toast.error('Bildirim izni verilmedi. Tarayıcı ayarlarından izin verebilirsiniz.');
+    } catch (error) {
+      console.error('Support notification permission request failed:', error);
+      toast.error('Cihaz bildirimi izni istenemedi. Tarayıcı ayarlarını kontrol edin.');
+    }
+  };
 
   const insertSupportMessage = async (receiverId: string, payload: SupportMessagePayload) => {
     if (!user) return false;
@@ -305,6 +337,18 @@ const Support = () => {
     await loadTickets();
   };
 
+  const deleteTicket = async (ticket: Ticket) => {
+    if (!isAdmin || ticket.status !== 'closed') return;
+    const success = await insertSupportMessage(ticket.userId, {
+      version: 1,
+      ticketId: ticket.id,
+      kind: 'deleted',
+    });
+    if (!success) return;
+    toast.success('Destek talebi listeden kaldırıldı.');
+    await loadTickets();
+  };
+
   if (authLoading || (!user && loading)) {
     return <Layout><div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div></Layout>;
   }
@@ -325,11 +369,18 @@ const Support = () => {
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">Sorun, öneri veya geri bildiriminizi bize iletin. Destek ekibi talepleri buradan yanıtlar.</p>
               </div>
             </div>
-            {!isAdmin && <Button onClick={() => setDialogOpen(true)} className="shrink-0 gap-2 self-start sm:self-auto"><Plus className="h-4 w-4" /> Yeni talep oluştur</Button>}
+            <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+              {isAdmin && 'Notification' in window && (
+                <Button variant="outline" onClick={() => void enableNotifications()} disabled={notificationsEnabled} className="gap-2">
+                  <Smartphone className="h-4 w-4" />{notificationsEnabled ? 'Bildirimler açık' : 'Bildirimleri aç'}
+                </Button>
+              )}
+              {!isAdmin && <Button onClick={() => setDialogOpen(true)} className="shrink-0 gap-2"><Plus className="h-4 w-4" /> Yeni talep oluştur</Button>}
+            </div>
           </div>
           <div className="relative mt-5 flex items-center gap-2 rounded-xl border border-border/70 bg-background/70 px-3 py-2.5 text-xs text-muted-foreground sm:max-w-fit sm:px-4">
             <Clock3 className="h-4 w-4 shrink-0 text-primary" />
-            <span>Gönderdiğiniz talepleri ve yönetici yanıtlarını buradan takip edebilirsiniz.</span>
+            <span>{isAdmin ? 'Bildirimler, EconNotes açıkken veya arka plandayken çalışır.' : 'Gönderdiğiniz talepleri ve yönetici yanıtlarını buradan takip edebilirsiniz.'}</span>
           </div>
         </section>
 
@@ -393,16 +444,50 @@ const Support = () => {
                   {isAdmin && (
                     <div className="flex flex-wrap gap-2">
                       {selectedTicket.status !== 'reviewing' && selectedTicket.status !== 'closed' && <Button size="sm" variant="outline" onClick={() => void updateStatus(selectedTicket, 'reviewing')}><Search className="mr-1.5 h-3.5 w-3.5" />İncelemeye al</Button>}
-                      {selectedTicket.status === 'closed' && <Button size="sm" variant="outline" onClick={() => void updateStatus(selectedTicket, 'reviewing')}><MessageCircle className="mr-1.5 h-3.5 w-3.5" />Yeniden aç</Button>}
+                      {selectedTicket.status === 'closed' && (
+                        <>
+                          <Button size="sm" variant="outline" onClick={() => void updateStatus(selectedTicket, 'reviewing')}><MessageCircle className="mr-1.5 h-3.5 w-3.5" />Yeniden aç</Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="mr-1.5 h-3.5 w-3.5" />Sil</Button></AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Destek talebi listeden kaldırılsın mı?</AlertDialogTitle>
+                                <AlertDialogDescription>Talep Destek Merkezi listelerinden kaldırılır. Mesaj kayıtları denetim amacıyla saklanır. Bu işlem geri alınamaz.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => void deleteTicket(selectedTicket)}>Listeden kaldır</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
+                      )}
                       {selectedTicket.status !== 'closed' && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => void updateStatus(selectedTicket, 'closed')}><XCircle className="mr-1.5 h-3.5 w-3.5" />Talebi kapat</Button>}
                     </div>
                   )}
                 </CardHeader>
                 <CardContent className="p-4 sm:p-5">
-                  <ol aria-label="Talep durumu" className="grid grid-cols-1 gap-0 sm:grid-cols-4 sm:gap-2">
-                    {['Talep gönderildi', 'İnceleniyor', 'Yanıtlandı', 'Kapatıldı'].map((label, index) => {
-                      const visible = index <= selectedStage || (selectedTicket.status === 'closed' && index === 3);
-                      return <li key={label} className={`border-l-2 py-1 pl-3 text-xs sm:border-l-0 sm:pl-0 sm:text-center ${visible ? 'border-primary text-foreground' : 'border-border text-muted-foreground'}`}>{label}</li>;
+                  <ol aria-label="Talep durumu" className="grid grid-cols-4">
+                    {progressSteps.map((step, index) => {
+                      const complete = index < currentStage;
+                      const current = index === currentStage;
+                      const reached = complete || current;
+                      const colorClasses = {
+                        sky: reached ? 'border-sky-500 bg-sky-500 text-white shadow-sky-500/25' : 'border-sky-500/30 bg-sky-500/5 text-sky-700 dark:text-sky-300',
+                        amber: reached ? 'border-amber-500 bg-amber-500 text-white shadow-amber-500/25' : 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300',
+                        emerald: reached ? 'border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/25' : 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300',
+                        violet: reached ? 'border-violet-500 bg-violet-500 text-white shadow-violet-500/25' : 'border-violet-500/30 bg-violet-500/5 text-violet-700 dark:text-violet-300',
+                      }[step.color];
+                      return (
+                        <li key={step.label} className="relative flex min-w-0 flex-col items-center text-center">
+                          {index > 0 && <span aria-hidden="true" className={`absolute left-0 top-5 h-1 w-1/2 -translate-y-1/2 ${complete || current ? 'support-progress-flow bg-gradient-to-r from-sky-500 via-amber-500 to-emerald-500' : 'bg-border'}`} />}
+                          <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 shadow-md transition-all duration-500 ${colorClasses} ${current ? 'animate-pulse motion-reduce:animate-none' : ''}`}>
+                            {complete ? <Check className="h-5 w-5" /> : index === 0 ? <MessageSquareText className="h-4 w-4" /> : index === 1 ? <Search className="h-4 w-4" /> : index === 2 ? <MessageCircle className="h-4 w-4" /> : <Check className="h-5 w-5" />}
+                          </span>
+                          <span className={`mt-2 max-w-full px-1 text-[10px] font-semibold sm:text-xs ${reached ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
+                          {reached && <span className="mt-1 text-[9px] text-muted-foreground sm:text-[10px]">{index === 0 ? dateTime(selectedTicket.createdAt) : index === 1 ? dateTime(selectedTicket.reviewingAt) : index === 2 ? dateTime(selectedTicket.firstResponseAt) : selectedTicket.status === 'closed' ? dateTime(selectedTicket.closedAt) : null}</span>}
+                        </li>
+                      );
                     })}
                   </ol>
                 </CardContent>
@@ -428,7 +513,7 @@ const Support = () => {
                           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                             <span className="flex items-center gap-1.5 text-xs font-semibold">
                               {fromAdmin && !isStatus && <ShieldCheck className="h-3.5 w-3.5 text-primary" />}
-                              {isStatus ? 'Talep durumu' : fromAdmin ? 'EconNotes destek ekibi' : (userNames[message.senderId] ?? 'Kullanıcı')}
+                              {isStatus ? 'Talep durumu' : fromAdmin ? 'EconNotes Destek Ekibi' : (userNames[message.senderId] ?? 'Kullanıcı')}
                             </span>
                             <span className="text-[11px] text-muted-foreground">{dateTime(message.createdAt)}</span>
                           </div>

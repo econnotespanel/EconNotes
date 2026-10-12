@@ -123,8 +123,17 @@
     background: hsl(var(--neon-cyan));
     box-shadow: 0 0 12px hsl(var(--neon-cyan) / 0.32);
   }
+  .support-progress-flow {
+    background-size: 200% 100%;
+    animation: support-progress-flow 1.8s linear infinite;
+  }
+  @keyframes support-progress-flow {
+    from { background-position: 100% 0; }
+    to { background-position: -100% 0; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .group:hover .hud-scanline { animation: none; opacity: .5; }
+    .support-progress-flow { animation: none; }
   }
 
   .sticker-card, .glass-card {

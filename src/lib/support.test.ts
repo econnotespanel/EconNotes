@@ -47,6 +47,9 @@ describe('support messages', () => {
     expect(parseSupportMessage(encodeSupportMessage(ticket))).toEqual(ticket);
     expect(parseSupportMessage(encodeSupportMessage(reply))).toEqual(reply);
     expect(getSupportMessageBody(encodeSupportMessage(reply))).toBe(reply.message);
+    const deleted = { version: 1 as const, ticketId: 'ticket-1', kind: 'deleted' as const };
+    expect(parseSupportMessage(encodeSupportMessage(deleted))).toEqual(deleted);
+    expect(getSupportMessageBody(encodeSupportMessage(deleted))).toBe('');
   });
 
   it('rejects malformed or unsupported message payloads', () => {

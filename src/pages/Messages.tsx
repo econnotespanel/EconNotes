@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
-import { getSupportMessageBody } from '@/lib/support';
+import { getSupportMessageBody, parseSupportMessage } from '@/lib/support';
 
 const EMOJIS = ['😀','😂','😍','👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐'];
 
@@ -130,7 +130,7 @@ const Messages = () => {
       toast.error(`Mesajlar yüklenemedi: ${error.message}`);
       return;
     }
-    setMessages((data || []).reverse());
+    setMessages((data || []).filter(message => !parseSupportMessage(message.content)).reverse());
     
     // Mark received messages as read
     await supabase.from('messages')

@@ -20,6 +20,7 @@ import { APP_VERSION } from '@/lib/version';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
 import EconLogo from '@/components/EconLogo';
 import { toast } from 'sonner';
+import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 
 type LinkItem = {
   label: string;
@@ -44,7 +45,8 @@ const Sidebar = () => {
     if (!user) return;
     const { data: unreadMsgs } = await supabase
       .from('messages').select('sender_id')
-      .eq('receiver_id', user.id).eq('is_read', false);
+      .eq('receiver_id', user.id).eq('is_read', false)
+      .not('content', 'like', `${SUPPORT_MESSAGE_PREFIX}%`);
     if (unreadMsgs) {
       const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));
       setUnreadMessages(uniqueSenders.size);

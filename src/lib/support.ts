@@ -23,6 +23,11 @@ export type SupportMessagePayload =
       ticketId: string;
       kind: 'status';
       status: 'reviewing' | 'closed';
+    }
+  | {
+      version: 1;
+      ticketId: string;
+      kind: 'deleted';
     };
 
 const categories: SupportTicketCategory[] = ['technical', 'suggestion', 'complaint', 'account', 'other'];
@@ -52,6 +57,7 @@ export const parseSupportMessage = (content: string): SupportMessagePayload | nu
     if (value.kind === 'status' && (value.status === 'reviewing' || value.status === 'closed')) {
       return value as SupportMessagePayload;
     }
+    if (value.kind === 'deleted') return value as SupportMessagePayload;
     return null;
   } catch {
     return null;
@@ -61,6 +67,7 @@ export const parseSupportMessage = (content: string): SupportMessagePayload | nu
 export const getSupportMessageBody = (content: string) => {
   const payload = parseSupportMessage(content);
   if (!payload) return content;
+  if (payload.kind === 'deleted') return '';
   if (payload.kind === 'status') return payload.status === 'closed' ? 'Talep kapatıldı.' : 'Talep incelemeye alındı.';
   return payload.message;
 };
