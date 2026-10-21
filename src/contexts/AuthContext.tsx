@@ -42,6 +42,24 @@ const RETURN_TOUR_VERSION = APP_VERSION;
 
 export const useAuth = () => useContext(AuthContext);
 
+type OAuthNameSource = Pick<User, 'user_metadata' | 'identities' | 'email'>;
+
+const getOAuthFullName = (user: OAuthNameSource, fallback = '') => {
+  const metadata = user.user_metadata ?? {};
+  const metadataName = [
+    metadata.full_name,
+    metadata.name,
+    [metadata.given_name, metadata.family_name].filter(Boolean).join(' '),
+  ].find((value) => typeof value === 'string' && value.trim());
+  const identityData = user.identities?.[0]?.identity_data ?? {};
+  const identityName = [
+    identityData.full_name,
+    identityData.name,
+    [identityData.given_name, identityData.family_name].filter(Boolean).join(' '),
+  ].find((value) => typeof value === 'string' && value.trim());
+  return String(metadataName || identityName || fallback || user.email?.split('@')[0] || 'EconNotes kullanıcısı').trim();
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -49,13 +67,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string, detectInactivity = false, email?: string, fallbackFullName?: string) => {
+  const fetchProfile = async (userId: string, detectInactivity = false, email?: string, fallbackFullName = '') => {
+    const authUser = user?.id === userId ? user : null;
     const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
     if (data) {
+      const profileName = data.full_name?.trim() || getOAuthFullName(authUser ?? { user_metadata: { full_name: fallbackFullName }, identities: [], email }, fallbackFullName);
+      if (!data.full_name?.trim() && profileName) {
+        await supabase.from('profiles').update({ full_name: profileName }).eq('user_id', userId);
+        data.full_name = profileName;
+      }
       const previousLogin = data.last_login ? new Date(data.last_login).getTime() : null;
       const inactiveSince = Date.now() - INACTIVE_DAYS * 24 * 60 * 60 * 1000;
       const tourKey = `econnotes_return_tour_${RETURN_TOUR_VERSION}_${userId}`;
@@ -66,6 +90,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await rememberReturningAccount(email, data.full_name || fallbackFullName || '');
       }
       setProfile({ ...data, last_login: new Date().toISOString() } as Profile);
+    } else if (authUser || fallbackFullName || email) {
+      const profileName = getOAuthFullName(authUser ?? { user_metadata: { full_name: fallbackFullName }, identities: [], email }, fallbackFullName);
+      const { data: createdProfile, error: profileError } = await supabase
+        .from('profiles')
+        .upsert({ user_id: userId, full_name: profileName }, { onConflict: 'user_id' })
+        .select('*')
+        .single();
+      if (profileError) {
+        console.error('OAuth profile could not be created:', profileError);
+      } else if (createdProfile) {
+        setProfile({ ...createdProfile, last_login: new Date().toISOString() } as Profile);
+      }
     }
 
     const { data: roleData } = await supabase
@@ -95,7 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         if (session?.user) {
           setTimeout(async () => {
-            await fetchProfile(session.user.id, _event === 'SIGNED_IN', session.user.email, session.user.user_metadata?.full_name);
+            await fetchProfile(session.user.id, _event === 'SIGNED_IN', session.user.email, getOAuthFullName(session.user));
             await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id);
           }, 0);
           if (_event === 'SIGNED_IN') {
@@ -128,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id).then(() => {
+        fetchProfile(session.user.id, false, session.user.email, getOAuthFullName(session.user)).then(() => {
           supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
         });
       }
