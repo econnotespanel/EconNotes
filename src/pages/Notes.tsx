@@ -80,11 +80,24 @@ const Notes = () => {
     setNotes((data as any[]) || []);
     setLoading(false);
 
-    // Fetch counts
+    const noteIds = ((data as any[]) || []).map((note) => note.id).filter(Boolean);
+    if (noteIds.length === 0) {
+      setViewCounts({});
+      setDownloadCounts({});
+      setComments({});
+      return;
+    }
+
+    // Only load engagement data for notes currently shown on this page.
     const [viewsRes, downloadsRes, commentsRes] = await Promise.all([
-      supabase.from('note_views').select('note_id'),
-      supabase.from('note_downloads').select('note_id'),
-      supabase.from('comments').select('*').eq('entity_type', 'note').order('created_at', { ascending: true }),
+      supabase.from('note_views').select('note_id').in('note_id', noteIds),
+      supabase.from('note_downloads').select('note_id').in('note_id', noteIds),
+      supabase
+        .from('comments')
+        .select('id, entity_id, content, user_name, created_at')
+        .eq('entity_type', 'note')
+        .in('entity_id', noteIds)
+        .order('created_at', { ascending: true }),
     ]);
 
     const vc: Record<string, number> = {};

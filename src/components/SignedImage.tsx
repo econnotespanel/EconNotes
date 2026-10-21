@@ -19,7 +19,7 @@ const SignedImage = ({ source, ...rest }: Props) => {
   }, [source]);
 
   if (!url) return <div className={rest.className} aria-hidden />;
-  return <img {...rest} src={url} />;
+  return <img {...rest} loading={rest.loading ?? 'lazy'} decoding={rest.decoding ?? 'async'} src={url} />;
 };
 
 export default SignedImage;
