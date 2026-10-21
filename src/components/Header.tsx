@@ -137,20 +137,21 @@ const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-card relative">
-      <div className="flex h-16 min-w-0 items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
-        <div className="ml-14 flex min-w-0 cursor-pointer items-center md:ml-0" onClick={() => navigate('/')}>
+    <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-card/90 shadow-[0_8px_24px_hsl(var(--foreground)/0.04)] backdrop-blur-xl">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
+      <div className="flex h-[4.5rem] min-w-0 items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
+        <div className="ml-14 flex min-w-0 cursor-pointer items-center rounded-xl px-2 py-1.5 transition-colors hover:bg-primary/5 md:ml-0" onClick={() => navigate('/')}>
           <EconLogo className="h-6 w-24 sm:h-7 sm:w-32" />
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 md:gap-3">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 md:gap-2">
           {profile && (
-            <div className="hidden md:flex flex-col items-end text-xs">
-              <span className="font-semibold text-foreground">
+            <div className="mr-1 hidden rounded-xl border border-border/60 bg-background/45 px-3 py-1.5 text-right md:flex md:flex-col">
+              <span className="font-semibold leading-4 text-foreground">
                 {getGreeting()}, {profile.full_name}
               </span>
               {profile.last_login && (
-                <span className="text-muted-foreground">Son giriş: {formatLastLogin()}</span>
+                <span className="mt-0.5 text-[11px] text-muted-foreground">Son giriş: {formatLastLogin()}</span>
               )}
             </div>
           )}
@@ -159,7 +160,7 @@ const Header = () => {
             <button
               onClick={() => navigate('/')}
               title={`${points.points} puan • ${points.current_streak} günlük seri`}
-              className="hidden lg:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors"
+              className="hidden h-8 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 text-xs font-semibold text-primary shadow-sm shadow-primary/10 transition-colors hover:bg-primary/20 lg:inline-flex"
             >
               <Sparkles className="h-3.5 w-3.5" />
               {points.points}
@@ -172,7 +173,7 @@ const Header = () => {
           )}
 
 
-          <Button variant="ghost" size="icon" className="relative hidden sm:inline-flex" onClick={() => navigate('/messages')}>
+          <Button variant="ghost" size="icon" className="relative hidden rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary sm:inline-flex" onClick={() => navigate('/messages')}>
             <MessageSquare className="h-5 w-5" />
             {unreadMessages > 0 && (
               <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-[9px] text-destructive-foreground inline-flex items-center justify-center">
@@ -181,7 +182,7 @@ const Header = () => {
             )}
           </Button>
 
-          <Button variant="ghost" size="icon" className="relative" onClick={() => navigate('/announcements')}>
+          <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary" onClick={() => navigate('/announcements')}>
             <Bell className="h-5 w-5" />
             {unreadAnnouncements > 0 && (
               <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-[9px] text-destructive-foreground inline-flex items-center justify-center">
@@ -197,22 +198,23 @@ const Header = () => {
               aria-label={deviceNotificationsEnabled ? 'Cihaz bildirimlerini kapat' : 'Cihaz bildirimlerini aç'}
               title={deviceNotificationsEnabled ? 'Cihaz bildirimleri açık' : 'Cihaz bildirimlerini aç'}
               onClick={() => void toggleDeviceNotifications()}
+              className="rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
             >
               <BellRing className={`h-5 w-5 ${deviceNotificationsEnabled ? 'text-primary' : ''}`} />
             </Button>
           )}
 
-          <Button variant="ghost" size="icon" onClick={toggleTheme}>
+          <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary">
             {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
           </Button>
 
-          <Button variant="ghost" size="icon" className="hidden sm:inline-flex" onClick={() => navigate('/profile')}>
+          <Button variant="ghost" size="icon" className="hidden rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary sm:inline-flex" onClick={() => navigate('/profile')}>
             <User className="h-5 w-5" />
           </Button>
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="hidden text-destructive hover:text-destructive md:inline-flex">
+              <Button variant="ghost" size="icon" className="hidden rounded-xl text-destructive/80 transition-all hover:bg-destructive/10 hover:text-destructive md:inline-flex">
                 <LogOut className="h-5 w-5" />
               </Button>
             </AlertDialogTrigger>
