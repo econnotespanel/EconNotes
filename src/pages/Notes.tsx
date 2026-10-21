@@ -62,6 +62,8 @@ const Notes = () => {
   const [confirmUpload, setConfirmUpload] = useState(false);
   const [acceptOwnership, setAcceptOwnership] = useState(false);
   const [showUploadRules, setShowUploadRules] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
 
   const NOTE_UPLOAD_RULES = [
     'Yüklenen notlar telif hakkına uygun olmalıdır. Başkasının notunu paylaşmadan önce izin alınmalıdır.',
@@ -73,6 +75,35 @@ const Notes = () => {
     'Kurallara uymayan kullanıcılar cezalandırılabilir.',
     'Yönetici ekibi uygunsuz notları silme hakkına sahiptir.',
   ];
+
+  const uploadFileWithProgress = async (path: string, file: File) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    if (!accessToken || !supabaseUrl || !publishableKey) {
+      throw new Error('Dosya yükleme oturumu bulunamadı.');
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', `${supabaseUrl}/storage/v1/object/notes/${path}`);
+      request.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+      request.setRequestHeader('apikey', publishableKey);
+      request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      request.setRequestHeader('x-upsert', 'false');
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      request.onload = () => {
+        if (request.status >= 200 && request.status < 300) resolve();
+        else reject(new Error('Dosya yüklenemedi.'));
+      };
+      request.onerror = () => reject(new Error('Dosya yükleme bağlantısı kesildi.'));
+      request.onabort = () => reject(new Error('Dosya yükleme iptal edildi.'));
+      request.send(file);
+    });
+  };
 
   const fetchNotes = async () => {
     const { data, error } = await supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: sortOrder === 'asc' });
@@ -210,17 +241,19 @@ const Notes = () => {
     let fileName = editingNote?.file_name || null;
     let fileType = editingNote?.file_type || null;
 
-    if (form.file) {
-      const ext = form.file.name.split('.').pop();
-      const path = `${user!.id}/${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from('notes').upload(path, form.file);
-      if (uploadErr) { toast.error('Dosya yüklenemedi: ' + uploadErr.message); return; }
-      fileUrl = path;
-      fileName = form.file.name;
-      fileType = form.file.type;
-    }
+    setUploading(true);
+    setUploadProgress(form.file ? 0 : 100);
+    try {
+      if (form.file) {
+        const ext = form.file.name.split('.').pop();
+        const path = `${user!.id}/${Date.now()}.${ext}`;
+        await uploadFileWithProgress(path, form.file);
+        fileUrl = path;
+        fileName = form.file.name;
+        fileType = form.file.type;
+      }
 
-    const noteData: any = {
+      const noteData: any = {
       title: form.title, description: form.description, grade: parseInt(form.grade),
       department: departments.join(' | '), course: form.course, semester: form.semester,
       file_url: fileUrl, file_name: fileName, file_type: fileType,
@@ -233,13 +266,13 @@ const Notes = () => {
       approved_by: isAdmin ? user!.id : null,
     };
 
-    if (editingNote) {
+      if (editingNote) {
       noteData.edited_at = new Date().toISOString();
       const { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
       if (error) { toast.error('Not güncellenemedi.'); return; }
       await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_updated', `"${form.title}" notu güncellendi`, 'note', editingNote.id);
       toast.success('Not güncellendi!');
-    } else {
+      } else {
       const { data: insertedData, error } = await supabase.from('notes').insert(noteData).select('id').single();
       if (error) { toast.error('Not eklenemedi: ' + error.message); return; }
       await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_created', `"${form.title}" notu paylaşıldı`, 'note', insertedData?.id);
@@ -250,15 +283,21 @@ const Notes = () => {
       } else {
         toast.success('Notunuz başarıyla yüklendi. Admin yönetici ekibinin onayının ardından, en geç 24 saat içerisinde yayınlanacaktır.', { duration: 9000 });
       }
-    }
+      }
 
-    setDialogOpen(false);
-    setEditingNote(null);
-    setForm({ title: '', description: '', grade: '1', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
-    setDepartmentInputs(['']);
-    setConfirmUpload(false);
-    setAcceptOwnership(false);
-    fetchNotes();
+      setDialogOpen(false);
+      setEditingNote(null);
+      setForm({ title: '', description: '', grade: '1', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
+      setDepartmentInputs(['']);
+      setConfirmUpload(false);
+      setAcceptOwnership(false);
+      fetchNotes();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Dosya yüklenemedi.');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -559,9 +598,21 @@ const Notes = () => {
               ) : (
                 <div className="space-y-4 text-center">
                   <p className="text-foreground font-medium">Bu notu yüklemek istediğinize emin misiniz?</p>
+                  {uploading && (
+                    <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4 text-left">
+                      <div className="flex items-center justify-between text-xs font-medium">
+                        <span>{uploadProgress < 100 ? 'Not yükleniyor...' : 'Not hazırlanıyor...'}</span>
+                        <span className="tabular-nums text-primary">{uploadProgress}%</span>
+                      </div>
+                      <Progress value={uploadProgress} className="h-2" />
+                      <p className="text-[11px] text-muted-foreground">Pencereyi kapatmayın, yükleme tamamlanıyor.</p>
+                    </div>
+                  )}
                   <div className="flex gap-3 justify-center">
-                    <Button variant="outline" onClick={() => setConfirmUpload(false)}>İptal</Button>
-                    <Button className="gradient-primary text-primary-foreground" onClick={handleSubmit}>Evet, Yükle</Button>
+                    <Button variant="outline" disabled={uploading} onClick={() => setConfirmUpload(false)}>İptal</Button>
+                    <Button className="gradient-primary text-primary-foreground min-w-28" disabled={uploading} onClick={handleSubmit}>
+                      {uploading ? `${uploadProgress}%` : 'Evet, Yükle'}
+                    </Button>
                   </div>
                 </div>
               )}
