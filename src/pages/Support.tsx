@@ -510,7 +510,7 @@ const Support = () => {
                               className={`absolute left-1/2 top-5 z-0 h-1 w-full -translate-y-1/2 rounded-full transition-colors duration-500 sm:top-6 ${complete ? connectorColorClasses : 'bg-border'}`}
                             />
                           )}
-                          <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 shadow-md ring-4 ring-background transition-all duration-500 sm:h-12 sm:w-12 ${colorClasses} ${current ? 'animate-pulse motion-reduce:animate-none' : ''}`}>
+                          <span className={`relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 shadow-md ring-4 ring-background transition-all duration-700 sm:h-12 sm:w-12 ${colorClasses} ${current ? 'support-stage-current motion-reduce:animate-none' : ''}`}>
                             {complete ? <Check className="h-5 w-5" /> : index === 0 ? <MessageSquareText className="h-4 w-4" /> : index === 1 ? <Search className="h-4 w-4" /> : index === 2 ? <MessageCircle className="h-4 w-4" /> : <Check className="h-5 w-5" />}
                           </span>
                           <span className={`mt-3 max-w-full px-1 text-[10px] font-semibold sm:text-xs ${reached ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
