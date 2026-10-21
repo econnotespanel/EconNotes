@@ -22,6 +22,7 @@ interface SpeechResultEvent {
 interface SpeechRecognitionLike {
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives: number;
   lang: string;
   onresult: ((event: SpeechResultEvent) => void) | null;
   onerror: ((event: { error: string }) => void) | null;
@@ -49,6 +50,11 @@ interface LiveLectureCaptureProps {
 }
 
 const MAX_TRANSCRIPT_LENGTH = 60_000;
+
+const normalizeTranscript = (value: string) => value
+  .replace(/\s+/g, ' ')
+  .replace(/\s+([,.;:!?])/g, '$1')
+  .trim();
 
 const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
   const [title, setTitle] = useState('');
@@ -84,6 +90,7 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
+    recognition.maxAlternatives = 3;
     recognition.lang = 'tr-TR';
     finalTranscriptRef.current = '';
     setTranscript('');
@@ -152,7 +159,8 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
   };
 
   const summarizeLecture = async () => {
-    if (!title.trim() || transcript.trim().length < 40) {
+    const cleanedTranscript = normalizeTranscript(transcript);
+    if (!title.trim() || cleanedTranscript.length < 40) {
       toast.error('Özet için ders başlığı ve en az 40 karakterlik bir döküm gerekli.');
       return;
     }
@@ -160,7 +168,7 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
     setIsSummarizing(true);
     try {
       const { data, error } = await supabase.functions.invoke('summarize-live-lecture', {
-        body: { title: title.trim(), course: course.trim(), transcript: transcript.trim() },
+        body: { title: title.trim(), course: course.trim(), transcript: cleanedTranscript },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -177,7 +185,7 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
           material_type: 'summary',
           title: `Canlı Ders Özeti: ${title.trim()}`,
           course: course.trim() || null,
-          content: { ...data.content, transcript: transcript.trim() },
+          content: { ...data.content, transcript: cleanedTranscript },
           model: data.model,
         })
         .select()
