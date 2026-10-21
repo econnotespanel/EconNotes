@@ -53,8 +53,8 @@ const buildHtml = (report: LectureSummaryReport) => {
     <style>
       @page { size: A4; margin: 18mm 15mm; }
       * { box-sizing: border-box; }
-      body { color: #0f172a; font-family: Arial, sans-serif; font-size: 11.5pt; line-height: 1.6; margin: 0; }
-      .header { align-items: center; border-bottom: 2px solid #2563eb; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 20px; padding-bottom: 12px; }
+      body { color: #0f172a; font-family: Arial, sans-serif; font-size: 11.5pt; line-height: 1.6; margin: 0; padding-top: 64px; }
+      .header { align-items: center; background: #fff; border-bottom: 2px solid #2563eb; display: flex; gap: 16px; justify-content: space-between; left: 0; padding: 0 0 12px; position: fixed; right: 0; top: 0; z-index: 1; }
       .logo { height: 38px; max-width: 180px; object-fit: contain; object-position: left center; }
       .meta { color: #475569; font-size: 10pt; text-align: right; }
       h1 { color: #1e3a8a; font-size: 20pt; margin: 0 0 14px; }
