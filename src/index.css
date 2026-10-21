@@ -70,6 +70,33 @@
   html { font-family: 'Inter', system-ui, sans-serif; }
 
   body { @apply bg-background text-foreground antialiased; font-family: 'Inter', system-ui, sans-serif; overflow-x: hidden; }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.75) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    min-height: 48px;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--secondary))) padding-box;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, hsl(var(--primary-glow)), hsl(var(--secondary))) padding-box;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 700;
