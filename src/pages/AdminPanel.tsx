@@ -105,17 +105,25 @@ const AdminPanel = () => {
 
   const fetchAll = async () => {
     const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes] = await Promise.all([
-      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }),
-      supabase.from('announcements').select('*').order('created_at', { ascending: false }),
-      supabase.from('penalties').select('*').order('created_at', { ascending: false }),
+      supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000),
+      supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }).limit(1000),
+      supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(500),
+      supabase.from('penalties').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('system_settings').select('*').limit(1).maybeSingle(),
       supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(100),
       supabase.from('user_roles').select('*'),
-      supabase.from('message_reports').select('*').order('created_at', { ascending: false }),
-      supabase.from('banners').select('*').order('created_at', { ascending: false }),
+      supabase.from('message_reports').select('*').order('created_at', { ascending: false }).limit(500),
+      supabase.from('banners').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('study_materials').select('*').order('created_at', { ascending: false }).limit(500),
     ]);
+    const failedLoads = [
+      usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes,
+      logsRes, rolesRes, reportsRes, bannersRes, studyRes,
+    ].filter((result) => result.error);
+    if (failedLoads.length > 0) {
+      console.error('Yönetici paneli verileri yüklenemedi:', failedLoads.map(({ error }) => error));
+      toast.error('Panel verilerinin bir kısmı yüklenemedi. Lütfen tekrar deneyin.');
+    }
     setUsers(usersRes.data || []);
     setNotes((notesRes.data as any[]) || []);
     setAnnouncements(announcementsRes.data || []);
@@ -219,19 +227,25 @@ const AdminPanel = () => {
   };
 
   const removePenalty = async (penaltyId: string) => {
-    await supabase.from('penalties').delete().eq('id', penaltyId);
+    const { error } = await supabase.from('penalties').delete().eq('id', penaltyId);
+    if (error) { toast.error('Ceza kaldırılamadı.'); return; }
     toast.success('Ceza kaldırıldı!'); fetchAll();
   };
 
   const extendPenaltyTime = async () => {
     if (!extendPenalty) return;
     const newUntil = new Date(Date.now() + parseInt(extendMinutes) * 60000).toISOString();
-    await supabase.from('penalties').update({ penalty_until: newUntil, is_permanent: false } as any).eq('id', extendPenalty.id);
+    const { error } = await supabase.from('penalties').update({ penalty_until: newUntil, is_permanent: false } as any).eq('id', extendPenalty.id);
+    if (error) { toast.error('Ceza süresi güncellenemedi.'); return; }
     toast.success('Ceza süresi güncellendi!');
     setExtendPenaltyDialog(false); fetchAll();
   };
 
-  const deleteNote = async (id: string) => { await supabase.from('notes').delete().eq('id', id); toast.success('Not silindi!'); fetchAll(); };
+  const deleteNote = async (id: string) => {
+    const { error } = await supabase.from('notes').delete().eq('id', id);
+    if (error) { toast.error('Not silinemedi.'); return; }
+    toast.success('Not silindi!'); fetchAll();
+  };
   const approveNote = async (id: string) => {
     const { error } = await supabase.from('notes').update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: user!.id, rejection_reason: null } as any).eq('id', id);
     if (error) { toast.error('Onaylanamadı: ' + error.message); return; }
@@ -245,7 +259,11 @@ const AdminPanel = () => {
     toast.success('Not reddedildi.');
     fetchAll();
   };
-  const deleteAnnouncement = async (id: string) => { await supabase.from('announcements').delete().eq('id', id); toast.success('Duyuru silindi!'); fetchAll(); };
+  const deleteAnnouncement = async (id: string) => {
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    if (error) { toast.error('Duyuru silinemedi.'); return; }
+    toast.success('Duyuru silindi!'); fetchAll();
+  };
   const deleteUser = async (userId: string) => {
     const t = toast.loading('Kullanıcı siliniyor...');
     const { data, error } = await supabase.functions.invoke('admin-delete-user', { body: { userId } });
@@ -265,8 +283,10 @@ const AdminPanel = () => {
   const changeUserRole = async () => {
     if (!roleUser) return;
     const existingRole = userRoles.find(r => r.user_id === roleUser.user_id);
-    if (existingRole) { await supabase.from('user_roles').update({ role: selectedRole as any }).eq('user_id', roleUser.user_id); }
-    else { await supabase.from('user_roles').insert({ user_id: roleUser.user_id, role: selectedRole as any }); }
+    const { error } = existingRole
+      ? await supabase.from('user_roles').update({ role: selectedRole as any }).eq('user_id', roleUser.user_id)
+      : await supabase.from('user_roles').insert({ user_id: roleUser.user_id, role: selectedRole as any });
+    if (error) { toast.error('Rol güncellenemedi.'); return; }
     toast.success(`Rol güncellendi!`); setRoleDialogOpen(false); fetchAll();
   };
 
@@ -305,8 +325,16 @@ const AdminPanel = () => {
     setBannerDialog(false); setEditingBanner(null); setBannerForm({ title: '', content: '', bg_color: 'primary' }); fetchAll();
   };
 
-  const deleteBanner = async (id: string) => { await supabase.from('banners').delete().eq('id', id); toast.success('Banner silindi!'); fetchAll(); };
-  const toggleBannerActive = async (id: string, current: boolean) => { await supabase.from('banners').update({ is_active: !current }).eq('id', id); fetchAll(); };
+  const deleteBanner = async (id: string) => {
+    const { error } = await supabase.from('banners').delete().eq('id', id);
+    if (error) { toast.error('Banner silinemedi.'); return; }
+    toast.success('Banner silindi!'); fetchAll();
+  };
+  const toggleBannerActive = async (id: string, current: boolean) => {
+    const { error } = await supabase.from('banners').update({ is_active: !current }).eq('id', id);
+    if (error) { toast.error('Banner durumu güncellenemedi.'); return; }
+    fetchAll();
+  };
 
   if (!isAdmin) return null;
 
