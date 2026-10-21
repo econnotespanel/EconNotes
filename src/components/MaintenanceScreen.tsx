@@ -21,7 +21,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
   return (
     <div
       className={`min-h-screen flex items-center justify-center p-4 relative overflow-hidden ${
-        isSummer ? 'summer-scene' : 'bg-background'
+        isSummer ? 'summer-scene' : 'bg-slate-950'
       }`}
     >
       {isSummer && (
@@ -41,10 +41,14 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
         </>
       )}
 
-      <div className="relative z-10 mx-auto w-full max-w-lg space-y-5 text-center">
-        <div className="rounded-3xl p-8 bg-white/40 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-2xl">
-          <div className="mb-4 flex w-full justify-center">
-            <EconLogo className="mx-auto h-14 w-56 max-w-full sm:h-16 sm:w-64" />
+      <div className="relative z-10 mx-auto w-full max-w-md space-y-5 text-center">
+        <div className={`rounded-3xl p-8 backdrop-blur-2xl shadow-2xl ${
+          isSummer
+            ? 'border border-white/60 bg-white/40'
+            : 'border border-white/10 bg-slate-900/60 shadow-black/30'
+        }`}>
+          <div className="mb-8 flex w-full justify-center">
+            <EconLogo allWhite={isSummer ? false : true} className="h-10 w-56 max-w-full justify-center sm:h-11 sm:w-64" />
           </div>
 
           {imageUrl ? (
@@ -56,34 +60,34 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
               />
             </div>
           ) : (
-            <div className="flex justify-center mb-4">
-              <div className={`p-4 rounded-full ${isSummer ? 'bg-yellow-400/30' : 'bg-warning/10'}`}>
+            <div className="mb-5 flex justify-center">
+            <div className={`flex h-16 w-16 items-center justify-center rounded-full ${isSummer ? 'bg-yellow-400/30' : 'border-2 border-amber-300/70 bg-amber-500/20 shadow-[0_0_24px_rgba(252,211,77,0.25)]'}`}>
                 {isSummer ? (
                   <Sun className="h-12 w-12 text-yellow-500 animate-spin-slow drop-shadow" />
                 ) : (
-                  <AlertTriangle className="h-12 w-12 text-warning" />
+                  <AlertTriangle className="h-8 w-8 stroke-[2.5] text-amber-200" />
                 )}
               </div>
             </div>
           )}
 
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2 drop-shadow-sm">
+          <h1 className={`flex items-center justify-center gap-2 text-3xl font-bold drop-shadow-sm ${isSummer ? 'text-slate-900 dark:text-white' : 'text-white'}`}>
             {isSummer && <Palmtree className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />}
             {heading}
           </h1>
-          <p className="mt-3 text-slate-800 dark:text-slate-100 text-sm leading-relaxed whitespace-pre-line">
+          <p className={`mt-3 text-sm leading-relaxed whitespace-pre-line ${isSummer ? 'text-slate-800 dark:text-slate-100' : 'text-slate-300'}`}>
             {body}
           </p>
 
           {closedUntil && (
-            <p className="mt-4 text-sm text-slate-800 dark:text-slate-100">
+            <p className={`mt-4 text-sm ${isSummer ? 'text-slate-800 dark:text-slate-100' : 'text-slate-300'}`}>
               {isSummer ? 'Tekrar açılış tarihi:' : 'Tahmini açılış:'}{' '}
-              <strong className="text-slate-900 dark:text-white">
+              <strong className={isSummer ? 'text-slate-900 dark:text-white' : 'text-white'}>
                 {new Date(closedUntil).toLocaleString('tr-TR')}
               </strong>
             </p>
           )}
-          <p className="text-xs text-slate-700 dark:text-slate-200 mt-4">
+          <p className={`mt-4 text-xs ${isSummer ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>
             Yardım ve teknik destek talepleriniz için{' '}
             <a
               href="mailto:destek@econnotes.online"
@@ -93,7 +97,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             </a>{' '}
             adresi üzerinden bizimle iletişime geçebilirsiniz.
           </p>
-          <p className="text-xs text-slate-600 dark:text-slate-300 mt-3">
+          <p className={`mt-3 text-xs ${isSummer ? 'text-slate-600 dark:text-slate-300' : 'text-slate-500'}`}>
             EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
           </p>
         </div>
