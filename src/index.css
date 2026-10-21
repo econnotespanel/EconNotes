@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+#lovable-badge {
+  display: none !important;
+}
+
 /* EconNotes — clean academic workspace inspired by the supplied dashboard. */
 @layer base {
   :root {
