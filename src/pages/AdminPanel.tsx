@@ -15,13 +15,14 @@ import AuditLogPanel from '@/components/admin/AuditLogPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import SiteDesignPanel from '@/components/admin/SiteDesignPanel';
+import { downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
 
 const PENALTY_DURATIONS = [
   { warning: 1, label: '1. Uyarı - 5 Dakika', minutes: 5 },
@@ -800,6 +801,24 @@ const AdminPanel = () => {
                   </pre>
                 </ScrollArea>
                 <div className="flex justify-end">
+                  {studyDetail.material_type === 'summary' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mr-2"
+                      onClick={() => downloadLectureSummaryPdf({
+                        title: studyDetail.title,
+                        course: studyDetail.course,
+                        createdAt: new Date(studyDetail.created_at).toLocaleDateString('tr-TR'),
+                        overview: studyDetail.content?.overview,
+                        keyPoints: studyDetail.content?.keyPoints,
+                        sections: studyDetail.content?.sections,
+                        transcript: studyDetail.content?.transcript,
+                      })}
+                    >
+                      <Download className="mr-1 h-3 w-3" /> PDF indir
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="destructive"

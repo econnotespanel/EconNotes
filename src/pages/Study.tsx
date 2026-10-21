@@ -21,6 +21,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { extractFile } from '@/lib/extractFile';
+import { downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
 import LiveLectureCapture from '@/components/study/LiveLectureCapture';
 
 type MaterialType = 'flashcards' | 'quiz' | 'summary' | 'video';
@@ -1241,6 +1242,23 @@ const SummaryViewer = ({ material }: { material: StudyMaterial }) => {
   const c = material.content || {};
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => downloadLectureSummaryPdf({
+            title: material.title,
+            course: material.course,
+            createdAt: new Date(material.created_at).toLocaleDateString('tr-TR'),
+            overview: c.overview,
+            keyPoints: c.keyPoints,
+            sections: c.sections,
+            transcript: c.transcript,
+          })}
+        >
+          <FileTextIcon className="h-4 w-4" /> PDF olarak indir
+        </Button>
+      </div>
       <div className="rounded-xl border border-border bg-card p-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Genel bakış</p>
         <p className="text-sm leading-relaxed">{c.overview}</p>
