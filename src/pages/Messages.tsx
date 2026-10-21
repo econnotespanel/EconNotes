@@ -447,8 +447,8 @@ const Messages = () => {
                 <TabsTrigger value="friends" className="min-h-10 flex-1 rounded-lg border-0 px-2 text-xs font-semibold data-[state=active]:border-0 data-[state=active]:shadow-sm sm:text-sm">
                   <Users className="h-3 w-3 mr-1" /> Arkadaşlar
                 </TabsTrigger>
-                <TabsTrigger value="requests" className="relative min-h-10 flex-1 rounded-lg border-0 px-2 text-xs font-semibold data-[state=active]:border-0 data-[state=active]:shadow-sm sm:text-sm">
-                  İstekler
+                <TabsTrigger value="private-announcements" className="relative min-h-10 flex-1 rounded-lg border-0 px-2 text-xs font-semibold data-[state=active]:border-0 data-[state=active]:shadow-sm sm:text-sm">
+                  Özel duyurular
                   {pendingRequests.length > 0 && (
                     <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">
                       {pendingRequests.length}
@@ -532,13 +532,20 @@ const Messages = () => {
                   ))
                 )}
               </TabsContent>
-              <TabsContent value="requests" className="m-0 min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+              <TabsContent value="private-announcements" className="m-0 min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+                  <p className="text-xs font-semibold text-primary">Size özel duyurular</p>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                    Arkadaşlık istekleri yalnızca size özel bu alanda görünür.
+                  </p>
+                </div>
                 {pendingRequests.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center p-4">Bekleyen istek yok.</p>
+                  <p className="text-sm text-muted-foreground text-center p-4">Yeni özel duyuru yok.</p>
                 ) : (
                   pendingRequests.map(r => (
-                    <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
+                    <div key={r.id} className="rounded-lg border border-primary/15 bg-accent/50 p-3">
                       <div>
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">Arkadaşlık isteği</p>
                         <p className="text-sm font-medium">{r.sender_profile?.full_name || 'Kullanıcı'}</p>
                         <p className="text-xs text-muted-foreground">{r.sender_profile?.university} • {r.sender_profile?.department}</p>
                         <p className="text-xs text-muted-foreground">{r.sender_profile?.grade ? `${r.sender_profile.grade}. Sınıf` : ''}</p>
