@@ -615,14 +615,19 @@ const Notes = () => {
                   <button
                     key={university}
                     onClick={() => { setFilterUniversity(university); setSelectedCourse(null); }}
-                    className="group relative flex min-h-36 flex-col justify-between overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-primary/10 via-card to-accent/20 p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
+                    className="group relative flex min-h-40 flex-col justify-between overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-primary/10 via-card to-accent/20 p-5 pt-7 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
                   >
+                    <span className="absolute left-5 top-0 h-1.5 w-20 rounded-b-full bg-gradient-to-r from-primary to-secondary opacity-80" />
+                    <span className="pointer-events-none absolute inset-x-5 top-4 border-t border-dashed border-primary/20" />
                     <div className="absolute -right-5 -top-7 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition-colors group-hover:bg-primary/20" />
                     <div className="relative flex w-full items-start justify-between gap-3">
-                      <span className="rounded-xl border border-primary/15 bg-background/70 p-2.5 text-primary"><Building2 className="h-5 w-5" /></span>
+                      <span className="rounded-xl border border-primary/15 bg-background/70 p-2.5 text-primary shadow-sm"><Building2 className="h-5 w-5" /></span>
                       <span className="rounded-full bg-background/75 px-2.5 py-1 text-xs font-medium text-muted-foreground">{universityNotes.length} not</span>
                     </div>
-                    <span className="relative mt-4 text-base font-semibold text-foreground">{university}</span>
+                    <div className="relative mt-4">
+                      <span className="block truncate text-base font-semibold text-foreground">{university}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">Ders klasörlerini görüntüle</span>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -632,14 +637,20 @@ const Notes = () => {
                   <button
                     key={course}
                     onClick={() => setSelectedCourse(course)}
-                    className="group flex min-h-32 flex-col items-start justify-between rounded-2xl border border-border/70 bg-card p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.04] hover:shadow-lg"
+                    className="group relative flex min-h-36 flex-col items-start justify-between overflow-hidden rounded-2xl border border-border/70 bg-card p-4 pt-6 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/[0.04] hover:shadow-lg"
                   >
+                    <span className="absolute left-4 top-0 h-1.5 w-16 rounded-b-full bg-gradient-to-r from-primary to-secondary opacity-80" />
+                    <span className="pointer-events-none absolute inset-x-4 top-4 border-t border-dashed border-primary/15" />
                     <div className="flex w-full items-start justify-between">
-                      <span className="rounded-xl bg-primary/10 p-2.5 text-primary transition-transform group-hover:scale-105"><FolderOpen className="h-5 w-5" /></span>
+                      <span className="rounded-xl border border-primary/15 bg-primary/10 p-2.5 text-primary shadow-sm transition-transform group-hover:scale-105"><FolderOpen className="h-5 w-5" /></span>
                       <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">{courseNotes.length}</span>
                     </div>
-                    <span className="mt-3 w-full truncate text-sm font-semibold text-foreground">{course}</span>
-                    <span className="text-xs text-muted-foreground">ders notu</span>
+                    <div className="mt-3 w-full min-w-0">
+                      <span className="block truncate text-sm font-semibold text-foreground">{course}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        {Array.from(new Set(courseNotes.map((note) => note.semester).filter(Boolean))).join(' · ') || 'Ders notları'}
+                      </span>
+                    </div>
                   </button>
                 ))}
               </div>
