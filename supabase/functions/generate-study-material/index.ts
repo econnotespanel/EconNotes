@@ -126,8 +126,9 @@ const schemas: Record<string, any> = {
             time: { type: 'string' },
             title: { type: 'string' },
             narration: { type: 'string' },
+            visualCue: { type: 'string' },
           },
-          required: ['time', 'title', 'narration'],
+          required: ['time', 'title', 'narration', 'visualCue'],
           additionalProperties: false,
         },
       },
@@ -178,7 +179,7 @@ GÜVENLİK:
       task = `Kapsamlı konu özeti üret: 2-3 cümlelik overview, 5-8 anahtar nokta, 3-5 bölüm (heading + içerik + 1 cümle takeaway), ve 4-6 elemanlı infografik veri (label + kısa value + lucide ikon önerisi).`;
       break;
     case 'video':
-      task = `3-5 dakikalık özet video taslağı: outline (2-3 cümle), 5-7 sahne (time "MM:SS", title, narration), ve 3-5 YouTube arama sorgusu.`;
+      task = `Kullanıcının verdiği ders notunu temel alan 3-5 dakikalık, Türkçe videolu ders özeti üret. outline alanında videonun akışını 2-3 cümleyle anlat. 5-7 sahne üret; her sahnede time "MM:SS", kısa title, öğrencinin dinleyebileceği doğal ve yalnızca kaynakta bulunan bilgilerden oluşan narration ve ekranda gösterilecek görsel/şema önerisi olan visualCue bulun. Sonunda konuyu pekiştirecek 3-5 YouTube arama sorgusu ver. Kaynakta olmayan bilgi ekleme.`;
       break;
   }
 
@@ -258,7 +259,10 @@ Deno.serve(async (req) => {
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         model,
         messages: [

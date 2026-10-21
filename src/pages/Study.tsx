@@ -15,13 +15,14 @@ import { Label } from '@/components/ui/label';
 import {
   GraduationCap, Sparkles, Layers, ClipboardList, FileText as FileTextIcon, Video as VideoIcon,
   Loader2, ChevronLeft, ChevronRight, Check, X, Trash2, Play, Search, Plus, BookOpen,
-  Upload, Mic, FileUp, Bug, Coffee, Award, Flame, Brain, Trophy, RefreshCw, RotateCw,
+  Upload, Mic, FileUp, Bug, Coffee, Award, Flame, Brain, Trophy, RefreshCw, RotateCw, Pause, Volume2,
   MessageCircle, Send, Wand2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { extractFile } from '@/lib/extractFile';
 import { downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
+import { signedNoteUrl } from '@/lib/storageUrl';
 import LiveLectureCapture from '@/components/study/LiveLectureCapture';
 
 type MaterialType = 'flashcards' | 'quiz' | 'summary' | 'video';
@@ -38,6 +39,8 @@ interface Note {
   user_id: string;
   status: string;
   file_name?: string | null;
+  file_url?: string | null;
+  file_type?: string | null;
 }
 
 interface StudyMaterial {
@@ -142,8 +145,8 @@ const Study = () => {
     setLoading(true);
     const [m, own, platform, progress] = await Promise.all([
       supabase.from('study_materials').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }),
-      supabase.from('notes').select('id,title,course,description,department,semester,user_id,status,file_name').eq('user_id', user!.id),
-      supabase.from('notes').select('id,title,course,description,department,semester,user_id,status,file_name').eq('status', 'approved').limit(200),
+      supabase.from('notes').select('id,title,course,description,department,semester,user_id,status,file_name,file_url,file_type').eq('user_id', user!.id),
+      supabase.from('notes').select('id,title,course,description,department,semester,user_id,status,file_name,file_url,file_type').eq('status', 'approved').limit(200),
       supabase.from('study_progress').select('id,material_id,score,total_questions,completed_at').eq('user_id', user!.id).order('completed_at', { ascending: false }),
     ]);
     if (m.error) toast.error(`Çalışma materyalleri yüklenemedi: ${m.error.message}`);
@@ -228,7 +231,32 @@ const Study = () => {
       courseForMaterial = note.course;
       sourceNoteId = note.id;
       setGenerating(true);
-      startProgress();
+      startProgress('Kullanıcı notu hazırlanıyor...');
+      try {
+        if (note.file_url) {
+          const signedUrl = await signedNoteUrl(note.file_url);
+          if (!signedUrl) throw new Error('Kullanıcı notuna erişilemedi.');
+          const fileResponse = await fetch(signedUrl);
+          if (!fileResponse.ok) throw new Error('Kullanıcı notu indirilemedi.');
+          const blob = await fileResponse.blob();
+          const noteFile = new File([blob], note.file_name || 'ders-notu', {
+            type: note.file_type || blob.type,
+          });
+          const extracted = await extractFile(noteFile, (pct, label) => setProgressNow(Math.min(pct, 65), label));
+          if (extracted.kind === 'text') {
+            payload.noteContext += `\n\n--- KULLANICI NOTUNUN İÇERİĞİ ---\n${extracted.text}`;
+          } else if (extracted.kind === 'audio') {
+            payload.audio = { data: extracted.data, mimeType: extracted.mime };
+          } else {
+            payload.document = { data: extracted.data, mimeType: extracted.mime };
+          }
+        }
+      } catch (error) {
+        stopProgress(false);
+        setGenerating(false);
+        toast.error(error instanceof Error ? error.message : 'Kullanıcı notu hazırlanamadı.');
+        return;
+      }
     }
 
     rampProgressTo(95, 'Yapay zeka materyali üretiyor...');
@@ -1302,21 +1330,90 @@ const SummaryViewer = ({ material }: { material: StudyMaterial }) => {
 
 const VideoViewer = ({ material }: { material: StudyMaterial }) => {
   const c = material.content || {};
+  const scenes = Array.isArray(c.scenes) ? c.scenes : [];
+  const [activeScene, setActiveScene] = useState(0);
+  const [isNarrating, setIsNarrating] = useState(false);
+  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const scene = scenes[activeScene];
+
+  useEffect(() => () => {
+    window.speechSynthesis.cancel();
+  }, []);
+
+  const narrateScene = (index: number) => {
+    const nextScene = scenes[index];
+    if (!nextScene || !('speechSynthesis' in window)) {
+      toast.error('Tarayıcınız sesli anlatımı desteklemiyor.');
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(nextScene.narration);
+    utterance.lang = 'tr-TR';
+    utterance.rate = 0.95;
+    utterance.onend = () => setIsNarrating(false);
+    utterance.onerror = () => setIsNarrating(false);
+    speechRef.current = utterance;
+    setActiveScene(index);
+    setIsNarrating(true);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopNarration = () => {
+    window.speechSynthesis.cancel();
+    setIsNarrating(false);
+  };
+
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Konu akışı</p>
         <p className="text-sm leading-relaxed">{c.outline}</p>
       </div>
-      {c.scenes?.map((s: any, i: number) => (
-        <div key={i} className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline">{s.time}</Badge>
-            <h4 className="font-semibold">{s.title}</h4>
+      {scene && (
+        <div className="overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-secondary/10">
+          <div className="flex items-center justify-between gap-3 border-b border-border/70 p-4">
+            <div className="flex items-center gap-2">
+              <Badge>{scene.time}</Badge>
+              <span className="text-xs text-muted-foreground">Sahne {activeScene + 1} / {scenes.length}</span>
+            </div>
+            <Button
+              size="sm"
+              variant={isNarrating ? 'destructive' : 'default'}
+              className="gap-2"
+              onClick={() => isNarrating ? stopNarration() : narrateScene(activeScene)}
+            >
+              {isNarrating ? <Pause className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              {isNarrating ? 'Anlatımı durdur' : 'Sahneyi dinle'}
+            </Button>
           </div>
-          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{s.narration}</p>
+          <div className="space-y-3 p-5">
+            <h3 className="text-lg font-semibold">{scene.title}</h3>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{scene.narration}</p>
+            {scene.visualCue && (
+              <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 text-xs">
+                <span className="font-semibold text-primary">Ekran önerisi: </span>{scene.visualCue}
+              </div>
+            )}
+          </div>
         </div>
-      ))}
+      )}
+      {scenes.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {scenes.map((s: any, i: number) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => { stopNarration(); setActiveScene(i); }}
+              className={`rounded-xl border p-3 text-left transition-colors ${activeScene === i ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-accent'}`}
+            >
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{s.time}</Badge>
+                <span className="text-sm font-semibold">{s.title}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
       {c.suggestedSearches?.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">İzleme önerileri</p>
