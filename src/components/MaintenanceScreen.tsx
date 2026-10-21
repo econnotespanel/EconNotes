@@ -47,8 +47,8 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             ? 'border border-white/60 bg-white/40'
             : 'border border-white/10 bg-slate-900/60 shadow-black/30'
         }`}>
-          <div className="mb-8 flex w-full justify-center">
-            <EconLogo allWhite={isSummer ? false : true} className="h-10 w-56 max-w-full justify-center sm:h-11 sm:w-64" />
+          <div className="relative mb-8 h-10 w-full sm:h-11">
+            <EconLogo allWhite={isSummer ? false : true} className="absolute left-1/2 top-0 h-10 w-56 max-w-full -translate-x-1/2 justify-center sm:h-11 sm:w-64" />
           </div>
 
           {imageUrl ? (

@@ -27,7 +27,9 @@ const OfflineBanner = () => {
       <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-secondary/15 blur-3xl" />
       <div className="relative flex w-full max-w-md flex-col items-center rounded-3xl border border-white/10 bg-white/[0.04] px-6 py-10 shadow-2xl shadow-black/30 backdrop-blur-xl sm:px-10">
-        <EconLogo allWhite className="mb-8 h-10 w-56 justify-center" />
+        <div className="relative mb-8 h-10 w-full">
+          <EconLogo allWhite className="absolute left-1/2 top-0 h-10 w-56 -translate-x-1/2 justify-center" />
+        </div>
         <span className="mb-5 flex h-16 w-16 items-center justify-center rounded-full border-2 border-red-400/70 bg-red-500/20 text-red-300 shadow-[0_0_24px_rgba(248,113,113,0.28)]">
           <WifiOff className="h-8 w-8 stroke-[2.5]" aria-hidden="true" />
         </span>
