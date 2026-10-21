@@ -910,22 +910,21 @@ const Notes = () => {
         {/* Preview Modal */}
         {previewUrl && (
           <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); }}>
-            <DialogContent className="max-w-[95vw] w-full max-h-[95vh] h-[95vh] gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20">
-              <DialogHeader className="relative flex min-h-16 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-5 py-3 text-left">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 p-1.5 shadow-[0_0_18px_hsl(var(--primary)/0.18)]">
-                    <EconLogo allWhite className="h-6 w-7" />
-                  </span>
+            <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
+              <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-14 text-left sm:px-6 sm:pr-16">
+                <div className="flex min-w-0 items-center gap-3">
+                  <EconLogo allWhite className="h-8 w-28 sm:h-9 sm:w-36" />
+                  <span className="h-8 w-px bg-white/15" />
                   <div>
-                    <DialogTitle className="text-base font-semibold text-white">Önizleme</DialogTitle>
-                    <p className="mt-1 text-[11px] text-slate-400">EconNotes belge görüntüleyici</p>
+                    <DialogTitle className="text-sm font-semibold text-white sm:text-base">Önizleme</DialogTitle>
+                    <p className="mt-1 text-[10px] text-slate-400 sm:text-[11px]">Belge görüntüleyici</p>
                   </div>
                 </div>
-                <span className="mr-8 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground/90">
-                  Güvenli görüntüleme
+                <span className="hidden shrink-0 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-primary-foreground/90 sm:inline-flex">
+                  EconNotes
                 </span>
               </DialogHeader>
-              <div className="relative h-[calc(95vh-64px)] w-full overflow-hidden bg-slate-900 p-2 sm:p-3">
+              <div className="relative min-h-0 flex-1 w-full overflow-hidden bg-slate-900 p-2 sm:p-3">
                 {previewType?.startsWith('image/') ? (
                   <div className="flex h-full w-full items-center justify-center overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-2 shadow-inner">
                     <img src={previewUrl} alt="Preview" className="max-h-full max-w-full object-contain" />
@@ -941,9 +940,9 @@ const Notes = () => {
                 )}
                 {/* EconNotes Watermark */}
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden select-none">
-                  <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-16 rotate-[-30deg] scale-150 opacity-[0.08]">
+                  <div className="absolute inset-0 flex flex-wrap items-center justify-center gap-16 rotate-[-30deg] scale-150 opacity-[0.055]">
                     {Array.from({ length: 12 }).map((_, i) => (
-                      <span key={i} className="text-3xl font-bold text-foreground whitespace-nowrap">EconNotes</span>
+                      <span key={i} className="whitespace-nowrap text-3xl font-bold text-white">EconNotes</span>
                     ))}
                   </div>
                 </div>
