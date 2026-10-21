@@ -362,16 +362,11 @@ const Study = () => {
             <div className="flex items-start gap-4">
               <div className="hud-bar mt-1 h-14 w-1.5 shrink-0" aria-hidden="true" />
               <div>
-                <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-primary/80">
-                  <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-success shadow-[0_0_12px_hsl(var(--success))]" />
-                  Aktif çalışma alanı
-                </div>
                 <h1 className="flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-tight md:text-4xl">
                   <span className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.16)]">
                     <GraduationCap className="h-6 w-6 md:h-7 md:w-7" />
                   </span>
                   <span className="holo-text">Çalışma Stüdyosu</span>
-                  <span className="rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-[10px] font-bold text-success">LIVE</span>
                 </h1>
                 <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
                   Notlarını, PDF dosyalarını ve ses kayıtlarını yükle. Sınav türünü ve hedefini seç; sana özel bilgi kartları, kısa sınavlar, özetler ve video taslakları hazırlansın.
