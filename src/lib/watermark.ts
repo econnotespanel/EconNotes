@@ -203,17 +203,32 @@ const createPptxWatermarkPicture = (
   opacity: number,
 ) => `<p:pic><p:nvPicPr><p:cNvPr id="${shapeId}" name="EconNotes kişisel filigranı"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationId}"><a:alphaModFix amt="${opacity}"/></a:blip><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${width}" cy="${height}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
 
-export async function downloadWithWatermark(fileUrl: string, fileName: string, fileType: string, fullName: string) {
+const getDownloadKind = (fileName: string, fileType: string | null | undefined) => {
+  const type = String(fileType || '').trim().toLowerCase().split(';', 1)[0];
+  const extension = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || '';
+
+  if (type === 'application/pdf' || type === 'pdf' || extension === 'pdf') return 'pdf';
+  if (type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp'].includes(extension)) return 'image';
+  if (
+    type === PPTX_MIME
+    || type === 'pptx'
+    || extension === 'pptx'
+  ) return 'pptx';
+  return null;
+};
+
+export async function downloadWithWatermark(fileUrl: string, fileName: string, fileType: string | null | undefined, fullName: string) {
   const toastId = toast.loading('Kişiye özel filigran ekleniyor...');
   try {
     let blob: Blob;
     let downloadName = fileName || 'download';
-    if (fileType === 'application/pdf') {
+    const downloadKind = getDownloadKind(downloadName, fileType);
+    if (downloadKind === 'pdf') {
       blob = await addWatermarkToPdf(fileUrl, fullName);
-    } else if (fileType?.startsWith('image/')) {
+    } else if (downloadKind === 'image') {
       blob = await addWatermarkToImage(fileUrl, fullName);
       downloadName = downloadName.replace(/\.[^/.]+$/, '') + '.png';
-    } else if (fileType === PPTX_MIME || fileName.toLowerCase().endsWith('.pptx')) {
+    } else if (downloadKind === 'pptx') {
       const response = await fetch(fileUrl);
       if (!response.ok) throw new Error(`PowerPoint indirilemedi (${response.status}).`);
       const stamp = await createAttributionStamp(fullName);
