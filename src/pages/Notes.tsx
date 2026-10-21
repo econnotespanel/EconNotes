@@ -730,8 +730,8 @@ const Notes = () => {
                               <span className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/60 bg-background/75 text-3xl shadow-lg shadow-primary/10 backdrop-blur-sm transition-transform duration-300 group-hover:-translate-y-1 group-hover:scale-105 dark:border-white/10">{getFileIcon(note.file_type)}</span>
                               <p className="mt-3 max-w-full truncate text-xs font-medium text-foreground/75">{note.file_name}</p>
                             </div>
-                            <div className="absolute bottom-0 left-0 right-0 border-t border-white/40 bg-background/75 px-4 py-2.5 backdrop-blur-md dark:border-white/10">
-                              <p className="truncate text-sm font-semibold text-foreground">{note.title}</p>
+                            <div className="absolute bottom-0 left-0 right-0 border-t border-white/40 bg-background/75 px-4 py-2.5 text-center backdrop-blur-md dark:border-white/10">
+                              <p className="truncate text-sm font-semibold leading-5 text-foreground">{note.title}</p>
                             </div>
                           </div>
                         ) : (
