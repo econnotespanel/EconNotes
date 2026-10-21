@@ -167,9 +167,22 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
 
     setIsSummarizing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('summarize-live-lecture', {
+      let { data, error } = await supabase.functions.invoke('summarize-live-lecture', {
         body: { title: title.trim(), course: course.trim(), transcript: cleanedTranscript },
       });
+      if (error) {
+        console.warn('Özel canlı ders özeti function kullanılamıyor, mevcut özet function deneniyor:', error);
+        const fallback = await supabase.functions.invoke('generate-study-material', {
+          body: {
+            materialType: 'summary',
+            noteContext: cleanedTranscript,
+            noteTitle: title.trim(),
+            course: course.trim() || undefined,
+          },
+        });
+        data = fallback.data;
+        error = fallback.error;
+      }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (!data?.content || typeof data.content.overview !== 'string') {
