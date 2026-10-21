@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { WifiOff } from 'lucide-react';
 
 const OfflineBanner = () => {
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
 
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
@@ -18,9 +18,13 @@ const OfflineBanner = () => {
   if (!isOffline) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[9999] bg-destructive text-destructive-foreground py-3 px-4 flex items-center justify-center gap-2 text-sm font-medium shadow-lg">
-      <WifiOff className="h-4 w-4" />
-      İnternet bağlantısı yok. Lütfen bağlantınızı kontrol edin.
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="fixed left-0 right-0 top-0 z-[9999] flex items-center justify-center gap-2 border-b border-destructive-foreground/20 bg-destructive px-4 py-3 text-center text-sm font-semibold text-destructive-foreground shadow-lg"
+    >
+      <WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span>Sunuculara ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.</span>
     </div>
   );
 };
