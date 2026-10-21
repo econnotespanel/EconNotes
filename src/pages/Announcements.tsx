@@ -173,7 +173,6 @@ const Announcements = () => {
                 <Megaphone className="h-5 w-5" />
               </div>
               <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-primary">EconNotes topluluğu</p>
                 <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Duyurular</h1>
                 <p className="mt-1 text-sm text-muted-foreground">Platformdaki güncel haberleri ve önemli bilgilendirmeleri takip edin.</p>
               </div>
