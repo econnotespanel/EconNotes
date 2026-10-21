@@ -176,7 +176,13 @@ GÜVENLİK:
         : `${count} adet ${difficulty} zorlukta ÇOKTAN SEÇMELİ soru üret. type:"multiple_choice", 4 şık, tek doğru cevap (correctIndex 0-3), neden doğru/yanlış olduğunu özetleyen 1-2 cümlelik explanation.`;
       break;
     case 'summary':
-      task = `Kapsamlı konu özeti üret: 2-3 cümlelik overview, 5-8 anahtar nokta, 3-5 bölüm (heading + içerik + 1 cümle takeaway), ve 4-6 elemanlı infografik veri (label + kısa value + lucide ikon önerisi).`;
+      task = `Kapsamlı ve sınava hazırlanırken doğrudan kullanılabilecek bir ders özeti üret.
+3-4 cümlelik overview, 6-10 anahtar nokta ve 4-7 bölüm oluştur.
+Her bölümde konu açıklaması, kritik kavramlar, varsa formüller/tarihler/sayılar ve kaynakta geçen örnekler yer alsın; uygun olduğunda takeaway ekle.
+Sesli dökümdeki tekrarları ve konuşma dolgu kelimelerini temizle, fakat anlamı, neden-sonuç ilişkisini veya öğretmenin vurgusunu kaybetme.
+Duyulamayan ya da belirsiz kısımları uydurma; belirsiz olduğunu açıkça belirt.
+Akademik terimleri, özel adları, sayıları, tarihleri ve formülleri kaynakta geçtiği biçime mümkün olduğunca sadık kalarak koru.
+Kaynakta olmayan bilgi ekleme.`;
       break;
     case 'video':
       task = `Kullanıcının verdiği ders notunu temel alan 3-5 dakikalık, Türkçe videolu ders özeti üret. outline alanında videonun akışını 2-3 cümleyle anlat. 5-7 sahne üret; her sahnede time "MM:SS", kısa title, öğrencinin dinleyebileceği doğal ve yalnızca kaynakta bulunan bilgilerden oluşan narration ve ekranda gösterilecek görsel/şema önerisi olan visualCue bulun. Sonunda konuyu pekiştirecek 3-5 YouTube arama sorgusu ver. Kaynakta olmayan bilgi ekleme.`;
@@ -265,6 +271,8 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model,
+        temperature: body.materialType === 'summary' ? 0.15 : 0.2,
+        max_tokens: body.materialType === 'summary' ? 5000 : undefined,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: userContent },

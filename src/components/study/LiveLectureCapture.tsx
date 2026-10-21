@@ -52,9 +52,35 @@ interface LiveLectureCaptureProps {
 const MAX_TRANSCRIPT_LENGTH = 60_000;
 
 const normalizeTranscript = (value: string) => value
-  .replace(/\s+/g, ' ')
+  .replace(/\r\n?/g, '\n')
+  .replace(/[ \t]+/g, ' ')
+  .replace(/[ \t]*\n[ \t]*/g, '\n')
   .replace(/\s+([,.;:!?])/g, '$1')
+  .replace(/([.!?])(?=\S)/g, '$1 ')
+  .replace(/\n{3,}/g, '\n\n')
   .trim();
+
+const isSummaryContent = (value: unknown): value is {
+  overview: string;
+  keyPoints: string[];
+  sections: Array<{ heading: string; content: string; takeaway?: string }>;
+} => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const summary = value as Record<string, unknown>;
+  return typeof summary.overview === 'string'
+    && summary.overview.trim().length > 0
+    && Array.isArray(summary.keyPoints)
+    && summary.keyPoints.every((point) => typeof point === 'string' && point.trim().length > 0)
+    && Array.isArray(summary.sections)
+    && summary.sections.every((section) => {
+      if (!section || typeof section !== 'object' || Array.isArray(section)) return false;
+      const item = section as Record<string, unknown>;
+      return typeof item.heading === 'string'
+        && item.heading.trim().length > 0
+        && typeof item.content === 'string'
+        && item.content.trim().length > 0;
+    });
+};
 
 const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
   const [title, setTitle] = useState('');
@@ -185,7 +211,7 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
       }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      if (!data?.content || typeof data.content.overview !== 'string') {
+      if (!isSummaryContent(data?.content)) {
         throw new Error('Yapay zeka geçerli bir ders özeti döndürmedi.');
       }
 
