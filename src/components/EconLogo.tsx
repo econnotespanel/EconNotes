@@ -8,13 +8,13 @@ export default function EconLogo({ className = '', onDark = false, allWhite = fa
     <img
       src={lightLogo}
       alt="EconNotes"
-      className={cn('h-full w-full object-contain object-left', allWhite ? 'brightness-0 invert' : onDark ? 'hidden' : 'block dark:hidden')}
+      className={cn('h-full w-full object-contain object-center', allWhite ? 'brightness-0 invert' : onDark ? 'hidden' : 'block dark:hidden')}
     />
     {!allWhite && (
       <img
         src={darkLogo}
         alt="EconNotes"
-        className={cn('h-full w-full object-contain object-left', onDark ? 'block' : 'hidden dark:block')}
+        className={cn('h-full w-full object-contain object-center', onDark ? 'block' : 'hidden dark:block')}
       />
     )}
   </span>;
