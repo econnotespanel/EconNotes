@@ -351,19 +351,27 @@ const Study = () => {
     <Layout>
       <div className="mx-auto w-full max-w-7xl space-y-5 animate-fade-in sm:space-y-6">
         {/* HUD command band */}
-        <div className="hud-panel p-5 md:p-7">
+        <div className="hud-panel group/command relative overflow-hidden p-5 md:p-7">
           <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(hsl(var(--neon-cyan))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--neon-cyan))_1px,transparent_1px)] [background-size:32px_32px]" />
           <div className="pointer-events-none absolute -top-24 -right-16 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-24 left-1/4 h-56 w-56 rounded-full bg-accent/20 blur-3xl" />
+          <div className="pointer-events-none absolute -right-24 top-10 h-64 w-64 rounded-full border border-primary/10 opacity-70 transition-transform duration-700 group-hover/command:scale-110" />
+          <div className="pointer-events-none absolute -right-16 top-18 h-48 w-48 rounded-full border border-secondary/10 opacity-70" />
 
           <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start gap-4">
               <div className="hud-bar mt-1 h-14 w-1.5 shrink-0" aria-hidden="true" />
               <div>
+                <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-primary/80">
+                  <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-success shadow-[0_0_12px_hsl(var(--success))]" />
+                  Aktif çalışma alanı
+                </div>
                 <h1 className="flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-tight md:text-4xl">
-                  <GraduationCap className="h-7 w-7 text-primary" />
+                  <span className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.16)]">
+                    <GraduationCap className="h-6 w-6 md:h-7 md:w-7" />
+                  </span>
                   <span className="holo-text">Çalışma Stüdyosu</span>
-                  <span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">Yeni</span>
+                  <span className="rounded-full border border-success/30 bg-success/10 px-2.5 py-1 text-[10px] font-bold text-success">LIVE</span>
                 </h1>
                 <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
                   Notlarını, PDF dosyalarını ve ses kayıtlarını yükle. Sınav türünü ve hedefini seç; sana özel bilgi kartları, kısa sınavlar, özetler ve video taslakları hazırlansın.
@@ -371,11 +379,11 @@ const Study = () => {
               </div>
             </div>
 
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-              <Button variant="outline" onClick={() => setReportOpen(true)} className="w-full gap-2 sm:w-auto">
+            <div className="relative flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button variant="outline" onClick={() => setReportOpen(true)} className="w-full gap-2 rounded-xl border-border/80 bg-background/30 shadow-sm backdrop-blur sm:w-auto">
                 <Bug className="h-4 w-4" /> Platforma Bildir
               </Button>
-              <Button onClick={() => setCreateOpen(true)} className="w-full gap-2 gradient-primary border-0 text-primary-foreground sm:w-auto">
+              <Button onClick={() => setCreateOpen(true)} className="w-full gap-2 rounded-xl border-0 bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_100%] text-primary-foreground shadow-lg shadow-primary/20 transition-[background-position,transform] duration-500 hover:-translate-y-0.5 hover:bg-[position:100%_0] sm:w-auto">
                 <Plus className="h-4 w-4" /> Yeni Materyal
               </Button>
             </div>
@@ -393,11 +401,13 @@ const Study = () => {
               const pct = stats.total ? Math.round((s.value / stats.total) * 100) : 0;
               const ratio = s.label === 'Toplam' ? 100 : pct;
               return (
-                <div key={i} className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/70 p-3">
+                <div key={i} className={`group relative overflow-hidden rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg ${s.label === 'Toplam' ? 'ring-1 ring-primary/15' : ''}`}>
                   <div className="hud-scanline" />
                   <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                     <span>{s.code}</span>
-                    <s.icon className={`h-3.5 w-3.5 ${s.tone}`} />
+                    <span className={`rounded-lg border border-current/15 bg-background/40 p-1.5 ${s.tone}`}>
+                      <s.icon className="h-3.5 w-3.5" />
+                    </span>
                   </div>
                   <div className="mt-1 flex items-end gap-1.5">
                     <span className="font-display text-2xl font-bold leading-none">{s.value}</span>
