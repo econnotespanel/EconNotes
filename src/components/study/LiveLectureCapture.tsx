@@ -24,6 +24,7 @@ interface SpeechRecognitionLike {
   interimResults: boolean;
   maxAlternatives: number;
   lang: string;
+  grammars?: unknown;
   onresult: ((event: SpeechResultEvent) => void) | null;
   onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
@@ -50,6 +51,19 @@ interface LiveLectureCaptureProps {
 }
 
 const MAX_TRANSCRIPT_LENGTH = 60_000;
+const ECONOMICS_TERMS = [
+  'arz', 'talep', 'denge fiyatı', 'denge miktarı', 'marjinal fayda', 'marjinal maliyet',
+  'fırsat maliyeti', 'esneklik', 'talep esnekliği', 'gelir esnekliği', 'çapraz esneklik',
+  'tüketici artığı', 'üretici artığı', 'refah kaybı', 'dışsallık', 'kamu malı',
+  'ortak kaynak', 'asimetrik bilgi', 'ahlaki tehlike', 'ters seçim', 'maliyet',
+  'sabit maliyet', 'değişken maliyet', 'ortalama maliyet', 'ölçek ekonomisi',
+  'tam rekabet', 'tekel', 'oligopol', 'monopolcü rekabet', 'gayrisafi yurt içi hasıla',
+  'GSYH', 'enflasyon', 'işsizlik', 'resesyon', 'deflasyon', 'reel faiz', 'nominal faiz',
+  'para arzı', 'para talebi', 'likidite tuzağı', 'maliye politikası', 'para politikası',
+  'toplam arz', 'toplam talep', 'Phillips eğrisi', 'IS-LM', 'çarpan', 'döviz kuru',
+  'ödemeler dengesi', 'cari açık', 'karşılaştırmalı üstünlük', 'mutlak üstünlük',
+  'gümrük tarifesi', 'kota', 'sermaye', 'emek', 'üretim fonksiyonu',
+].join(', ');
 
 const normalizeTranscript = (value: string) => value
   .replace(/\r\n?/g, '\n')
@@ -118,6 +132,17 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
     recognition.interimResults = true;
     recognition.maxAlternatives = 3;
     recognition.lang = 'tr-TR';
+    const GrammarList = (speechWindow as Window & {
+      SpeechGrammarList?: new () => { addFromString: (grammar: string, weight: number) => void };
+      webkitSpeechGrammarList?: new () => { addFromString: (grammar: string, weight: number) => void };
+    }).SpeechGrammarList || (speechWindow as Window & {
+      webkitSpeechGrammarList?: new () => { addFromString: (grammar: string, weight: number) => void };
+    }).webkitSpeechGrammarList;
+    if (GrammarList) {
+      const grammars = new GrammarList();
+      grammars.addFromString(`#JSGF V1.0; grammar economics; public <term> = ${ECONOMICS_TERMS.replace(/, /g, ' | ')};`, 1);
+      recognition.grammars = grammars;
+    }
     finalTranscriptRef.current = '';
     setTranscript('');
     recognitionRef.current = recognition;
@@ -196,7 +221,12 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
       const { data, error } = await supabase.functions.invoke('generate-study-material', {
         body: {
           materialType: 'summary',
-          noteContext: cleanedTranscript,
+          noteContext: `EKONOMİ DERSİ TERMİNOLOJİSİ TALİMATI:
+Bu bir iktisat/ekonomi dersinin sesli dökümüdür. Aşağıdaki terimleri ve benzer akademik terimleri yanlış yazımlara dönüştürmeden koru; bağlamdan doğrula, emin olmadığın kelimeyi uydurma:
+${ECONOMICS_TERMS}
+
+SES DÖKÜMÜ:
+${cleanedTranscript}`,
           noteTitle: title.trim(),
           course: course.trim() || undefined,
         },
