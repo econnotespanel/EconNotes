@@ -64,6 +64,20 @@ const ECONOMICS_TERMS = [
   'ödemeler dengesi', 'cari açık', 'karşılaştırmalı üstünlük', 'mutlak üstünlük',
   'gümrük tarifesi', 'kota', 'sermaye', 'emek', 'üretim fonksiyonu',
 ].join(', ');
+const COURSE_TERM_GUIDANCE: Record<string, string> = {
+  ekonometri: 'regresyon, korelasyon, nedensellik, en küçük kareler, EKK, hata terimi, artık, tahminci, yanlılık, tutarlılık, etkinlik, BLUE, hipotez testi, t testi, F testi, p-değeri, güven aralığı, R-kare, düzeltilmiş R-kare, çoklu doğrusal bağlantı, değişen varyans, otokorelasyon, dışsal değişken, içsel değişken, araç değişken, eşanlılık, durağanlık, birim kök, ADF testi, eşbütünleşme, VAR, VECM, zaman serisi, panel veri',
+  'para politikası': 'merkez bankası, politika faizi, faiz koridoru, açık piyasa işlemleri, zorunlu karşılık, rezerv, para tabanı, parasal aktarım mekanizması, enflasyon hedeflemesi, enflasyon beklentisi, Taylor kuralı, reel faiz, nominal faiz, likidite, likidite tuzağı, niceliksel gevşeme, döviz kuru, sterilizasyon, parasal taban, para çarpanı',
+  'büyüme teorileri': 'Solow modeli, Harrod-Domar, içsel büyüme, Romer, Lucas, Cobb-Douglas, sermaye birikimi, beşeri sermaye, teknolojik ilerleme, toplam faktör verimliliği, yakınsama, koşullu yakınsama, altın kural, durağan durum, kişi başına gelir, tasarruf oranı, amortisman, nüfus artışı, yenilik, AR-GE',
+  'osmanlı iktisat tarihi': 'tımar sistemi, iltizam, malikâne, mukataa, avarız, cizye, narh, gedik, lonca, vakıf, kapitülasyon, esham, kaime, dış borç, Düyun-u Umumiye, Tanzimat, Islahat Fermanı, Balta Limanı, maliye, vergi, para tağşişi',
+  'iktisat tarihi': 'merkantilizm, fizyokrasi, klasik iktisat, Adam Smith, Ricardo, Malthus, Marx, Keynes, sanayi devrimi, tarım devrimi, kapitalizm, feodalizm, liberalizm, korumacılık, altın standardı, Büyük Buhran, Bretton Woods, küreselleşme, dünya ticareti, ekonomik kriz',
+  'mikro iktisat': 'fayda, bütçe kısıtı, kayıtsızlık eğrisi, marjinal ikame oranı, gelir etkisi, ikame etkisi, talep, arz, esneklik, tüketici dengesi, üretici dengesi, maliyet minimizasyonu, kâr maksimizasyonu, tam rekabet, tekel, oligopol, oyun teorisi, Nash dengesi, dışsallık, kamu malı, asimetrik bilgi',
+};
+
+const getCourseTerms = (courseName: string) => {
+  const normalizedCourse = courseName.trim().toLocaleLowerCase('tr-TR');
+  const matchedCourse = Object.keys(COURSE_TERM_GUIDANCE).find((name) => normalizedCourse.includes(name));
+  return matchedCourse ? COURSE_TERM_GUIDANCE[matchedCourse] : '';
+};
 
 const normalizeTranscript = (value: string) => value
   .replace(/\r\n?/g, '\n')
@@ -140,7 +154,8 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
     }).webkitSpeechGrammarList;
     if (GrammarList) {
       const grammars = new GrammarList();
-      grammars.addFromString(`#JSGF V1.0; grammar economics; public <term> = ${ECONOMICS_TERMS.replace(/, /g, ' | ')};`, 1);
+      const grammarTerms = `${ECONOMICS_TERMS}, ${getCourseTerms(course)}`.replace(/, /g, ' | ');
+      grammars.addFromString(`#JSGF V1.0; grammar economics; public <term> = ${grammarTerms};`, 1);
       recognition.grammars = grammars;
     }
     finalTranscriptRef.current = '';
@@ -224,6 +239,7 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
           noteContext: `EKONOMİ DERSİ TERMİNOLOJİSİ TALİMATI:
 Bu bir iktisat/ekonomi dersinin sesli dökümüdür. Aşağıdaki terimleri ve benzer akademik terimleri yanlış yazımlara dönüştürmeden koru; bağlamdan doğrula, emin olmadığın kelimeyi uydurma:
 ${ECONOMICS_TERMS}
+${course.trim() ? `\nDERS ÖZELİ (${course.trim()}):\n${getCourseTerms(course) || 'Ders özel terimleri döküm bağlamından çıkarılmalıdır.'}` : ''}
 
 SES DÖKÜMÜ:
 ${cleanedTranscript}`,
