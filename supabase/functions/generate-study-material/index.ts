@@ -110,6 +110,24 @@ const schemas: Record<string, any> = {
           additionalProperties: false,
         },
       },
+      instructorEmphasis: {
+        type: 'array',
+        items: { type: 'string' },
+      },
+      examLikelihood: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            topic: { type: 'string' },
+            reason: { type: 'string' },
+            likelihood: { type: 'string', enum: ['yüksek', 'orta', 'düşük'] },
+            studyPriority: { type: 'string', enum: ['öncelikli', 'normal', 'pekiştirme'] },
+          },
+          required: ['topic', 'reason', 'likelihood', 'studyPriority'],
+          additionalProperties: false,
+        },
+      },
     },
     required: ['overview', 'keyPoints', 'sections'],
     additionalProperties: false,
@@ -182,7 +200,10 @@ Her bölümde konu açıklaması, kritik kavramlar, varsa formüller/tarihler/sa
 Sesli dökümdeki tekrarları ve konuşma dolgu kelimelerini temizle, fakat anlamı, neden-sonuç ilişkisini veya öğretmenin vurgusunu kaybetme.
 Duyulamayan ya da belirsiz kısımları uydurma; belirsiz olduğunu açıkça belirt.
 Akademik terimleri, özel adları, sayıları, tarihleri ve formülleri kaynakta geçtiği biçime mümkün olduğunca sadık kalarak koru.
-Kaynakta olmayan bilgi ekleme.`;
+Kaynakta olmayan bilgi ekleme.
+Ayrıca instructorEmphasis alanında hocanın açıkça vurguladığı, tekrar ettiği, "önemli", "sınavda", "dikkat" gibi ifadelerle belirttiği noktaları listele.
+examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı yüksek/orta/düşük görünen konuları topic, reason, likelihood ve studyPriority alanlarıyla sınıflandır.
+Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
       break;
     case 'video':
       task = `Kullanıcının verdiği ders notunu temel alan 3-5 dakikalık, Türkçe videolu ders özeti üret. outline alanında videonun akışını 2-3 cümleyle anlat. 5-7 sahne üret; her sahnede time "MM:SS", kısa title, öğrencinin dinleyebileceği doğal ve yalnızca kaynakta bulunan bilgilerden oluşan narration ve ekranda gösterilecek görsel/şema önerisi olan visualCue bulun. Sonunda konuyu pekiştirecek 3-5 YouTube arama sorgusu ver. Kaynakta olmayan bilgi ekleme.`;

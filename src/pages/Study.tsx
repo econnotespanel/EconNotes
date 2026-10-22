@@ -21,7 +21,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
 import { extractFile } from '@/lib/extractFile';
-import { downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
+import { downloadLectureSummary } from '@/lib/liveLectureReport';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import LiveLectureCapture from '@/components/study/LiveLectureCapture';
 
@@ -1279,17 +1279,19 @@ const SummaryViewer = ({ material }: { material: StudyMaterial }) => {
         <Button
           variant="outline"
           className="gap-2"
-          onClick={() => downloadLectureSummaryPdf({
+          onClick={() => downloadLectureSummary({
             title: material.title,
             course: material.course,
             createdAt: new Date(material.created_at).toLocaleDateString('tr-TR'),
             overview: c.overview,
             keyPoints: c.keyPoints,
             sections: c.sections,
+            instructorEmphasis: c.instructorEmphasis,
+            examLikelihood: c.examLikelihood,
             transcript: c.transcript,
           })}
         >
-          <FileTextIcon className="h-4 w-4" /> PDF olarak indir
+          <FileTextIcon className="h-4 w-4" /> Cihaza indir
         </Button>
       </div>
       <div className="rounded-xl border border-border bg-card p-4">
@@ -1304,6 +1306,34 @@ const SummaryViewer = ({ material }: { material: StudyMaterial }) => {
               <li key={i} className="flex gap-2 text-sm"><span className="text-primary font-bold">▸</span>{kp}</li>
             ))}
           </ul>
+        </div>
+      )}
+      {c.instructorEmphasis?.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-3">Hocanın özellikle vurguladıkları</p>
+          <ul className="space-y-1.5">
+            {c.instructorEmphasis.map((item: string, i: number) => (
+              <li key={i} className="flex gap-2 text-sm"><span className="text-amber-500 font-bold">!</span>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {c.examLikelihood?.length > 0 && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-3">Sınavda çıkma olasılığı yüksek konular</p>
+          <div className="space-y-2">
+            {c.examLikelihood.map((item: any, i: number) => (
+              <div key={i} className="rounded-lg border border-border/70 bg-background/50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-semibold">{item.topic}</span>
+                  <Badge variant={item.likelihood === 'yüksek' ? 'default' : 'secondary'}>{item.likelihood} olasılık</Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>
+                {item.studyPriority && <p className="mt-1 text-xs font-medium text-primary">Çalışma önceliği: {item.studyPriority}</p>}
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] text-muted-foreground">Bu değerlendirme yalnızca ders dökümündeki vurgulara dayanır; kesin sınav garantisi değildir.</p>
         </div>
       )}
       {c.infographic?.length > 0 && (

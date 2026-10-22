@@ -841,6 +841,8 @@ const AdminPanel = () => {
                         overview: studyDetail.content?.overview,
                         keyPoints: studyDetail.content?.keyPoints,
                         sections: studyDetail.content?.sections,
+                        instructorEmphasis: studyDetail.content?.instructorEmphasis,
+                        examLikelihood: studyDetail.content?.examLikelihood,
                         transcript: studyDetail.content?.transcript,
                       })}
                     >
