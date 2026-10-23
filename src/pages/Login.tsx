@@ -9,7 +9,6 @@ import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
 import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck, Megaphone, X, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
 import SecurityCaptcha from '@/components/SecurityCaptcha';
@@ -28,10 +27,6 @@ const Login = () => {
   const [expandedLoginBanners, setExpandedLoginBanners] = useState<Set<string>>(new Set());
   const [captchaOk, setCaptchaOk] = useState(false);
   const [captchaReset, setCaptchaReset] = useState(0);
-  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
-  const [mfaFactorType, setMfaFactorType] = useState<'totp' | 'phone'>('totp');
-  const [mfaCode, setMfaCode] = useState('');
-  const [mfaOpen, setMfaOpen] = useState(false);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
@@ -101,7 +96,7 @@ const Login = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      toast.error('Lütfen e-posta/telefon ve şifre alanlarını doldurun.');
+      toast.error('Lütfen tüm alanları doldurun.');
       return;
     }
     if (!captchaOk) {
@@ -112,11 +107,7 @@ const Login = () => {
     setLoading(true);
     setPenaltyInfo(null);
 
-    const identifier = email.trim();
-    const credentials = identifier.includes('@')
-      ? { email: identifier, password }
-      : { phone: identifier, password };
-    const { data, error } = await supabase.auth.signInWithPassword(credentials);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
       setLoading(false);
@@ -130,42 +121,6 @@ const Login = () => {
     }
 
     if (data.user) {
-      if (data.user.user_metadata?.email_2fa_enabled === true) {
-        const { error: otpError } = await supabase.auth.signInWithOtp({
-          email: data.user.email || identifier,
-          options: { shouldCreateUser: false },
-        });
-        if (otpError) {
-          await supabase.auth.signOut();
-          setLoading(false);
-          toast.error('E-posta doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.');
-          return;
-        }
-        setMfaFactorType('totp');
-        setMfaFactorId(null);
-        setMfaOpen(true);
-        setLoading(false);
-        return;
-      }
-      const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (assurance?.nextLevel === 'aal2' && assurance.currentLevel !== 'aal2') {
-        const { data: factors, error: factorError } = await supabase.auth.mfa.listFactors();
-        const factor = [
-          ...(factors?.totp || []).map((item) => ({ ...item, factor_type: 'totp' as const })),
-          ...(factors?.phone || []).map((item) => ({ ...item, factor_type: 'phone' as const })),
-        ].find((item) => item.status === 'verified');
-        if (factorError || !factor) {
-          await supabase.auth.signOut();
-          setLoading(false);
-          toast.error('İki faktörlü doğrulama yapılandırması okunamadı. Lütfen tekrar deneyin.');
-          return;
-        }
-        setMfaFactorId(factor.id);
-        setMfaFactorType(factor.factor_type);
-        setMfaOpen(true);
-        setLoading(false);
-        return;
-      }
       const { data: penalties } = await supabase
         .from('penalties')
         .select('*')
@@ -220,55 +175,6 @@ const Login = () => {
       if (welcomePending) localStorage.removeItem('econnotes_welcome_pending');
     } catch {}
     navigate(welcomePending ? '/welcome' : '/');
-  };
-
-  const verifyMfaAndContinue = async () => {
-    if (!mfaFactorId) {
-      if (!/^\d{6}$/.test(mfaCode)) {
-        toast.error('E-postanıza gelen 6 haneli kodu girin.');
-        return;
-      }
-      setLoading(true);
-      const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: mfaCode, type: 'email' });
-      setLoading(false);
-      if (error) {
-        toast.error('E-posta kodu hatalı veya süresi dolmuş.');
-        return;
-      }
-      setMfaOpen(false);
-      setMfaCode('');
-      window.location.assign('/');
-      return;
-    }
-    if (!mfaFactorId || !/^\d{6}$/.test(mfaCode)) {
-      toast.error('Authenticator uygulamanızdaki 6 haneli kodu girin.');
-      return;
-    }
-    setLoading(true);
-    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId: mfaFactorId });
-    if (challengeError) {
-      setLoading(false);
-      toast.error('Doğrulama oturumu başlatılamadı. Tekrar giriş yapın.');
-      return;
-    }
-    const { error } = await supabase.auth.mfa.verify({
-      factorId: mfaFactorId,
-      challengeId: challenge.id,
-      code: mfaCode,
-    });
-    if (error) {
-      setLoading(false);
-      toast.error('Doğrulama kodu hatalı veya süresi dolmuş.');
-      return;
-    }
-    setMfaOpen(false);
-    setMfaCode('');
-    setMfaFactorId(null);
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData.session?.user) {
-      await supabase.auth.refreshSession();
-      window.location.assign('/');
-    }
   };
 
   // Show penalty expired countdown screen
@@ -434,13 +340,13 @@ const Login = () => {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">E-posta veya telefon</Label>
+              <Label htmlFor="email">E-posta</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
-                  type="text"
-                  placeholder="ornek@mail.com veya +905xxxxxxxxx"
+                  type="email"
+                  placeholder="ornek@mail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
@@ -472,39 +378,6 @@ const Login = () => {
               {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </Button>
           </form>
-
-          <Dialog open={mfaOpen} onOpenChange={(open) => {
-            setMfaOpen(open);
-            if (!open) {
-              void supabase.auth.signOut();
-              setMfaFactorId(null);
-              setMfaCode('');
-            }
-          }}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> İki faktörlü doğrulama</DialogTitle>
-                <DialogDescription>
-                  {mfaFactorType === 'phone' ? 'Telefonunuza gönderilen 6 haneli kodu girin.' : 'Authenticator uygulamanızda EconNotes için görünen 6 haneli kodu girin.'}
-                </DialogDescription>
-              </DialogHeader>
-              <Input
-                value={mfaCode}
-                onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="000000"
-                className="text-center font-mono text-xl tracking-[0.5em]"
-                autoFocus
-              />
-              <DialogFooter>
-                <Button onClick={verifyMfaAndContinue} disabled={loading || mfaCode.length !== 6} className="w-full">
-                  {loading ? 'Doğrulanıyor...' : 'Kodu doğrula'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
 
           {/* Sosyal giriş */}
           <div className="space-y-2">

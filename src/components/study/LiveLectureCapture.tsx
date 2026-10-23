@@ -88,28 +88,6 @@ const normalizeTranscript = (value: string) => value
   .replace(/\n{3,}/g, '\n\n')
   .trim();
 
-const removeRepeatedSpeech = (value: string) => {
-  let cleaned = value;
-  for (let size = 8; size >= 1; size -= 1) {
-    const words = cleaned.split(/\s+/);
-    const result: string[] = [];
-    for (let index = 0; index < words.length;) {
-      const phrase = words.slice(index, index + size);
-      const nextPhrase = words.slice(index + size, index + size * 2);
-      if (phrase.length === size && nextPhrase.length === size
-        && phrase.join(' ').toLocaleLowerCase('tr-TR') === nextPhrase.join(' ').toLocaleLowerCase('tr-TR')) {
-        result.push(...phrase);
-        index += size * 2;
-      } else {
-        result.push(words[index]);
-        index += 1;
-      }
-    }
-    cleaned = result.join(' ');
-  }
-  return cleaned;
-};
-
 const isSummaryContent = (value: unknown): value is {
   overview: string;
   keyPoints: string[];
@@ -140,7 +118,6 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const finalTranscriptRef = useRef('');
-  const lastFinalChunkRef = useRef('');
   const recordingRef = useRef(false);
 
   useEffect(() => () => {
@@ -182,7 +159,6 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
       recognition.grammars = grammars;
     }
     finalTranscriptRef.current = '';
-    lastFinalChunkRef.current = '';
     setTranscript('');
     recognitionRef.current = recognition;
     recordingRef.current = true;
@@ -193,17 +169,11 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
         const text = result[0]?.transcript ?? '';
-        if (result.isFinal) {
-          const normalizedChunk = normalizeTranscript(text);
-          if (normalizedChunk && normalizedChunk !== lastFinalChunkRef.current) {
-            finalTranscriptRef.current += `${normalizedChunk} `;
-            lastFinalChunkRef.current = normalizedChunk;
-          }
-        }
+        if (result.isFinal) finalTranscriptRef.current += `${text} `;
         else interimTranscript += text;
       }
 
-      const nextTranscript = removeRepeatedSpeech(normalizeTranscript(`${finalTranscriptRef.current}${interimTranscript}`));
+      const nextTranscript = `${finalTranscriptRef.current}${interimTranscript}`.trim();
       if (nextTranscript.length > MAX_TRANSCRIPT_LENGTH) {
         recordingRef.current = false;
         setIsRecording(false);
@@ -255,7 +225,7 @@ const LiveLectureCapture = ({ userId, onSaved }: LiveLectureCaptureProps) => {
   };
 
   const summarizeLecture = async () => {
-    const cleanedTranscript = removeRepeatedSpeech(normalizeTranscript(transcript));
+    const cleanedTranscript = normalizeTranscript(transcript);
     if (!title.trim() || cleanedTranscript.length < 40) {
       toast.error('Özet için ders başlığı ve en az 40 karakterlik bir döküm gerekli.');
       return;
@@ -303,7 +273,6 @@ ${cleanedTranscript}`,
       toast.success('Canlı ders özeti çalışma materyallerine kaydedildi.');
       setTranscript('');
       finalTranscriptRef.current = '';
-      lastFinalChunkRef.current = '';
     } catch (error) {
       console.error('Canlı ders özeti oluşturulamadı:', error);
       toast.error(error instanceof Error ? error.message : 'Özet oluşturulamadı. Lütfen tekrar deneyin.');
@@ -322,7 +291,7 @@ ${cleanedTranscript}`,
           <div className="min-w-0">
             <CardTitle className="text-lg sm:text-xl">Yönetici Canlı Ders Notları</CardTitle>
             <CardDescription className="mt-1 leading-relaxed">
-              Dersi Türkçe olarak canlı yazıya dökün. Tekrarlanan konuşma parçaları otomatik ayıklanır; dökümü düzenleyip görsel ve etkileşimli çalışma materyaline dönüştürebilirsiniz.
+              Dersi Türkçe olarak canlı yazıya dökün, dökümü düzenleyin ve Gemini 2.5 Pro ile yapılandırılmış özet oluşturun.
             </CardDescription>
           </div>
         </div>

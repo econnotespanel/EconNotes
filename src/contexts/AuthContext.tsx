@@ -23,8 +23,6 @@ interface AuthContextType {
   profile: Profile | null;
   isAdmin: boolean;
   loading: boolean;
-  mfaRequired: boolean;
-  completeMfa: () => void;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -35,29 +33,12 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   isAdmin: false,
   loading: true,
-  mfaRequired: false,
-  completeMfa: () => {},
   signOut: async () => {},
   refreshProfile: async () => {},
 });
 
 const INACTIVE_DAYS = 90;
 const RETURN_TOUR_VERSION = APP_VERSION;
-const MFA_CHECK_TIMEOUT_MS = 3500;
-
-const refreshMfaRequirement = async (onResult: (required: boolean) => void) => {
-  try {
-    const result = await Promise.race([
-      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
-      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), MFA_CHECK_TIMEOUT_MS)),
-    ]);
-    if (result?.data) {
-      onResult(result.data.nextLevel === 'aal2' && result.data.currentLevel !== 'aal2');
-    }
-  } catch (error) {
-    console.error('MFA durumu okunamadı:', error);
-  }
-};
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -85,7 +66,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [mfaRequired, setMfaRequired] = useState(false);
 
   const fetchProfile = async (userId: string, detectInactivity = false, email?: string, fallbackFullName = '') => {
     const authUser = user?.id === userId ? user : null;
@@ -150,7 +130,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          void refreshMfaRequirement(setMfaRequired);
           setTimeout(async () => {
             await fetchProfile(session.user.id, _event === 'SIGNED_IN', session.user.email, getOAuthFullName(session.user));
             await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id);
@@ -174,7 +153,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
 
         } else {
-          setMfaRequired(false);
           setProfile(null);
           setIsAdmin(false);
         }
@@ -182,11 +160,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        void refreshMfaRequirement(setMfaRequired);
         fetchProfile(session.user.id, false, session.user.email, getOAuthFullName(session.user)).then(() => {
           supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
         });
@@ -198,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, isAdmin, loading, mfaRequired, completeMfa: () => setMfaRequired(false), signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, isAdmin, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

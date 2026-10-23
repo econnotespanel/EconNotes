@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import Layout from '@/components/Layout';
@@ -13,16 +12,8 @@ import { useSiteConfig } from '@/contexts/SiteConfigContext';
  */
 const PageGuard = ({ path, children }: { path: string; children: React.ReactNode }) => {
   const { isPageEnabled, loading } = useSiteConfig();
-  const { isAdmin, mfaRequired } = useAuth();
+  const { isAdmin } = useAuth();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (mfaRequired) navigate('/login', { replace: true });
-  }, [mfaRequired, navigate]);
-
-  if (mfaRequired) {
-    return null;
-  }
 
   if (loading || isPageEnabled(path)) return <>{children}</>;
 

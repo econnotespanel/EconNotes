@@ -143,15 +143,10 @@ const schemas: Record<string, any> = {
           properties: {
             time: { type: 'string' },
             title: { type: 'string' },
-            explanation: { type: 'string' },
+            narration: { type: 'string' },
             visualCue: { type: 'string' },
-            keyPoints: {
-              type: 'array',
-              items: { type: 'string' },
-            },
-            checkpoint: { type: 'string' },
           },
-          required: ['time', 'title', 'explanation', 'visualCue', 'keyPoints', 'checkpoint'],
+          required: ['time', 'title', 'narration', 'visualCue'],
           additionalProperties: false,
         },
       },
@@ -211,9 +206,7 @@ examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı 
 Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
       break;
     case 'video':
-      task = `Kullanıcının verdiği ders notunu temel alan, SES İÇERMEYEN, görsel ve etkileşimli bir video özeti taslağı üret. Bu içerik sesli anlatıcı olarak okunmayacak; ekranda kartlar, şemalar ve kısa açıklamalar halinde gösterilecek.
-outline alanında öğrenme akışını 2-3 cümleyle anlat. 5-7 sahne üret; her sahnede time "MM:SS", kısa title, ekranda okunacak kısa ve anlaşılır explanation, görsel/şema önerisi olan visualCue, en fazla 3 keyPoints ve öğrencinin kendini kontrol edeceği tek cümlelik checkpoint bulun.
-Sahneler arasında neden-sonuç, karşılaştırma veya süreç ilişkisini görünür kıl; uzun paragraf veya konuşma metni yazma. Sonunda konuyu pekiştirecek 3-5 YouTube arama sorgusu ver. Kaynakta olmayan bilgi ekleme.`;
+      task = `Kullanıcının verdiği ders notunu temel alan 3-5 dakikalık, Türkçe videolu ders özeti üret. outline alanında videonun akışını 2-3 cümleyle anlat. 5-7 sahne üret; her sahnede time "MM:SS", kısa title, öğrencinin dinleyebileceği doğal ve yalnızca kaynakta bulunan bilgilerden oluşan narration ve ekranda gösterilecek görsel/şema önerisi olan visualCue bulun. Sonunda konuyu pekiştirecek 3-5 YouTube arama sorgusu ver. Kaynakta olmayan bilgi ekleme.`;
       break;
   }
 
