@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Download, Monitor, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { Download, Monitor, ChevronDown, ChevronUp, CheckCircle2, ShieldCheck, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import EconLogo from '@/components/EconLogo';
 
@@ -16,6 +16,7 @@ const Install = () => {
   const [isInstalled, setIsInstalled] = useState(false);
   const [showIosGuide, setShowIosGuide] = useState(false);
   const [showAndroidGuide, setShowAndroidGuide] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -26,6 +27,7 @@ const Install = () => {
     if (window.matchMedia("(display-mode: standalone)").matches) {
       setIsInstalled(true);
     }
+    setIsDesktop(!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
@@ -132,18 +134,37 @@ const Install = () => {
             </Card>
 
             {/* Desktop Guide */}
-            <Card>
+            <Card className={isDesktop ? "border-primary/40 bg-primary/5" : ""}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Monitor className="h-5 w-5" />
-                  Bilgisayar Kurulumu
+                  Bilgisayar için EconNotes
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Chrome veya Edge tarayıcısında adres çubuğundaki kurulum simgesine tıklayarak
-                  uygulamayı bilgisayarınıza kurabilirsiniz.
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    EconNotes bilgisayarında ayrı bir pencere, kendi simgesi ve hızlı erişimi olan bir uygulama olarak çalışır.
+                    Kurulum Windows, macOS ve Linux üzerinde Chrome veya Edge ile yapılabilir.
+                  </p>
+                  {deferredPrompt ? (
+                    <Button onClick={handleInstall} className="w-full gap-2" size="lg">
+                      <Download className="h-5 w-5" /> Bilgisayara kur
+                    </Button>
+                  ) : (
+                    <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                      <InstallBenefit icon={<Zap className="h-4 w-4" />} text="Masaüstü kısayolu" />
+                      <InstallBenefit icon={<ShieldCheck className="h-4 w-4" />} text="Güvenli uygulama penceresi" />
+                      <InstallBenefit icon={<Monitor className="h-4 w-4" />} text="Daha geniş çalışma alanı" />
+                    </div>
+                  )}
+                  {!deferredPrompt && (
+                    <p className="rounded-lg border border-border/70 bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
+                      Kurulum düğmesi görünmüyorsa Chrome/Edge adres çubuğundaki <strong className="text-foreground">EconNotes'u yükle</strong> simgesine
+                      veya menüdeki <strong className="text-foreground">Uygulamayı yükle</strong> seçeneğine tıklayın.
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </>
@@ -163,6 +184,13 @@ const Step = ({ number, text }: { number: number; text: string }) => (
       {number}
     </span>
     <p className="text-sm text-foreground">{text}</p>
+  </div>
+);
+
+const InstallBenefit = ({ icon, text }: { icon: ReactNode; text: string }) => (
+  <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-background/60 p-2.5">
+    <span className="text-primary">{icon}</span>
+    <span>{text}</span>
   </div>
 );
 

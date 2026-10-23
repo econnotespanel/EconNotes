@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import {
   GraduationCap, Sparkles, Layers, ClipboardList, FileText as FileTextIcon, Video as VideoIcon,
   Loader2, ChevronLeft, ChevronRight, Check, X, Trash2, Play, Search, Plus, BookOpen,
-  Upload, Mic, FileUp, Bug, Coffee, Award, Flame, Brain, Trophy, RefreshCw, RotateCw, Pause, Volume2,
+  Upload, Mic, FileUp, Bug, Coffee, Award, Flame, Brain, Trophy, RefreshCw, RotateCw,
   MessageCircle, Send, Wand2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -1367,35 +1367,13 @@ const VideoViewer = ({ material }: { material: StudyMaterial }) => {
   const c = material.content || {};
   const scenes = Array.isArray(c.scenes) ? c.scenes : [];
   const [activeScene, setActiveScene] = useState(0);
-  const [isNarrating, setIsNarrating] = useState(false);
-  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [checked, setChecked] = useState(false);
+  const [studyNote, setStudyNote] = useState(() => localStorage.getItem(`econnotes-video-note-${material.id}`) || '');
   const scene = scenes[activeScene];
 
-  useEffect(() => () => {
-    window.speechSynthesis.cancel();
-  }, []);
-
-  const narrateScene = (index: number) => {
-    const nextScene = scenes[index];
-    if (!nextScene || !('speechSynthesis' in window)) {
-      toast.error('Tarayıcınız sesli anlatımı desteklemiyor.');
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(nextScene.narration);
-    utterance.lang = 'tr-TR';
-    utterance.rate = 0.95;
-    utterance.onend = () => setIsNarrating(false);
-    utterance.onerror = () => setIsNarrating(false);
-    speechRef.current = utterance;
-    setActiveScene(index);
-    setIsNarrating(true);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const stopNarration = () => {
-    window.speechSynthesis.cancel();
-    setIsNarrating(false);
+  const saveStudyNote = (value: string) => {
+    setStudyNote(value);
+    localStorage.setItem(`econnotes-video-note-${material.id}`, value);
   };
 
   return (
@@ -1403,6 +1381,9 @@ const VideoViewer = ({ material }: { material: StudyMaterial }) => {
       <div className="rounded-xl border border-border bg-card p-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Konu akışı</p>
         <p className="text-sm leading-relaxed">{c.outline}</p>
+        <p className="mt-3 flex items-center gap-2 text-xs font-medium text-primary">
+          <Sparkles className="h-3.5 w-3.5" /> Bu özet ses içermez; görsel kartlar ve kendi hızında etkileşimli öğrenme için tasarlanmıştır.
+        </p>
       </div>
       {scene && (
         <div className="overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-secondary/10">
@@ -1411,24 +1392,45 @@ const VideoViewer = ({ material }: { material: StudyMaterial }) => {
               <Badge>{scene.time}</Badge>
               <span className="text-xs text-muted-foreground">Sahne {activeScene + 1} / {scenes.length}</span>
             </div>
-            <Button
-              size="sm"
-              variant={isNarrating ? 'destructive' : 'default'}
-              className="gap-2"
-              onClick={() => isNarrating ? stopNarration() : narrateScene(activeScene)}
-            >
-              {isNarrating ? <Pause className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              {isNarrating ? 'Anlatımı durdur' : 'Sahneyi dinle'}
-            </Button>
+            <div className="h-2 w-24 overflow-hidden rounded-full bg-muted sm:w-32">
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${((activeScene + 1) / scenes.length) * 100}%` }} />
+            </div>
           </div>
           <div className="space-y-3 p-5">
             <h3 className="text-lg font-semibold">{scene.title}</h3>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{scene.narration}</p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{scene.explanation || scene.narration}</p>
             {scene.visualCue && (
               <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 text-xs">
-                <span className="font-semibold text-primary">Ekran önerisi: </span>{scene.visualCue}
+                <span className="font-semibold text-primary">Görsel anlatım: </span>{scene.visualCue}
               </div>
             )}
+            {scene.keyPoints?.length > 0 && (
+              <div className="grid gap-2 sm:grid-cols-3">
+                {scene.keyPoints.map((point: string, index: number) => (
+                  <div key={index} className="rounded-lg border border-border/70 bg-background/50 p-3 text-xs leading-relaxed">
+                    <span className="mb-1 block font-mono text-[10px] text-primary">0{index + 1}</span>{point}
+                  </div>
+                ))}
+              </div>
+            )}
+            {scene.checkpoint && (
+              <button
+                type="button"
+                onClick={() => setChecked(value => !value)}
+                className={`flex w-full items-start gap-2 rounded-lg border p-3 text-left text-xs transition-colors ${checked ? 'border-success/50 bg-success/10' : 'border-border bg-background/40 hover:border-primary/40'}`}
+              >
+                <Check className={`mt-0.5 h-4 w-4 shrink-0 ${checked ? 'text-success' : 'text-muted-foreground'}`} />
+                <span><strong>Kendini kontrol et:</strong> {scene.checkpoint}</span>
+              </button>
+            )}
+            <div className="flex items-center justify-between gap-2 border-t border-border/70 pt-3">
+              <Button size="sm" variant="outline" disabled={activeScene === 0} onClick={() => { setActiveScene(index => index - 1); setChecked(false); }}>
+                <ChevronLeft className="mr-1 h-4 w-4" /> Önceki
+              </Button>
+              <Button size="sm" disabled={activeScene === scenes.length - 1} onClick={() => { setActiveScene(index => index + 1); setChecked(false); }}>
+                Sonraki <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -1438,7 +1440,7 @@ const VideoViewer = ({ material }: { material: StudyMaterial }) => {
             <button
               key={i}
               type="button"
-              onClick={() => { stopNarration(); setActiveScene(i); }}
+              onClick={() => { setActiveScene(i); setChecked(false); }}
               className={`rounded-xl border p-3 text-left transition-colors ${activeScene === i ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-accent'}`}
             >
               <div className="flex items-center gap-2">
@@ -1449,6 +1451,20 @@ const VideoViewer = ({ material }: { material: StudyMaterial }) => {
           ))}
         </div>
       )}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <label htmlFor={`video-study-note-${material.id}`} className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Bu özetten kendi notun
+        </label>
+        <Textarea
+          id={`video-study-note-${material.id}`}
+          value={studyNote}
+          onChange={(event) => saveStudyNote(event.target.value)}
+          placeholder="Önemli bağlantıları, örnekleri veya anlamadığın noktaları yaz..."
+          rows={3}
+          className="resize-y"
+        />
+        <p className="mt-2 text-[11px] text-muted-foreground">Notun bu cihazda otomatik saklanır.</p>
+      </div>
       {c.suggestedSearches?.length > 0 && (
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">İzleme önerileri</p>
