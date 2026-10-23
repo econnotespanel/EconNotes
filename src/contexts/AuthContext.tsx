@@ -43,6 +43,21 @@ const AuthContext = createContext<AuthContextType>({
 
 const INACTIVE_DAYS = 90;
 const RETURN_TOUR_VERSION = APP_VERSION;
+const MFA_CHECK_TIMEOUT_MS = 3500;
+
+const refreshMfaRequirement = async (onResult: (required: boolean) => void) => {
+  try {
+    const result = await Promise.race([
+      supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), MFA_CHECK_TIMEOUT_MS)),
+    ]);
+    if (result?.data) {
+      onResult(result.data.nextLevel === 'aal2' && result.data.currentLevel !== 'aal2');
+    }
+  } catch (error) {
+    console.error('MFA durumu okunamadı:', error);
+  }
+};
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -135,9 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-          const requiresMfa = assurance?.nextLevel === 'aal2' && assurance.currentLevel !== 'aal2';
-          setMfaRequired(requiresMfa);
+          void refreshMfaRequirement(setMfaRequired);
           setTimeout(async () => {
             await fetchProfile(session.user.id, _event === 'SIGNED_IN', session.user.email, getOAuthFullName(session.user));
             await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id);
@@ -173,8 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-        setMfaRequired(assurance?.nextLevel === 'aal2' && assurance.currentLevel !== 'aal2');
+        void refreshMfaRequirement(setMfaRequired);
         fetchProfile(session.user.id, false, session.user.email, getOAuthFullName(session.user)).then(() => {
           supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
         });

@@ -44,11 +44,11 @@ const App = () => {
   const handleSplashFinish = useCallback(() => {
     sessionStorage.setItem('econotes_splash_shown', 'true');
     setShowSplash(false);
-    prefetchRoutes();
   }, []);
 
   useEffect(() => {
-    prefetchRoutes();
+    const timer = window.setTimeout(prefetchRoutes, 1200);
+    return () => window.clearTimeout(timer);
   }, []);
 
   return (
