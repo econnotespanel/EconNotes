@@ -29,13 +29,7 @@ export const useSystemStatus = (): SystemStatus => {
   useEffect(() => {
     let alive = true;
     const checkSystem = async () => {
-      const result = await Promise.race([
-        (supabase as any).from('public_system_status').select('*').limit(1).maybeSingle(),
-        new Promise<{ data: null; error: Error }>((resolve) =>
-          window.setTimeout(() => resolve({ data: null, error: new Error('System status request timed out') }), 4000),
-        ),
-      ]);
-      const { data, error } = result;
+      const { data, error } = await (supabase as any).from('public_system_status').select('*').limit(1).maybeSingle();
       if (!alive) return;
       if (error) {
         setState((s) => (s.systemOpen === null ? { ...s, systemOpen: true } : s));
