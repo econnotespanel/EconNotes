@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/deviceNotifications';
+import { showWebNotification } from '@/lib/webNotifications';
 
 const POLL_INTERVAL_MS = 30_000;
 
@@ -14,20 +15,7 @@ const ContentNotificationListener = () => {
 
     const notify = (title: string, body: string, tag: string, path: string) => {
       if (Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
-      try {
-        const notification = new Notification(title, {
-          body,
-          tag,
-          icon: '/icons/icon-192x192.png',
-        });
-        notification.onclick = () => {
-          window.focus();
-          window.location.assign(path);
-          notification.close();
-        };
-      } catch (error) {
-        console.error('Device notification could not be displayed:', error);
-      }
+      void showWebNotification(title, { body, tag, path });
     };
 
     const pollForContent = async () => {
@@ -88,7 +76,28 @@ const ContentNotificationListener = () => {
 
     void pollForContent();
     const interval = window.setInterval(() => void pollForContent(), POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
+    const channel = supabase
+      .channel(`announcement-notifications-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'announcements' }, (payload) => {
+        const announcement = payload.new as { id?: string; title?: string; content?: string; user_id?: string };
+        if (!announcement.id || announcement.user_id === user.id) return;
+        notify(
+          'Yeni duyuru yayımlandı',
+          announcement.title || announcement.content || 'Yeni bir duyuru var.',
+          `announcement-${announcement.id}`,
+          '/announcements',
+        );
+      })
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Announcement notification subscription failed:', status);
+        }
+      });
+
+    return () => {
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
   }, [user]);
 
   return null;
