@@ -22,7 +22,6 @@ import { usePoints } from '@/hooks/usePoints';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
 import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
-import { removeWebPushSubscription, subscribeToWebPush } from '@/lib/webPush';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
@@ -104,7 +103,6 @@ const Header = () => {
       return;
     }
     if (deviceNotificationsEnabled) {
-      await removeWebPushSubscription(user.id);
       setDeviceNotificationEnabled(user.id, false);
       setDeviceNotificationsEnabled(false);
       toast.success('Cihaz bildirimleri kapatıldı.');
@@ -120,7 +118,6 @@ const Header = () => {
           : 'Bildirim izni verilmedi.');
         return;
       }
-      await subscribeToWebPush(user.id);
       const now = new Date().toISOString();
       setDeviceNotificationEnabled(user.id, true);
       localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);

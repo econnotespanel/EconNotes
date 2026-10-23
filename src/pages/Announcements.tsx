@@ -100,17 +100,8 @@ const Announcements = () => {
       if (error) { toast.error('Güncellenemedi.'); return; }
       toast.success('Duyuru güncellendi!');
     } else {
-      const { data: announcement, error } = await supabase.from('announcements').insert(data).select('id, title, content').single();
+      const { error } = await supabase.from('announcements').insert(data);
       if (error) { toast.error('Eklenemedi: ' + error.message); return; }
-      const { error: pushError } = await supabase.functions.invoke('send-web-push', {
-        body: {
-          announcementId: announcement.id,
-          title: announcement.title,
-          body: announcement.content,
-          path: '/announcements',
-        },
-      });
-      if (pushError) console.error('Announcement web push could not be sent:', pushError);
       toast.success('Duyuru eklendi!');
     }
 

@@ -5,13 +5,11 @@ import { brokeredPreviewStorage } from './previewAuthStorage';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const clientUrl = SUPABASE_URL || 'https://lgjvyfluqqecfzqxtfgb.supabase.co';
-const clientKey = SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_missing_environment';
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(clientUrl, clientKey, {
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: brokeredPreviewStorage(),
     persistSession: true,
