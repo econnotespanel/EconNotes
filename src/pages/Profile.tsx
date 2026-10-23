@@ -66,7 +66,12 @@ const Profile = () => {
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'phone', phone: user?.phone || '', friendlyName: 'EconNotes telefon doğrulaması' });
       setMfaLoading(false);
       if (error || !data) {
-        toast.error(error?.message || 'Telefon MFA başlatılamadı.');
+        const message = error?.message || '';
+        if (/sms provider|unable to get sms provider/i.test(message)) {
+          toast.error('Telefon doğrulaması şu anda kullanılamıyor. Supabase SMS sağlayıcısı yapılandırılmamış. SMS yerine Authenticator ile etkinleştirebilirsin.');
+        } else {
+          toast.error(message || 'Telefon MFA başlatılamadı.');
+        }
         return;
       }
       setMfaSetup({ id: data.id, type: 'phone' });
@@ -124,7 +129,11 @@ const Profile = () => {
     const { error } = await supabase.auth.updateUser({ phone: phone.trim() });
     setPhoneLoading(false);
     if (error) {
-      toast.error('Telefon doğrulama kodu gönderilemedi: ' + error.message);
+      if (/sms provider|unable to get sms provider/i.test(error.message)) {
+        toast.error('Telefon doğrulama kodu gönderilemedi. Supabase SMS sağlayıcısı yapılandırılmamış; Supabase Dashboard > Authentication > Providers > Phone bölümünden bir SMS sağlayıcısı etkinleştirin.');
+      } else {
+        toast.error('Telefon doğrulama kodu gönderilemedi: ' + error.message);
+      }
       return;
     }
     setPhonePending(true);
@@ -426,7 +435,7 @@ const Profile = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Telefon veya e-posta onay kodunu doğruladığında, şifrenin ardından ikinci güvenlik adımı etkinleşir.
+              Telefon veya e-posta onay kodunu doğruladığında, şifrenin ardından ikinci güvenlik adımı etkinleşir. SMS kurulumu için Supabase projesinde bir SMS sağlayıcısı etkin olmalıdır.
             </p>
             {mfaFactor ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
