@@ -11,6 +11,7 @@ import PageGuard from "@/components/PageGuard";
 import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
 import RouteLoader, { prefetchRoutes } from "@/components/RouteLoader";
+import AppErrorBoundary from "@/components/AppErrorBoundary";
 
 const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
@@ -52,7 +53,8 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <SiteConfigProvider>
         <AuthProvider>
@@ -91,7 +93,8 @@ const App = () => {
         </AuthProvider>
         </SiteConfigProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 };
 
