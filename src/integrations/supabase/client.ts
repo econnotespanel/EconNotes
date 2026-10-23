@@ -6,8 +6,10 @@ import { LEGACY_SUPABASE_PUBLISHABLE_KEY, LEGACY_SUPABASE_URL } from './legacyCo
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const clientUrl = SUPABASE_URL || LEGACY_SUPABASE_URL;
-const clientKey = SUPABASE_PUBLISHABLE_KEY || LEGACY_SUPABASE_PUBLISHABLE_KEY;
+// Keep production on the existing data project until the new project has been
+// migrated and verified. This prevents users from landing in an empty database.
+const clientUrl = LEGACY_SUPABASE_URL;
+const clientKey = LEGACY_SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
