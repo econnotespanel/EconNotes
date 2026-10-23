@@ -29,6 +29,7 @@ const Login = () => {
   const [captchaOk, setCaptchaOk] = useState(false);
   const [captchaReset, setCaptchaReset] = useState(0);
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaFactorType, setMfaFactorType] = useState<'totp' | 'phone'>('totp');
   const [mfaCode, setMfaCode] = useState('');
   const [mfaOpen, setMfaOpen] = useState(false);
   const navigate = useNavigate();
@@ -129,10 +130,30 @@ const Login = () => {
     }
 
     if (data.user) {
+      if (data.user.user_metadata?.email_2fa_enabled === true) {
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email: data.user.email || identifier,
+          options: { shouldCreateUser: false },
+        });
+        if (otpError) {
+          await supabase.auth.signOut();
+          setLoading(false);
+          toast.error('E-posta doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.');
+          return;
+        }
+        setMfaFactorType('totp');
+        setMfaFactorId(null);
+        setMfaOpen(true);
+        setLoading(false);
+        return;
+      }
       const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
       if (assurance?.nextLevel === 'aal2' && assurance.currentLevel !== 'aal2') {
         const { data: factors, error: factorError } = await supabase.auth.mfa.listFactors();
-        const factor = factors?.totp.find((item) => item.status === 'verified');
+        const factor = [
+          ...(factors?.totp || []).map((item) => ({ ...item, factor_type: 'totp' as const })),
+          ...(factors?.phone || []).map((item) => ({ ...item, factor_type: 'phone' as const })),
+        ].find((item) => item.status === 'verified');
         if (factorError || !factor) {
           await supabase.auth.signOut();
           setLoading(false);
@@ -140,6 +161,7 @@ const Login = () => {
           return;
         }
         setMfaFactorId(factor.id);
+        setMfaFactorType(factor.factor_type);
         setMfaOpen(true);
         setLoading(false);
         return;
@@ -201,6 +223,23 @@ const Login = () => {
   };
 
   const verifyMfaAndContinue = async () => {
+    if (!mfaFactorId) {
+      if (!/^\d{6}$/.test(mfaCode)) {
+        toast.error('E-postanıza gelen 6 haneli kodu girin.');
+        return;
+      }
+      setLoading(true);
+      const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: mfaCode, type: 'email' });
+      setLoading(false);
+      if (error) {
+        toast.error('E-posta kodu hatalı veya süresi dolmuş.');
+        return;
+      }
+      setMfaOpen(false);
+      setMfaCode('');
+      window.location.assign('/');
+      return;
+    }
     if (!mfaFactorId || !/^\d{6}$/.test(mfaCode)) {
       toast.error('Authenticator uygulamanızdaki 6 haneli kodu girin.');
       return;
@@ -446,7 +485,7 @@ const Login = () => {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> İki faktörlü doğrulama</DialogTitle>
                 <DialogDescription>
-                  Authenticator uygulamanızda EconNotes için görünen 6 haneli kodu girin.
+                  {mfaFactorType === 'phone' ? 'Telefonunuza gönderilen 6 haneli kodu girin.' : 'Authenticator uygulamanızda EconNotes için görünen 6 haneli kodu girin.'}
                 </DialogDescription>
               </DialogHeader>
               <Input

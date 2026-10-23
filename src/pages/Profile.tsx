@@ -31,14 +31,17 @@ const Profile = () => {
   const [verificationCode, setVerificationCode] = useState('');
   const hideSurname = (profile as any)?.hide_surname !== false;
   const [savingPrivacy, setSavingPrivacy] = useState(false);
-  const [mfaFactor, setMfaFactor] = useState<{ id: string; friendly_name?: string | null } | null>(null);
-  const [mfaSetup, setMfaSetup] = useState<{ id: string; secret: string; uri: string } | null>(null);
+  const [mfaFactor, setMfaFactor] = useState<{ id: string; factor_type: 'totp' | 'phone'; friendly_name?: string | null } | null>(null);
+  const [mfaSetup, setMfaSetup] = useState<{ id: string; type: 'totp' | 'phone'; secret?: string; uri?: string } | null>(null);
   const [mfaCode, setMfaCode] = useState('');
   const [mfaLoading, setMfaLoading] = useState(false);
   const [phone, setPhone] = useState(user?.phone || '');
   const [phoneCode, setPhoneCode] = useState('');
   const [phonePending, setPhonePending] = useState(false);
   const [phoneLoading, setPhoneLoading] = useState(false);
+  const [email2faEnabled, setEmail2faEnabled] = useState(user?.user_metadata?.email_2fa_enabled === true);
+  const [email2faPending, setEmail2faPending] = useState(false);
+  const [email2faCode, setEmail2faCode] = useState('');
 
   const loadMfaFactor = async () => {
     const { data, error } = await supabase.auth.mfa.listFactors();
@@ -46,27 +49,41 @@ const Profile = () => {
       toast.error('İki faktörlü doğrulama durumu okunamadı.');
       return;
     }
-    setMfaFactor(data.totp.find((factor) => factor.status === 'verified') || null);
+    const factor = [
+      ...(data.totp || []).map((item) => ({ ...item, factor_type: 'totp' as const })),
+      ...(data.phone || []).map((item) => ({ ...item, factor_type: 'phone' as const })),
+    ].find((item) => item.status === 'verified');
+    setMfaFactor(factor || null);
   };
 
   useEffect(() => {
     void loadMfaFactor();
   }, []);
 
-  const startMfaSetup = async () => {
+  const startMfaSetup = async (factorType: 'totp' | 'phone') => {
     setMfaLoading(true);
+    if (factorType === 'phone') {
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'phone', phone: user?.phone || '', friendlyName: 'EconNotes telefon doğrulaması' });
+      setMfaLoading(false);
+      if (error || !data) {
+        toast.error(error?.message || 'Telefon MFA başlatılamadı.');
+        return;
+      }
+      setMfaSetup({ id: data.id, type: 'phone' });
+      return;
+    }
     const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'EconNotes Authenticator' });
     setMfaLoading(false);
     if (error || !data) {
       toast.error(error?.message || 'İki faktörlü doğrulama başlatılamadı.');
       return;
     }
-    setMfaSetup({ id: data.id, secret: data.totp.secret, uri: data.totp.uri });
+    setMfaSetup({ id: data.id, type: 'totp', secret: data.totp.secret, uri: data.totp.uri });
   };
 
   const verifyMfaSetup = async () => {
     if (!mfaSetup || !/^\d{6}$/.test(mfaCode)) {
-      toast.error('Authenticator uygulamanızdaki 6 haneli kodu girin.');
+      toast.error('6 haneli doğrulama kodunu girin.');
       return;
     }
     setMfaLoading(true);
@@ -129,6 +146,60 @@ const Profile = () => {
     setPhonePending(false);
     setPhoneCode('');
     toast.success('Telefon numaranız doğrulandı. Artık telefonunuzla giriş yapabilirsiniz.');
+  };
+
+  const sendEmail2faCode = async () => {
+    if (!user?.email) return;
+    setMfaLoading(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: user.email,
+      options: { shouldCreateUser: false },
+    });
+    setMfaLoading(false);
+    if (error) {
+      toast.error('E-posta doğrulama kodu gönderilemedi: ' + error.message);
+      return;
+    }
+    setEmail2faPending(true);
+    toast.success('E-posta adresinize doğrulama kodu gönderildi.');
+  };
+
+  const verifyEmail2fa = async () => {
+    if (!user?.email || !/^\d{6}$/.test(email2faCode)) {
+      toast.error('E-postanıza gelen 6 haneli kodu girin.');
+      return;
+    }
+    setMfaLoading(true);
+    const { error } = await supabase.auth.verifyOtp({ email: user.email, token: email2faCode, type: 'email' });
+    if (!error) {
+      const { error: metadataError } = await supabase.auth.updateUser({ data: { email_2fa_enabled: true } });
+      if (metadataError) {
+        setMfaLoading(false);
+        toast.error('E-posta güvenliği etkinleştirilemedi.');
+        return;
+      }
+    }
+    setMfaLoading(false);
+    if (error) {
+      toast.error('E-posta kodu hatalı veya süresi dolmuş.');
+      return;
+    }
+    setEmail2faEnabled(true);
+    setEmail2faPending(false);
+    setEmail2faCode('');
+    toast.success('E-posta ile iki faktörlü güvenlik etkinleştirildi.');
+  };
+
+  const disableEmail2fa = async () => {
+    setMfaLoading(true);
+    const { error } = await supabase.auth.updateUser({ data: { email_2fa_enabled: false } });
+    setMfaLoading(false);
+    if (error) {
+      toast.error('E-posta güvenliği kapatılamadı.');
+      return;
+    }
+    setEmail2faEnabled(false);
+    toast.success('E-posta ile iki faktörlü güvenlik kapatıldı.');
   };
 
   /** Liderlik tablosunda soyadının sansürlenip sansürlenmeyeceğini belirler. */
@@ -355,7 +426,7 @@ const Profile = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Authenticator uygulamasıyla hesabına ek bir güvenlik katmanı ekle. Etkinleştirdikten sonra e-posta veya telefon ve şifrenin yanında 6 haneli kod gerekir.
+              Telefon veya e-posta onay kodunu doğruladığında, şifrenin ardından ikinci güvenlik adımı etkinleşir.
             </p>
             {mfaFactor ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -363,13 +434,35 @@ const Profile = () => {
                 <Button variant="outline" onClick={disableMfa} disabled={mfaLoading}>Devre dışı bırak</Button>
               </div>
             ) : !mfaSetup ? (
-              <Button onClick={startMfaSetup} disabled={mfaLoading}>{mfaLoading ? 'Hazırlanıyor...' : 'Authenticator ile etkinleştir'}</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => startMfaSetup('phone')} disabled={mfaLoading || !user?.phone}>Telefon koduyla etkinleştir</Button>
+                <Button variant="outline" onClick={() => startMfaSetup('totp')} disabled={mfaLoading}>Authenticator ile etkinleştir</Button>
+              </div>
             ) : (
               <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
-                <p className="text-sm">Authenticator uygulamanla aşağıdaki gizli anahtarı ekle:</p>
-                <code className="block break-all rounded bg-background p-2 text-xs">{mfaSetup.secret}</code>
-                <p className="text-xs text-muted-foreground">QR okuyucu desteklenmiyorsa bu anahtarı manuel gir. Kurulum URI'si:</p>
-                <code className="block break-all rounded bg-background p-2 text-[10px]">{mfaSetup.uri}</code>
+                  {mfaSetup.type === 'totp' ? (
+                    <>
+                      <p className="text-sm">Authenticator uygulamanla aşağıdaki gizli anahtarı ekle:</p>
+                      <code className="block break-all rounded bg-background p-2 text-xs">{mfaSetup.secret}</code>
+                      <p className="text-xs text-muted-foreground">QR okuyucu desteklenmiyorsa bu anahtarı manuel gir. Kurulum URI'si:</p>
+                      <code className="block break-all rounded bg-background p-2 text-[10px]">{mfaSetup.uri}</code>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Telefonunuza gönderilen SMS doğrulama kodunu girin.</p>
+                  )}
+                  <div className="border-t border-border pt-4">
+                    <p className="mb-2 text-sm font-medium">E-posta ile iki faktörlü güvenlik</p>
+                    {email2faEnabled ? (
+                      <Button variant="outline" onClick={disableEmail2fa} disabled={mfaLoading}>E-posta güvenliğini kapat</Button>
+                    ) : !email2faPending ? (
+                      <Button variant="secondary" onClick={sendEmail2faCode} disabled={mfaLoading}>E-posta kodu gönder ve etkinleştir</Button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Input value={email2faCode} onChange={(event) => setEmail2faCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="6 haneli kod" />
+                        <Button onClick={verifyEmail2fa} disabled={mfaLoading || email2faCode.length !== 6}>Doğrula</Button>
+                      </div>
+                    )}
+                  </div>
                 <Input value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="6 haneli kod" />
                 <div className="flex gap-2">
                   <Button onClick={verifyMfaSetup} disabled={mfaLoading || mfaCode.length !== 6}>Kodu doğrula</Button>
