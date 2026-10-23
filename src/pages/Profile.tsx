@@ -1,6 +1,6 @@
 import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert } from 'lucide-react';
+import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BadgesCard from '@/components/BadgesCard';
 import { Switch } from '@/components/ui/switch';
@@ -31,6 +31,105 @@ const Profile = () => {
   const [verificationCode, setVerificationCode] = useState('');
   const hideSurname = (profile as any)?.hide_surname !== false;
   const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [mfaFactor, setMfaFactor] = useState<{ id: string; friendly_name?: string | null } | null>(null);
+  const [mfaSetup, setMfaSetup] = useState<{ id: string; secret: string; uri: string } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [phonePending, setPhonePending] = useState(false);
+  const [phoneLoading, setPhoneLoading] = useState(false);
+
+  const loadMfaFactor = async () => {
+    const { data, error } = await supabase.auth.mfa.listFactors();
+    if (error) {
+      toast.error('İki faktörlü doğrulama durumu okunamadı.');
+      return;
+    }
+    setMfaFactor(data.totp.find((factor) => factor.status === 'verified') || null);
+  };
+
+  useEffect(() => {
+    void loadMfaFactor();
+  }, []);
+
+  const startMfaSetup = async () => {
+    setMfaLoading(true);
+    const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'EconNotes Authenticator' });
+    setMfaLoading(false);
+    if (error || !data) {
+      toast.error(error?.message || 'İki faktörlü doğrulama başlatılamadı.');
+      return;
+    }
+    setMfaSetup({ id: data.id, secret: data.totp.secret, uri: data.totp.uri });
+  };
+
+  const verifyMfaSetup = async () => {
+    if (!mfaSetup || !/^\d{6}$/.test(mfaCode)) {
+      toast.error('Authenticator uygulamanızdaki 6 haneli kodu girin.');
+      return;
+    }
+    setMfaLoading(true);
+    const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId: mfaSetup.id });
+    const { error } = challengeError
+      ? { error: challengeError }
+      : await supabase.auth.mfa.verify({ factorId: mfaSetup.id, challengeId: challenge.id, code: mfaCode });
+    setMfaLoading(false);
+    if (error) {
+      toast.error('Kod hatalı veya süresi dolmuş.');
+      return;
+    }
+    setMfaSetup(null);
+    setMfaCode('');
+    await loadMfaFactor();
+    toast.success('İki faktörlü doğrulama etkinleştirildi.');
+  };
+
+  const disableMfa = async () => {
+    if (!mfaFactor) return;
+    setMfaLoading(true);
+    const { error } = await supabase.auth.mfa.unenroll({ factorId: mfaFactor.id });
+    setMfaLoading(false);
+    if (error) {
+      toast.error('İki faktörlü doğrulama kapatılamadı.');
+      return;
+    }
+    setMfaFactor(null);
+    toast.success('İki faktörlü doğrulama kapatıldı.');
+  };
+
+  const sendPhoneVerification = async () => {
+    if (!/^\+[1-9]\d{7,14}$/.test(phone.trim())) {
+      toast.error('Telefonu ülke koduyla yazın. Örnek: +905xxxxxxxxx');
+      return;
+    }
+    setPhoneLoading(true);
+    const { error } = await supabase.auth.updateUser({ phone: phone.trim() });
+    setPhoneLoading(false);
+    if (error) {
+      toast.error('Telefon doğrulama kodu gönderilemedi: ' + error.message);
+      return;
+    }
+    setPhonePending(true);
+    toast.success('Telefonunuza doğrulama kodu gönderildi.');
+  };
+
+  const verifyPhone = async () => {
+    if (!/^\d{6}$/.test(phoneCode)) {
+      toast.error('6 haneli telefon doğrulama kodunu girin.');
+      return;
+    }
+    setPhoneLoading(true);
+    const { error } = await supabase.auth.verifyOtp({ phone: phone.trim(), token: phoneCode, type: 'phone_change' });
+    setPhoneLoading(false);
+    if (error) {
+      toast.error('Telefon kodu hatalı veya süresi dolmuş.');
+      return;
+    }
+    setPhonePending(false);
+    setPhoneCode('');
+    toast.success('Telefon numaranız doğrulandı. Artık telefonunuzla giriş yapabilirsiniz.');
+  };
 
   /** Liderlik tablosunda soyadının sansürlenip sansürlenmeyeceğini belirler. */
   const toggleHideSurname = async (value: boolean) => {
@@ -230,6 +329,56 @@ const Profile = () => {
         </Card>
 
         <BadgesCard />
+
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg"><Mail className="h-5 w-5 text-primary" /> Telefonla giriş</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">Telefon numaranı doğrulayarak e-posta adresin yerine telefon numaran ve şifrenle giriş yapabilirsin.</p>
+            <div className="flex gap-2">
+              <Input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+905xxxxxxxxx" inputMode="tel" disabled={phonePending} />
+              {!phonePending && <Button onClick={sendPhoneVerification} disabled={phoneLoading}>{phoneLoading ? 'Gönderiliyor...' : 'Kod gönder'}</Button>}
+            </div>
+            {phonePending && (
+              <div className="flex gap-2">
+                <Input value={phoneCode} onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 haneli kod" inputMode="numeric" maxLength={6} />
+                <Button onClick={verifyPhone} disabled={phoneLoading || phoneCode.length !== 6}>Doğrula</Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-primary" /> İki faktörlü doğrulama</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Authenticator uygulamasıyla hesabına ek bir güvenlik katmanı ekle. Etkinleştirdikten sonra e-posta veya telefon ve şifrenin yanında 6 haneli kod gerekir.
+            </p>
+            {mfaFactor ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm font-medium text-success">İki faktörlü doğrulama etkin</span>
+                <Button variant="outline" onClick={disableMfa} disabled={mfaLoading}>Devre dışı bırak</Button>
+              </div>
+            ) : !mfaSetup ? (
+              <Button onClick={startMfaSetup} disabled={mfaLoading}>{mfaLoading ? 'Hazırlanıyor...' : 'Authenticator ile etkinleştir'}</Button>
+            ) : (
+              <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+                <p className="text-sm">Authenticator uygulamanla aşağıdaki gizli anahtarı ekle:</p>
+                <code className="block break-all rounded bg-background p-2 text-xs">{mfaSetup.secret}</code>
+                <p className="text-xs text-muted-foreground">QR okuyucu desteklenmiyorsa bu anahtarı manuel gir. Kurulum URI'si:</p>
+                <code className="block break-all rounded bg-background p-2 text-[10px]">{mfaSetup.uri}</code>
+                <Input value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" maxLength={6} placeholder="6 haneli kod" />
+                <div className="flex gap-2">
+                  <Button onClick={verifyMfaSetup} disabled={mfaLoading || mfaCode.length !== 6}>Kodu doğrula</Button>
+                  <Button variant="outline" onClick={() => setMfaSetup(null)}>İptal</Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Password Change */}
         <Card className="glass-card">
