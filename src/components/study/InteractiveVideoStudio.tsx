@@ -55,12 +55,13 @@ import { renderStage, STAGE_W, STAGE_H, StageFrame } from './video/renderStage';
 import {
   discoverTurkishVoices,
   selectVoicesForSpeakers,
+  preloadAssignedNeuralVoices,
   playSceneConversationally,
   visemeFromTurkishChar,
-  StudioAmbienceEngine,
   VoiceOption,
   Viseme,
 } from './video/speechEngine';
+import { subscribeVitsStatus, type VitsEngineStatus } from './video/vitsTurkishEngine';
 
 export interface StudyMaterial {
   id: string;
@@ -127,13 +128,17 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const [hasStartedOnce, setHasStartedOnce] = useState(false);
   const [liveSpeaker, setLiveSpeaker] = useState<Speaker>('Deniz');
 
-  // 3. Stüdyo ses & ambiyans durumları
-  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  // 3. Stüdyo HD Türkçe Neural ses durumları (arka plan uğultusu tamamen kaldırıldı)
+  const [voices, setVoices] = useState<VoiceOption[]>(() => discoverTurkishVoices());
   const [preferredDenizVoice, setPreferredDenizVoice] = useState<string>('');
   const [preferredBarisVoice, setPreferredBarisVoice] = useState<string>('');
   const [preferCloudNeural, setPreferCloudNeural] = useState<boolean>(true);
-  const [studioAmbienceOn, setStudioAmbienceOn] = useState<boolean>(true);
   const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
+  const [vitsStatus, setVitsStatus] = useState<VitsEngineStatus>({
+    state: 'idle',
+    progressPct: 0,
+    activeLabel: '',
+  });
 
   // 4. Arayüz ve çalışma paneli durumları
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -185,7 +190,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stopSpeechFnRef = useRef<(() => void) | null>(null);
-  const ambienceRef = useRef<StudioAmbienceEngine | null>(null);
   const lastTickRef = useRef<number>(performance.now());
   const smoothMouthRef = useRef<number>(0);
 
@@ -209,22 +213,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
   const currentScene: StudioScene = scenes[activeSceneIndex] || scenes[0];
 
-  // Stüdyo Akustik Ambiyans Yaşam Döngüsü
+  // VITS Derin Sinir Ağı Türkçe ses modeli hazırlık durumunu izle
   useEffect(() => {
-    if (!ambienceRef.current) {
-      ambienceRef.current = new StudioAmbienceEngine();
-    }
-    if (isPlaying && studioAmbienceOn && !isMuted && volume > 0.01) {
-      ambienceRef.current.start(volume);
-    } else {
-      ambienceRef.current.stop();
-    }
-  }, [isPlaying, studioAmbienceOn, isMuted, volume]);
-
-  useEffect(() => {
-    return () => {
-      ambienceRef.current?.stop();
-    };
+    return subscribeVitsStatus(setVitsStatus);
   }, []);
 
   // Tüm ders boyunca birikmiş tüm terimler
@@ -273,6 +264,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     [voices, preferredDenizVoice, preferredBarisVoice],
   );
 
+  // Seçili 22.05 kHz VITS Neural Türkçe ses modellerini arka planda (OPFS + WASM) önceden hazırla
+  useEffect(() => {
+    preloadAssignedNeuralVoices(speakerVoices);
+  }, [speakerVoices]);
+
   const stopSpeech = useCallback(() => {
     if (stopSpeechFnRef.current) {
       stopSpeechFnRef.current();
@@ -303,10 +299,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       setLiveSpeaker(startPos.activeSpeaker);
 
       if (isMuted || volume <= 0.01) return;
-
-      if (studioAmbienceOn && fromTimeSec < 0.2) {
-        ambienceRef.current?.playChapterChime(volume);
-      }
 
       const cancel = playSceneConversationally({
         scene: targetScene,
@@ -356,7 +348,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       stopSpeechFnRef.current = cancel;
     },
-    [scenes, speakerVoices, playbackSpeed, volume, isMuted, preferCloudNeural, studioAmbienceOn, stopSpeech],
+    [scenes, speakerVoices, playbackSpeed, volume, isMuted, preferCloudNeural, stopSpeech],
   );
 
   useEffect(() => {
@@ -525,7 +517,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       if (isPlaying && !speechSyncRef.current.inBreathPause) {
         if (speechSyncRef.current.cloudMouth !== null && speechSyncRef.current.cloudViseme) {
           targetViseme = speechSyncRef.current.cloudViseme;
-          targetOpen = speechSyncRef.current.cloudMouth * (0.76 + Math.sin(perfNow / 64) * 0.24);
+          targetOpen = speechSyncRef.current.cloudMouth;
         } else {
           const ch = activeSentence.charAt(Math.max(0, Math.min(activeSentence.length - 1, cIdx)));
           const vInfo = visemeFromTurkishChar(ch);
@@ -720,31 +712,18 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       const exportCtx = exportCanvas.getContext('2d');
       if (!exportCtx) throw new Error('Canvas 2D başlatılamadı.');
 
+      // Saf sessiz ses kanalı (sıfır arka plan uğultusu / osilatör — MP4 kapsayıcı uyumluluğu için 0 kazanç)
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = new AudioContextClass();
-      const audioDest = audioCtx.createMediaStreamDestination();
-
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(250, audioCtx.currentTime);
-
-      const masterGain = audioCtx.createGain();
-      masterGain.gain.setValueAtTime(0.015, audioCtx.currentTime);
-      filter.connect(masterGain);
-      masterGain.connect(audioDest);
-
-      const freqs = [146.83, 220.0, 277.18, 329.63];
-      const oscs = freqs.map((freq, idx) => {
-        const o = audioCtx.createOscillator();
-        o.type = idx % 2 === 0 ? 'sine' : 'triangle';
-        o.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        o.connect(filter);
-        o.start();
-        return o;
-      });
+      const audioCtx = AudioContextClass ? new AudioContextClass() : null;
+      const audioDest = audioCtx ? audioCtx.createMediaStreamDestination() : null;
+      if (audioCtx && audioDest) {
+        const silentGain = audioCtx.createGain();
+        silentGain.gain.setValueAtTime(0, audioCtx.currentTime);
+        silentGain.connect(audioDest);
+      }
 
       const canvasStream = exportCanvas.captureStream(30);
-      audioDest.stream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
+      audioDest?.stream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
 
       let mimeType = 'video/mp4;codecs="avc1,mp4a.40.2"';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
@@ -817,8 +796,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       await new Promise<void>(resolve => {
         mediaRecorder.onstop = () => resolve();
         mediaRecorder.stop();
-        oscs.forEach(o => o.stop());
-        audioCtx.close();
+        audioCtx?.close().catch(() => {});
       });
 
       if (exportCancelRef.current) {
@@ -919,19 +897,23 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
         {/* Sağ: Gerçek Akademik Araçlar */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {/* Gelişmiş Stüdyo Ses Ayarları */}
+          {/* Gelişmiş HD Türkçe Neural Stüdyo Ses Ayarları */}
           <div className="relative">
             <button
               onClick={() => setVoiceMenuOpen(o => !o)}
               className="flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs text-slate-300 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
-              title="Anlatıcı Ses ve Stüdyo Akustiği Ayarları"
+              title="HD Türkçe Neural Anlatıcı Ses Ayarları"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-400" />
+              {vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
+              ) : (
+                <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-400" />
+              )}
               <span className="hidden xl:inline">
-                {preferCloudNeural
-                  ? 'Stüdyo Ses'
-                  : activeVoiceQuality === 'neural'
-                  ? 'Doğal Ses'
+                {vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling'
+                  ? `Neural Ses %${vitsStatus.progressPct}`
+                  : activeVoiceQuality === 'neural' || preferCloudNeural
+                  ? 'HD Neural Türkçe Ses'
                   : 'Ses Ayarları'}
               </span>
             </button>
@@ -939,7 +921,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             {voiceMenuOpen && (
               <div className="absolute right-0 top-10 z-50 w-80 rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white">Stüdyo Ses ve Akustik</span>
+                  <span className="font-semibold text-white">HD Türkçe Neural Stüdyo Sesi</span>
                   <button
                     onClick={() => setVoiceMenuOpen(false)}
                     className="text-slate-400 hover:text-white"
@@ -948,30 +930,35 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </button>
                 </div>
 
+                {/* Neural Model Hazırlık Durumu */}
+                {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
+                  <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] text-cyan-200">
+                      <span>22kHz Neural Türkçe Ses Hazırlanıyor</span>
+                      <span className="font-mono">%{vitsStatus.progressPct}</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-900">
+                      <div
+                        className="h-full rounded-full bg-cyan-400 transition-all duration-200"
+                        style={{ width: `${vitsStatus.progressPct}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-300">
+                      İlk kullanımda önbelleğe alınır; sonraki derslerde anında çalışır.
+                    </p>
+                  </div>
+                )}
+
                 {/* Bulut AI Stüdyo Sesi Anahtarı */}
                 <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
                   <div>
-                    <div className="font-medium text-slate-100">Yapay Zekâ Stüdyo Sesi</div>
-                    <div className="text-[10px] text-slate-400">Doğal tonlamalı bulut ses motoru</div>
+                    <div className="font-medium text-slate-100">Bulut & Neural Stüdyo Önceliği</div>
+                    <div className="text-[10px] text-slate-400">Saf stüdyo sessizliği, sıfır arka plan sesi</div>
                   </div>
                   <input
                     type="checkbox"
                     checked={preferCloudNeural}
                     onChange={e => setPreferCloudNeural(e.target.checked)}
-                    className="h-4 w-4 accent-cyan-400"
-                  />
-                </label>
-
-                {/* Stüdyo Akustik Ambiyansı */}
-                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                  <div>
-                    <div className="font-medium text-slate-100">Stüdyo Akustik Ambiyansı</div>
-                    <div className="text-[10px] text-slate-400">Hafif yayın odası sıcaklığı ve geçiş tınısı</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={studioAmbienceOn}
-                    onChange={e => setStudioAmbienceOn(e.target.checked)}
                     className="h-4 w-4 accent-cyan-400"
                   />
                 </label>
@@ -989,7 +976,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       <option value="">Otomatik ({speakerVoices.Deniz.label})</option>
                       {voices.map(v => (
                         <option key={v.id} value={v.id}>
-                          {v.cleanName} {v.quality === 'neural' ? '★ Doğal' : v.quality === 'cloud' ? '· Bulut' : ''}
+                          {v.cleanName} {v.quality === 'neural' ? '★ Neural HD' : v.quality === 'cloud' ? '· Bulut HD' : ''}
                         </option>
                       ))}
                     </select>
@@ -1007,7 +994,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       <option value="">Otomatik ({speakerVoices.Barış.label})</option>
                       {voices.map(v => (
                         <option key={v.id} value={v.id}>
-                          {v.cleanName} {v.quality === 'neural' ? '★ Doğal' : v.quality === 'cloud' ? '· Bulut' : ''}
+                          {v.cleanName} {v.quality === 'neural' ? '★ Neural HD' : v.quality === 'cloud' ? '· Bulut HD' : ''}
                         </option>
                       ))}
                     </select>

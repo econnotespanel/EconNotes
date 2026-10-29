@@ -1,11 +1,17 @@
-// EconNotes Stüdyo Ses Motoru v2:
-// 1) Bulut/Gateway Neural TTS (Gemini/OpenAI Studio TTS) + arka plan ön-bellekleme (prefetch)
-// 2) Tarayıcı Neural/Bulut ses keşfi (Emel/Ahmet Online Natural, Google Türkçe, Yelda/Cem)
-// 3) Sahne içi çoklu konuşmacı (Dr. Deniz <-> Barış) geçişleri ve cümle içi doğal tonlama (prosody)
-// 4) Web Audio sıcak stüdyo akustik ambiyansı + yumuşak bölüm geçiş tınısı + 5 kademeli Türkçe viseme
+// EconNotes Stüdyo Ses Motoru v3 (Saf Sessiz Stüdyo + 22.05 kHz VITS Neural Türkçe + Doğal Bulut Sesler):
+// - Arka plan uğultusu/müziği/osilatörü %100 kaldırılmıştır (saf, berrak stüdyo sessizliği).
+// - Eski robotik SAPI5 (Tolga/Desktop/eSpeak) sesleri kesin olarak devre dışı bırakılmıştır.
+// - Tarayıcı içi 22.05 kHz VITS Derin Sinir Ağı Türkçe Stüdyo Sesleri (Fahrettin, Fettah, DFKI)
+//   ve doğal bulut sesleri (Microsoft Emel/Ahmet Online Natural, Google Türkçe, Yelda/Cem) birlikte çalışır.
 
 import { supabase } from '@/integrations/supabase/client';
 import type { Speaker, StudioScene } from './sceneModel';
+import {
+  VITS_TURKISH_VOICES,
+  synthesizeVitsTurkish,
+  warmupVitsVoice,
+  type VitsTurkishVoiceId,
+} from './vitsTurkishEngine';
 
 export type Viseme = 'rest' | 'closed' | 'round' | 'open' | 'wide';
 
@@ -15,17 +21,23 @@ export interface VoiceOption {
   cleanName: string;
   lang: string;
   gender: 'female' | 'male' | 'neutral';
-  quality: 'neural' | 'cloud' | 'standard' | 'legacy';
+  quality: 'neural' | 'cloud' | 'standard';
+  engine: 'vits-neural' | 'browser';
   score: number;
-  voice: SpeechSynthesisVoice;
+  voice?: SpeechSynthesisVoice;
+  vitsVoiceId?: VitsTurkishVoiceId;
+  lengthScale?: number;
 }
 
 export interface SpeakerVoiceAssignment {
+  engine: 'vits-neural' | 'browser';
   voice: SpeechSynthesisVoice | null;
+  vitsVoiceId?: VitsTurkishVoiceId;
+  lengthScale?: number;
   pitch: number;
   baseRate: number;
   label: string;
-  quality: VoiceOption['quality'] | 'system';
+  quality: VoiceOption['quality'] | 'neural';
 }
 
 const ORDINAL_TR: Record<number, string> = {
@@ -61,11 +73,23 @@ const ROMAN_ORDINAL_TR: Record<string, string> = {
   VI: 'Altıncı',
   VII: 'Yedinci',
   VIII: 'Sekizinci',
+  IX: 'Dokuzuncu',
+  X: 'Onuncu',
+  XI: 'On birinci',
+  XII: 'On ikinci',
+  XIII: 'On üçüncü',
+  XIV: 'On dördüncü',
+  XV: 'On beşinci',
+  XVI: 'On altıncı',
+  XVII: 'On yedinci',
+  XVIII: 'On sekizinci',
+  XIX: 'On dokuzuncu',
+  XX: 'Yirminci',
 };
 
 /**
- * Akademik yazılı Türkçe metni, ses sentezleyicinin takılmadan ve robotlaşmadan
- * doğal konuşma tonlamasıyla okuyacağı akıcı metne dönüştürür.
+ * Akademik yazılı Türkçe metni, derin sinir ağı ses sentezleyicisinin takılmadan,
+ * kısaltmalarda duraksamadan, akıcı bir üniversite hocası diksiyonuyla okuyacağı metne dönüştürür.
  */
 export function normalizeForTurkishSpeech(raw: string): string {
   let t = (raw || '').trim();
@@ -78,32 +102,53 @@ export function normalizeForTurkishSpeech(raw: string): string {
   });
 
   // Parantez içi açıklamaları doğal virgül tonlamasına çevir
-  t = t.replace(/\s*\(([^)]{2,120})\)/g, ', $1,');
+  t = t.replace(/\s*\(([^)]{2,140})\)/g, ', $1,');
 
-  // Romen rakamlı hükümdar/dönem adları (örn. I. Keykubad, II. Kılıçarslan)
-  t = t.replace(/\b(VIII|VII|VI|IV|III|II|V|I)\.\s+(?=[A-ZÇĞİÖŞÜ])/g, (_, rom) => {
+  // Romen rakamlı yüzyıl ifadeleri (örn. XVI. yüzyıl -> on altıncı yüzyıl)
+  t = t.replace(
+    /\b(XX|XIX|XVIII|XVII|XVI|XV|XIV|XIII|XII|XI|IX|VIII|VII|VI|IV|III|II|X|V|I)\.\s*(?=yüzyıl|yy|asır)/gi,
+    (_, rom: string) => {
+      const val = ROMAN_ORDINAL_TR[rom.toUpperCase()];
+      return val ? `${val.toLocaleLowerCase('tr-TR')} ` : `${rom} `;
+    },
+  );
+
+  // Romen rakamlı hükümdar/dönem adları (örn. I. Keykubad, II. Kılıçarslan, III. Selim)
+  t = t.replace(/\b(VIII|VII|VI|IV|III|II|V|I)\.\s+(?=[A-ZÇĞİÖŞÜ])/g, (_, rom: string) => {
     return `${ROMAN_ORDINAL_TR[rom] || rom} `;
   });
 
   // Sıra sayılı yüzyıl/hafta/dönem ifadeleri (örn. 13. yüzyılda -> on üçüncü yüzyılda)
-  t = t.replace(/\b(\d{1,2})\.\s*(?=yüzyıl|yy|asır|hafta|bölüm|dönem|adım|aşama)/gi, (_, numStr) => {
+  t = t.replace(/\b(\d{1,2})\.\s*(?=yüzyıl|yy|asır|hafta|bölüm|dönem|adım|aşama|halka|madde)/gi, (_, numStr) => {
     const n = Number(numStr);
     return ORDINAL_TR[n] ? `${ORDINAL_TR[n]} ` : `${numStr}. `;
   });
 
-  // Yaygın akademik kısaltmalar (Türkçe Unicode harf sınırlarına duyarlı)
+  // İktisat, tarih ve hukuk kısaltmaları ile semboller
   t = t
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])GSYH(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'gayrisafi yurt içi hasıla')
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])GSMH(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'gayrisafi milli hasıla')
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])TCMB(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'Merkez Bankası')
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])TÜFE(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'tüketici fiyat endeksi')
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])ÜFE(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'üretici fiyat endeksi')
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])KDV(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'katma değer vergisi')
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])ÖTV(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'özel tüketim vergisi')
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])IMF(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'Uluslararası Para Fonu')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])yy\.(?![A-Za-zÇĞİÖŞÜçğıöşü])/gi, 'yüzyıl')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])vb\.(?![A-Za-zÇĞİÖŞÜçğıöşü])/gi, 've benzeri')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])vs\.(?![A-Za-zÇĞİÖŞÜçğıöşü])/gi, 'vesaire')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])örn\.(?![A-Za-zÇĞİÖŞÜçğıöşü])/gi, 'örneğin')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])bkz\.(?![A-Za-zÇĞİÖŞÜçğıöşü])/gi, 'bakınız')
+    .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])yak\.(?![A-Za-zÇĞİÖŞÜçğıöşü])/gi, 'yaklaşık')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])Prof\.\s*Dr\./gi, 'Profesör Doktor')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])Doç\.\s*Dr\./gi, 'Doçent Doktor')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])Dr\.(?=\s+[A-ZÇĞİÖŞÜ])/g, 'Doktor')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])M\.?\s*Ö\.?(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'milattan önce')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])M\.?\s*S\.?(?![A-Za-zÇĞİÖŞÜçğıöşü])/g, 'milattan sonra')
-    .replace(/%\s*(\d+)/g, 'yüzde $1')
+    .replace(/%\s*(\d+(?:[.,]\d+)?)/g, 'yüzde $1')
+    .replace(/(\d+)\s*₺/g, '$1 Türk lirası')
+    .replace(/→|->/g, ', ardından ')
+    .replace(/\s*&\s*/g, ' ve ')
     .replace(/\s*\/\s*/g, ' veya ')
     .replace(/\s*[—–]\s*/g, ', ')
     .replace(/,\s*,+/g, ',')
@@ -116,183 +161,241 @@ export function normalizeForTurkishSpeech(raw: string): string {
 /** Türkçe karaktere karşılık gelen anatomik dudak şekli (viseme) */
 export function visemeFromTurkishChar(ch: string): { viseme: Viseme; open: number } {
   if (!ch || /[\s.,;!?—–\-:()"]/.test(ch)) {
-    return { viseme: 'rest', open: 0.04 };
+    return { viseme: 'rest', open: 0.03 };
   }
   const c = ch.toLocaleLowerCase('tr-TR');
   if ('mbpfv'.includes(c)) return { viseme: 'closed', open: 0.02 };
-  if ('oöuü'.includes(c)) return { viseme: 'round', open: 0.58 };
-  if ('aâ'.includes(c)) return { viseme: 'open', open: 0.82 };
-  if ('eê'.includes(c)) return { viseme: 'wide', open: 0.62 };
-  if ('iıîy'.includes(c)) return { viseme: 'wide', open: 0.42 };
+  if ('oöuü'.includes(c)) return { viseme: 'round', open: 0.62 };
+  if ('aâ'.includes(c)) return { viseme: 'open', open: 0.84 };
+  if ('eê'.includes(c)) return { viseme: 'wide', open: 0.64 };
+  if ('iıîy'.includes(c)) return { viseme: 'wide', open: 0.44 };
   if ('sşzçcj'.includes(c)) return { viseme: 'wide', open: 0.26 };
   return { viseme: 'wide', open: 0.36 };
 }
 
-/** Tarayıcıdaki Türkçe sesleri bulur ve doğallık kalitesine göre puanlar. */
-export function discoverTurkishVoices(): VoiceOption[] {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return [];
-  const all = window.speechSynthesis.getVoices() || [];
+/**
+ * Chrome ve Edge tarayıcılarında bulut/neural ses listesi eşzamansız yüklendiği için
+ * ilk konuşmadan önce ses listesinin hazır olmasını bekler.
+ */
+export function waitForBrowserVoicesReady(timeoutMs = 550): Promise<void> {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    return Promise.resolve();
+  }
+  const existing = window.speechSynthesis.getVoices() || [];
+  if (existing.some(v => /natural|neural|online|google|yelda|cem/i.test(v.name))) {
+    return Promise.resolve();
+  }
+  return new Promise<void>(resolve => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.speechSynthesis.removeEventListener?.('voiceschanged', onVoices);
+      resolve();
+    };
+    const onVoices = () => {
+      const list = window.speechSynthesis.getVoices() || [];
+      if (list.length > 0) finish();
+    };
+    window.speechSynthesis.addEventListener?.('voiceschanged', onVoices);
+    window.setTimeout(finish, timeoutMs);
+  });
+}
 
+/**
+ * Hem tarayıcı içi 22.05 kHz VITS Derin Sinir Ağı Türkçe Stüdyo seslerini hem de
+ * tarayıcıdaki yüksek kaliteli Neural/Bulut Türkçe sesleri birleştirir.
+ * Eski robotik SAPI5 (Tolga/Desktop/eSpeak) sesleri kesin olarak elenir.
+ */
+export function discoverTurkishVoices(): VoiceOption[] {
+  const vitsOptions: VoiceOption[] = VITS_TURKISH_VOICES.map(v => ({
+    id: v.optionId,
+    name: v.cleanName,
+    cleanName: v.cleanName,
+    lang: 'tr-TR',
+    gender: v.gender,
+    quality: 'neural',
+    engine: 'vits-neural',
+    score: v.score,
+    vitsVoiceId: v.voiceId,
+    lengthScale: v.defaultLengthScale,
+  }));
+
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    return vitsOptions;
+  }
+
+  const all = window.speechSynthesis.getVoices() || [];
   const trVoices = all.filter(
     v =>
-      /^tr([-_]|$)/i.test(v.lang) ||
-      /turkish|türkçe|emel|ahmet|yelda|cem|filiz|tolga/i.test(v.name),
+      (/^tr([-_]|$)/i.test(v.lang) ||
+        /turkish|türkçe|emel|ahmet|yelda|cem|filiz/i.test(v.name)) &&
+      // Eski robotik masaüstü SAPI5 / eSpeak seslerini tamamen engelle
+      !/tolga|espeak|desktop|sapi/i.test(v.name),
   );
 
-  const mapped: VoiceOption[] = trVoices.map(v => {
+  const browserOptions: VoiceOption[] = trVoices.map(v => {
     const n = v.name.toLowerCase();
-    let score = 50;
+    let score = 68;
     let quality: VoiceOption['quality'] = 'standard';
 
     if (/natural|neural|online/.test(n)) {
       score = 100;
       quality = 'neural';
     } else if (/enhanced|premium|siri/.test(n)) {
-      score = 92;
+      score = 94;
       quality = 'neural';
     } else if (/google/.test(n) || v.localService === false) {
-      score = 86;
+      score = 91;
       quality = 'cloud';
-    } else if (/tolga|sapi|desktop/.test(n) && v.localService) {
-      score = 14;
-      quality = 'legacy';
     }
 
     let gender: VoiceOption['gender'] = 'neutral';
     if (/emel|yelda|filiz|zeynep|seda|ayşe|female|kadın|google türkçe/.test(n)) {
       gender = 'female';
-    } else if (/ahmet|cem|tolga|kerem|murat|male|erkek/.test(n)) {
+    } else if (/ahmet|cem|kerem|murat|male|erkek/.test(n)) {
       gender = 'male';
     }
 
     const cleanName = v.name
       .replace(/Microsoft\s+/i, '')
-      .replace(/\s*Online\s*\(Natural\)\s*/i, ' · Doğal Neural')
+      .replace(/\s*Online\s*\(Natural\)\s*/i, ' · Doğal Neural HD')
       .replace(/\s*-\s*Turkish\s*\(Turkey\)/i, '')
       .replace(/\s*\(tr-TR\)/i, '')
+      .replace(/^Google\s+Türkçe$/i, 'Google Türkçe · Bulut HD')
       .trim();
 
     return {
       id: v.voiceURI || v.name,
       name: v.name,
       cleanName,
-      lang: v.lang,
+      lang: v.lang || 'tr-TR',
       gender,
       quality,
+      engine: 'browser',
       score,
       voice: v,
     };
   });
 
-  mapped.sort((a, b) => b.score - a.score);
-  return mapped;
+  const combined = [...browserOptions, ...vitsOptions];
+  combined.sort((a, b) => b.score - a.score);
+  return combined;
+}
+
+function toAssignment(opt: VoiceOption, customLengthScale?: number): SpeakerVoiceAssignment {
+  if (opt.engine === 'vits-neural' && opt.vitsVoiceId) {
+    return {
+      engine: 'vits-neural',
+      voice: null,
+      vitsVoiceId: opt.vitsVoiceId,
+      lengthScale: customLengthScale ?? opt.lengthScale ?? 1.0,
+      pitch: 1.0,
+      baseRate: 1.0,
+      label: opt.cleanName,
+      quality: 'neural',
+    };
+  }
+  return {
+    engine: 'browser',
+    voice: opt.voice || null,
+    // Asla yapay perde bükme (pitch shift) uygulanmaz — %100 doğal insan tonu korunur
+    pitch: 1.0,
+    baseRate: 1.0,
+    label: opt.cleanName,
+    quality: opt.quality,
+  };
 }
 
 /**
- * Deniz (kadın/analitik) ve Barış (erkek/sorgulayıcı) için en doğal ses eşleşmesini seçer.
+ * Dr. Deniz ve Barış için robotlaşma olmadan en üst düzey Türkçe ses eşleşmesini seçer:
+ * - Edge'de: Microsoft Emel Online (Natural) + Microsoft Ahmet Online (Natural)
+ * - Chrome'da: Google Türkçe Bulut HD (Deniz, pitch=1.0) + Fahrettin Stüdyo Neural HD (Barış, 22.05kHz VITS)
+ * - Firefox/Diğer: DFKI/Fettah Stüdyo Neural HD (Deniz) + Fahrettin Stüdyo Neural HD (Barış)
  */
 export function selectVoicesForSpeakers(
   options: VoiceOption[],
   preferredDenizId?: string,
   preferredBarisId?: string,
 ): Record<Speaker, SpeakerVoiceAssignment> {
-  if (options.length === 0) {
-    return {
-      Deniz: { voice: null, pitch: 1.03, baseRate: 1.01, label: 'Sistem Türkçe Ses', quality: 'system' },
-      Barış: { voice: null, pitch: 0.91, baseRate: 0.96, label: 'Sistem Türkçe Ses (Derin)', quality: 'system' },
-    };
-  }
+  const pool = options.length > 0 ? options : discoverTurkishVoices();
 
-  const manualDeniz = preferredDenizId ? options.find(o => o.id === preferredDenizId) : undefined;
-  const manualBaris = preferredBarisId ? options.find(o => o.id === preferredBarisId) : undefined;
+  const manualDeniz = preferredDenizId ? pool.find(o => o.id === preferredDenizId) : undefined;
+  const manualBaris = preferredBarisId ? pool.find(o => o.id === preferredBarisId) : undefined;
 
-  const modernPool = options.filter(o => o.score >= 45);
-  const pool = modernPool.length > 0 ? modernPool : options;
+  // Dr. Deniz için en kaliteli kadın neural/bulut sesi; yoksa DFKI / Fettah Neural HD
+  const bestFemaleBrowser = pool.find(
+    o => o.engine === 'browser' && o.gender === 'female' && o.score >= 85,
+  );
+  const dfkiNeural = pool.find(o => o.vitsVoiceId === 'tr_TR-dfki-medium');
+  const fettahNeural = pool.find(o => o.vitsVoiceId === 'tr_TR-fettah-medium');
+  const fahrettinNeural = pool.find(o => o.vitsVoiceId === 'tr_TR-fahrettin-medium');
 
-  const bestFemale = pool.find(o => o.gender === 'female') || pool[0];
-  const bestMale = pool.find(o => o.gender === 'male' && o.id !== bestFemale.id);
+  const denizDefault = bestFemaleBrowser || dfkiNeural || fettahNeural || pool[0];
+  const denizPicked = manualDeniz || denizDefault;
 
-  const denizOpt = manualDeniz || bestFemale;
+  // Barış için en kaliteli erkek neural sesi (Ahmet Online Natural veya Fahrettin 22.05kHz Stüdyo Neural HD)
+  const bestMaleNativeNeural = pool.find(
+    o => o.engine === 'browser' && o.gender === 'male' && o.score >= 92 && o.id !== denizPicked?.id,
+  );
+  const barisDefault =
+    bestMaleNativeNeural ||
+    (fahrettinNeural && fahrettinNeural.id !== denizPicked?.id ? fahrettinNeural : fettahNeural) ||
+    pool.find(o => o.id !== denizPicked?.id) ||
+    denizPicked;
 
-  if (manualBaris) {
-    const sameVoice = manualBaris.id === denizOpt.id;
-    return {
-      Deniz: {
-        voice: denizOpt.voice,
-        pitch: sameVoice ? 1.03 : 1.0,
-        baseRate: sameVoice ? 1.02 : 1.0,
-        label: denizOpt.cleanName,
-        quality: denizOpt.quality,
-      },
-      Barış: {
-        voice: manualBaris.voice,
-        pitch: sameVoice ? 0.91 : 1.0,
-        baseRate: sameVoice ? 0.96 : 0.99,
-        label: manualBaris.cleanName,
-        quality: manualBaris.quality,
-      },
-    };
-  }
+  const barisPicked = manualBaris || barisDefault;
 
-  if (bestMale) {
-    return {
-      Deniz: {
-        voice: denizOpt.voice,
+  const denizAssign = denizPicked
+    ? toAssignment(denizPicked, denizPicked.engine === 'vits-neural' ? 1.0 : undefined)
+    : {
+        engine: 'vits-neural' as const,
+        voice: null,
+        vitsVoiceId: 'tr_TR-dfki-medium' as VitsTurkishVoiceId,
+        lengthScale: 1.0,
         pitch: 1.0,
-        baseRate: 1.01,
-        label: denizOpt.cleanName,
-        quality: denizOpt.quality,
-      },
-      Barış: {
-        voice: bestMale.voice,
+        baseRate: 1.0,
+        label: 'DFKI · Stüdyo Neural HD',
+        quality: 'neural' as const,
+      };
+
+  const barisAssign = barisPicked
+    ? toAssignment(barisPicked, barisPicked.engine === 'vits-neural' ? 0.97 : undefined)
+    : {
+        engine: 'vits-neural' as const,
+        voice: null,
+        vitsVoiceId: 'tr_TR-fahrettin-medium' as VitsTurkishVoiceId,
+        lengthScale: 0.97,
         pitch: 1.0,
-        baseRate: 0.98,
-        label: bestMale.cleanName,
-        quality: bestMale.quality,
-      },
-    };
-  }
+        baseRate: 1.0,
+        label: 'Fahrettin · Stüdyo Neural HD',
+        quality: 'neural' as const,
+      };
 
-  const secondModern = pool.find(o => o.id !== denizOpt.id);
-  if (secondModern) {
-    return {
-      Deniz: {
-        voice: denizOpt.voice,
-        pitch: 1.02,
-        baseRate: 1.02,
-        label: denizOpt.cleanName,
-        quality: denizOpt.quality,
-      },
-      Barış: {
-        voice: secondModern.voice,
-        pitch: 0.93,
-        baseRate: 0.96,
-        label: secondModern.cleanName,
-        quality: secondModern.quality,
-      },
-    };
-  }
-
-  // Tek ses (örn. Chrome Google Türkçe) bulunduğunda robotlaşmadan net kadın/erkek karakter ayrımı
   return {
-    Deniz: {
-      voice: denizOpt.voice,
-      pitch: 1.04,
-      baseRate: 1.02,
-      label: denizOpt.cleanName,
-      quality: denizOpt.quality,
-    },
-    Barış: {
-      voice: denizOpt.voice,
-      pitch: 0.90,
-      baseRate: 0.96,
-      label: `${denizOpt.cleanName} · Barış Tonu`,
-      quality: denizOpt.quality,
-    },
+    Deniz: denizAssign,
+    Barış: barisAssign,
   };
 }
 
-// ---------------------------------------------------------------- Bulut Studio Neural TTS Önbelleği
+/**
+ * Seçili konuşmacı seslerinden VITS Neural olanları arka planda önceden ısıtır (OPFS + WASM).
+ */
+export function preloadAssignedNeuralVoices(assignments: Record<Speaker, SpeakerVoiceAssignment>): void {
+  if (typeof window === 'undefined') return;
+  const ids = new Set<VitsTurkishVoiceId>();
+  if (assignments.Barış.engine === 'vits-neural' && assignments.Barış.vitsVoiceId) {
+    ids.add(assignments.Barış.vitsVoiceId);
+  }
+  if (assignments.Deniz.engine === 'vits-neural' && assignments.Deniz.vitsVoiceId) {
+    ids.add(assignments.Deniz.vitsVoiceId);
+  }
+  ids.forEach(id => {
+    warmupVitsVoice(id).catch(() => {});
+  });
+}
+
+// ---------------------------------------------------------------- Bulut Gateway Neural TTS Önbelleği
 const cloudAudioBlobCache = new Map<string, string>();
 const cloudInflight = new Map<string, Promise<string | null>>();
 let cloudTtsState: 'unknown' | 'available' | 'unavailable' = 'unknown';
@@ -319,7 +422,7 @@ async function fetchStudioNeuralTts(spokenText: string, speaker: Speaker): Promi
   const promise = (async () => {
     try {
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 3200);
+      const timeout = window.setTimeout(() => controller.abort(), 2800);
       const { data, error } = await supabase.functions.invoke('study-coach', {
         body: { mode: 'tts', text: spokenText, speaker },
       });
@@ -346,115 +449,6 @@ async function fetchStudioNeuralTts(spokenText: string, speaker: Speaker): Promi
   return promise;
 }
 
-// ---------------------------------------------------------------- Stüdyo Akustik Ambiyans Motoru
-export class StudioAmbienceEngine {
-  private ctx: AudioContext | null = null;
-  private masterGain: GainNode | null = null;
-  private oscs: OscillatorNode[] = [];
-  private running = false;
-
-  start(volume = 1) {
-    if (typeof window === 'undefined') return;
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      if (!this.ctx) {
-        this.ctx = new AudioCtx();
-      }
-      if (this.ctx.state === 'suspended') {
-        this.ctx.resume().catch(() => {});
-      }
-      if (this.running) {
-        this.setVolume(volume);
-        return;
-      }
-
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(240, this.ctx.currentTime);
-      filter.Q.setValueAtTime(0.7, this.ctx.currentTime);
-
-      const gain = this.ctx.createGain();
-      gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(Math.max(0.0005, 0.011 * volume), this.ctx.currentTime + 1.2);
-
-      filter.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      // Çok hafif sıcak belgesel/stüdyo oda akoru (Dmaj9 sıcak alt armoni)
-      const freqs = [146.83, 220.0, 277.18, 329.63];
-      this.oscs = freqs.map((f, idx) => {
-        const osc = this.ctx!.createOscillator();
-        osc.type = idx % 2 === 0 ? 'sine' : 'triangle';
-        osc.frequency.setValueAtTime(f, this.ctx!.currentTime);
-        osc.detune.setValueAtTime((idx - 1.5) * 3.5, this.ctx!.currentTime);
-        osc.connect(filter);
-        osc.start();
-        return osc;
-      });
-
-      this.masterGain = gain;
-      this.running = true;
-    } catch {
-      // Ses kartı kısıtlaması varsa sessiz geç
-    }
-  }
-
-  setVolume(volume: number) {
-    if (!this.ctx || !this.masterGain || !this.running) return;
-    const target = Math.max(0.0002, 0.011 * Math.max(0, Math.min(1, volume)));
-    this.masterGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.25);
-  }
-
-  /** Bölüm geçişlerinde çok zarif stüdyo tınısı */
-  playChapterChime(volume = 1) {
-    if (typeof window === 'undefined' || volume <= 0.01) return;
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      if (!this.ctx) this.ctx = new AudioCtx();
-      if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
-
-      const now = this.ctx.currentTime;
-      [523.25, 659.25].forEach((freq, i) => {
-        const osc = this.ctx!.createOscillator();
-        const g = this.ctx!.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, now + i * 0.09);
-        g.gain.setValueAtTime(0.0001, now + i * 0.09);
-        g.gain.exponentialRampToValueAtTime(0.016 * volume, now + i * 0.09 + 0.03);
-        g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.09 + 0.55);
-        osc.connect(g);
-        g.connect(this.ctx!.destination);
-        osc.start(now + i * 0.09);
-        osc.stop(now + i * 0.09 + 0.6);
-      });
-    } catch {
-      // ignore
-    }
-  }
-
-  stop() {
-    if (!this.running) return;
-    try {
-      this.oscs.forEach(o => {
-        try {
-          o.stop();
-          o.disconnect();
-        } catch {
-          // ignore
-        }
-      });
-      this.masterGain?.disconnect();
-    } catch {
-      // ignore
-    }
-    this.oscs = [];
-    this.masterGain = null;
-    this.running = false;
-  }
-}
-
 export interface PlaySceneSpeechOptions {
   scene: StudioScene;
   assignments: Record<Speaker, SpeakerVoiceAssignment>;
@@ -471,8 +465,8 @@ export interface PlaySceneSpeechOptions {
 }
 
 /**
- * Sahneyi cümle cümle, konuşmacı değişimlerine (Dr. Deniz <-> Barış) duyarlı biçimde,
- * varsa Bulut Studio Neural TTS ile, yoksa doğal prosody (vurgu/tonlama) motoruyla okur.
+ * Sahneyi cümle cümle, sıfır arka plan uğultusuyla, konuşmacı geçişlerine duyarlı biçimde
+ * (Bulut HD Neural -> 22.05 kHz VITS Stüdyo Neural -> Doğal Bulut Tarayıcı Sesi) seslendirir.
  */
 export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => void {
   const {
@@ -511,24 +505,31 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     }, 8000);
   }
 
-  const prefetchNextSentence = (nextIdx: number) => {
-    if (!preferCloudNeural || cloudTtsState === 'unavailable') return;
-    if (nextIdx >= scene.sentences.length) return;
-    const nextRaw = scene.sentences[nextIdx] || '';
-    const nextSpoken = normalizeForTurkishSpeech(nextRaw);
-    const nextSpk = scene.sentenceSpeakers?.[nextIdx] || scene.speaker;
-    if (nextSpoken) {
-      fetchStudioNeuralTts(nextSpoken, nextSpk).catch(() => {});
+  // Sıradaki cümleleri hem Bulut hem VITS Neural motorunda önceden sentezle (sıfır bekleme)
+  const prefetchUpcoming = (idx: number) => {
+    if (cancelled || idx >= scene.sentences.length) return;
+    const raw = scene.sentences[idx] || '';
+    const spoken = normalizeForTurkishSpeech(raw);
+    if (!spoken) return;
+    const spk: Speaker = scene.sentenceSpeakers?.[idx] || scene.speaker;
+    const assign = assignments[spk] || assignments.Deniz;
+
+    if (preferCloudNeural && cloudTtsState !== 'unavailable') {
+      fetchStudioNeuralTts(spoken, spk).catch(() => {});
+    }
+    if (assign.engine === 'vits-neural' && assign.vitsVoiceId) {
+      synthesizeVitsTurkish(spoken, assign.vitsVoiceId, assign.lengthScale).catch(() => {});
     }
   };
 
   const scheduleNextSentence = (sIdx: number, displaySentence: string, currentSpeaker: Speaker) => {
     if (cancelled) return;
     onBoundaryProgress(sIdx, displaySentence.length, true);
+    onAudioEnergy?.(0.02, 'rest');
 
     if (sIdx + 1 >= scene.sentences.length) {
       onBreathPause(true);
-      const endPause = Math.round(360 / Math.max(0.75, playbackSpeed));
+      const endPause = Math.round(340 / Math.max(0.75, playbackSpeed));
       pauseTimer = window.setTimeout(() => {
         if (!cancelled) {
           onBreathPause(false);
@@ -543,10 +544,10 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     onBreathPause(true);
 
     const basePause = isSpeakerHandoff
-      ? 350
+      ? 330
       : /[?!]$/.test(displaySentence.trim())
-      ? 290
-      : 195;
+      ? 260
+      : 175;
     const pauseMs = Math.round(basePause / Math.max(0.75, playbackSpeed));
 
     pauseTimer = window.setTimeout(() => {
@@ -554,30 +555,98 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     }, pauseMs);
   };
 
-  const speakViaBrowserProsody = (
+  const playAudioClipWithSync = async (
+    blobUrl: string,
+    envelope: number[] | null,
+    sIdx: number,
+    displaySentence: string,
+    speaker: Speaker,
+  ): Promise<boolean> => {
+    if (cancelled) return true;
+    const audio = new Audio(blobUrl);
+    activeAudio = audio;
+    audio.playbackRate = Math.max(0.7, Math.min(1.75, playbackSpeed));
+    audio.volume = Math.max(0, Math.min(1, volume));
+
+    const syncLoop = () => {
+      if (cancelled || !activeAudio) return;
+      const dur = activeAudio.duration || 1;
+      const cur = activeAudio.currentTime || 0;
+      const ratio = Math.max(0, Math.min(1, cur / Math.max(0.18, dur)));
+      const charPos = Math.min(displaySentence.length, Math.floor(ratio * displaySentence.length));
+      onBoundaryProgress(sIdx, charPos, true);
+
+      const ch = displaySentence.charAt(charPos);
+      const v = visemeFromTurkishChar(ch);
+      if (envelope && envelope.length > 0) {
+        const envIdx = Math.min(envelope.length - 1, Math.max(0, Math.floor(cur * 50)));
+        const rmsEnergy = envelope[envIdx] ?? 0;
+        const blendedOpen = rmsEnergy < 0.04 ? 0.02 : Math.min(1, rmsEnergy * 0.68 + v.open * 0.42);
+        onAudioEnergy?.(blendedOpen, rmsEnergy < 0.035 ? 'rest' : v.viseme);
+      } else {
+        onAudioEnergy?.(v.open, v.viseme);
+      }
+      rafEnergyId = requestAnimationFrame(syncLoop);
+    };
+
+    const cleanupAudio = () => {
+      if (rafEnergyId !== null) {
+        cancelAnimationFrame(rafEnergyId);
+        rafEnergyId = null;
+      }
+      activeAudio = null;
+    };
+
+    return new Promise<boolean>(resolve => {
+      audio.onplay = () => {
+        rafEnergyId = requestAnimationFrame(syncLoop);
+      };
+      audio.onended = () => {
+        cleanupAudio();
+        scheduleNextSentence(sIdx, displaySentence, speaker);
+        resolve(true);
+      };
+      audio.onerror = () => {
+        cleanupAudio();
+        resolve(false);
+      };
+      audio.play().catch(() => {
+        cleanupAudio();
+        resolve(false);
+      });
+    });
+  };
+
+  const speakViaBrowserVoice = async (
     sIdx: number,
     displaySentence: string,
     spokenSentence: string,
     speaker: Speaker,
   ) => {
     if (!synth || cancelled) return;
-    const assignment = assignments[speaker] || assignments.Deniz;
+    await waitForBrowserVoicesReady(450);
+    if (cancelled) return;
 
-    const utter = new SpeechSynthesisUtterance(spokenSentence);
-    utter.lang = assignment.voice?.lang || 'tr-TR';
-    if (assignment.voice) {
-      utter.voice = assignment.voice;
+    const assignment = assignments[speaker] || assignments.Deniz;
+    let chosenVoice = assignment.voice;
+
+    // Atanan ses henüz yüklenmemişse güncel listeden SAPI5 olmayan en iyi Türkçe sesi bul
+    if (!chosenVoice) {
+      const fresh = discoverTurkishVoices().find(
+        v => v.engine === 'browser' && (speaker === 'Deniz' ? v.gender === 'female' : v.gender === 'male'),
+      ) || discoverTurkishVoices().find(v => v.engine === 'browser');
+      chosenVoice = fresh?.voice || null;
     }
 
-    const trimmed = displaySentence.trim();
-    const isQuestion = trimmed.endsWith('?');
-    const isExclaim = trimmed.endsWith('!') || /^(harika|kesinlikle|tam olarak|tam isabet)/i.test(trimmed);
+    const utter = new SpeechSynthesisUtterance(spokenSentence);
+    utter.lang = chosenVoice?.lang || 'tr-TR';
+    if (chosenVoice) {
+      utter.voice = chosenVoice;
+    }
 
-    const pitchMod = isQuestion ? 1.03 : isExclaim ? 1.02 : 1.0;
-    const rateMod = isQuestion ? 1.03 : isExclaim ? 1.02 : sIdx === 0 ? 0.99 : 1.0;
-
-    utter.pitch = Math.max(0.82, Math.min(1.18, assignment.pitch * pitchMod));
-    utter.rate = Math.max(0.68, Math.min(1.85, assignment.baseRate * playbackSpeed * rateMod));
+    // %100 doğal perde (pitch = 1.0) — yapay robotik ses bükmesi yapılmaz
+    utter.pitch = 1.0;
+    utter.rate = Math.max(0.72, Math.min(1.75, assignment.baseRate * playbackSpeed));
     utter.volume = Math.max(0, Math.min(1, volume));
 
     const lenRatio = displaySentence.length / Math.max(1, spokenSentence.length);
@@ -611,6 +680,7 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     const displaySentence = scene.sentences[sIdx] || '';
     const spokenSentence = normalizeForTurkishSpeech(displaySentence);
     const speaker: Speaker = scene.sentenceSpeakers?.[sIdx] || scene.speaker;
+    const assignment = assignments[speaker] || assignments.Deniz;
 
     if (!spokenSentence) {
       speakSentenceAt(sIdx + 1);
@@ -620,66 +690,43 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     onSpeakerChange?.(speaker);
     onBreathPause(false);
     onBoundaryProgress(sIdx, 0, false);
-    prefetchNextSentence(sIdx + 1);
 
-    // 1. Öncelik: Bulut Studio Neural TTS (Gemini/OpenAI HD ses akışı)
+    // Gelecek iki cümleyi şimdiden arka planda hazırla
+    prefetchUpcoming(sIdx + 1);
+    prefetchUpcoming(sIdx + 2);
+
+    // 1. Öncelik: Bulut Gateway Studio Neural TTS (etkinse)
     if (preferCloudNeural && cloudTtsState !== 'unavailable') {
-      const audioUrl = await fetchStudioNeuralTts(spokenSentence, speaker);
+      const cloudUrl = await fetchStudioNeuralTts(spokenSentence, speaker);
       if (cancelled) return;
-
-      if (audioUrl) {
-        prefetchNextSentence(sIdx + 2);
-        const audio = new Audio(audioUrl);
-        activeAudio = audio;
-        audio.playbackRate = Math.max(0.65, Math.min(1.8, playbackSpeed));
-        audio.volume = Math.max(0, Math.min(1, volume));
-
-        const syncLoop = () => {
-          if (cancelled || !activeAudio) return;
-          const dur = activeAudio.duration || 1;
-          const cur = activeAudio.currentTime || 0;
-          const ratio = Math.max(0, Math.min(1, cur / Math.max(0.2, dur)));
-          const charPos = Math.min(displaySentence.length, Math.floor(ratio * displaySentence.length));
-          onBoundaryProgress(sIdx, charPos, true);
-
-          const ch = displaySentence.charAt(charPos);
-          const v = visemeFromTurkishChar(ch);
-          onAudioEnergy?.(v.open, v.viseme);
-          rafEnergyId = requestAnimationFrame(syncLoop);
-        };
-
-        audio.onplay = () => {
-          rafEnergyId = requestAnimationFrame(syncLoop);
-        };
-
-        const cleanupAudio = () => {
-          if (rafEnergyId !== null) {
-            cancelAnimationFrame(rafEnergyId);
-            rafEnergyId = null;
-          }
-          activeAudio = null;
-        };
-
-        audio.onended = () => {
-          cleanupAudio();
-          scheduleNextSentence(sIdx, displaySentence, speaker);
-        };
-        audio.onerror = () => {
-          cleanupAudio();
-          speakViaBrowserProsody(sIdx, displaySentence, spokenSentence, speaker);
-        };
-
-        try {
-          await audio.play();
-          return;
-        } catch {
-          cleanupAudio();
-        }
+      if (cloudUrl) {
+        const ok = await playAudioClipWithSync(cloudUrl, null, sIdx, displaySentence, speaker);
+        if (ok) return;
       }
     }
 
-    // 2. Doğal Prosody Tarayıcı Ses Motoru
-    speakViaBrowserProsody(sIdx, displaySentence, spokenSentence, speaker);
+    // 2. Öncelik: Tarayıcı İçi 22.05 kHz VITS Derin Sinir Ağı Türkçe Stüdyo Sesi (Fahrettin / Fettah / DFKI)
+    if (assignment.engine === 'vits-neural' && assignment.vitsVoiceId) {
+      const clip = await synthesizeVitsTurkish(
+        spokenSentence,
+        assignment.vitsVoiceId,
+        assignment.lengthScale,
+      );
+      if (cancelled) return;
+      if (clip) {
+        const ok = await playAudioClipWithSync(
+          clip.blobUrl,
+          clip.envelope,
+          sIdx,
+          displaySentence,
+          speaker,
+        );
+        if (ok) return;
+      }
+    }
+
+    // 3. Doğal Bulut / Neural Tarayıcı Sesi (Emel Online Natural / Google Türkçe HD, pitch=1.0)
+    await speakViaBrowserVoice(sIdx, displaySentence, spokenSentence, speaker);
   };
 
   speakSentenceAt(Math.max(0, Math.min(scene.sentences.length - 1, startSentenceIndex)));

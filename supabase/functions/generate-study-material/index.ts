@@ -285,36 +285,30 @@ examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı 
 Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
       break;
     case 'video':
-      task = `Kullanıcının yüklediği ders notunu temel alarak EconNotes Stüdyosu için EN AZ 5-7 DAKİKA SÜRECEK (toplam 750-1000 kelime konuşma metni, 10-12 kapsamlı sahne) zengin, sinematik bir İKİLİ VİDEO DERSİ üret.
-KATI KURALLAR:
-1. KONU VE KAPSAM: YALNIZCA ve DOĞRUDAN kullanıcının verdiği ders notundaki konuyu, dersi, tarihleri, kurumları, şahısları, formülleri, verileri ve olayları ele al. ASLA notta bulunmayan genel kalıplar veya alakasız ders terimleri kullanma.
-2. GERÇEK STÜDYO DİYALOĞU VE SÜRE (EN AZ 5 DAKİKA — 10 İLA 12 SAHNE):
-   - Toplam 10 ila 12 sahne üret. Her sahne 75-95 kelimelik doyurucu bir anlatım içersin ki ders süresi en az 5-7 dakika olsun.
-   - Her sahnede "turns" dizisini doldur (sahne başına 2-4 karşılıklı konuşma turu: Deniz anlatır, Barış tam öğrencinin merak edeceği soruyu sorar veya somutlaştırır, Deniz derinleştirir). Ayrıca "narration" alanına bu turların birleştirilmiş akıcı metnini yaz.
-   - Deniz (Dr. Deniz): Sıcak, berrak, analitik akademisyen. Neden-sonuç ilişkilerini ve mekanizmaları somutlaştırır.
-   - Barış: Zeki, meraklı, enerjik araştırmacı. Kuru özet dinlemez; "Peki Deniz, bunu somut bir senaryoda düşünelim...", "Dur bir dakika, buradaki kritik fark tam olarak ne?" gibi doğal geçişlerle tempoyu canlı tutar.
-   - Metinler sesli okunacağı için ASLA parantez içi liste, kısaltma ("vb.", "yy.", "örn."), madde işareti veya robotik kitap cümlesi kurma. Sayıları ve yüzyılları okunaklı Türkçe ile yaz.
-3. ZENGİN GÖRSEL SAHNE TÜRLERİ (diagramData.diagramType — HEPSİNİ DERS BOYUNCA KULLAN):
-   Ders boyunca aşağıdaki görsel şema türlerinin TAMAMINI ilgili sahnelere dağıtarak kullan:
-   - 'visual' (Görsel & İllüstrasyon Vitrin Sahnesi): Konunun tarihsel/iktisadi/kurumsal atmosferini anlatan illüstratif görsel analiz. visualTheme alanını ('history', 'economics', 'law', 'science', 'society') konuya göre seç.
-   - 'shapes' (Geometrik Şekiller & Döngüsel Mekanizma): Birbirini besleyen unsurların çokgen/döngüsel şekillerle işleyiş şeması.
-   - 'table' (Akademik Karşılaştırma & Veri Tablosu): 4-5 satırlık yapılandırılmış tablo; her düğümde label (kavram/boyut), subtext (işleyiş ve açıklama) ve badge (ör. "Kilit İlke", "Yüksek Etki", "Kurumsal") bulunsun.
-   - 'chart' (Analitik Sütun & Eğri Grafiği): Faktörlerin göreli ağırlığını, dönemsel değişimini veya etki düzeyini gösteren grafik; her düğüme 15 ile 98 arasında anlamlı bir "value" (sayısal etki/oran puanı) ekle.
-   - 'scenario' (Vaka & Senaryo Simülasyonu): Nottaki bilginin somut bir tarihsel veya uygulamalı senaryo üzerinden 4 adımda (1. Bağlam/Durum, 2. Aktörler, 3. İşleyen Mekanizma, 4. Sonuç) canlandırılması.
-   - 'timeline' (Zaman ve Süreç Akışı) ve 'comparison' (İkili Karşılaştırma Matrisi).
-4. DÜĞÜM KALİTESİ (nodes):
-   - Her sahnede 4 somut düğüm üret.
-   - label: SADECE 2-4 kelimelik tam ve anlamlı başlık (edat/bağlaçla biten yarım cümle YASAK).
-   - subtext: label'ı tekrar etmeyen, doğrudan açıklayıcı 1 net cümle.
-   - highlightMetric: Sahnenin alt bandında görünecek en çarpıcı tek cümlelik sınav/analiz çıkarımı.
-5. EĞİTSEL DONANIM:
-   - keyTakeaways: Her sahne için 3-4 somut ders notu.
-   - keyTerms: Her sahnede geçen 2-4 kritik terim ve tanımı.
-   - examTip: Sınavda nasıl sorulabileceğine dair net uyarı.
-   - keyFacts: Tüm nottan sınav öncesi bilinmesi gereken 8-10 kritik hap bilgi.
-   - outline: 2-3 cümlelik ders çerçevesi.
-   - suggestedSearches: 4-5 akademik arama önerisi.
-Kaynakta bulunmayan bilgi uydurma.`;
+      task = `Kullanıcının yüklediği ders notunu temel alarak EconNotes Akademik Stüdyosu için EN AZ 6-8 DAKİKA SÜRECEK (toplam 950-1300 kelime konuşma metni, 10-12 derinlikli bölüm) ÜST DÜZEY, ZENGİN VE ENTELEKTÜEL BİR İKİLİ VİDEO DERSİ üret.
+KATI AKADEMİK VE DİKSİYON KURALLARI:
+1. %100 NOTA SADAKAT VE DERİNLİK:
+   - YALNIZCA kullanıcının verdiği ders notundaki kavramları, kurumları, dönemleri, kişileri, teorileri, sayıları, formülleri ve nedensellik bağlarını işle. Notta olmayan uydurma bilgi ekleme.
+   - Yüzeysel, basit veya tekrara düşen kalıp cümleler KESİNLİKLE YASAKTIR. Her sahne konunun farklı bir analitik katmanını (kuramsal temel, kurumsal mekanizma, karşılaştırmalı tablo, aktarım kanalları, nicel/yapısal ağırlık, uygulamalı vaka analizi ve sınav çeldiricileri) derinlemesine açmalıdır.
+2. ÜST DÜZEY TÜRKÇE AKADEMİK DİYALOG (10 İLA 12 BÖLÜM):
+   - Toplam 10 ila 12 sahne üret. Her sahne 90-120 kelimelik doyurucu, akıcı ve yüksek entelektüel kalitede bir tartışma içersin.
+   - Her sahnede "turns" dizisini doldur (sahne başına 3-4 karşılıklı konuşma turu). Ayrıca "narration" alanına turların birleşik akıcı metnini yaz.
+   - Deniz (Dr. Deniz): Seçkin bir üniversite hocası berraklığında konuşur; kavramların tarihsel/iktisadi/kurumsal mantığını, arka plandaki neden-sonuç zincirini ve mekanizmanın nasıl işlediğini somutlaştırır.
+   - Barış: Keskin zekâlı, analitik araştırmacı; basit sorular sormaz, "Peki Deniz, burada X mekanizması zayıflarsa sistemin dengesi nasıl bozulur?", "İki kavram arasındaki ince sınır sınavda nasıl çeldiriciye dönüştürülüyor?" gibi derinleştirici sorular ve sentezlerle tartışmayı yükseltir.
+   - Metinler derin sinir ağı ses motoruyla seslendirileceği için ASLA parantez içi not, kısaltma ("vb.", "yy.", "örn.", "vs."), sembol veya kesik madde işareti kullanma; tüm sayıları, yüzyılları ve hükümdar/dönem sıra sayılarını tam Türkçe kelimelerle, kusursuz TRT/üniversite kürsüsü Türkçesiyle yaz.
+3. ÇOK-MODLU AKILLI TAHTA SAHNE TÜRLERİ (diagramData.diagramType — TÜMÜNÜ DENGELİ DAĞIT):
+   - 'visual': Konunun bütünsel mimarisini ve atmosferini gösteren illüstratif görsel analiz. visualTheme alanını ('history', 'economics', 'law', 'science', 'society') konuya göre seç.
+   - 'table': Yakın kavramları, dönemleri veya politikaları 4-5 satırda kıyaslayan akademik karşılaştırma tablosu.
+   - 'shapes': Unsurlar arasındaki döngüsel geri besleme ve nedensellik zincirini gösteren geometrik mekanizma şeması.
+   - 'chart': Faktörlerin yapısal ağırlığını ve etki hiyerarşisini gösteren sütun + eğri grafiği (her düğüme 35..96 arası anlamlı bir "value" ver).
+   - 'scenario': Nottaki bilginin 4 aşamalı somut vaka simülasyonu (1. Başlangıç Koşulu, 2. Kurumsal Müdahale, 3. Saha İşleyişi, 4. Uzun Vadeli Sonuç).
+   - 'timeline' ve 'comparison': Kronolojik kırılmalar ve ikili analitik matrisler.
+4. DÜĞÜM VE NOT ZENGİNLİĞİ (nodes, keyTakeaways, keyTerms, examTip):
+   - Her sahnede 4 somut ve bilgi dolu düğüm üret.
+   - label: 2-4 kelimelik tam, anlamlı akademik başlık (bağlaç/edat ile biten yarım başlık YASAK).
+   - subtext: label'ı tekrar etmeyen, doğrudan mekanizmayı veya sonucu açıklayan zengin, net 1 cümle (15-28 kelime).
+   - highlightMetric: Sahnenin alt bandında yer alacak en çarpıcı akademik/sınav çıkarımı.
+   - keyTakeaways (sahne başına 3-4 zengin madde), keyTerms (sahne başına 3-4 terim ve eksiksiz tanımı), examTip (somut sınav çeldirici uyarısı), keyFacts (tüm dersten 8-10 üst düzey hap bilgi), outline (3 cümlelik kapsamlı akademik çerçeve), suggestedSearches (5 ileri okuma başlığı).`;
       break;
   }
 

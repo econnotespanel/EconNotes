@@ -1,6 +1,7 @@
-// Video dersi sahne modeli: Hem yeni çok-modlu şemayı hem de kayıtlı eski materyalleri
-// %100 ders notuna sadık, en az 5+ dakikalık, karşılıklı diyaloglu (Dr. Deniz & Barış) ve
-// zengin görsel türlere (Görseller, Şekiller, Tablolar, Grafikler, Senaryolar) sahip sahnelere dönüştürür.
+// EconNotes Video Dersi Sahne ve Akademik Müfredat Motoru v3:
+// Hem yeni çok-modlu şemayı hem de kayıtlı materyalleri %100 ders notuna sadık, en az 5.5 - 8 dakikalık,
+// tekrarsız, derinlikli üniversite semineri kalitesinde Dr. Deniz & Barış diyaloğuna ve
+// zengin görsel türlere (Görseller, Şekiller, Tablolar, Grafikler, Senaryolar, Zaman Akışı, Kıyaslama) dönüştürür.
 
 export type DiagramType =
   | 'visual'
@@ -53,7 +54,7 @@ export interface StudioScene {
   title: string;
   narration: string;
   sentences: string[];
-  /** Her cümlenin kendi konuşmacısı — sahne içinde gerçek karşılıklı diyalog sağlar */
+  /** Her cümlenin kendi konuşmacısı — sahne içinde gerçek karşılıklı akademik tartışma sağlar */
   sentenceSpeakers: Speaker[];
   /** Her cümlenin anlatım metni içindeki başlangıç karakteri */
   sentenceOffsets: number[];
@@ -78,9 +79,9 @@ export interface StudioContent {
 
 /** Doğal Türkçe stüdyo konuşma hızı (1x, nefes ve söz değişim esleri hariç) */
 export const CHARS_PER_SEC = 13.4;
-const SENTENCE_PAUSE_SEC = 0.62;
-const SPEAKER_SWITCH_PAUSE_SEC = 0.45;
-export const MIN_LESSON_DURATION_SEC = 312; // En az 5 dakika 12 saniye garanti
+const SENTENCE_PAUSE_SEC = 0.6;
+const SPEAKER_SWITCH_PAUSE_SEC = 0.44;
+export const MIN_LESSON_DURATION_SEC = 336; // En az 5 dakika 36 saniye zengin akademik akış garantisi
 
 const LEADING_JUNK = /^[\s\-–—•*·>#\d.)(]+|^[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]+/;
 
@@ -111,15 +112,28 @@ function capitalizeTr(text: string): string {
   return first + text.slice(1);
 }
 
+function lowerFirstIfNotProper(text: string): string {
+  const t = cleanText(text);
+  if (!t) return '';
+  // İkinci harf büyükse kısaltmadır (GSYH vb.) veya Romen rakamıdır; koru
+  if (t.length > 1 && t.charAt(1) === t.charAt(1).toLocaleUpperCase('tr-TR') && /[A-ZÇĞİÖŞÜ.]/.test(t.charAt(1))) {
+    return t;
+  }
+  return t.charAt(0).toLocaleLowerCase('tr-TR') + t.slice(1);
+}
+
 function ensureSentenceEnd(text: string): string {
   const t = cleanText(text);
   if (!t) return '';
   return /[.!?…]$/.test(t) ? t : `${t}.`;
 }
 
+function stripTrailingPeriod(text: string): string {
+  return cleanText(text).replace(/[.…]+$/, '').trim();
+}
+
 /**
- * Bir metinden anlamlı, yarım kalmamış kısa başlık üretir (ör. "Ermeni ve Süryani gibi" gibi
- * bağlaç/edat ile biten kırık başlıkları engeller).
+ * Bir metinden anlamlı, yarım kalmamış kısa başlık üretir (bağlaç/edat ile biten başlıkları engeller).
  */
 export function shortLabel(text: string, maxWords = 4, maxChars = 32): string {
   const clean = cleanLabel(text).split(/[:;—–]|\s-\s/)[0].trim();
@@ -168,7 +182,7 @@ export function extractNodeFromSentence(sentence: string, fallbackIndex: number)
   }
 
   const domainPhrase = cleaned.match(
-    /([A-ZÇĞİÖŞÜa-zçğıöşü0-9']+\s+(?:[A-ZÇĞİÖŞÜa-zçğıöşü0-9']+\s+)?(?:sistemi|rejimi|maliyesi|politikası|düzeni|yapısı|kurumu|vakıfları|ticareti|fetihleri|istilası|savaşı|dönemi|reformu|modeli|yasası|teorisi|dengesi|kanunu|analizi))/i,
+    /([A-ZÇĞİÖŞÜa-zçğıöşü0-9']+\s+(?:[A-ZÇĞİÖŞÜa-zçğıöşü0-9']+\s+)?(?:sistemi|rejimi|maliyesi|politikası|düzeni|yapısı|kurumu|vakıfları|ticareti|fetihleri|istilası|savaşı|dönemi|reformu|modeli|yasası|teorisi|dengesi|kanunu|analizi|mekanizması|doktrini|yaklaşımı))/i,
   );
   if (domainPhrase?.[1]) {
     return {
@@ -193,7 +207,7 @@ export function splitSentences(text: string): string[] {
   if (!normalized) return [];
 
   const protectedText = normalized
-    .replace(/\b(\d+)\.\s+(?=yüzyıl|yy|asır|bölüm|hafta|madde|sınıf|dönem|adım)/gi, '$1__DOT__ ')
+    .replace(/\b(\d+)\.\s+(?=yüzyıl|yy|asır|bölüm|hafta|madde|sınıf|dönem|adım|aşama|halka)/gi, '$1__DOT__ ')
     .replace(/(?<![A-Za-zÇĞİÖŞÜçğıöşü])(vb|vs|örn|bkz|yak|yy|dr|prof|doç|av|hz|st)\.\s+/gi, '$1__DOT__ ');
 
   const raw = protectedText.match(/[^.!?…]+[.!?…]+["'”’)\]]*|[^.!?…]+$/g) || [protectedText];
@@ -211,14 +225,14 @@ export function splitSentences(text: string): string[] {
 
   const result: string[] = [];
   for (const s of merged) {
-    if (s.length <= 200) {
+    if (s.length <= 215) {
       result.push(s);
       continue;
     }
-    const chunks = s.split(/;\s+|,\s+(?=ancak|fakat|çünkü|böylece|dolayısıyla|özellikle|buna karşılık)/i);
+    const chunks = s.split(/;\s+|,\s+(?=ancak|fakat|çünkü|böylece|dolayısıyla|özellikle|buna karşılık|nitekim)/i);
     if (chunks.length > 1) {
       chunks.forEach(c => {
-        if (c.trim()) result.push(c.trim());
+        if (c.trim()) result.push(ensureSentenceEnd(c.trim()));
       });
     } else {
       result.push(s);
@@ -284,16 +298,16 @@ function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   return richCycle[sceneIdx % richCycle.length];
 }
 
-const DEFAULT_BADGES = ['Temel Unsur', 'Kritik İşleyiş', 'Yapısal Etki', 'Sınav Odağı', 'Sonuç'];
+const DEFAULT_BADGES = ['Kurucu Eksen', 'İşleyiş Mekanizması', 'Yapısal Etki', 'Akademik Odak', 'Uzun Vadeli Sonuç'];
 
 function deterministicValue(seedText: string, idx: number): number {
   let hash = 0;
   for (let i = 0; i < seedText.length; i++) {
     hash = (hash * 31 + seedText.charCodeAt(i)) | 0;
   }
-  const base = [88, 74, 92, 66, 81][idx % 5];
-  const jitter = Math.abs(hash % 11) - 5;
-  return Math.max(38, Math.min(96, base + jitter));
+  const base = [90, 78, 86, 70, 82][idx % 5];
+  const jitter = Math.abs(hash % 9) - 4;
+  return Math.max(42, Math.min(96, base + jitter));
 }
 
 function sanitizeNode(n: any, idx: number): DiagramNode {
@@ -335,7 +349,7 @@ function buildDiagram(
 ): StudioDiagram {
   const dd = s?.diagramData;
   const metric = cleanText(dd?.highlightMetric) || cleanText(s?.examTip) || takeaways[0] || '';
-  const rootBadge = cleanText(courseLabel) || 'STÜDYO ANALİZİ';
+  const rootBadge = cleanText(courseLabel) || 'AKADEMİK STÜDYO';
   const themeText = `${courseLabel} ${title} ${narration}`;
   const visualTheme: VisualTheme =
     dd?.visualTheme && ['history', 'economics', 'law', 'science', 'society'].includes(dd.visualTheme)
@@ -364,7 +378,7 @@ function buildDiagram(
     sanitizeNode({ label: t.term, subtext: t.definition, badge: DEFAULT_BADGES[i % DEFAULT_BADGES.length] }, i),
   );
 
-  if (nodes.length < 3) {
+  if (nodes.length < 4) {
     takeaways.forEach((tk, i) => {
       const ex = extractNodeFromSentence(tk, i);
       nodes.push({
@@ -375,7 +389,7 @@ function buildDiagram(
     });
   }
 
-  if (nodes.length < 3) {
+  if (nodes.length < 4) {
     splitSentences(narration).forEach((sentence, i) => {
       const ex = extractNodeFromSentence(sentence, i);
       nodes.push({
@@ -416,9 +430,19 @@ function computeDuration(sentences: string[], speakers: Speaker[]): number {
   );
 }
 
+function textSignature(text: string): string {
+  return cleanText(text)
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[^a-z0-9ğüşıöç\s]/g, '')
+    .split(' ')
+    .filter(w => w.length > 3)
+    .slice(0, 6)
+    .join(' ');
+}
+
 /**
- * Ham sahneyi çoklu konuşmacı turlarına (Deniz <-> Barış) dönüştürür.
- * Tek konuşmacılı eski sahnelere, tamamen sahnenin kendi kavram/ipucu verisine dayanan doğal diyalog ekler.
+ * Ham sahneyi zengin, entelektüel ve tekrarsız çoklu konuşmacı (Dr. Deniz <-> Barış) diyaloğuna dönüştürür.
+ * Sahnedeki tüm kavramları, çıkarımları ve sınav uyarılarını derinlikli akademik Türkçe ile işler.
  */
 function buildConversationalSentences(
   rawScene: any,
@@ -443,12 +467,37 @@ function buildConversationalSentences(
     const sentences: string[] = [];
     const speakers: Speaker[] = [];
     explicitTurns.forEach(turn => {
-      const parts = splitSentences(turn.text);
-      parts.forEach(p => {
+      splitSentences(turn.text).forEach(p => {
         sentences.push(p);
         speakers.push(turn.speaker);
       });
     });
+
+    // Eğer açık turlarda değinilmemiş kritik terim veya sınav uyarısı varsa organik biçimde ekle
+    const joinedLower = sentences.join(' ').toLocaleLowerCase('tr-TR');
+    const extraTerm = terms.find(
+      kt =>
+        kt.term &&
+        kt.definition &&
+        !joinedLower.includes(kt.term.toLocaleLowerCase('tr-TR')) &&
+        !joinedLower.includes(kt.definition.slice(0, 20).toLocaleLowerCase('tr-TR')),
+    );
+    if (extraTerm) {
+      const lastSpk = speakers[speakers.length - 1] || 'Deniz';
+      const askSpk: Speaker = lastSpk === 'Deniz' ? 'Barış' : 'Deniz';
+      if (askSpk === 'Barış') {
+        sentences.push(`Bu analizde ${extraTerm.term} kavramının özgül yerini de netleştirebilir miyiz Deniz?`);
+        speakers.push('Barış');
+        sentences.push(`Elbette Barış; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
+        speakers.push('Deniz');
+      } else {
+        sentences.push(`Barış, tam bu bağlamda ${extraTerm.term} kavramının işlevini de parantez açmadan vurgulayalım.`);
+        speakers.push('Deniz');
+        sentences.push(`Doğru noktaya değindin Deniz; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
+        speakers.push('Barış');
+      }
+    }
+
     return {
       sentences,
       speakers,
@@ -456,59 +505,122 @@ function buildConversationalSentences(
     };
   }
 
-  // Tek paragraflık eski materyal anlatımını doğal karşılıklı stüdyo sohbetine dönüştür
+  // Tek paragraflık materyali entelektüel karşılıklı üniversite semineri diyaloğuna yükselt
   const baseSentences = splitSentences(narration);
   const sentences: string[] = [];
   const speakers: Speaker[] = [];
   const coHost: Speaker = leadSpeaker === 'Deniz' ? 'Barış' : 'Deniz';
 
-  baseSentences.forEach(s => {
-    sentences.push(s);
-    speakers.push(leadSpeaker);
+  // Uzun monologları ortadan bölüp yardımcı sunucunun analitik köprü kurmasını sağla
+  if (baseSentences.length >= 4) {
+    const mid = Math.ceil(baseSentences.length / 2);
+    baseSentences.slice(0, mid).forEach(s => {
+      sentences.push(s);
+      speakers.push(leadSpeaker);
+    });
+    const bridgePrompts = [
+      `Burada kurulan yapısal denge gerçekten dikkat çekici; peki mekanizmanın devamında bu durum sahaya nasıl yansıyor?`,
+      `Çok kritik bir tespit; peki bu çerçevenin toplumsal ve kurumsal sonuçları nasıl şekilleniyor?`,
+      `İşte konunun düğüm noktası tam burası; sürecin ikinci boyutunda hangi dinamik devreye giriyor?`,
+    ];
+    sentences.push(bridgePrompts[sceneIdx % bridgePrompts.length]);
+    speakers.push(coHost);
+    baseSentences.slice(mid).forEach(s => {
+      sentences.push(s);
+      speakers.push(leadSpeaker);
+    });
+  } else {
+    baseSentences.forEach(s => {
+      sentences.push(s);
+      speakers.push(leadSpeaker);
+    });
+  }
+
+  const coveredSigs = new Set(sentences.map(textSignature));
+  const lowerAll = sentences.join(' ').toLocaleLowerCase('tr-TR');
+
+  // Henüz açılmamış terimleri (en fazla 2 adet) sahneye özgü akademik soru-cevap kalıplarıyla işle
+  const unusedTerms = terms.filter(
+    kt =>
+      kt.term &&
+      kt.definition &&
+      !coveredSigs.has(textSignature(kt.definition)) &&
+      !lowerAll.includes(kt.definition.slice(0, 20).toLocaleLowerCase('tr-TR')),
+  );
+
+  const termQuestionTemplates = [
+    (term: string) => `Peki Deniz, literatürde ve sınavlarda sıkça karşılaştığımız ${term} kavramını bu yapı içinde nasıl tanımlamalıyız?`,
+    (term: string) => `Deniz, tam burada kavramsal netlik açısından soruyorum: ${term} tam olarak hangi mekanizmayı ifade ediyor?`,
+    (term: string) => `Bu noktada ${term} teriminin altını çizmekte fayda var; bu kavramın ayırt edici niteliği nedir?`,
+  ];
+  const termAnswerOpeners = [
+    'Çok yerinde bir kavramsal soru Barış;',
+    'Akademik çerçevede bunu şöyle somutlaştıralım Barış:',
+    'Hemen netleştirelim;',
+  ];
+
+  unusedTerms.slice(0, 2).forEach((kt, tIdx) => {
+    const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
+    const questioner: Speaker = lastSpk === 'Deniz' ? 'Barış' : 'Deniz';
+    const responder: Speaker = questioner === 'Deniz' ? 'Barış' : 'Deniz';
+
+    if (questioner === 'Barış') {
+      sentences.push(termQuestionTemplates[(sceneIdx + tIdx) % termQuestionTemplates.length](kt.term));
+      speakers.push('Barış');
+      sentences.push(
+        `${termAnswerOpeners[(sceneIdx + tIdx) % termAnswerOpeners.length]} ${ensureSentenceEnd(lowerFirstIfNotProper(kt.definition))}`,
+      );
+      speakers.push('Deniz');
+    } else {
+      sentences.push(`Barış, ${sceneTitle} başlığında ${kt.term} boyutunu da analize dahil edelim.`);
+      speakers.push('Deniz');
+      sentences.push(`Memnuniyetle Deniz; ${ensureSentenceEnd(lowerFirstIfNotProper(kt.definition))}`);
+      speakers.push(responder);
+    }
+    coveredSigs.add(textSignature(kt.definition));
   });
 
-  // Sahnenin kendi terim ve sınav ipuçlarından doğal karşılıklı paslaşma üret (%100 nota sadık)
-  const lowerAll = narration.toLocaleLowerCase('tr-TR');
-  const unusedTerm = terms.find(
-    kt => kt.term && kt.definition && !lowerAll.includes(kt.definition.slice(0, 18).toLocaleLowerCase('tr-TR')),
-  );
-  const unusedTakeaway = takeaways.find(
-    tk => tk && !lowerAll.includes(tk.slice(0, 22).toLocaleLowerCase('tr-TR')),
+  // Henüz konuşulmamış önemli çıkarımları analitik derinlikle ekle
+  const unusedTakeaways = takeaways.filter(
+    tk =>
+      tk &&
+      !coveredSigs.has(textSignature(tk)) &&
+      !lowerAll.includes(tk.slice(0, 22).toLocaleLowerCase('tr-TR')),
   );
 
-  if (unusedTerm) {
-    if (coHost === 'Barış') {
-      sentences.push(`Peki Deniz, bu noktada ${unusedTerm.term} kavramını tam olarak nasıl çerçeveliyoruz?`);
+  if (unusedTakeaways.length > 0) {
+    const tk = unusedTakeaways[0];
+    const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
+    if (lastSpk === 'Deniz') {
+      sentences.push(`O hâlde buradaki analitik çıkarımı şöyle özetleyebiliriz: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
       speakers.push('Barış');
-      sentences.push(`Çok yerinde bir soru Barış; ${ensureSentenceEnd(unusedTerm.definition)}`);
-      speakers.push('Deniz');
+      if (unusedTakeaways[1]) {
+        sentences.push(`Kesinlikle Barış; üstelik buna paralel olarak ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
+        speakers.push('Deniz');
+      } else {
+        sentences.push(`Tam isabet Barış; ${sceneTitle} tartışmasının kuramsal omurgasını bu neden-sonuç bağı oluşturuyor.`);
+        speakers.push('Deniz');
+      }
     } else {
-      sentences.push(`Barış, burada özellikle ${unusedTerm.term} boyutunu da netleştirelim.`);
-      speakers.push('Deniz');
-      sentences.push(`Kesinlikle; ${ensureSentenceEnd(unusedTerm.definition)}`);
-      speakers.push('Barış');
-    }
-  } else if (unusedTakeaway) {
-    if (coHost === 'Barış') {
-      sentences.push(`Buradan çıkardığımız temel sonuç şu diyebilir miyiz: ${ensureSentenceEnd(unusedTakeaway)}`);
-      speakers.push('Barış');
-      sentences.push(`Tam olarak öyle Barış, ${sceneTitle} başlığının kilit halkası bu noktada düğümleniyor.`);
-      speakers.push('Deniz');
-    } else {
-      sentences.push(`Özetle şu noktayı mutlaka not edelim: ${ensureSentenceEnd(unusedTakeaway)}`);
+      sentences.push(`Bu tartışmadan çıkardığımız kuramsal ilkeyi de vurgulayalım: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
       speakers.push('Deniz');
     }
   }
 
-  if (examTip && !lowerAll.includes(examTip.slice(0, 20).toLocaleLowerCase('tr-TR')) && sceneIdx % 2 === 0) {
-    const questioner: Speaker = speakers[speakers.length - 1] === 'Deniz' ? 'Barış' : 'Deniz';
-    if (questioner === 'Barış') {
-      sentences.push(`Sınav perspektifinden bakarsak öğrencilerin en çok dikkat etmesi gereken detay hangisi?`);
+  // Sınav perspektifi ve kavramsal ayrım uyarısı
+  if (
+    examTip &&
+    !coveredSigs.has(textSignature(examTip)) &&
+    !lowerAll.includes(examTip.slice(0, 20).toLocaleLowerCase('tr-TR'))
+  ) {
+    const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
+    if (lastSpk === 'Deniz') {
+      sentences.push(`Sınavda bu başlık karşımıza analitik bir soru olarak geldiğinde hangi ayrım belirleyici olur?`);
       speakers.push('Barış');
-      sentences.push(`Özellikle şuna dikkat edelim: ${ensureSentenceEnd(examTip)}`);
+      sentences.push(`Özellikle şu kritik noktayı gözden kaçırmayalım: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
       speakers.push('Deniz');
     } else {
-      sentences.push(`Sınavda karşımıza çıkabilecek kritik noktayı da vurgulayalım: ${ensureSentenceEnd(examTip)}`);
+      sentences.push(`Akademik sınavlarda belirleyici olan şu ince ayrımı da not düşelim: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
       speakers.push('Deniz');
     }
   }
@@ -567,11 +679,23 @@ function finalizeSceneObject(params: {
   };
 }
 
+function turnsToDialogueArrays(turns: DialogueTurn[]): { sentences: string[]; speakers: Speaker[] } {
+  const sentences: string[] = [];
+  const speakers: Speaker[] = [];
+  turns.forEach(t => {
+    splitSentences(t.text).forEach(st => {
+      sentences.push(st);
+      speakers.push(t.speaker);
+    });
+  });
+  return { sentences, speakers };
+}
+
 /**
- * Ders süresinin EN AZ 5+ dakika (>= 312 sn) olmasını ve akıllı tahtada
- * Görseller ('visual'), Şekiller ('shapes'), Tablolar ('table'), Grafikler ('chart') ve
- * Senaryolar ('scenario') sahnelerinin eksiksiz yer almasını garanti eder.
- * Yalnızca materyalin kendi kavram, çıkarım ve hap bilgilerini kullanır; konu dışı veri üretmez.
+ * Dersin EN AZ 5.5 - 8 dakika sürecek akademik derinliğe ve görsel çeşitliliğe
+ * ('visual', 'shapes', 'table', 'chart', 'scenario', 'comparison') ulaşmasını sağlar.
+ * Asla aynı cümleyi kopyalayıp tekrar etmez; bölümler arası karşılaştırma, nedensellik analizi,
+ * yapısal ağırlık yorumu ve 4 aşamalı somut vaka kurgusu üretir.
  */
 function ensureRichFiveMinuteCurriculum(
   initialScenes: StudioScene[],
@@ -580,23 +704,34 @@ function ensureRichFiveMinuteCurriculum(
   courseLabel: string,
   keyFacts: string[],
 ): StudioScene[] {
-  const scenes = [...initialScenes];
-  const rootBadge = cleanText(courseLabel) || 'STÜDYO DERSİ';
-  const corpusText = `${courseLabel} ${title} ${outline} ${scenes.map(s => s.narration).join(' ')}`;
+  const coreScenes = [...initialScenes];
+  const rootBadge = cleanText(courseLabel) || 'AKADEMİK STÜDYO';
+  const corpusText = `${courseLabel} ${title} ${outline} ${coreScenes.map(s => s.narration).join(' ')}`;
   const visualTheme = inferVisualTheme(corpusText);
 
-  // Mevcut sahnelerde tekdüze eski şema tipleri varsa zengin görsel tiplerine yükselt
+  const domainNoun =
+    visualTheme === 'history'
+      ? 'tarihsel ve kurumsal'
+      : visualTheme === 'economics'
+      ? 'iktisadi ve mali'
+      : visualTheme === 'law'
+      ? 'hukuki ve anayasal'
+      : visualTheme === 'science'
+      ? 'bilimsel ve metodolojik'
+      : 'kuramsal ve toplumsal';
+
+  // Eski tekdüze şema tiplerini zengin çok-modlu tiplere yükselt
   const richPalette: DiagramType[] = ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison'];
-  scenes.forEach((sc, idx) => {
+  coreScenes.forEach((sc, idx) => {
     if (sc.diagram.type === 'network' || sc.diagram.type === 'structure') {
       sc.diagram.type = richPalette[idx % richPalette.length];
     }
   });
 
-  // Havuz: tüm terimler, çıkarımlar, sınav ipuçları ve düğümler (tamamı bu ders notuna ait!)
+  // Materyalin tüm bilgi evrenini tekrarsız şekilde derle
   const allTerms: KeyTerm[] = [];
   const seenTerms = new Set<string>();
-  scenes.forEach(sc => {
+  coreScenes.forEach(sc => {
     sc.keyTerms.forEach(kt => {
       const k = kt.term.toLocaleLowerCase('tr-TR');
       if (kt.term && kt.definition && !seenTerms.has(k)) {
@@ -606,381 +741,414 @@ function ensureRichFiveMinuteCurriculum(
     });
   });
 
-  const allTakeaways = Array.from(
-    new Set(scenes.flatMap(sc => sc.keyTakeaways).filter(Boolean)),
-  );
-  const allNodes = scenes.flatMap(sc => sc.diagram.nodes).filter(n => n.label && n.subtext);
-  const allFacts = Array.from(
-    new Set([...keyFacts, ...scenes.map(s => s.examTip).filter(Boolean), ...allTakeaways]),
-  ).filter(Boolean);
+  const allTakeaways = Array.from(new Set(coreScenes.flatMap(sc => sc.keyTakeaways).filter(Boolean)));
+  const allExamTips = Array.from(new Set(coreScenes.map(sc => sc.examTip).filter(Boolean)));
+  const allFacts = Array.from(new Set([...keyFacts, ...allExamTips, ...allTakeaways])).filter(Boolean);
+  const allNodes = coreScenes.flatMap(sc => sc.diagram.nodes).filter(n => n.label && n.subtext);
+  const chapterTitles = coreScenes.map(s => shortLabel(s.title, 5, 38)).filter(Boolean);
 
-  const buildPoolNodes = (offset: number, count = 4, customBadges?: string[]): DiagramNode[] => {
-    const result: DiagramNode[] = [];
-    const used = new Set<string>();
+  // Farklı sahnelerin farklı düğüm alt kümelerini kullanması için ayrık havuz seçici
+  const pickDistinctNodes = (seedOffset: number, count = 4, badges?: string[]): DiagramNode[] => {
+    const candidates: DiagramNode[] = [];
+    const seen = new Set<string>();
 
-    const candidates: DiagramNode[] = [
-      ...allTerms.map((t, i) => ({
+    const pushCandidate = (n: DiagramNode) => {
+      const k = n.label.toLocaleLowerCase('tr-TR');
+      if (!n.label || !n.subtext || seen.has(k)) return;
+      seen.add(k);
+      candidates.push(n);
+    };
+
+    allTerms.forEach((t, i) =>
+      pushCandidate({
         label: shortLabel(t.term, 4, 30),
         subtext: t.definition,
-        badge: customBadges?.[i % (customBadges.length || 1)] || DEFAULT_BADGES[i % DEFAULT_BADGES.length],
+        badge: DEFAULT_BADGES[i % DEFAULT_BADGES.length],
         value: deterministicValue(t.term, i),
-      })),
-      ...allNodes,
-      ...allFacts.map((f, i) => {
-        const ex = extractNodeFromSentence(f, i);
-        return {
-          ...ex,
-          badge: customBadges?.[i % (customBadges.length || 1)] || DEFAULT_BADGES[i % DEFAULT_BADGES.length],
-          value: deterministicValue(ex.label, i + 2),
-        };
       }),
-    ];
+    );
+    allNodes.forEach(n => pushCandidate(n));
+    allFacts.forEach((f, i) => {
+      const ex = extractNodeFromSentence(f, i);
+      pushCandidate({
+        ...ex,
+        badge: DEFAULT_BADGES[i % DEFAULT_BADGES.length],
+        value: deterministicValue(ex.label, i + 3),
+      });
+    });
 
     if (candidates.length === 0) {
       const base = extractNodeFromSentence(outline || title, 0);
       return [
-        { ...base, badge: 'Temel Çerçeve', value: 88 },
-        { label: shortLabel(title, 4, 30) || 'Ana Konu', subtext: outline || title, badge: 'Kapsam', value: 76 },
+        { ...base, badge: badges?.[0] || 'Ana Eksen', value: 89 },
+        {
+          label: shortLabel(title, 4, 30) || 'Kuramsal Çerçeve',
+          subtext: outline || title,
+          badge: badges?.[1] || 'Kapsam',
+          value: 78,
+        },
       ];
     }
 
-    for (let i = 0; i < candidates.length && result.length < count; i++) {
-      const pick = candidates[(offset + i) % candidates.length];
-      const key = pick.label.toLocaleLowerCase('tr-TR');
-      if (!used.has(key)) {
-        used.add(key);
-        result.push({
-          ...pick,
-          badge: customBadges?.[result.length % customBadges.length] || pick.badge,
+    const picked: DiagramNode[] = [];
+    for (let i = 0; i < candidates.length && picked.length < count; i++) {
+      const item = candidates[(seedOffset * 3 + i) % candidates.length];
+      if (!picked.some(p => p.label === item.label)) {
+        picked.push({
+          ...item,
+          badge: badges?.[picked.length % badges.length] || item.badge,
         });
       }
     }
-    return result;
+    return picked;
   };
 
-  const currentTotal = () => scenes.reduce((acc, s) => acc + s.durationSec, 0);
-  const hasType = (t: DiagramType) => scenes.some(s => s.diagram.type === t);
+  const extraScenes: { slot: 'opening' | 'mid1' | 'mid2' | 'late1' | 'late2' | 'closing'; scene: StudioScene }[] = [];
+  const totalSecWithExtras = () =>
+    coreScenes.reduce((a, s) => a + s.durationSec, 0) +
+    extraScenes.reduce((a, e) => a + e.scene.durationSec, 0);
+  const hasTypeAnywhere = (t: DiagramType) =>
+    coreScenes.some(s => s.diagram.type === t) || extraScenes.some(e => e.scene.diagram.type === t);
 
-  // 1) Görsel Çerçeve & İllüstrasyon Sahnesi ('visual') — yoksa başa/ikinci sıraya ekle
-  if (!hasType('visual') || currentTotal() < MIN_LESSON_DURATION_SEC) {
-    const vNodes = buildPoolNodes(0, 4, ['Ana Eksen', 'Tarihsel/Kurumsal Bağlam', 'Temel İşleyiş', 'Genel Etki']);
-    const introOutline = outline || scenes[0]?.narration || title;
-    const turns: DialogueTurn[] = [
+  // 1) AÇILIŞ: Bütünsel Kavramsal Mimari ve Görsel Çerçeve ('visual')
+  if (!hasTypeAnywhere('visual') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC) {
+    const vNodes = pickDistinctNodes(0, 4, ['Kurucu Tez', 'Yapısal Bağlam', 'İç İşleyiş', 'Makro Sonuç']);
+    const roadmapStr =
+      chapterTitles.length >= 2
+        ? `${chapterTitles.slice(0, 3).join(', ')} eksenlerini`
+        : `${vNodes.map(n => n.label).slice(0, 3).join(' ve ')} boyutlarını`;
+    const framingText = outline
+      ? ensureSentenceEnd(outline)
+      : `${title} konusu, tekil tanımların ötesinde çok katmanlı bir ${domainNoun} bütünlük taşır.`;
+
+    const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `EconNotes stüdyosuna hoş geldiniz! Bugün ${courseLabel ? `${courseLabel} dersimizin ` : ''}${title} konusunu tüm boyutlarıyla, görseller, tablolar, grafikler ve örnek senaryolar eşliğinde derinlemesine inceleyeceğiz. ${ensureSentenceEnd(introOutline)}`,
+        text: `EconNotes akademik stüdyosuna hoş geldiniz. Bugün ${courseLabel ? `${courseLabel} kapsamında ` : ''}${title} konusunu yalnızca yüzeysel kavramlarla değil, arka planındaki ${domainNoun} dinamikler, karşılaştırmalı tablolar, analitik grafikler ve somut vaka senaryolarıyla derinlemesine inceleyeceğiz. ${framingText}`,
       },
       {
         speaker: 'Barış',
-        text: `Harika bir çerçeve Deniz! Özellikle bu konuyu çalışırken sadece tanımları ezberlemek yerine, ${vNodes[0]?.label || 'temel yapı'} ile ${vNodes[1]?.label || 'kurumsal işleyiş'} arasındaki neden-sonuç bağını görmek işi çok kolaylaştırıyor, değil mi?`,
+        text: `Özellikle bu konuyu çalışırken bilgileri kopuk maddeler hâlinde ezberlemek yerine, ${roadmapStr} birbirine bağlayan ana omurgayı görmek büyük fark yaratıyor. Akıllı tahtadaki görsel mimaride ilk dikkatimizi çekmesi gereken kurucu ilke nedir Deniz?`,
       },
       {
         speaker: 'Deniz',
-        text: `Kesinlikle Barış. Akıllı tahtamızdaki görsel modelde de gördüğümüz gibi, ${ensureSentenceEnd(vNodes[0]?.subtext || introOutline)} Şimdi adım adım tüm mekanizmaları birlikte açalım.`,
+        text: `Merkezde ${vNodes[0]?.label || title} yer alıyor Barış. Zira ${lowerFirstIfNotProper(stripTrailingPeriod(vNodes[0]?.subtext || framingText))}; bu temel kurulduğunda ${vNodes[1]?.label || 'diğer kurumsal halkalar'} da kendi işlevini kazanıyor. Şimdi bu büyük resmi bölüm bölüm analitik olarak açalım.`,
       },
-    ];
-    const sents: string[] = [];
-    const spks: Speaker[] = [];
-    turns.forEach(t =>
-      splitSentences(t.text).forEach(st => {
-        sents.push(st);
-        spks.push(t.speaker);
+    ]);
+
+    extraScenes.push({
+      slot: 'opening',
+      scene: finalizeSceneObject({
+        id: 'scene-visual-architecture',
+        index: 0,
+        title: `${shortLabel(title, 5, 40)}: Kavramsal Mimari ve Analitik Çerçeve`,
+        sentences,
+        speakers,
+        keyTakeaways: vNodes.slice(0, 3).map(n => `${n.label}: ${n.subtext}`),
+        keyTerms: allTerms.slice(0, 3),
+        examTip:
+          allFacts[0] ||
+          `${title} başlığında unsurların tekil tanımlarından çok birbirleriyle kurduğu ${domainNoun} bütünlük sorgulanır.`,
+        visualCue: 'Konunun bütünsel mimarisini sunan illüstratif görsel analiz sahnesi',
+        diagram: {
+          type: 'visual',
+          visualTheme,
+          title: `${shortLabel(title, 5, 38)} — Bütünsel Model`,
+          rootBadge,
+          nodes: vNodes,
+          metric: allFacts[0] || outline || title,
+        },
       }),
-    );
-
-    const introScene = finalizeSceneObject({
-      id: 'scene-visual-intro',
-      index: 0,
-      title: `${shortLabel(title, 5, 42)}: Görsel Çerçeve ve Büyük Resim`,
-      sentences: sents,
-      speakers: spks,
-      keyTakeaways: vNodes.slice(0, 3).map(n => `${n.label}: ${n.subtext}`),
-      keyTerms: allTerms.slice(0, 3),
-      examTip: allFacts[0] || `${title} konusunun bütünsel neden-sonuç ilişkisi sınavlarda temel yorum sorusu olarak gelir.`,
-      visualCue: 'Konu bütünlüğünü gösteren illüstratif görsel analiz sahnesi',
-      diagram: {
-        type: 'visual',
-        visualTheme,
-        title: `${shortLabel(title, 5, 38)} — Görsel Model`,
-        rootBadge,
-        nodes: vNodes,
-        metric: allFacts[0] || outline || title,
-      },
     });
-
-    if (!hasType('visual')) {
-      scenes.unshift(introScene);
-    } else if (currentTotal() < MIN_LESSON_DURATION_SEC) {
-      scenes.unshift(introScene);
-    }
   }
 
-  // 2) Akademik Karşılaştırma & Kavram Tablosu ('table')
-  if (!hasType('table') || currentTotal() < MIN_LESSON_DURATION_SEC) {
-    const tNodes = buildPoolNodes(1, 4, ['Temel Kavram', 'Kurumsal Boyut', 'Uygulama Alanı', 'Kritik Sonuç']);
-    const turns: DialogueTurn[] = [
+  // 2) ORTA-1: Çok Boyutlu Akademik Karşılaştırma Tablosu ('table')
+  if (!hasTypeAnywhere('table') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC) {
+    const tNodes = pickDistinctNodes(1, 4, ['Kavramsal Tanım', 'Kurumsal İşlev', 'Uygulama Zemini', 'Yapısal Çıktı']);
+    const n0 = tNodes[0];
+    const n1 = tNodes[1] || tNodes[0];
+    const n2 = tNodes[2] || tNodes[0];
+    const n3 = tNodes[3] || tNodes[1] || tNodes[0];
+
+    const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Barış',
-        text: `Deniz, şimdiye kadar konuştuğumuz başlıkları tek bir sistematik tabloda toplasak çok netleşecek. Özellikle ${tNodes.map(n => n.label).slice(0, 3).join(', ')} unsurlarını yan yana koyduğumuzda nasıl bir tablo ortaya çıkıyor?`,
+        text: `Deniz, konunun temel yapıtaşlarını inceledik; ancak sınavlarda ve akademik analizlerde en çok yapılan hata yakın kavramları birbirinin yerine kullanmak oluyor. Akıllı tahtadaki sistematik karşılaştırma tablosunda ${n0.label} ile ${n1.label} arasındaki sınır çizgisini nasıl okuyoruz?`,
       },
       {
         speaker: 'Deniz',
-        text: `Hemen akıllı tahtadaki karşılaştırmalı tablomuza bakalım Barış. İlk satırda ${tNodes[0]?.label} yer alıyor; ${ensureSentenceEnd(tNodes[0]?.subtext || '')} Hemen altında ise ${tNodes[1]?.label} boyutu devreye giriyor; ${ensureSentenceEnd(tNodes[1]?.subtext || '')}`,
+        text: `Çok kritik bir noktaya parmak bastın Barış. Tablomuzun ilk satırındaki ${n0.label}, sistemin tanımlayıcı temelini kurar ve ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ikinci satırdaki ${n1.label}, bu yapının sahadaki kurumsal işleyişini üstlenir; yani ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))}`,
       },
       {
         speaker: 'Barış',
-        text: `Tablonun alt satırları da resmi tamamlıyor: ${tNodes[2]?.label ? `${tNodes[2].label} tarafında ${ensureSentenceEnd(tNodes[2].subtext)}` : ''} Böylece tüm kavramların birbirinden farkı tek bakışta görülüyor.`,
+        text: `Tablonun alt satırlarına indiğimizde ise tamamlayıcı boyutları görüyoruz: ${n2.label} ekseninde ${lowerFirstIfNotProper(stripTrailingPeriod(n2.subtext))}${n3 && n3.label !== n2.label ? `, ${n3.label} boyutunda ise ${lowerFirstIfNotProper(stripTrailingPeriod(n3.subtext))}` : ''}. Kavramları bu dört sütunlu matriste yan yana görmek tüm muğlaklığı ortadan kaldırıyor.`,
       },
-    ];
-    const sents: string[] = [];
-    const spks: Speaker[] = [];
-    turns.forEach(t =>
-      splitSentences(t.text).forEach(st => {
-        sents.push(st);
-        spks.push(t.speaker);
-      }),
-    );
+    ]);
 
-    scenes.push(
-      finalizeSceneObject({
-        id: 'scene-table-matrix',
-        index: scenes.length,
-        title: 'Sistematik Kavram ve İşleyiş Tablosu',
-        sentences: sents,
-        speakers: spks,
+    extraScenes.push({
+      slot: 'mid1',
+      scene: finalizeSceneObject({
+        id: 'scene-comparative-table',
+        index: 0,
+        title: 'Sistematik Sınıflandırma ve Karşılaştırma Tablosu',
+        sentences,
+        speakers,
         keyTakeaways: tNodes.map(n => `${n.label}: ${n.subtext}`),
         keyTerms: tNodes.slice(0, 4).map(n => ({ term: n.label, definition: n.subtext })),
-        examTip: tNodes[0] ? `Tablodaki ${tNodes[0].label} ve ${tNodes[1]?.label || 'diğer unsurlar'} ayrımı eşleştirme sorularında sıkça yoklanır.` : '',
-        visualCue: 'Çok sütunlu akademik karşılaştırma ve kavram tablosu',
+        examTip: `Tablodaki ${n0.label} ve ${n1.label} kavramlarının işlev farkı, çoktan seçmeli ve klasik sınavlarda temel ayırt edici ölçüttür.`,
+        visualCue: 'Çok sütunlu akademik sınıflandırma ve karşılaştırma tablosu',
         diagram: {
           type: 'table',
           visualTheme,
-          title: 'Kavram, İşleyiş ve Akademik Önem Tablosu',
+          title: 'Kavram, İşlev ve Yapısal Sonuç Matrisi',
           rootBadge,
           nodes: tNodes,
-          metric: tNodes[0]?.subtext || outline,
+          metric: n0.subtext || outline,
         },
       }),
-    );
+    });
   }
 
-  // 3) Geometrik Şekiller & Döngüsel Mekanizma ('shapes')
-  if (!hasType('shapes') || currentTotal() < MIN_LESSON_DURATION_SEC) {
-    const sNodes = buildPoolNodes(2, 4, ['1. Halka', '2. Halka', '3. Halka', 'Denge Noktası']);
-    const turns: DialogueTurn[] = [
+  // 3) ORTA-2: Nedensellik Zinciri ve Geri Besleme Döngüsü ('shapes')
+  if (!hasTypeAnywhere('shapes') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC) {
+    const sNodes = pickDistinctNodes(2, 4, ['Başlatıcı Dinamik', 'Aktarım Kanalı', 'Kurumsal Denge', 'Geri Besleme']);
+    const s0 = sNodes[0];
+    const s1 = sNodes[1] || sNodes[0];
+    const s2 = sNodes[2] || sNodes[0];
+
+    const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `Şimdi konunun iç işleyişini geometrik döngü şemamız üzerinden inceleyelim. Dikkat ederseniz burada birbirinden kopuk maddeler değil, birbirini besleyen kesintisiz bir mekanizma var. Süreç ${sNodes[0]?.label} ile başlıyor; ${ensureSentenceEnd(sNodes[0]?.subtext || '')}`,
+        text: `Şimdi bu kavramların durağan tanımlarından çıkıp dinamik nedensellik mekanizmasına bakalım. Tahtadaki geometrik döngü şeması bize çok net bir ilke söylüyor: hiçbir ${domainNoun} sonuç tek başına ortaya çıkmaz. İlk halkada ${s0.label} tetikleyici işlev görür; ${ensureSentenceEnd(lowerFirstIfNotProper(s0.subtext))}`,
       },
       {
         speaker: 'Barış',
-        text: `Ve bu halka doğrudan ${sNodes[1]?.label} unsurunu tetikliyor, değil mi? Yani ${ensureSentenceEnd(sNodes[1]?.subtext || '')}`,
+        text: `Peki bu ilk ivme sistemin diğer halkalarına nasıl aktarılıyor? Özellikle ${s1.label} aşamasında nasıl bir dönüşüm yaşanıyor?`,
       },
       {
         speaker: 'Deniz',
-        text: `Tam isabet! Döngünün devamında ${sNodes[2]?.label ? `${sNodes[2].label} devreye girerek ` : ''}yapıyı tamamlıyor; ${ensureSentenceEnd(sNodes[2]?.subtext || sNodes[0]?.subtext || '')} Halkalardan biri zayıfladığında bütün sistem bundan etkileniyor.`,
+        text: `Tam burada aktarım mekanizması devreye giriyor Barış: ${s0.label} sağlam işlediğinde doğrudan ${s1.label} kapasitesini besliyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(s1.subtext))} Ardından üçüncü halkada ${s2.label} ile sistem dengeye oturuyor; tersine halkalardan biri aşındığında ise zincirleme bir çözülme başlıyor.`,
       },
-    ];
-    const sents: string[] = [];
-    const spks: Speaker[] = [];
-    turns.forEach(t =>
-      splitSentences(t.text).forEach(st => {
-        sents.push(st);
-        spks.push(t.speaker);
-      }),
-    );
+    ]);
 
-    scenes.push(
-      finalizeSceneObject({
-        id: 'scene-shapes-cycle',
-        index: scenes.length,
-        title: 'Yapısal Döngü ve Mekanizma Şeması',
-        sentences: sents,
-        speakers: spks,
+    extraScenes.push({
+      slot: 'mid2',
+      scene: finalizeSceneObject({
+        id: 'scene-causal-shapes',
+        index: 0,
+        title: 'Nedensellik Zinciri ve Döngüsel Etkileşim Mekanizması',
+        sentences,
+        speakers,
         keyTakeaways: sNodes.slice(0, 3).map(n => `${n.label}: ${n.subtext}`),
         keyTerms: sNodes.slice(0, 3).map(n => ({ term: n.label, definition: n.subtext })),
-        examTip: allFacts[1] || 'Unsurlar arasındaki karşılıklı nedensellik bağı klasik ve yorum sorularının merkezindedir.',
-        visualCue: 'Geometrik şekiller ve döngüsel neden-sonuç modeli',
+        examTip:
+          allFacts[1] ||
+          'Halkalar arasındaki karşılıklı geri besleme ilişkisi, analitik yorum sorularının ana eksenini oluşturur.',
+        visualCue: 'Geometrik şekillerle modellenen döngüsel nedensellik ve aktarım şeması',
         diagram: {
           type: 'shapes',
           visualTheme,
-          title: 'Döngüsel Etkileşim ve Mekanizma Şekilleri',
+          title: 'Döngüsel Nedensellik ve Aktarım Mekanizması',
           rootBadge,
           nodes: sNodes,
-          metric: allFacts[1] || sNodes[0]?.subtext || '',
+          metric: allFacts[1] || s2.subtext || s0.subtext,
         },
       }),
-    );
+    });
   }
 
-  // 4) Analitik Grafik & Etki Eğrisi ('chart')
-  if (!hasType('chart') || currentTotal() < MIN_LESSON_DURATION_SEC) {
-    const cNodes = buildPoolNodes(3, 4, ['Yüksek Ağırlık', 'Yapısal Etki', 'Dönüştürücü Güç', 'Uzun Vadeli Sonuç']).map(
+  // 4) GEÇ-1: Yapısal Ağırlık ve Etki Düzeyi Grafiği ('chart')
+  if (!hasTypeAnywhere('chart') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC) {
+    const cNodes = pickDistinctNodes(3, 4, ['Birincil Belirleyici', 'Yapısal Kaldıraç', 'İstikrar Unsuru', 'Tamamlayıcı Etki']).map(
       (n, idx) => ({
         ...n,
-        value: [92, 78, 85, 68][idx % 4],
+        value: [93, 84, 79, 69][idx % 4],
       }),
     );
-    const turns: DialogueTurn[] = [
+    const c0 = cNodes[0];
+    const c1 = cNodes[1] || cNodes[0];
+    const c2 = cNodes[2] || cNodes[0];
+
+    const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Barış',
-        text: `Peki Deniz, bu faktörlerin sistem üzerindeki göreli ağırlığını ve etki eğrisini bir grafik üzerinde okuduğumuzda hangi unsurlar öne çıkıyor?`,
+        text: `Deniz, bir konuyu derinlemesine kavramanın bir diğer yolu da tüm faktörleri eşit ağırlıkta sanmamak ve hangisinin ana belirleyici olduğunu görmek. Tahtadaki analitik ağırlık ve eğilim grafiğimizi nasıl yorumlamalıyız?`,
       },
       {
         speaker: 'Deniz',
-        text: `Tahtadaki analitik grafiğimize baktığımızda en belirleyici sütunun ${cNodes[0]?.label} olduğunu görüyoruz; çünkü ${ensureSentenceEnd(cNodes[0]?.subtext || '')} Onu hemen yakından ${cNodes[1]?.label} izliyor; ${ensureSentenceEnd(cNodes[1]?.subtext || '')}`,
+        text: `Grafikteki en yüksek sütun ve eğri tepe noktası açık biçimde ${c0.label} unsuruna işaret ediyor Barış. Çünkü ${lowerFirstIfNotProper(stripTrailingPeriod(c0.subtext))}; dolayısıyla sistemin yönünü tayin eden birincil kaldıraç burasıdır.`,
       },
       {
         speaker: 'Barış',
-        text: `Eğrinin devamında da ${cNodes[2]?.label || 'diğer faktör'} ve ${cNodes[3]?.label || 'uzun vadeli sonuç'} belirginleşiyor. Grafiksel olarak görmek hangi unsurun birincil belirleyici olduğunu hafızaya kazıyor.`,
+        text: `Hemen arkasından gelen ${c1.label} ve ${c2.label} sütunları da bu ana ekseni tahkim ediyor; özellikle ${lowerFirstIfNotProper(stripTrailingPeriod(c1.subtext))}. Böylece birincil neden ile destekleyici koşullar arasındaki hiyerarşi net biçimde ortaya çıkıyor.`,
       },
-    ];
-    const sents: string[] = [];
-    const spks: Speaker[] = [];
-    turns.forEach(t =>
-      splitSentences(t.text).forEach(st => {
-        sents.push(st);
-        spks.push(t.speaker);
-      }),
-    );
+    ]);
 
-    scenes.push(
-      finalizeSceneObject({
-        id: 'scene-analytics-chart',
-        index: scenes.length,
-        title: 'Analitik Etki ve Yapısal Ağırlık Grafiği',
-        sentences: sents,
-        speakers: spks,
+    extraScenes.push({
+      slot: 'late1',
+      scene: finalizeSceneObject({
+        id: 'scene-structural-chart',
+        index: 0,
+        title: 'Analitik Etki Hiyerarşisi ve Eğilim Grafiği',
+        sentences,
+        speakers,
         keyTakeaways: cNodes.slice(0, 3).map(n => `${n.label}: ${n.subtext}`),
         keyTerms: cNodes.slice(0, 3).map(n => ({ term: n.label, definition: n.subtext })),
-        examTip: allFacts[2] || `${cNodes[0]?.label || 'Ana faktör'}, konunun en yüksek belirleyiciliğe sahip eksenidir.`,
-        visualCue: 'Sütun ve eğri birleşimli analitik ağırlık grafiği',
+        examTip:
+          allFacts[2] ||
+          `Öncüllü sorularda "temel/birincil etken" sorulduğunda ${c0.label} eksenindeki ana belirleyiciye odaklanılmalıdır.`,
+        visualCue: 'Faktörlerin göreli ağırlığını ve eğilim eğrisini gösteren analitik grafik',
         diagram: {
           type: 'chart',
           visualTheme,
-          title: 'Faktör Etki Düzeyi ve Eğilim Grafiği',
+          title: 'Yapısal Belirleyicilik ve Etki Eğrisi',
           rootBadge,
           nodes: cNodes,
-          metric: allFacts[2] || cNodes[0]?.subtext || '',
+          metric: allFacts[2] || c0.subtext,
         },
       }),
-    );
+    });
   }
 
-  // 5) Vaka & Senaryo Simülasyonu ('scenario')
-  if (!hasType('scenario') || currentTotal() < MIN_LESSON_DURATION_SEC) {
-    const scNodes = buildPoolNodes(0, 4, [
-      '01 · Bağlam ve Durum',
-      '02 · Aktörler ve Yapı',
-      '03 · İşleyen Mekanizma',
-      '04 · Sonuç ve Çıkarım',
+  // 5) GEÇ-2: Dört Aşamalı Uygulamalı Vaka & Senaryo Simülasyonu ('scenario')
+  if (!hasTypeAnywhere('scenario') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC) {
+    const scNodes = pickDistinctNodes(4, 4, [
+      '01 · Başlangıç Koşulu',
+      '02 · Kurumsal Müdahale',
+      '03 · Saha İşleyişi',
+      '04 · Denge ve Sonuç',
     ]);
-    const turns: DialogueTurn[] = [
-      {
-        speaker: 'Barış',
-        text: `Şimdi teoriden çıkıp somut bir vaka senaryosu kuralım Deniz! Diyelim ki bu dönemin ya da modelin tam içindeyiz; sahadaki gerçek işleyiş adım adım nasıl gerçekleşiyor?`,
-      },
-      {
-        speaker: 'Deniz',
-        text: `Harika fikir Barış, tahtadaki dört aşamalı senaryo kartlarımız üzerinden ilerleyelim. Birinci adımda başlangıç durumumuz var: ${scNodes[0]?.label} ekseninde ${ensureSentenceEnd(scNodes[0]?.subtext || '')} İkinci adımda kurumsal aktörler devreye giriyor ve ${ensureSentenceEnd(scNodes[1]?.subtext || '')}`,
-      },
-      {
-        speaker: 'Barış',
-        text: `Üçüncü adımda ise kritik mekanizma işliyor: ${ensureSentenceEnd(scNodes[2]?.subtext || '')} Ve dördüncü adımda ulaştığımız sonuç çok net: ${ensureSentenceEnd(scNodes[3]?.subtext || scNodes[0]?.subtext || '')}`,
-      },
-      {
-        speaker: 'Deniz',
-        text: `İşte konuyu bu şekilde bir vaka senaryosu olarak zihnimizde canlandırdığımızda, sınavda hangi öncüllü veya kurgusal soru gelirse gelsin kolayca çözüyoruz.`,
-      },
-    ];
-    const sents: string[] = [];
-    const spks: Speaker[] = [];
-    turns.forEach(t =>
-      splitSentences(t.text).forEach(st => {
-        sents.push(st);
-        spks.push(t.speaker);
-      }),
-    );
+    const st0 = scNodes[0];
+    const st1 = scNodes[1] || scNodes[0];
+    const st2 = scNodes[2] || scNodes[0];
+    const st3 = scNodes[3] || scNodes[1] || scNodes[0];
 
-    scenes.push(
-      finalizeSceneObject({
-        id: 'scene-case-scenario',
-        index: scenes.length,
-        title: 'Uygulamalı Vaka ve Senaryo Simülasyonu',
-        sentences: sents,
-        speakers: spks,
+    const { sentences, speakers } = turnsToDialogueArrays([
+      {
+        speaker: 'Barış',
+        text: `Şimdi tüm bu kuramsal çerçeveyi somut bir vaka senaryosu üzerinde test edelim Deniz. Diyelim ki karşımızda ${title} dinamiklerinin birebir yaşandığı gerçek bir tarihsel veya uygulamalı kesit var; bu dört aşamalı senaryo sahada nasıl işliyor?`,
+      },
+      {
+        speaker: 'Deniz',
+        text: `Adım adım ilerleyelim Barış. Birinci aşamada başlangıç koşulumuz şekilleniyor: ${st0.label} çerçevesinde ${ensureSentenceEnd(lowerFirstIfNotProper(st0.subtext))} Bu zeminin üzerine ikinci aşamada kurumsal düzenleme devreye giriyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(st1.subtext))}`,
+      },
+      {
+        speaker: 'Barış',
+        text: `Üçüncü aşamaya geldiğimizde ise mekanizmanın sahadaki somut karşılığını izliyoruz: ${ensureSentenceEnd(lowerFirstIfNotProper(st2.subtext))} Dördüncü ve son aşamada ise bütün bu sürecin doğal çıktısı olarak ${ensureSentenceEnd(lowerFirstIfNotProper(st3.subtext))}`,
+      },
+      {
+        speaker: 'Deniz',
+        text: `İşte konuyu bu dört adımlı vaka kurgusuyla zihnimizde canlandırdığımızda, soyut görünen her ilke somut ve unutulmaz bir nedensellik öyküsüne dönüşüyor.`,
+      },
+    ]);
+
+    extraScenes.push({
+      slot: 'late2',
+      scene: finalizeSceneObject({
+        id: 'scene-applied-scenario',
+        index: 0,
+        title: 'Uygulamalı Vaka Analizi ve Senaryo Simülasyonu',
+        sentences,
+        speakers,
         keyTakeaways: scNodes.map(n => `${n.label}: ${n.subtext}`),
         keyTerms: scNodes.slice(0, 3).map(n => ({ term: n.label, definition: n.subtext })),
-        examTip: 'Öncüllü ve vaka temelli sınav sorularında bağlamdan sonuca giden bu dört adımı takip edin.',
-        visualCue: 'Dört aşamalı interaktif vaka ve senaryo simülasyonu',
+        examTip:
+          'Vaka ve paragraf temelli sorularda önce başlangıç koşulunu, ardından kurumsal aracı ve nihai sonucu eşleştirin.',
+        visualCue: 'Dört aşamalı uygulamalı vaka analizi ve süreç simülasyonu',
         diagram: {
           type: 'scenario',
           visualTheme,
-          title: `${shortLabel(title, 4, 34)} — Vaka Senaryosu`,
+          title: `${shortLabel(title, 4, 34)} — Vaka Simülasyonu`,
           rootBadge,
           nodes: scNodes,
-          metric: scNodes[3]?.subtext || allFacts[0] || '',
+          metric: st3.subtext || allFacts[0] || title,
         },
       }),
-    );
+    });
   }
 
-  // 6) Eğer hâlâ 5 dakikanın (312 sn) altındaysa: Sınav Sentezi ve Kritik Karşılaştırma Final Bölümü ekle
-  if (currentTotal() < MIN_LESSON_DURATION_SEC) {
-    const fNodes = buildPoolNodes(2, 4, ['Kritik Ayrım', 'Temel İlke', 'Sınav Tuzağı', 'Genel Sentez']);
-    const summaryFacts = allFacts.slice(0, 4);
-    const turns: DialogueTurn[] = [
-      {
-        speaker: 'Deniz',
-        text: `Dersimizin son bölümünde, ${title} başlığında sınav öncesi mutlaka cebimizde olması gereken kritik ayrımları ve hap bilgileri birlikte sentezleyelim.`,
-      },
-      {
-        speaker: 'Barış',
-        text: `Benim notlarımda ilk sırada şu var Deniz: ${ensureSentenceEnd(summaryFacts[0] || fNodes[0]?.subtext || title)} Ayrıca ikinci kritik nokta olarak da ${ensureSentenceEnd(summaryFacts[1] || fNodes[1]?.subtext || '')}`,
-      },
-      {
-        speaker: 'Deniz',
-        text: `Çok doğru Barış. Buna ek olarak öğrencilerin sıkça karıştırdığı şu detayı da netleştirelim: ${ensureSentenceEnd(summaryFacts[2] || fNodes[2]?.subtext || outline || title)} Son olarak da ${ensureSentenceEnd(summaryFacts[3] || fNodes[3]?.subtext || 'tüm bu unsurların birbiriyle bütünleşik çalıştığını unutmayalım.')}`,
-      },
-      {
-        speaker: 'Barış',
-        text: `Görseller, tablolar, grafikler ve vaka senaryomuzla konunun hiçbir karanlık noktası kalmadı. Sağ paneldeki ders notlarını indirmeyi ve kendi yer imlerinizi eklemeyi unutmayın, hepinize başarılar!`,
-      },
-    ];
-    const sents: string[] = [];
-    const spks: Speaker[] = [];
-    turns.forEach(t =>
-      splitSentences(t.text).forEach(st => {
-        sents.push(st);
-        spks.push(t.speaker);
-      }),
-    );
+  // 6) KAPANIŞ: Akademik Sentez, Çeldirici Analizi ve Sınav Stratejisi ('comparison')
+  if (totalSecWithExtras() < MIN_LESSON_DURATION_SEC || !hasTypeAnywhere('comparison')) {
+    const fNodes = pickDistinctNodes(5, 4, ['Temel İlke', 'Kritik Ayrım', 'Çeldirici Tuzağı', 'Bütünsel Sentez']);
+    const fact0 = allFacts[0] || fNodes[0]?.subtext || title;
+    const fact1 = allFacts[1] || fNodes[1]?.subtext || outline || title;
+    const fact2 = allFacts[2] || fNodes[2]?.subtext || fNodes[0]?.subtext || title;
 
-    scenes.push(
-      finalizeSceneObject({
-        id: 'scene-final-synthesis',
-        index: scenes.length,
-        title: 'Sınav Stratejisi, Kritik Ayrımlar ve Genel Sentez',
-        sentences: sents,
-        speakers: spks,
-        keyTakeaways: summaryFacts.length >= 2 ? summaryFacts : fNodes.map(n => `${n.label}: ${n.subtext}`),
+    const { sentences, speakers } = turnsToDialogueArrays([
+      {
+        speaker: 'Deniz',
+        text: `Dersimizin kapanış bölümünde, ${title} başlığında yüksek düzeyli sınavlarda çeldirici olarak kurulan ince ayrımları ve anahtar ilkeleri bir araya getirelim.`,
+      },
+      {
+        speaker: 'Barış',
+        text: `Benim sentez listemin en başında şu ilke yer alıyor Deniz: ${ensureSentenceEnd(lowerFirstIfNotProper(fact0))} Bununla birlikte ikinci temel dayanak olarak da ${ensureSentenceEnd(lowerFirstIfNotProper(fact1))}`,
+      },
+      {
+        speaker: 'Deniz',
+        text: `Çok isabetli bir özet Barış. Sınav hazırlığında özellikle neden ile sonucu ters yüz eden öncüllere dikkat etmeliyiz; nitekim ${ensureSentenceEnd(lowerFirstIfNotProper(fact2))}`,
+      },
+      {
+        speaker: 'Barış',
+        text: `Görsel mimariden karşılaştırma tablosuna, döngüsel mekanizmadan analitik grafiğe ve vaka simülasyonuna kadar çok zengin bir ders oldu. Sağ paneldeki kavram sözlüğünü ve ders notlarını indirerek tekrar yapabilirsiniz; hepinize başarılar diliyoruz!`,
+      },
+    ]);
+
+    extraScenes.push({
+      slot: 'closing',
+      scene: finalizeSceneObject({
+        id: 'scene-scholarly-synthesis',
+        index: 0,
+        title: 'Akademik Sentez, Çeldirici Analizi ve Sınav Stratejisi',
+        sentences,
+        speakers,
+        keyTakeaways: allFacts.length >= 3 ? allFacts.slice(0, 4) : fNodes.map(n => `${n.label}: ${n.subtext}`),
         keyTerms: allTerms.slice(0, 4),
-        examTip: summaryFacts[0] || 'Kavramlar arası karşılaştırma ve neden-sonuç bütünlüğüne odaklanın.',
-        visualCue: 'Karşılaştırmalı sınav sentezi ve kritik ayrımlar matrisi',
+        examTip: fact0,
+        visualCue: 'Kritik ayrımları ve sınav sentezini gösteren ikili karşılaştırma matrisi',
         diagram: {
           type: 'comparison',
           visualTheme,
-          title: 'Sınav Öncesi Kritik Ayrımlar ve Sentez',
+          title: 'Kritik Ayrımlar ve Akademik Sentez',
           rootBadge,
           nodes: fNodes,
-          metric: summaryFacts[0] || outline || title,
+          metric: fact0,
         },
       }),
-    );
+    });
   }
 
-  // İndeksleri yeniden numaralandır
-  return scenes.map((sc, i) => ({
+  // Pedagojik akış: Görsel Açılış -> Çekirdek Bölümler (aralara Tablo & Şekiller serpiştirilmiş) -> Grafik -> Senaryo -> Sentez
+  const ordered: StudioScene[] = [];
+  extraScenes.filter(e => e.slot === 'opening').forEach(e => ordered.push(e.scene));
+
+  const midPoint1 = Math.max(1, Math.floor(coreScenes.length * 0.4));
+  const midPoint2 = Math.max(midPoint1 + 1, Math.floor(coreScenes.length * 0.75));
+
+  coreScenes.forEach((sc, idx) => {
+    ordered.push(sc);
+    if (idx + 1 === midPoint1) {
+      extraScenes.filter(e => e.slot === 'mid1').forEach(e => ordered.push(e.scene));
+    }
+    if (idx + 1 === midPoint2) {
+      extraScenes.filter(e => e.slot === 'mid2').forEach(e => ordered.push(e.scene));
+    }
+  });
+
+  if (coreScenes.length < 2) {
+    extraScenes.filter(e => e.slot === 'mid1' || e.slot === 'mid2').forEach(e => {
+      if (!ordered.includes(e.scene)) ordered.push(e.scene);
+    });
+  } else if (midPoint2 > coreScenes.length) {
+    extraScenes.filter(e => e.slot === 'mid2').forEach(e => {
+      if (!ordered.includes(e.scene)) ordered.push(e.scene);
+    });
+  }
+
+  extraScenes
+    .filter(e => e.slot === 'late1' || e.slot === 'late2' || e.slot === 'closing')
+    .forEach(e => ordered.push(e.scene));
+
+  return ordered.map((sc, i) => ({
     ...sc,
     id: `scene-${i}`,
     index: i,
