@@ -1,6 +1,7 @@
 import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ import { extractFile } from '@/lib/extractFile';
 import { downloadLectureSummary } from '@/lib/liveLectureReport';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import LiveLectureCapture from '@/components/study/LiveLectureCapture';
+import NotebookLMVideoStudio from '@/components/study/NotebookLMVideoStudio';
 
 type MaterialType = 'flashcards' | 'quiz' | 'summary' | 'video';
 type ExamType = 'test' | 'classic' | 'mixed';
@@ -68,7 +70,7 @@ const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string;
   flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Hızlı tekrar için çevrilebilir kartlar', tone: 'text-primary', tint: 'bg-primary/10', code: 'KRT' },
   quiz: { label: 'Kısa Sınav', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Test veya klasik sınav denemesi', tone: 'text-accent', tint: 'bg-accent/10', code: 'SNV' },
   summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Özet, anahtar noktalar ve infografik', tone: 'text-success', tint: 'bg-success/10', code: 'ÖZT' },
-  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-warning to-destructive', desc: 'Sahne sahne anlatım ve öneriler', tone: 'text-warning', tint: 'bg-warning/10', code: 'VİD' },
+  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-warning to-destructive', desc: 'NotebookLM tarzı ikili podcast anlatımı & MP4 video', tone: 'text-warning', tint: 'bg-warning/10', code: 'VİD' },
 };
 
 
@@ -121,6 +123,22 @@ const Study = () => {
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState('');
   const progressTimer = useRef<number | null>(null);
+
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const createParam = searchParams.get('create');
+    const noteIdParam = searchParams.get('noteId');
+    const sourceModeParam = searchParams.get('sourceMode') as SourceMode;
+    if (createParam === 'video' || noteIdParam) {
+      if (createParam === 'video') setMaterialType('video');
+      if (noteIdParam) setSelectedNoteId(noteIdParam);
+      if (sourceModeParam && ['own', 'platform', 'upload'].includes(sourceModeParam)) {
+        setSourceMode(sourceModeParam);
+      }
+      setCreateOpen(true);
+    }
+  }, [searchParams]);
 
   // 1 saat mola sayacı
   const studyStartRef = useRef<number>(Date.now());
@@ -628,6 +646,21 @@ const Study = () => {
               </div>
             </div>
 
+            {materialType === 'video' && (
+              <div className="rounded-xl border border-warning/40 bg-gradient-to-r from-warning/10 via-warning/5 to-transparent p-3.5 flex items-start gap-3">
+                <VideoIcon className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground">NotebookLM Tarzı İkili Video & MP4 Üretimi</span>
+                    <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">YENİ · MP4</Badge>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Seçtiğiniz not iki uzman sanal sunucu (<strong>Deniz</strong> & <strong>Barış</strong>) tarafından masaya yatırılır; ses dalgaları, görsel sunum slaytları, altyazılar ve indirilebilir <strong>MP4 video formatında</strong> üretilir.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Kaynak */}
             <div>
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Kaynak</Label>
@@ -870,7 +903,7 @@ const MaterialViewer = ({ material, onReport, onProgressSaved }: { material: Stu
       case 'flashcards': return <FlashcardViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'quiz': return <QuizViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'summary': return <SummaryViewer material={material} />;
-      case 'video': return <VideoViewer material={material} />;
+      case 'video': return <NotebookLMVideoStudio material={material} />;
     }
   };
   return (
@@ -1363,106 +1396,6 @@ const SummaryViewer = ({ material }: { material: StudyMaterial }) => {
   );
 };
 
-const VideoViewer = ({ material }: { material: StudyMaterial }) => {
-  const c = material.content || {};
-  const scenes = Array.isArray(c.scenes) ? c.scenes : [];
-  const [activeScene, setActiveScene] = useState(0);
-  const [isNarrating, setIsNarrating] = useState(false);
-  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const scene = scenes[activeScene];
-
-  useEffect(() => () => {
-    window.speechSynthesis.cancel();
-  }, []);
-
-  const narrateScene = (index: number) => {
-    const nextScene = scenes[index];
-    if (!nextScene || !('speechSynthesis' in window)) {
-      toast.error('Tarayıcınız sesli anlatımı desteklemiyor.');
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(nextScene.narration);
-    utterance.lang = 'tr-TR';
-    utterance.rate = 0.95;
-    utterance.onend = () => setIsNarrating(false);
-    utterance.onerror = () => setIsNarrating(false);
-    speechRef.current = utterance;
-    setActiveScene(index);
-    setIsNarrating(true);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const stopNarration = () => {
-    window.speechSynthesis.cancel();
-    setIsNarrating(false);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Konu akışı</p>
-        <p className="text-sm leading-relaxed">{c.outline}</p>
-      </div>
-      {scene && (
-        <div className="overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-secondary/10">
-          <div className="flex items-center justify-between gap-3 border-b border-border/70 p-4">
-            <div className="flex items-center gap-2">
-              <Badge>{scene.time}</Badge>
-              <span className="text-xs text-muted-foreground">Sahne {activeScene + 1} / {scenes.length}</span>
-            </div>
-            <Button
-              size="sm"
-              variant={isNarrating ? 'destructive' : 'default'}
-              className="gap-2"
-              onClick={() => isNarrating ? stopNarration() : narrateScene(activeScene)}
-            >
-              {isNarrating ? <Pause className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-              {isNarrating ? 'Anlatımı durdur' : 'Sahneyi dinle'}
-            </Button>
-          </div>
-          <div className="space-y-3 p-5">
-            <h3 className="text-lg font-semibold">{scene.title}</h3>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{scene.narration}</p>
-            {scene.visualCue && (
-              <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 text-xs">
-                <span className="font-semibold text-primary">Ekran önerisi: </span>{scene.visualCue}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {scenes.length > 0 && (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {scenes.map((s: any, i: number) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => { stopNarration(); setActiveScene(i); }}
-              className={`rounded-xl border p-3 text-left transition-colors ${activeScene === i ? 'border-primary bg-primary/10' : 'border-border bg-card hover:bg-accent'}`}
-            >
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">{s.time}</Badge>
-                <span className="text-sm font-semibold">{s.title}</span>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-      {c.suggestedSearches?.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">İzleme önerileri</p>
-          <div className="flex flex-wrap gap-2">
-            {c.suggestedSearches.map((q: string, i: number) => (
-              <a key={i} href={`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`} target="_blank" rel="noreferrer" className="text-xs px-3 py-1.5 rounded-full border border-border bg-muted/50 hover:bg-primary/10 hover:border-primary/30 transition">
-                {q}
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+const VideoViewer = NotebookLMVideoStudio;
 
 export default Study;

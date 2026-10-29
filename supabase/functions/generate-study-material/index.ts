@@ -136,17 +136,36 @@ const schemas: Record<string, any> = {
     type: 'object',
     properties: {
       outline: { type: 'string' },
+      podcastTitle: { type: 'string' },
+      hosts: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            role: { type: 'string' },
+          },
+          required: ['name', 'role'],
+          additionalProperties: false,
+        },
+      },
       scenes: {
         type: 'array',
         items: {
           type: 'object',
           properties: {
             time: { type: 'string' },
+            speaker: { type: 'string' },
+            speakerRole: { type: 'string' },
             title: { type: 'string' },
             narration: { type: 'string' },
+            keyTakeaways: {
+              type: 'array',
+              items: { type: 'string' },
+            },
             visualCue: { type: 'string' },
           },
-          required: ['time', 'title', 'narration', 'visualCue'],
+          required: ['time', 'speaker', 'title', 'narration', 'visualCue'],
           additionalProperties: false,
         },
       },
@@ -155,7 +174,7 @@ const schemas: Record<string, any> = {
         items: { type: 'string' },
       },
     },
-    required: ['outline', 'scenes', 'suggestedSearches'],
+    required: ['outline', 'podcastTitle', 'scenes', 'suggestedSearches'],
     additionalProperties: false,
   },
 };
@@ -206,7 +225,21 @@ examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı 
 Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
       break;
     case 'video':
-      task = `Kullanıcının verdiği ders notunu temel alan 3-5 dakikalık, Türkçe videolu ders özeti üret. outline alanında videonun akışını 2-3 cümleyle anlat. 5-7 sahne üret; her sahnede time "MM:SS", kısa title, öğrencinin dinleyebileceği doğal ve yalnızca kaynakta bulunan bilgilerden oluşan narration ve ekranda gösterilecek görsel/şema önerisi olan visualCue bulun. Sonunda konuyu pekiştirecek 3-5 YouTube arama sorgusu ver. Kaynakta olmayan bilgi ekleme.`;
+      task = `Kullanıcının verdiği ders notunu temel alarak Google NotebookLM tarzında İKİLİ SESLİ PODCAST / VİDEO DERSİ üret.
+Format: İki uzman sunucu ("Deniz": Analitik/Akademik Sunucu ve "Barış": Meraklı/Sorgulayıcı ve Pratik Örnekler Veren Sunucu) ders notundaki konuları derinlemesine, akıcı ve samimi bir diyalogla tartışırlar.
+podcastTitle: Dikkat çekici bir podcast ve video başlığı (örn. "Mikroiktisat Derinlemesine Bakış: Fırsat Maliyeti ve Piyasa Dengesi").
+hosts: [ { "name": "Deniz", "role": "Akademik Analist" }, { "name": "Barış", "role": "Sorgulayıcı & Özetleyen" } ].
+outline: Bölümün genel akışını ve ana temasını anlatan 2-3 cümle.
+scenes: 6-10 sahne/diyalog sırası. Her sahnede:
+- time: "MM:SS" biçiminde zaman damgası (00:00'dan başlayarak sırayla)
+- speaker: "Deniz" veya "Barış" (ikili arasında dönüşümlü akmalı)
+- speakerRole: Sunucunun rolü ("Akademik Analist" veya "Sorgulayıcı & Özetleyen")
+- title: O anki konunun / slaytın başlığı (örn. "Fırsat Maliyeti ve Karar Alma")
+- narration: Sunucunun doğal, konuşma dilinde söyleyeceği 2-4 cümlelik açıklama/cevap/yorum (NotebookLM podcast tarzı canlı diyalog)
+- keyTakeaways: Ekranda slayt maddesi olarak gösterilecek 1-3 kısa ve vurucu kavram/madde
+- visualCue: Ekranda gösterilecek grafik/şema/kavram haritası önerisi
+suggestedSearches: Konuyu pekiştirecek 3-5 YouTube/Google arama sorgusu.
+Yalnızca kaynakta bulunan veya kaynakla doğrudan ilişkili akademik bilgileri kullan.`;
       break;
   }
 

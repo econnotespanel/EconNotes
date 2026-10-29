@@ -15,8 +15,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Video } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -30,6 +31,7 @@ const splitDepartments = (value: string | null | undefined) =>
   (value || '').split('|').map((department) => department.trim()).filter(Boolean);
 
 const Notes = () => {
+  const navigate = useNavigate();
   const { user, profile, isAdmin } = useAuth();
   const { quota, refresh: refreshQuota } = useDownloadQuota();
   const [quotaBlockOpen, setQuotaBlockOpen] = useState(false);
@@ -880,6 +882,15 @@ const Notes = () => {
                                     <Eye className="h-3 w-3 mr-1" /> Önizle
                                   </Button>
                                 )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => navigate(`/study?create=video&noteId=${note.id}&sourceMode=${note.user_id === user?.id ? 'own' : 'platform'}`)}
+                                  className="border-warning/40 bg-warning/5 text-warning hover:bg-warning/15 hover:border-warning/60"
+                                  title="Çalışma Stüdyosu'nda NotebookLM formatında video & MP4 üret"
+                                >
+                                  <Video className="h-3 w-3 mr-1" /> Video (MP4)
+                                </Button>
                               </>
                             )}
                             {(note.user_id === user?.id || isAdmin) && (
