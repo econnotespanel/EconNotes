@@ -9,7 +9,8 @@ import {
   Play, Pause, RotateCcw, Volume2, VolumeX, Download, Sparkles, Video,
   Radio, Layers, CheckCircle2, ChevronRight, ChevronLeft,
   ExternalLink, Mic, Headphones, FileText, Loader2, Flame, Lightbulb,
-  Brain, Target, Rocket, Heart, Trophy, Wand2
+  Brain, Target, Rocket, Activity, BarChart3, LineChart, Network,
+  Zap, Compass, BookmarkCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,45 +36,9 @@ interface NormalizedScene {
   narration: string;
   keyTakeaways: string[];
   visualCue: string;
+  chartType: 'curve' | 'network' | 'bars' | 'formula';
   durationSeconds: number;
 }
-
-interface HostProfile {
-  name: string;
-  role: string;
-  color: string;
-  secondaryColor: string;
-  glowColor: string;
-  avatarText: string;
-  emoji: string;
-  pitch: number;
-  rate: number;
-}
-
-const HOSTS: HostProfile[] = [
-  {
-    name: 'Deniz',
-    role: 'Akademik Analist',
-    color: '#06b6d4', // cyan-500
-    secondaryColor: '#3b82f6', // blue-500
-    glowColor: 'rgba(6, 182, 212, 0.55)',
-    avatarText: 'DN',
-    emoji: '🎓',
-    pitch: 1.15,
-    rate: 1.0,
-  },
-  {
-    name: 'Barış',
-    role: 'Sorgulayıcı & Özetleyen',
-    color: '#f43f5e', // rose-500
-    secondaryColor: '#f59e0b', // amber-500
-    glowColor: 'rgba(244, 63, 94, 0.55)',
-    avatarText: 'BR',
-    emoji: '💡',
-    pitch: 0.88,
-    rate: 0.98,
-  },
-];
 
 interface FloatingEmoji {
   id: number;
@@ -103,11 +68,11 @@ interface InteractiveVideoStudioProps {
 export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ material }) => {
   const content = material.content || {};
   const rawScenes = Array.isArray(content.scenes) ? content.scenes : [];
-  const videoTitle = content.podcastTitle || content.videoTitle || material.title || 'Animasyonlu Ders Dersi';
-  const outline = content.outline || 'Ders notundaki kritik kavramların animasyonlu ikili anlatımı.';
+  const videoTitle = content.podcastTitle || content.videoTitle || material.title || 'Animasyonlu Görsel Ders';
+  const outline = content.outline || 'Ders notundaki kavramların canlı animasyonlu karakterler ve grafiklerle anlatımı.';
   const suggestedSearches: string[] = Array.isArray(content.suggestedSearches) ? content.suggestedSearches : [];
 
-  // Normalize scenes with dual-host format
+  // Determine chart types dynamically based on scene content
   const scenes: NormalizedScene[] = useMemo(() => {
     if (rawScenes.length === 0) {
       return [{
@@ -115,19 +80,22 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         index: 0,
         time: '00:00',
         speaker: 'Deniz',
-        speakerRole: 'Akademik Analist',
-        title: 'Giriş ve Genel Bakış',
+        speakerRole: 'Akademik Anlatıcı',
+        title: 'Giriş ve Kavramsal Çerçeve',
         narration: outline,
-        keyTakeaways: ['Ders notu kavramları inceleniyor', 'Önemli sınav noktaları listeleniyor'],
-        visualCue: 'Kavram Haritası ve Başlıklar',
+        keyTakeaways: ['Ders notu kavramları animasyonla inceleniyor', 'Kritik sınav noktaları ve grafikler gösteriliyor'],
+        visualCue: 'Piyasa Dengesi ve Fiyat Mekanizması',
+        chartType: 'curve',
         durationSeconds: 10,
       }];
     }
 
+    const chartTypes: ('curve' | 'network' | 'bars' | 'formula')[] = ['curve', 'bars', 'network', 'formula'];
+
     return rawScenes.map((s: any, idx: number) => {
       const isEven = idx % 2 === 0;
       const speakerName = s.speaker || (isEven ? 'Deniz' : 'Barış');
-      const speakerRole = s.speakerRole || (isEven ? 'Akademik Analist' : 'Sorgulayıcı & Özetleyen');
+      const speakerRole = s.speakerRole || (isEven ? 'Akademik Anlatıcı' : 'Sorgulayıcı & Özetleyen');
       const text = s.narration || s.title || '';
       
       const calculatedDuration = Math.max(6, Math.min(28, Math.round(text.length / 13)));
@@ -139,6 +107,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         if (sentences.length > 0) takeaways.push(sentences[0]);
       }
 
+      // Infer chart type from text
+      let chosenChart = chartTypes[idx % chartTypes.length];
+      const lower = (text + ' ' + (s.visualCue || '')).toLowerCase();
+      if (lower.includes('formül') || lower.includes('denklem') || lower.includes('hesap')) chosenChart = 'formula';
+      else if (lower.includes('büyüme') || lower.includes('oran') || lower.includes('yüzde') || lower.includes('karşılaştırma')) chosenChart = 'bars';
+      else if (lower.includes('ağ') || lower.includes('ilişki') || lower.includes('harita') || lower.includes('zincir')) chosenChart = 'network';
+      else chosenChart = 'curve';
+
       return {
         id: `scene-${idx}`,
         index: idx,
@@ -148,7 +124,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         title: s.title || `Bölüm ${idx + 1}`,
         narration: text,
         keyTakeaways: takeaways.slice(0, 3),
-        visualCue: s.visualCue || 'Kavram Şeması ve Detaylar',
+        visualCue: s.visualCue || 'Animasyonlu Tahta ve Grafik Çizimi',
+        chartType: chosenChart,
         durationSeconds: calculatedDuration,
       };
     });
@@ -165,14 +142,15 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [elapsedSceneTime, setElapsedSceneTime] = useState(0);
+  const [manualChartMode, setManualChartMode] = useState<'auto' | 'curve' | 'network' | 'bars' | 'formula'>('auto');
   
   // Interactive reaction counters
   const [reactions, setReactions] = useState<{ [key: string]: number }>({
-    '🔥': 14,
-    '💡': 28,
-    '🧠': 19,
-    '🎯': 35,
-    '🚀': 12,
+    '🔥': 42,
+    '💡': 68,
+    '🧠': 51,
+    '🎯': 89,
+    '🚀': 37,
   });
 
   // Export modal state
@@ -193,19 +171,19 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
   activeSceneIndexRef.current = activeSceneIndex;
 
   const currentScene = scenes[activeSceneIndex] || scenes[0];
-  const activeHost = currentScene.speaker.toLowerCase().includes('barış') ? HOSTS[1] : HOSTS[0];
+  const activeChart = manualChartMode === 'auto' ? currentScene.chartType : manualChartMode;
 
   // Initialize ambient drifting particles once
   useEffect(() => {
     const parts: AmbientParticle[] = [];
-    const colors = ['#06b6d4', '#3b82f6', '#f43f5e', '#a855f7', '#38bdf8'];
-    for (let i = 0; i < 35; i++) {
+    const colors = ['#06b6d4', '#3b82f6', '#f43f5e', '#a855f7', '#38bdf8', '#10b981'];
+    for (let i = 0; i < 40; i++) {
       parts.push({
         x: Math.random() * 1280,
         y: Math.random() * 720,
-        radius: 1.5 + Math.random() * 2.5,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
+        radius: 1.5 + Math.random() * 3,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
         color: colors[Math.floor(Math.random() * colors.length)],
         alpha: 0.15 + Math.random() * 0.35,
       });
@@ -221,7 +199,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
   };
 
   // Fun sound chime using Web Audio API
-  const playSoundEffect = useCallback((type: 'chime' | 'pop' | 'fanfare' = 'pop') => {
+  const playSoundEffect = useCallback((type: 'chime' | 'pop' = 'pop') => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
@@ -231,7 +209,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
 
       if (type === 'pop') {
         osc.frequency.setValueAtTime(520, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
+        osc.frequency.exponentialRampToValueAtTime(920, ctx.currentTime + 0.1);
         gain.gain.setValueAtTime(0.08, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
         osc.connect(gain);
@@ -239,7 +217,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         osc.start();
         osc.stop(ctx.currentTime + 0.13);
       } else if (type === 'chime') {
-        osc.frequency.setValueAtTime(659.25, ctx.currentTime); // E5
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
         osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08); // A5
         gain.gain.setValueAtTime(0.06, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
@@ -249,7 +227,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         osc.stop(ctx.currentTime + 0.32);
       }
     } catch {
-      // AudioContext optional fallback
+      // AudioContext fallback
     }
   }, []);
 
@@ -258,22 +236,21 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     playSoundEffect('pop');
     setReactions(prev => ({ ...prev, [emoji]: (prev[emoji] || 0) + 1 }));
 
-    // Spawn 3 floating emojis around bottom center
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       floatingEmojisRef.current.push({
         id: Date.now() + Math.random(),
-        x: 580 + (Math.random() - 0.5) * 300,
+        x: 580 + (Math.random() - 0.5) * 360,
         y: 650 + Math.random() * 40,
         emoji,
-        vy: -2.5 - Math.random() * 2,
-        vx: (Math.random() - 0.5) * 1.5,
+        vy: -3 - Math.random() * 2.5,
+        vx: (Math.random() - 0.5) * 2,
         alpha: 1.0,
-        size: 26 + Math.random() * 12,
+        size: 28 + Math.random() * 14,
       });
     }
   };
 
-  // Speech synthesis for active scene
+  // Speech synthesis for active scene with distinct voice pitch
   const playSpeechForScene = useCallback((index: number) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
@@ -283,12 +260,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     if (!scene) return;
 
     const isHostBaris = scene.speaker.toLowerCase().includes('barış');
-    const host = isHostBaris ? HOSTS[1] : HOSTS[0];
-
     const utterance = new SpeechSynthesisUtterance(scene.narration);
     utterance.lang = 'tr-TR';
-    utterance.pitch = host.pitch;
-    utterance.rate = host.rate * playbackSpeed;
+    utterance.pitch = isHostBaris ? 0.88 : 1.15;
+    utterance.rate = (isHostBaris ? 0.98 : 1.0) * playbackSpeed;
 
     const voices = window.speechSynthesis.getVoices();
     const trVoices = voices.filter(v => v.lang.startsWith('tr'));
@@ -308,7 +283,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         setIsPlaying(false);
         setActiveSceneIndex(0);
         setElapsedSceneTime(0);
-        toast.success('🎉 Video dersi başarıyla tamamlandı!');
+        toast.success('🎉 Animasyonlu video dersi tamamlandı!');
       }
     };
 
@@ -354,7 +329,728 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     };
   }, [stopSpeech]);
 
-  // Main Canvas Rendering Engine with Vibrant Animations
+  // ==========================================
+  // MASTER VECTOR DRAWING FUNCTIONS FOR CANVAS
+  // ==========================================
+
+  // 1. Draw Animated Character: DENİZ (Left Analyst with glasses, stylus & laser pointer)
+  const drawDenizCharacter = (
+    ctx: CanvasRenderingContext2D,
+    baseX: number,
+    baseY: number,
+    isSpeaking: boolean,
+    now: number
+  ) => {
+    ctx.save();
+    // Breathing & speaking body sway
+    const breathing = Math.sin(now / 450) * 3;
+    const speakingBounce = isSpeaking ? Math.sin(now / 120) * 2.5 : 0;
+    const y = baseY + breathing + speakingBounce;
+    const x = baseX;
+
+    // Active Speaker Energy Aura
+    if (isSpeaking) {
+      const auraGrad = ctx.createRadialGradient(x + 60, y + 80, 10, x + 60, y + 80, 150);
+      auraGrad.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
+      auraGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = auraGrad;
+      ctx.beginPath();
+      ctx.arc(x + 60, y + 80, 150, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Torso / Smart Navy Blazer
+    ctx.fillStyle = '#0f2744';
+    ctx.beginPath();
+    ctx.roundRect(x + 20, y + 105, 80, 140, [24, 24, 4, 4]);
+    ctx.fill();
+
+    // Inner White Shirt & Tie
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(x + 48, y + 105);
+    ctx.lineTo(x + 60, y + 140);
+    ctx.lineTo(x + 72, y + 105);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cyan Tie
+    ctx.fillStyle = '#06b6d4';
+    ctx.beginPath();
+    ctx.moveTo(x + 58, y + 115);
+    ctx.lineTo(x + 62, y + 115);
+    ctx.lineTo(x + 65, y + 155);
+    ctx.lineTo(x + 60, y + 165);
+    ctx.lineTo(x + 55, y + 155);
+    ctx.closePath();
+    ctx.fill();
+
+    // Neck
+    ctx.fillStyle = '#fbcfe8';
+    ctx.fillRect(x + 48, y + 82, 24, 26);
+
+    // Head / Face
+    ctx.fillStyle = '#fde2e4';
+    ctx.beginPath();
+    ctx.roundRect(x + 30, y + 25, 60, 68, 28);
+    ctx.fill();
+
+    // Hair (Neat Academic Brunette)
+    ctx.fillStyle = '#261c14';
+    ctx.beginPath();
+    ctx.arc(x + 60, y + 36, 36, Math.PI, Math.PI * 2);
+    ctx.roundRect(x + 24, y + 26, 72, 28, 14);
+    ctx.fill();
+
+    // Glasses (Smart Cyan Glow Frames)
+    ctx.strokeStyle = '#06b6d4';
+    ctx.lineWidth = 3;
+    // Left Lens
+    ctx.strokeRect(x + 36, y + 46, 20, 15);
+    // Right Lens
+    ctx.strokeRect(x + 64, y + 46, 20, 15);
+    // Bridge
+    ctx.beginPath();
+    ctx.moveTo(x + 56, y + 53);
+    ctx.lineTo(x + 64, y + 53);
+    ctx.stroke();
+
+    // Eyes (Blinking animation every ~3.5 seconds)
+    const isBlinking = (now % 3500) < 180;
+    if (isBlinking) {
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x + 40, y + 54);
+      ctx.lineTo(x + 52, y + 54);
+      ctx.moveTo(x + 68, y + 54);
+      ctx.lineTo(x + 80, y + 54);
+      ctx.stroke();
+    } else {
+      // Pupils looking towards the center smartboard!
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(x + 48, y + 54, 4, 0, Math.PI * 2);
+      ctx.arc(x + 76, y + 54, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Catchlight in eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x + 49, y + 52, 1.5, 0, Math.PI * 2);
+      ctx.arc(x + 77, y + 52, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Mouth (Animated Lip-Sync when speaking)
+    if (isSpeaking) {
+      const mouthOpen = 3 + Math.abs(Math.sin(now / 90)) * 8;
+      ctx.fillStyle = '#991b1b';
+      ctx.beginPath();
+      ctx.ellipse(x + 60, y + 74, 9, mouthOpen, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Teeth
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + 54, y + 74 - mouthOpen + 1, 12, 3);
+    } else {
+      // Gentle smile
+      ctx.strokeStyle = '#991b1b';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x + 60, y + 70, 7, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+    }
+
+    // Right Arm pointing glowing digital stylus towards the board
+    ctx.strokeStyle = '#0f2744';
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + 88, y + 130);
+    // Arm points up-right to the smartboard
+    const pointerAngle = Math.sin(now / 300) * 0.08;
+    const handX = x + 160;
+    const handY = y + 100 + pointerAngle * 30;
+    ctx.lineTo(handX, handY);
+    ctx.stroke();
+
+    // Hand holding stylus
+    ctx.fillStyle = '#fde2e4';
+    ctx.beginPath();
+    ctx.arc(handX, handY, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Stylus pen
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(handX, handY);
+    ctx.lineTo(handX + 30, handY - 15);
+    ctx.stroke();
+
+    // Laser beam from stylus to the smartboard graph!
+    if (isSpeaking) {
+      const laserEndTargetX = 520 + Math.sin(now / 400) * 50;
+      const laserEndTargetY = 280 + Math.cos(now / 350) * 40;
+      
+      ctx.strokeStyle = 'rgba(6, 182, 212, 0.65)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(handX + 30, handY - 15);
+      ctx.lineTo(laserEndTargetX, laserEndTargetY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Laser dot on board
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(laserEndTargetX, laserEndTargetY, 5 + Math.sin(now / 100) * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Name Tag Badge Below Deniz
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.strokeStyle = isSpeaking ? '#06b6d4' : 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x + 10, y + 252, 100, 32, 16);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Deniz 🎓', x + 60, y + 272);
+
+    ctx.restore();
+  };
+
+  // 2. Draw Animated Character: BARIŞ (Right Inquirer with hoodie, headphones & gestures)
+  const drawBarisCharacter = (
+    ctx: CanvasRenderingContext2D,
+    baseX: number,
+    baseY: number,
+    isSpeaking: boolean,
+    now: number
+  ) => {
+    ctx.save();
+    const breathing = Math.sin((now + 300) / 450) * 3;
+    const speakingBounce = isSpeaking ? Math.sin(now / 110) * 2.5 : 0;
+    const y = baseY + breathing + speakingBounce;
+    const x = baseX;
+
+    // Active Speaker Energy Aura
+    if (isSpeaking) {
+      const auraGrad = ctx.createRadialGradient(x + 60, y + 80, 10, x + 60, y + 80, 150);
+      auraGrad.addColorStop(0, 'rgba(244, 63, 94, 0.4)');
+      auraGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = auraGrad;
+      ctx.beginPath();
+      ctx.arc(x + 60, y + 80, 150, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Torso / Crimson Modern Hoodie
+    ctx.fillStyle = '#881337';
+    ctx.beginPath();
+    ctx.roundRect(x + 20, y + 105, 80, 140, [24, 24, 4, 4]);
+    ctx.fill();
+
+    // Hoodie strings & pocket
+    ctx.strokeStyle = '#f43f5e';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 50, y + 115);
+    ctx.lineTo(x + 50, y + 145);
+    ctx.moveTo(x + 70, y + 115);
+    ctx.lineTo(x + 70, y + 145);
+    ctx.stroke();
+
+    // Neck
+    ctx.fillStyle = '#fed7aa';
+    ctx.fillRect(x + 48, y + 82, 24, 26);
+
+    // Head / Face
+    ctx.fillStyle = '#ffedd5';
+    ctx.beginPath();
+    ctx.roundRect(x + 30, y + 25, 60, 68, 28);
+    ctx.fill();
+
+    // Hair (Messy/Wavy Modern Brown)
+    ctx.fillStyle = '#3f2212';
+    ctx.beginPath();
+    ctx.arc(x + 60, y + 36, 36, Math.PI * 0.9, Math.PI * 2.1);
+    ctx.roundRect(x + 22, y + 18, 76, 32, 16);
+    ctx.fill();
+
+    // Glowing DJ Headphones around ears
+    ctx.strokeStyle = '#f43f5e';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.arc(x + 60, y + 42, 38, Math.PI * 1.1, Math.PI * 1.9);
+    ctx.stroke();
+    // Ear cushions
+    ctx.fillStyle = '#f43f5e';
+    ctx.beginPath();
+    ctx.roundRect(x + 20, y + 40, 12, 26, 6);
+    ctx.roundRect(x + 88, y + 40, 12, 26, 6);
+    ctx.fill();
+
+    // Eyes (Blinking animation every ~4.2 seconds)
+    const isBlinking = ((now + 800) % 4200) < 180;
+    if (isBlinking) {
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(x + 40, y + 54);
+      ctx.lineTo(x + 52, y + 54);
+      ctx.moveTo(x + 68, y + 54);
+      ctx.lineTo(x + 80, y + 54);
+      ctx.stroke();
+    } else {
+      // Pupils looking towards the center smartboard!
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(x + 44, y + 54, 4, 0, Math.PI * 2);
+      ctx.arc(x + 72, y + 54, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Catchlight
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x + 43, y + 52, 1.5, 0, Math.PI * 2);
+      ctx.arc(x + 71, y + 52, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Mouth (Animated Lip-Sync when speaking)
+    if (isSpeaking) {
+      const mouthOpen = 3 + Math.abs(Math.sin(now / 95)) * 8;
+      ctx.fillStyle = '#881337';
+      ctx.beginPath();
+      ctx.ellipse(x + 60, y + 74, 9, mouthOpen, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + 54, y + 74 - mouthOpen + 1, 12, 3);
+    } else {
+      // Attentive listening / slight smile
+      ctx.strokeStyle = '#881337';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x + 60, y + 70, 6, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+    }
+
+    // Left Arm (Gesturing in question or taking notes)
+    ctx.strokeStyle = '#881337';
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + 32, y + 130);
+    // Gesturing hand raised in thought
+    const questionSway = isSpeaking ? Math.sin(now / 200) * 15 : 0;
+    const handX = x - 35;
+    const handY = y + 120 + questionSway;
+    ctx.lineTo(handX, handY);
+    ctx.stroke();
+
+    // Hand
+    ctx.fillStyle = '#ffedd5';
+    ctx.beginPath();
+    ctx.arc(handX, handY, 7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fun Speech Bubble / Lightbulb above Barış when active
+    if (isSpeaking) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.25)';
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(x - 20, y - 28, 55, 30, 12);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('💡❓', x + 7, y - 8);
+      ctx.restore();
+    }
+
+    // Name Tag Badge Below Barış
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.strokeStyle = isSpeaking ? '#f43f5e' : 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x + 10, y + 252, 100, 32, 16);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Barış 💡', x + 60, y + 272);
+
+    ctx.restore();
+  };
+
+  // 3. Draw Dynamic Economics Graphics Engine on Smartboard
+  const drawDynamicChart = (
+    ctx: CanvasRenderingContext2D,
+    type: 'curve' | 'network' | 'bars' | 'formula',
+    cx: number,
+    cy: number,
+    cw: number,
+    ch: number,
+    now: number,
+    scene: NormalizedScene
+  ) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(cx, cy, cw, ch);
+    ctx.clip();
+
+    if (type === 'curve') {
+      // ----------------------------------------------------
+      // A) SUPPLY & DEMAND CURVES (Arz ve Talep Eğrisi)
+      // ----------------------------------------------------
+      const originX = cx + 55;
+      const originY = cy + ch - 35;
+      const axisW = cw - 90;
+      const axisH = ch - 65;
+
+      // Coordinate axes
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      // Y-axis (Price / Fiyat)
+      ctx.moveTo(originX, originY);
+      ctx.lineTo(originX, originY - axisH);
+      // X-axis (Quantity / Miktar)
+      ctx.moveTo(originX, originY);
+      ctx.lineTo(originX + axisW, originY);
+      ctx.stroke();
+
+      // Axis labels
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 11px Inter, sans-serif';
+      ctx.fillText('P (Fiyat)', originX - 45, originY - axisH + 12);
+      ctx.fillText('Q (Miktar)', originX + axisW - 25, originY + 22);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let g = 1; g <= 4; g++) {
+        ctx.beginPath();
+        ctx.moveTo(originX, originY - (axisH / 5) * g);
+        ctx.lineTo(originX + axisW, originY - (axisH / 5) * g);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(originX + (axisW / 5) * g, originY);
+        ctx.lineTo(originX + (axisW / 5) * g, originY - axisH);
+        ctx.stroke();
+      }
+
+      // Dynamic curve shift modulation
+      const shift = Math.sin(now / 800) * 12;
+
+      // Demand Curve (D - Talep: Rose, slope downward)
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 3.5;
+      ctx.shadowColor = 'rgba(244, 63, 94, 0.8)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(originX + 20 + shift, originY - axisH + 20);
+      ctx.bezierCurveTo(
+        originX + axisW * 0.4 + shift, originY - axisH * 0.6,
+        originX + axisW * 0.7 + shift, originY - axisH * 0.3,
+        originX + axisW - 20 + shift, originY - 20
+      );
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#f43f5e';
+      ctx.font = 'bold 13px Inter, sans-serif';
+      ctx.fillText('D (Talep)', originX + axisW - 15 + shift, originY - 25);
+
+      // Supply Curve (S - Arz: Cyan, slope upward)
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 3.5;
+      ctx.shadowColor = 'rgba(6, 182, 212, 0.8)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(originX + 20, originY - 20);
+      ctx.bezierCurveTo(
+        originX + axisW * 0.3, originY - axisH * 0.3,
+        originX + axisW * 0.6, originY - axisH * 0.6,
+        originX + axisW - 20, originY - axisH + 20
+      );
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#06b6d4';
+      ctx.font = 'bold 13px Inter, sans-serif';
+      ctx.fillText('S (Arz)', originX + axisW - 15, originY - axisH + 30);
+
+      // Equilibrium Point E* (Denge Noktası)
+      const eqX = originX + axisW * 0.5 + shift * 0.5;
+      const eqY = originY - axisH * 0.5;
+
+      // Dashed projection lines to axes
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(eqX, eqY);
+      ctx.lineTo(originX, eqY);
+      ctx.moveTo(eqX, eqY);
+      ctx.lineTo(eqX, originY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '10px font-mono, monospace';
+      ctx.fillText('Pe*', originX - 25, eqY + 4);
+      ctx.fillText('Qe*', eqX - 8, originY + 16);
+
+      // Pulsing Equilibrium node
+      const pulseR = 6 + Math.sin(now / 150) * 2.5;
+      ctx.fillStyle = '#fbbf24'; // Amber-gold
+      ctx.shadowColor = 'rgba(251, 191, 36, 0.9)';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(eqX, eqY, pulseR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px Inter, sans-serif';
+      ctx.fillText('E* (Piyasa Dengesi)', eqX + 12, eqY - 10);
+
+    } else if (type === 'bars') {
+      // ----------------------------------------------------
+      // B) GROWTH & COMPARISON BARS (Büyüme & Trend Grafiği)
+      // ----------------------------------------------------
+      const barCount = 4;
+      const bW = (cw - 80) / barCount - 25;
+      const labels = ['Verimlilik', 'Marjinal Kâr', 'Talep Esnekliği', 'Toplam Hasılat'];
+      const heights = [0.45, 0.85, 0.65, 0.92];
+      const colors = [
+        ['#06b6d4', '#3b82f6'],
+        ['#10b981', '#059669'],
+        ['#f59e0b', '#d97706'],
+        ['#f43f5e', '#be123c'],
+      ];
+
+      for (let b = 0; b < barCount; b++) {
+        const bX = cx + 50 + b * (bW + 25);
+        // Spring bounce animation on bars
+        const animatedH = (ch - 80) * heights[b] * (0.92 + 0.08 * Math.sin(now / 300 + b));
+        const bY = cy + ch - 40 - animatedH;
+
+        // Gradient Bar
+        const bGrad = ctx.createLinearGradient(0, bY, 0, cy + ch - 40);
+        bGrad.addColorStop(0, colors[b][0]);
+        bGrad.addColorStop(1, colors[b][1]);
+        ctx.fillStyle = bGrad;
+        ctx.shadowColor = colors[b][0];
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.roundRect(bX, bY, bW, animatedH, [10, 10, 2, 2]);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Percentage Badge
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 12px font-mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`+${Math.round(heights[b] * 100)}%`, bX + bW / 2, bY - 8);
+
+        // Label below
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '11px Inter, sans-serif';
+        ctx.fillText(labels[b], bX + bW / 2, cy + ch - 18);
+      }
+      ctx.textAlign = 'left';
+
+    } else if (type === 'network') {
+      // ----------------------------------------------------
+      // C) CONCEPT NETWORK / MIND MAP (Zihin Haritası)
+      // ----------------------------------------------------
+      const centerX = cx + cw / 2;
+      const centerY = cy + ch / 2 - 10;
+      const nodes = [
+        { label: 'Temel Prensip', x: centerX, y: centerY, r: 36, color: '#06b6d4' },
+        { label: 'Fırsat Maliyeti', x: centerX - 140, y: centerY - 50, r: 28, color: '#f59e0b' },
+        { label: 'Esneklik', x: centerX + 140, y: centerY - 50, r: 28, color: '#f43f5e' },
+        { label: 'Marjinal Fayda', x: centerX - 120, y: centerY + 65, r: 26, color: '#10b981' },
+        { label: 'Kâr Maksimizasyonu', x: centerX + 120, y: centerY + 65, r: 26, color: '#8b5cf6' },
+      ];
+
+      // Draw pulsating network connecting lines
+      nodes.slice(1).forEach((nd, i) => {
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(nd.x, nd.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Animated light packet traveling along the wire
+        const packetT = ((now / 600) + i * 0.25) % 1;
+        const pkX = centerX + (nd.x - centerX) * packetT;
+        const pkY = centerY + (nd.y - centerY) * packetT;
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(pkX, pkY, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Draw Glowing Nodes
+      nodes.forEach((nd) => {
+        ctx.fillStyle = nd.color;
+        ctx.shadowColor = nd.color;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(nd.x, nd.y, nd.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(nd.label, nd.x, nd.y);
+      });
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+
+    } else {
+      // ----------------------------------------------------
+      // D) FORMULA & LAW BOARD (Akademik Formül & Prensip)
+      // ----------------------------------------------------
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(cx + 40, cy + 30, cw - 80, ch - 60, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      // Top Header
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 12px "Space Grotesk", sans-serif';
+      ctx.fillText('AKADEMİK ANALİZ & MATEMATİKSEL MODEL', cx + 60, cy + 62);
+
+      // Large Glowing Formula
+      const formula = 'MR = MC  ⇒  Kâr Maksimizasyonu Koşulu';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px "Space Grotesk", monospace';
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 10;
+      ctx.fillText(formula, cx + 60, cy + 110);
+      ctx.shadowBlur = 0;
+
+      // Formula breakdown items
+      const formulasList = [
+        '• Marjinal Hasılat (MR) = Marjinal Maliyet (MC) dengesi sağlanmalıdır.',
+        '• Fiyat Esnekliği: Ed = (%ΔQ) / (%ΔP)',
+        '• Tüketici Artığı = Ödemeye Hazır Olunan Fiyat - Gerçek Fiyat',
+      ];
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '13px Inter, sans-serif';
+      formulasList.forEach((fm, fIdx) => {
+        ctx.fillText(fm, cx + 60, cy + 148 + fIdx * 26);
+      });
+    }
+
+    ctx.restore();
+  };
+
+  // 4. Draw Full Central Smartboard Stage
+  const drawSmartboard = (
+    ctx: CanvasRenderingContext2D,
+    bx: number,
+    by: number,
+    bw: number,
+    bh: number,
+    scene: NormalizedScene,
+    sceneIdx: number,
+    totalScenes: number,
+    activeChartType: 'curve' | 'network' | 'bars' | 'formula',
+    now: number
+  ) => {
+    ctx.save();
+
+    // Outer Bezel / Glowing Frame
+    ctx.fillStyle = 'rgba(10, 15, 28, 0.94)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, 20);
+    ctx.fill();
+    ctx.stroke();
+
+    // Top Smartboard Status Bar
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, 42, [20, 20, 0, 0]);
+    ctx.fill();
+
+    // Chart Type Badge
+    ctx.fillStyle = '#06b6d4';
+    ctx.beginPath();
+    ctx.arc(bx + 26, by + 21, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 12px "Space Grotesk", sans-serif';
+    ctx.fillText(`AKILLI TAHTA · ${scene.title}`, bx + 40, by + 25);
+
+    // Chart mode pill (Top Right of board)
+    const chartLabels = {
+      curve: '📊 ARZ-TALEP GRAFİĞİ',
+      network: '🧠 KAVRAM HARİTASI',
+      bars: '📈 BÜYÜME VE TREND',
+      formula: '📝 FORMÜL MODELİ',
+    };
+    ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(bx + bw - 180, by + 10, 165, 24, 12);
+    ctx.fill();
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(chartLabels[activeChartType], bx + bw - 98, by + 26);
+    ctx.textAlign = 'left';
+
+    // Draw the dynamic animated graphic chart
+    drawDynamicChart(ctx, activeChartType, bx + 15, by + 50, bw - 30, bh - 110, now, scene);
+
+    // Bottom Takeaways Ticker inside Board
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.beginPath();
+    ctx.roundRect(bx + 15, by + bh - 55, bw - 30, 42, 12);
+    ctx.fill();
+
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 12px Inter, sans-serif';
+    ctx.fillText('🎯 Sınav Notu: ', bx + 30, by + bh - 28);
+
+    const firstPoint = scene.keyTakeaways[0] || scene.visualCue || scene.title;
+    ctx.fillStyle = '#f1f5f9';
+    ctx.font = '12px Inter, sans-serif';
+    const truncatedNote = firstPoint.length > 70 ? firstPoint.substring(0, 67) + '...' : firstPoint;
+    ctx.fillText(truncatedNote, bx + 115, by + bh - 28);
+
+    ctx.restore();
+  };
+
+  // Master Frame Drawing Function
   const drawFrame = useCallback((
     ctx: CanvasRenderingContext2D,
     width: number,
@@ -366,6 +1062,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     playing: boolean,
     courseName: string,
     mainTitle: string,
+    chartType: 'curve' | 'network' | 'bars' | 'formula',
     particles: AmbientParticle[],
     emojis: FloatingEmoji[]
   ) => {
@@ -374,9 +1071,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
 
     // 1. Futuristic Cyber-Studio Background
     const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-    bgGrad.addColorStop(0, '#060913');
-    bgGrad.addColorStop(0.4, '#0a1024');
-    bgGrad.addColorStop(1, '#05070f');
+    bgGrad.addColorStop(0, '#040711');
+    bgGrad.addColorStop(0.5, '#080d22');
+    bgGrad.addColorStop(1, '#03050d');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, width, height);
 
@@ -398,337 +1095,95 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.restore();
     });
 
-    // 3. Ambient Pulsing Spotlight Auras
-    // Left Glow (Deniz - Cyan)
-    const cyanPulse = isDenizActive && playing ? 0.35 + 0.12 * Math.sin(now / 220) : 0.14;
-    const cyanGlow = ctx.createRadialGradient(210, 150, 10, 210, 150, 360);
-    cyanGlow.addColorStop(0, `rgba(6, 182, 212, ${cyanPulse})`);
-    cyanGlow.addColorStop(0.6, 'rgba(59, 130, 246, 0.08)');
-    cyanGlow.addColorStop(1, 'rgba(6, 182, 212, 0)');
-    ctx.fillStyle = cyanGlow;
-    ctx.beginPath();
-    ctx.arc(210, 150, 360, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Right Glow (Barış - Rose/Amber)
-    const rosePulse = !isDenizActive && playing ? 0.35 + 0.12 * Math.sin(now / 220) : 0.14;
-    const roseGlow = ctx.createRadialGradient(width - 210, 150, 10, width - 210, 150, 360);
-    roseGlow.addColorStop(0, `rgba(244, 63, 94, ${rosePulse})`);
-    roseGlow.addColorStop(0.6, 'rgba(245, 158, 11, 0.08)');
-    roseGlow.addColorStop(1, 'rgba(244, 63, 94, 0)');
-    ctx.fillStyle = roseGlow;
-    ctx.beginPath();
-    ctx.arc(width - 210, 150, 360, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4. Header Bar
-    // Top Brand Pill
+    // 3. Top Header Bar
     ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.roundRect(40, 20, 370, 40, 20);
+    ctx.roundRect(30, 16, 380, 40, 20);
     ctx.fill();
     ctx.stroke();
 
-    // Red Recording Dot with expanding wave ring
+    // Red Live Recording Dot
     const dotPulse = playing ? 0.7 + 0.3 * Math.sin(now / 180) : 0.8;
     ctx.fillStyle = `rgba(239, 68, 68, ${dotPulse})`;
     ctx.beginPath();
-    ctx.arc(64, 40, 7, 0, Math.PI * 2);
+    ctx.arc(52, 36, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    if (playing) {
-      const ringRadius = 7 + (now % 1200) / 100;
-      const ringAlpha = Math.max(0, 1 - (ringRadius - 7) / 12);
-      ctx.strokeStyle = `rgba(239, 68, 68, ${ringAlpha})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(64, 40, ringRadius, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    // Brand Label
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 12px "Space Grotesk", Inter, sans-serif';
-    ctx.fillText('ECONNOTES VİDEO STÜDYO', 82, 44);
+    ctx.fillText('ECONNOTES CANLI ANİMASYONLU STÜDYO', 70, 40);
 
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 10px Inter, sans-serif';
-    ctx.fillText('● CANLI ANİMASYONLU DERS', 248, 44);
-    ctx.restore();
-
-    // Course & Scene Meta (Top Right)
-    ctx.save();
+    // Top Right Info
     ctx.textAlign = 'right';
     ctx.fillStyle = '#cbd5e1';
     ctx.font = 'bold 13px Inter, sans-serif';
-    ctx.fillText(`${courseName || 'Ders Notu'} · Bölüm ${sceneIdx + 1}/${totalScenes}`, width - 40, 38);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '11px font-mono, monospace';
-    ctx.fillText('1080P HD · 60 FPS · STEREO', width - 40, 54);
-    ctx.restore();
-
-    // 5. Dual Host Character Stages (Top section: y = 75 to 205)
-    const drawHostPodium = (
-      host: HostProfile,
-      x: number,
-      y: number,
-      w: number,
-      h: number,
-      isActive: boolean
-    ) => {
-      ctx.save();
-      
-      // Animated Expanding Aura Rings when active & speaking
-      if (isActive && playing) {
-        const ringT = (now % 1000) / 1000;
-        const auraR = 34 + ringT * 26;
-        ctx.strokeStyle = host.glowColor;
-        ctx.globalAlpha = (1 - ringT) * 0.8;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x + 44, y + h / 2, auraR, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
-      }
-
-      // Card Container with breathing border
-      ctx.fillStyle = isActive ? 'rgba(15, 23, 42, 0.94)' : 'rgba(15, 23, 42, 0.65)';
-      ctx.strokeStyle = isActive ? host.color : 'rgba(255, 255, 255, 0.1)';
-      ctx.lineWidth = isActive ? 2.5 : 1;
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, 18);
-      ctx.fill();
-      ctx.stroke();
-
-      if (isActive && playing) {
-        ctx.shadowColor = host.glowColor;
-        ctx.shadowBlur = 24;
-      }
-
-      // Avatar circle
-      const avatarX = x + 44;
-      const avatarY = y + h / 2;
-      const avGrad = ctx.createLinearGradient(avatarX - 26, avatarY - 26, avatarX + 26, avatarY + 26);
-      avGrad.addColorStop(0, host.color);
-      avGrad.addColorStop(1, host.secondaryColor);
-      ctx.fillStyle = avGrad;
-      ctx.beginPath();
-      ctx.arc(avatarX, avatarY, 28, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Host Emoji Icon
-      ctx.font = '20px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(host.emoji, avatarX, avatarY);
-
-      // Name & Role
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 16px Inter, sans-serif';
-      ctx.fillText(host.name, x + 84, y + 36);
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '11px Inter, sans-serif';
-      ctx.fillText(host.role, x + 84, y + 54);
-
-      // 10-Bar Bouncing Soundwave Equalizer with Glowing Tips
-      const eqStartX = x + 84;
-      const eqY = y + 80;
-      const numBars = 10;
-      for (let b = 0; b < numBars; b++) {
-        let barHeight = 4;
-        if (isActive && playing) {
-          // Dynamic wave formula with sine & frequency mix
-          barHeight = 5 + Math.abs(Math.sin((now / 140) + b * 0.7) * Math.cos((now / 190) + b * 0.3)) * 22;
-        } else if (isActive) {
-          barHeight = 7;
-        }
-        
-        const barGrad = ctx.createLinearGradient(0, eqY - barHeight, 0, eqY);
-        barGrad.addColorStop(0, host.color);
-        barGrad.addColorStop(1, host.secondaryColor);
-        ctx.fillStyle = isActive ? barGrad : 'rgba(148, 163, 184, 0.25)';
-        ctx.beginPath();
-        ctx.roundRect(eqStartX + b * 11, eqY - barHeight, 6, barHeight, 3);
-        ctx.fill();
-      }
-
-      // Status Badge (Konuşuyor / Dinliyor)
-      const badgeX = x + w - 95;
-      const badgeY = y + 20;
-      ctx.fillStyle = isActive ? (isDenizActive ? 'rgba(6, 182, 212, 0.2)' : 'rgba(244, 63, 94, 0.2)') : 'rgba(255, 255, 255, 0.05)';
-      ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, 82, 24, 12);
-      ctx.fill();
-
-      ctx.fillStyle = isActive ? host.color : '#64748b';
-      ctx.font = 'bold 10px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(isActive ? '● ANLATIYOR' : 'DİNLİYOR', badgeX + 41, badgeY + 16);
-
-      ctx.restore();
-    };
-
-    // Draw Deniz on Left
-    drawHostPodium(HOSTS[0], 40, 75, 360, 98, isDenizActive);
-    // Draw Barış on Right
-    drawHostPodium(HOSTS[1], width - 400, 75, 360, 98, !isDenizActive);
-
-    // Center Dynamic Topic Indicator (Between hosts)
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.8)';
-    ctx.font = 'bold 10px "Space Grotesk", sans-serif';
-    ctx.fillText('İNTERAKTİF İKİLİ ANİMASYONLU DERS', width / 2, 110);
+    ctx.fillText(`${courseName || 'Ders Notu'} · Sahne ${sceneIdx + 1}/${totalScenes}`, width - 35, 34);
 
     ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 16px Inter, sans-serif';
-    const cleanTitle = mainTitle.length > 40 ? mainTitle.substring(0, 37) + '...' : mainTitle;
-    ctx.fillText(cleanTitle, width / 2, 136);
-
-    // Dynamic wave connector line between hosts
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(410, 124);
-    ctx.lineTo(width - 410, 124);
-    ctx.stroke();
+    ctx.font = '11px font-mono, monospace';
+    ctx.fillText('HD 1080P · DİNAMİK GRAFİK MOTORU', width - 35, 50);
     ctx.restore();
 
-    // 6. Center Presentation Slide Deck (y = 190 to 500)
-    ctx.save();
-    const slideX = 40;
-    const slideY = 190;
-    const slideW = width - 80;
-    const slideH = 315;
+    // 4. Center Stage: Central Smartboard (x: 230 to 1050, y: 72 to 520)
+    const boardX = 230;
+    const boardY = 72;
+    const boardW = width - 460;
+    const boardH = 450;
+    drawSmartboard(ctx, boardX, boardY, boardW, boardH, scene, sceneIdx, totalScenes, chartType, now);
 
-    // Glass Card Fill with glowing border
-    ctx.fillStyle = 'rgba(10, 16, 32, 0.9)';
-    ctx.strokeStyle = isDenizActive ? 'rgba(6, 182, 212, 0.45)' : 'rgba(244, 63, 94, 0.45)';
+    // 5. Left Stage: Animated Character DENİZ (x = 35, y = 140)
+    drawDenizCharacter(ctx, 35, 140, isDenizActive && playing, now);
+
+    // 6. Right Stage: Animated Character BARIŞ (x = width - 160, y = 140)
+    drawBarisCharacter(ctx, width - 165, 140, !isDenizActive && playing, now);
+
+    // 7. Kinetic Karaoke Subtitles (Bottom: y = 535 to 695)
+    ctx.save();
+    const subX = 50;
+    const subY = 535;
+    const subW = width - 100;
+    const subH = 158;
+
+    ctx.fillStyle = 'rgba(7, 11, 22, 0.96)';
+    ctx.strokeStyle = isDenizActive ? 'rgba(6, 182, 212, 0.5)' : 'rgba(244, 63, 94, 0.5)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.roundRect(slideX, slideY, slideW, slideH, 22);
+    ctx.roundRect(subX, subY, subW, subH, 20);
     ctx.fill();
     ctx.stroke();
 
-    // Animated Accent Corner Glow
-    const cornerGlow = ctx.createRadialGradient(slideX + 30, slideY + 30, 0, slideX + 30, slideY + 30, 160);
-    cornerGlow.addColorStop(0, isDenizActive ? 'rgba(6, 182, 212, 0.15)' : 'rgba(244, 63, 94, 0.15)');
-    cornerGlow.addColorStop(1, 'transparent');
-    ctx.fillStyle = cornerGlow;
-    ctx.beginPath();
-    ctx.roundRect(slideX, slideY, slideW, slideH, 22);
-    ctx.fill();
-
-    // Slide Tag Pill with Icon
-    ctx.fillStyle = isDenizActive ? 'rgba(6, 182, 212, 0.18)' : 'rgba(244, 63, 94, 0.18)';
-    ctx.beginPath();
-    ctx.roundRect(slideX + 28, slideY + 22, 220, 28, 14);
-    ctx.fill();
-    ctx.fillStyle = isDenizActive ? '#38bdf8' : '#fb7185';
-    ctx.font = 'bold 11px Inter, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(`⚡ BÖLÜM ${sceneIdx + 1}: KRİTİK SINAV ODAĞI`, slideX + 40, slideY + 40);
-
-    // Slide Headline
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 26px "Space Grotesk", Inter, sans-serif';
-    ctx.fillText(scene.title, slideX + 28, slideY + 84);
-
-    // Animated Key Takeaways (Interactive Bullet Cards)
-    const startBulletY = slideY + 118;
-    const bullets = scene.keyTakeaways.length > 0 ? scene.keyTakeaways : [scene.visualCue];
-    const bulletIcons = ['🎯', '💡', '⚡'];
-    bullets.forEach((point, pIdx) => {
-      const bY = startBulletY + pIdx * 48;
-      // Bullet background card
-      ctx.fillStyle = 'rgba(23, 34, 54, 0.7)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(slideX + 28, bY, slideW - 56, 40, 12);
-      ctx.fill();
-      ctx.stroke();
-
-      // Emoji Badge Circle
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(bulletIcons[pIdx % bulletIcons.length], slideX + 50, bY + 20);
-
-      // Bullet Text
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = '#f1f5f9';
-      ctx.font = '14px Inter, sans-serif';
-      const cleanPoint = point.length > 115 ? point.substring(0, 112) + '...' : point;
-      ctx.fillText(cleanPoint, slideX + 72, bY + 25);
-    });
-
-    // Visual Cue Footer inside slide
-    if (scene.visualCue) {
-      const cueY = slideY + slideH - 32;
-      ctx.fillStyle = isDenizActive ? '#38bdf8' : '#fb7185';
-      ctx.font = 'italic 12px Inter, sans-serif';
-      ctx.fillText(`📊 Görsel / Şema Önerisi: ${scene.visualCue}`, slideX + 32, cueY);
-    }
-    ctx.restore();
-
-    // 7. Kinetic Karaoke Subtitle / Teleprompter Box (y = 520 to 675)
-    ctx.save();
-    const subX = 40;
-    const subY = 520;
-    const subW = width - 80;
-    const subH = 155;
-
-    ctx.fillStyle = 'rgba(7, 11, 20, 0.96)';
-    ctx.strokeStyle = isDenizActive ? 'rgba(6, 182, 212, 0.3)' : 'rgba(244, 63, 94, 0.3)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(subX, subY, subW, subH, 18);
-    ctx.fill();
-    ctx.stroke();
-
-    // Speaker Name Tag with live sound icon
+    // Speaker Indicator
     ctx.fillStyle = isDenizActive ? '#06b6d4' : '#f43f5e';
     ctx.font = 'bold 15px Inter, sans-serif';
-    ctx.fillText(`🎙️ [${scene.speaker.toUpperCase()} - ${scene.speakerRole}]:`, subX + 26, subY + 34);
+    ctx.fillText(`🎙️ ${scene.speaker.toUpperCase()} (${scene.speakerRole}):`, subX + 28, subY + 34);
 
-    // Kinetic Karaoke text rendering: highlight spoken words based on scene time
+    // Kinetic Karaoke text
     const words = scene.narration.split(' ');
     const totalWords = words.length;
     const spokenProgressRatio = Math.min(1.0, timeSecs / Math.max(1, scene.durationSeconds));
     const currentSpokenWordIndex = Math.floor(spokenProgressRatio * totalWords);
 
-    let curX = subX + 26;
-    let curY = subY + 68;
-    const lineHeight = 28;
-    const maxLineRight = subX + subW - 30;
+    let curX = subX + 28;
+    let curY = subY + 70;
+    const lineHeight = 30;
+    const maxLineRight = subX + subW - 35;
 
     ctx.font = '18px Inter, sans-serif';
     words.forEach((w, wIdx) => {
       const wordMetrics = ctx.measureText(w + ' ');
       if (curX + wordMetrics.width > maxLineRight) {
-        curX = subX + 26;
+        curX = subX + 28;
         curY += lineHeight;
       }
 
-      if (curY < subY + subH - 10) {
+      if (curY < subY + subH - 12) {
         if (wIdx <= currentSpokenWordIndex && playing) {
-          // Active spoken words: bright glowing cyan or rose
           ctx.fillStyle = isDenizActive ? '#38bdf8' : '#fb7185';
           ctx.font = 'bold 18px Inter, sans-serif';
         } else {
-          // Upcoming words: soft crisp white
           ctx.fillStyle = '#e2e8f0';
           ctx.font = '18px Inter, sans-serif';
         }
@@ -738,7 +1193,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     });
     ctx.restore();
 
-    // 8. Floating Interactive Emojis Canvas Layer
+    // 8. Floating Interactive Emojis
     for (let i = emojis.length - 1; i >= 0; i--) {
       const em = emojis[i];
       em.y += em.vy;
@@ -759,7 +1214,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.restore();
     }
 
-    // 9. Bottom Sleek Glowing Timeline Progress Bar (y = 705 to 720)
+    // 9. Bottom Progress Bar (y = 708 to 720)
     ctx.save();
     const timelineY = height - 10;
     const overallProgress = (sceneIdx + (timeSecs / Math.max(1, scene.durationSeconds))) / totalScenes;
@@ -767,7 +1222,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
     ctx.fillRect(0, timelineY, width, 10);
 
-    // Glowing Neon Gradient
     const barGrad = ctx.createLinearGradient(0, 0, width, 0);
     barGrad.addColorStop(0, '#06b6d4');
     barGrad.addColorStop(0.5, '#3b82f6');
@@ -824,6 +1278,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         isPlaying,
         material.course || 'EconNotes',
         videoTitle,
+        activeChart,
         particlesRef.current,
         floatingEmojisRef.current
       );
@@ -837,13 +1292,13 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [drawFrame, currentScene, activeSceneIndex, scenes, elapsedSceneTime, isPlaying, material.course, videoTitle, playbackSpeed, playSpeechForScene, playSoundEffect]);
+  }, [drawFrame, currentScene, activeSceneIndex, scenes, elapsedSceneTime, isPlaying, material.course, videoTitle, activeChart, playbackSpeed, playSpeechForScene, playSoundEffect]);
 
   // High Quality MP4 Video Export Engine
   const handleExportMP4 = async () => {
     setIsExporting(true);
     setExportProgress(0);
-    setExportStatusText('Yüksek kaliteli MP4 video motoru başlatılıyor...');
+    setExportStatusText('Animasyonlu video motoru başlatılıyor...');
 
     if (isPlaying) {
       setIsPlaying(false);
@@ -857,7 +1312,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       const exportCtx = exportCanvas.getContext('2d');
       if (!exportCtx) throw new Error('Canvas 2D context oluşturulamadı.');
 
-      // Web Audio API for synced audio recording
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioContextClass();
       const audioDest = audioCtx.createMediaStreamDestination();
@@ -888,7 +1342,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       }
 
       const recorderOptions: MediaRecorderOptions = {
-        videoBitsPerSecond: 3000000, // 3 Mbps Ultra HD
+        videoBitsPerSecond: 3000000,
       };
       if (mimeType) {
         recorderOptions.mimeType = mimeType;
@@ -912,7 +1366,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         const fps = 30;
         const totalFrames = sceneDuration * fps;
 
-        setExportStatusText(`Bölüm ${sIdx + 1} / ${totalScenes}: ${scene.speaker} (${scene.title}) animasyonu derleniyor...`);
+        setExportStatusText(`Bölüm ${sIdx + 1} / ${totalScenes}: ${scene.speaker} (${scene.title}) animasyonu işleniyor...`);
 
         const isBaris = scene.speaker.toLowerCase().includes('barış');
         osc.frequency.setValueAtTime(isBaris ? 280 : 420, audioCtx.currentTime);
@@ -930,6 +1384,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
             true,
             material.course || 'EconNotes',
             videoTitle,
+            scene.chartType,
             particlesRef.current,
             []
           );
@@ -973,7 +1428,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
 
       setExportProgress(100);
       setExportStatusText('MP4 Video başarıyla oluşturuldu ve indirildi!');
-      toast.success('🎬 Yüksek kaliteli MP4 video başarıyla indirildi!');
+      toast.success('🎬 Animasyonlu video başarıyla indirildi!');
       setTimeout(() => setIsExporting(false), 1500);
     } catch (err: any) {
       console.error('MP4 export error:', err);
@@ -993,10 +1448,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge className="bg-gradient-to-r from-cyan-500 via-blue-600 to-primary text-white font-bold tracking-wider text-[11px] px-2.5 py-0.5 shadow-sm">
-                <Sparkles className="h-3 w-3 mr-1" /> ANİMASYONLU İNTERAKTİF VİDEO STÜDYOSU
+                <Sparkles className="h-3 w-3 mr-1" /> CANLI ANİMASYONLU KARAKTERLER & GRAFİKLER
               </Badge>
               <Badge variant="outline" className="border-rose-500/40 text-rose-400 text-[11px] font-semibold">
-                İKİLİ DERS & MP4
+                İKİLİ DERS & AKILLI TAHTA
               </Badge>
               {material.course && (
                 <Badge variant="secondary" className="text-[11px]">
@@ -1112,7 +1567,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
               <div className="hidden sm:flex items-center gap-2 ml-2 px-3 py-1 rounded-full bg-slate-900/85 border border-slate-700/60">
                 <span
                   className="h-2 w-2 rounded-full animate-ping"
-                  style={{ backgroundColor: activeHost.color }}
+                  style={{ backgroundColor: currentScene.speaker.toLowerCase().includes('barış') ? '#f43f5e' : '#06b6d4' }}
                 />
                 <span className="text-xs font-semibold text-white">
                   {currentScene.speaker}: {currentScene.title}
@@ -1167,31 +1622,59 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         </div>
       </div>
 
-      {/* Interactive Reactions Bar (Fun Floating Emojis!) */}
-      <div className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-800 bg-slate-950/70 shadow-md">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-amber-400" />
-          <span className="text-xs font-semibold text-slate-300 hidden sm:inline">Canlı Tepki Ver:</span>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* Interactive Smartboard Mode Switcher & Reactions */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {/* Tahta Grafik Modu Seçici */}
+        <div className="flex items-center gap-1.5 p-2 rounded-2xl border border-slate-800 bg-slate-950/80 overflow-x-auto">
+          <span className="text-[11px] font-semibold text-slate-400 pl-2 shrink-0">Tahta Modu:</span>
           {[
-            { emoji: '🔥', label: 'Efsane' },
-            { emoji: '💡', label: 'Anladım' },
-            { emoji: '🧠', label: 'Kritik' },
-            { emoji: '🎯', label: 'Sınav' },
-            { emoji: '🚀', label: 'Akıcı' },
-          ].map(({ emoji, label }) => (
-            <button
-              key={emoji}
-              onClick={() => addReaction(emoji)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-700 bg-slate-900/80 hover:bg-slate-800 text-xs text-white transition-transform active:scale-125 hover:border-cyan-500/50 shadow-sm"
-              title={`${label} tepkisi ver`}
-            >
-              <span>{emoji}</span>
-              <span className="hidden md:inline text-[11px] text-slate-300">{label}</span>
-              <span className="font-mono text-[10px] text-cyan-400">+{reactions[emoji] || 0}</span>
-            </button>
-          ))}
+            { id: 'auto', label: 'Otomatik', icon: Zap },
+            { id: 'curve', label: 'Arz-Talep', icon: LineChart },
+            { id: 'network', label: 'Zihin Haritası', icon: Network },
+            { id: 'bars', label: 'Büyüme', icon: BarChart3 },
+            { id: 'formula', label: 'Formül', icon: Activity },
+          ].map((mode) => {
+            const Icon = mode.icon;
+            const isSelected = manualChartMode === mode.id;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => setManualChartMode(mode.id as any)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                  isSelected
+                    ? 'bg-cyan-500 text-white shadow-sm shadow-cyan-500/30 font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span>{mode.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Live Reaction Emojis */}
+        <div className="flex items-center justify-between p-2 rounded-2xl border border-slate-800 bg-slate-950/80">
+          <span className="text-[11px] font-semibold text-slate-400 pl-2 shrink-0">Tepki Ver:</span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {[
+              { emoji: '🔥', label: 'Efsane' },
+              { emoji: '💡', label: 'Anladım' },
+              { emoji: '🧠', label: 'Kritik' },
+              { emoji: '🎯', label: 'Sınav' },
+              { emoji: '🚀', label: 'Akıcı' },
+            ].map(({ emoji, label }) => (
+              <button
+                key={emoji}
+                onClick={() => addReaction(emoji)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-slate-800 bg-slate-900/90 hover:bg-slate-800 text-xs text-white transition-transform active:scale-125 hover:border-cyan-500/50"
+                title={`${label} tepkisi ver`}
+              >
+                <span>{emoji}</span>
+                <span className="font-mono text-[10px] text-cyan-400">+{reactions[emoji] || 0}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1229,7 +1712,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
             <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
               {scenes.map((s, idx) => {
                 const isBaris = s.speaker.toLowerCase().includes('barış');
-                const host = isBaris ? HOSTS[1] : HOSTS[0];
                 const isActive = idx === activeSceneIndex;
 
                 return (
@@ -1248,9 +1730,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
                       <div className="flex items-center gap-2.5">
                         <div
                           className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow"
-                          style={{ backgroundColor: host.color }}
+                          style={{ backgroundColor: isBaris ? '#f43f5e' : '#06b6d4' }}
                         >
-                          {host.emoji}
+                          {isBaris ? '💡' : '🎓'}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
@@ -1390,10 +1872,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg text-white">
               <Sparkles className="h-5 w-5 text-cyan-400 animate-spin" />
-              Yüksek Kaliteli MP4 Video Derleniyor
+              Animasyonlu MP4 Video Derleniyor
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-300">
-              Deniz ve Barış'ın anlatımı, canlı sunum slaytları ve ses dalgaları yüksek kaliteli MP4 video formatında işleniyor.
+              Canlı karakterler, lazer işaretçiler, akıllı tahta grafikleri ve ses dalgaları tek bir yüksek kaliteli MP4 videosunda işleniyor.
             </DialogDescription>
           </DialogHeader>
 
@@ -1407,9 +1889,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
             </div>
 
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-400 space-y-1">
-              <p>• Çözünürlük: 1280x720 HD 16:9 (Ultra HD Bitrate)</p>
+              <p>• Çözünürlük: 1280x720 HD 16:9 (60 FPS & Canlı Karakterler)</p>
               <p>• Format: Standart MP4 (H.264/AAC Uyumlu)</p>
-              <p>• İşlem bittiğinde video dosyanız otomatik olarak indirilecektir.</p>
+              <p>• İşlem tamamlandığında video dosyanız otomatik olarak indirilecektir.</p>
             </div>
           </div>
         </DialogContent>

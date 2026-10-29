@@ -882,15 +882,6 @@ const Notes = () => {
                                     <Eye className="h-3 w-3 mr-1" /> Önizle
                                   </Button>
                                 )}
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => navigate(`/study?create=video&noteId=${note.id}&sourceMode=${note.user_id === user?.id ? 'own' : 'platform'}`)}
-                                  className="border-warning/40 bg-warning/5 text-warning hover:bg-warning/15 hover:border-warning/60"
-                                  title="Çalışma Stüdyosu'nda animasyonlu video dersi & MP4 üret"
-                                >
-                                  <Video className="h-3 w-3 mr-1" /> Video (MP4)
-                                </Button>
                               </>
                             )}
                             {(note.user_id === user?.id || isAdmin) && (
