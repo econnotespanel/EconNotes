@@ -1,6 +1,6 @@
 // EconNotes Video Stüdyosu — Sinematik Sahne ve Çok-Modlu Akıllı Tahta Çizim Motoru
 // Görseller (İllüstrasyonlar), Şekiller, Tablolar, Grafikler, Senaryolar, Zaman Akışı ve Kıyaslama
-// şemalarını hem canlı oynatıcıda hem de MP4 dışa aktarmada aynı yüksek netlikte üretir.
+// şemalarını tam ekran interaktif stüdyo sahnesinde 60 FPS yüksek netlikte üretir.
 
 import lightLogoUrl from '@/assets/econnotes-brand-light.png';
 import type { StudioScene, DiagramNode, Speaker, VisualTheme } from './sceneModel';
@@ -1691,18 +1691,24 @@ function drawCinemaSubtitles(ctx: CanvasRenderingContext2D, f: StageFrame, activ
     const ly = y + 74 + li * 35;
     line.forEach(({ word, start }) => {
       const end = start + word.length;
+      const wordW = ctx.measureText(word).width;
       const isCurrentWord = !f.poster && f.playing && f.charInSentence >= start && f.charInSentence <= end + 1;
       const spoken = f.poster ? true : start <= f.charInSentence;
 
       if (isCurrentWord) {
+        ctx.save();
+        rr(ctx, lx - 5, ly - 24, wordW + 10, 31, 8);
+        ctx.fillStyle = `${accent}24`;
+        ctx.fill();
+        ctx.restore();
         ctx.fillStyle = '#ffffff';
       } else if (spoken) {
         ctx.fillStyle = '#f1f5f9';
       } else {
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.52)';
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.5)';
       }
       ctx.fillText(word, lx, ly);
-      lx += ctx.measureText(word).width + spaceW;
+      lx += wordW + spaceW;
     });
   });
 }

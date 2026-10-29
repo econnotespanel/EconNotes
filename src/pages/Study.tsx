@@ -67,10 +67,10 @@ interface StudyProgress {
 }
 
 const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string; desc: string; tone: string; tint: string; code: string }> = {
-  flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Hızlı tekrar için çevrilebilir kartlar', tone: 'text-primary', tint: 'bg-primary/10', code: 'KRT' },
-  quiz: { label: 'Kısa Sınav', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Test veya klasik sınav denemesi', tone: 'text-accent', tint: 'bg-accent/10', code: 'SNV' },
-  summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Özet, anahtar noktalar ve infografik', tone: 'text-success', tint: 'bg-success/10', code: 'ÖZT' },
-  video: { label: 'Video Dersi', icon: VideoIcon, color: 'from-cyan-500 to-blue-600', desc: 'İki uzman anlatıcı, akıllı tahta grafikleri ve animasyonlu canlı ders', tone: 'text-cyan-500', tint: 'bg-cyan-500/10', code: 'VİD' },
+  flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Aktif hatırlama için çift yüzlü akademik bilgi kartları', tone: 'text-primary', tint: 'bg-primary/10', code: 'KRT' },
+  quiz: { label: 'Kısa Sınav', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Çözümlü test, klasik veya karma sınav simülasyonu', tone: 'text-accent', tint: 'bg-accent/10', code: 'SNV' },
+  summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Yapılandırılmış özet, kilit kavramlar ve infografik notlar', tone: 'text-success', tint: 'bg-success/10', code: 'ÖZT' },
+  video: { label: 'Video Dersi', icon: VideoIcon, color: 'from-cyan-500 to-blue-600', desc: 'Dr. Deniz & Barış ile akıcı Türkçe sesli, tablo, grafik ve senaryolu ders', tone: 'text-cyan-500', tint: 'bg-cyan-500/10', code: 'VİD' },
 };
 
 
@@ -279,11 +279,11 @@ const Study = () => {
 
     if (materialType === 'video') {
       const videoStages = [
-        { cap: 22, label: 'Ders notundaki akademik terimler, kavramlar ve kurumlar analiz ediliyor...' },
-        { cap: 48, label: 'Deniz ve Barış ikili anlatım diyalogları kurgulanıyor...' },
-        { cap: 72, label: 'Konuya özel dinamik akıllı tahta şemaları ve görsel modeller çiziliyor...' },
-        { cap: 88, label: 'Karakter animasyonları, ses sentezi ve zamanlama senkronize ediliyor...' },
-        { cap: 95, label: 'Sinematik video stüdyosu derleniyor...' },
+        { cap: 22, label: 'Ders notundaki akademik terimler, veriler ve tarihsel bağlam analiz ediliyor...' },
+        { cap: 48, label: 'Dr. Deniz ve Barış için akıcı Türkçe akademik diyalog kurgulanıyor...' },
+        { cap: 72, label: 'Görseller, şekiller, tablolar, analitik grafikler ve vaka senaryoları üretiliyor...' },
+        { cap: 88, label: 'Gerçekçi karakter mimikleri, dudak senkronu ve 22kHz Neural ses hazırlanıyor...' },
+        { cap: 95, label: 'Tam ekran sinematik çalışma stüdyosu derleniyor...' },
       ];
       let currentStageIdx = 0;
       setProgressLabel(videoStages[0].label);
@@ -419,8 +419,8 @@ const Study = () => {
                   </span>
                   <span className="holo-text">Çalışma Stüdyosu</span>
                 </h1>
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                  Notlarını, PDF dosyalarını ve ses kayıtlarını yükle. Sınav türünü ve hedefini seç; sana özel bilgi kartları, kısa sınavlar, özetler ve video taslakları hazırlansın.
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                  Notlarını, PDF dosyalarını ve ses kayıtlarını yükle. Sınav türünü ve hedefini seç; sana özel bilgi kartları, kısa sınavlar, derinlikli konu özetleri ve Dr. Deniz ile Barış eşliğinde akıcı Türkçe seslendirmeli interaktif video dersleri hazırlansın.
                 </p>
               </div>
             </div>
@@ -527,6 +527,9 @@ const Study = () => {
                 <Button variant="outline" className="rounded-xl" onClick={() => { setMaterialType('flashcards'); setCreateOpen(true); }}>
                   <Layers className="mr-2 h-4 w-4" /> Kart hazırla
                 </Button>
+                <Button variant="outline" className="rounded-xl border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400" onClick={() => { setMaterialType('video'); setCreateOpen(true); }}>
+                  <VideoIcon className="mr-2 h-4 w-4" /> Video dersi
+                </Button>
                 <Button className="rounded-xl" onClick={() => { setMaterialType('quiz'); setCreateOpen(true); }}>
                   <ClipboardList className="mr-2 h-4 w-4" /> Kısa sınav hazırla
                 </Button>
@@ -617,34 +620,69 @@ const Study = () => {
             {filtered.map(m => {
               const meta = TYPE_META[m.material_type];
               const Icon = meta.icon;
+              const createdLabel = m.created_at
+                ? new Date(m.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })
+                : '';
+              const detailPill =
+                m.material_type === 'video'
+                  ? `${Math.max(6, Array.isArray(m.content?.scenes) ? m.content.scenes.length : 6)} Bölüm · Akıcı Türkçe Stüdyo`
+                  : m.material_type === 'flashcards' && Array.isArray(m.content?.cards)
+                  ? `${m.content.cards.length} Bilgi Kartı`
+                  : m.material_type === 'quiz' && Array.isArray(m.content?.questions)
+                  ? `${m.content.questions.length} Sınav Sorusu`
+                  : m.material_type === 'summary' && Array.isArray(m.content?.sections)
+                  ? `${m.content.sections.length} Alt Başlık`
+                  : null;
+
               return (
-                <div key={m.id} className="hud-panel group flex flex-col p-4">
+                <div
+                  key={m.id}
+                  className={`hud-panel group flex flex-col p-4 sm:p-5 transition-all duration-300 hover:-translate-y-0.5 ${
+                    m.material_type === 'video'
+                      ? 'border-cyan-500/25 hover:border-cyan-500/50 hover:shadow-[0_12px_36px_rgba(6,182,212,0.12)]'
+                      : 'hover:border-primary/40 hover:shadow-lg'
+                  }`}
+                >
                   <div className="hud-scanline" />
                   <div className="relative flex items-start justify-between gap-2">
-                    <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border/70 ${meta.tint} ${meta.tone}`}>
-                      <Icon className="h-4 w-4" />
+                    <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 ${meta.tint} ${meta.tone}`}>
+                      <Icon className="h-4.5 w-4.5" />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] tracking-widest text-muted-foreground">{meta.code}</span>
-                      <Button variant="ghost" size="icon" className="h-9 w-9 transition-opacity sm:opacity-0 sm:group-hover:opacity-100" onClick={() => handleDelete(m.id)} aria-label="Materyali sil">
+                      {createdLabel && (
+                        <span className="text-[10px] font-medium text-muted-foreground/80">{createdLabel}</span>
+                      )}
+                      <span className="rounded-md border border-border/60 bg-background/50 px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
+                        {meta.code}
+                      </span>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 transition-opacity sm:opacity-0 sm:group-hover:opacity-100" onClick={() => handleDelete(m.id)} aria-label="Materyali sil">
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
                   </div>
-                  <h3 className="relative mt-3 line-clamp-2 font-display text-base font-semibold">{m.title}</h3>
-                  <div className="relative mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <h3 className="relative mt-3 line-clamp-2 font-display text-base font-semibold leading-snug">{m.title}</h3>
+                  <div className="relative mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                     <Badge variant="outline" className="text-[10px]">{meta.label}</Badge>
-                    {m.course && <span className="truncate">{m.course}</span>}
+                    {m.course && (
+                      <span className="truncate max-w-[180px] rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+                        {m.course}
+                      </span>
+                    )}
                     {m.exam_profile?.examType && (
                       <Badge variant="secondary" className="text-[10px]">
                         {m.exam_profile.examType === 'test' ? 'Test' : m.exam_profile.examType === 'classic' ? 'Klasik' : 'Karma'}
                       </Badge>
                     )}
                   </div>
+                  {detailPill && (
+                    <p className="relative mt-2.5 text-[11px] font-medium text-muted-foreground">
+                      {detailPill}
+                    </p>
+                  )}
                   <div className="relative mt-auto pt-4">
                     <Button
                       variant={m.material_type === 'video' ? 'default' : 'secondary'}
-                      className={`w-full gap-2 ${
+                      className={`w-full gap-2 rounded-xl ${
                         m.material_type === 'video'
                           ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-md shadow-cyan-500/20'
                           : ''
@@ -693,14 +731,14 @@ const Study = () => {
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25">
                   <VideoIcon className="h-5 w-5" />
                 </div>
-                <div className="space-y-1.5 text-xs">
+                <div className="space-y-2 text-xs">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm text-foreground">Canlı İnteraktif Video Dersi Stüdyosu</span>
-                    <Badge className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30 text-[10px] font-semibold">HD · 60 FPS</Badge>
-                    <Badge className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 text-[10px] font-bold">DİNAMİK AKILLI TAHTA</Badge>
+                    <span className="font-bold text-sm text-foreground">Sinematik İnteraktif Video Dersi Stüdyosu</span>
+                    <Badge className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30 text-[10px] font-semibold">AKICI TÜRKÇE NEURAL SES</Badge>
+                    <Badge className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 text-[10px] font-bold">5+ DK KAPSAMLI DERS</Badge>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Seçtiğiniz ders notu iki dinamik anlatıcı (<strong>Deniz</strong> & <strong>Barış</strong>) ile eğlenceli ve animasyonlu bir video dersine dönüşür. Dersinize özel akıllı tahta şemaları, kavram haritaları, ses sentezi ve sinematik tam ekran deneyimi.
+                    Seçtiğiniz ders notu iki gerçekçi anlatıcı (<strong>Dr. Deniz</strong> & <strong>Barış</strong>) ve 22kHz akıcı Türkçe Neural ses sentezi ile kapsamlı bir tam ekran video dersine dönüşür. Ders boyunca görseller, şekiller, karşılaştırma tabloları, analitik grafikler, vaka senaryoları ve zaman damgalı çalışma notları eşzamanlı akar.
                   </p>
                 </div>
               </div>

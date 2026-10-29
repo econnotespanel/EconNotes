@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildStudioContent, MIN_LESSON_DURATION_SEC, shortLabel } from './sceneModel';
 import {
+  buildSceneSpeakerTurns,
   discoverTurkishVoices,
   normalizeForTurkishSpeech,
   selectVoicesForSpeakers,
   visemeFromTurkishChar,
+  type VoiceOption,
 } from './speechEngine';
 
 describe('video studio sceneModel & speechEngine', () => {
@@ -60,24 +62,33 @@ describe('video studio sceneModel & speechEngine', () => {
     expect(diagramTypes.has('comparison')).toBe(true);
   });
 
-  it('normalizes Turkish academic abbreviations, economic acronyms, centuries and Roman numerals', () => {
+  it('normalizes Turkish academic abbreviations, year suffixes, apostrophes and Roman numerals for fluid speech', () => {
     const spoken = normalizeForTurkishSpeech(
-      'II. Kılıçarslan ve XVI. yüzyılda (örn. merkez maliyesi, GSYH %12 artışı) M.Ö. 4. yy. ve 13. yüzyılda kervansaraylar vb. kurumlar gelişti.',
+      "II. Kılıçarslan ve XVI. yüzyılda (örn. merkez maliyesi, GSYH %12 artışı) 1243'te Bizans'ın kervansaraylar vb. kurumları etkilendi.",
     );
     expect(spoken).toContain('İkinci Kılıçarslan');
     expect(spoken).toContain('on altıncı yüzyılda');
     expect(spoken).toContain('gayrisafi yurt içi hasıla');
     expect(spoken).toContain('yüzde 12');
     expect(spoken).toContain('örneğin');
-    expect(spoken).toContain('milattan önce');
-    expect(spoken).toContain('dördüncü yüzyıl');
-    expect(spoken).toContain('on üçüncü yüzyılda');
+    expect(spoken).toContain('1243 yılında');
+    expect(spoken).toContain('Bizansın');
     expect(spoken).toContain('ve benzeri');
     expect(spoken).not.toContain('(');
   });
 
-  it('provides 22.05kHz VITS Turkish neural voices and never pitch-warps speaker voices', () => {
-    const voices = discoverTurkishVoices();
+  it('assigns distinct 22.05kHz VITS Turkish neural voices (Eren & Fahrettin) and never defaults to Google Türkçe', () => {
+    const baseVoices = discoverTurkishVoices();
+    const fakeGoogleTurkish: VoiceOption = {
+      id: 'Google Türkçe|tr-TR',
+      voice: { name: 'Google Türkçe', lang: 'tr-TR' } as any,
+      cleanName: 'Google Türkçe · tr-TR',
+      quality: 'cloud',
+      genderGuess: 'female',
+      score: 64,
+    };
+    const voices = [...baseVoices, fakeGoogleTurkish];
+    expect(voices.some(v => v.vitsVoiceId === 'tr_TR-eren-fluid')).toBe(true);
     expect(voices.some(v => v.vitsVoiceId === 'tr_TR-fahrettin-medium')).toBe(true);
     expect(voices.some(v => v.vitsVoiceId === 'tr_TR-fettah-medium')).toBe(true);
     expect(voices.some(v => v.vitsVoiceId === 'tr_TR-dfki-medium')).toBe(true);
@@ -85,8 +96,34 @@ describe('video studio sceneModel & speechEngine', () => {
     const assigned = selectVoicesForSpeakers(voices);
     expect(assigned.Deniz.pitch).toBe(1.0);
     expect(assigned.Barış.pitch).toBe(1.0);
+    expect(assigned.Deniz.vitsVoiceId).toBe('tr_TR-eren-fluid');
     expect(assigned.Barış.vitsVoiceId).toBe('tr_TR-fahrettin-medium');
+    expect(assigned.Deniz.voice).toBeNull();
+    expect(assigned.Barış.voice).toBeNull();
     expect(assigned.Deniz.label).not.toBe(assigned.Barış.label);
+  });
+
+  it('groups consecutive same-speaker sentences into continuous fluid turns', () => {
+    const fullStudio = buildStudioContent(
+      {
+        outline: 'İkta ve miri arazi rejimi analizi.',
+        scenes: [
+          {
+            speaker: 'Deniz',
+            title: 'Miri Arazi ve İkta',
+            narration: 'Birinci cümle burada başlıyor. İkinci cümle aynı anlatıcıyla devam ediyor. Üçüncü cümle soruyu açıyor.',
+            keyTakeaways: ['Miri arazi: Mülkiyet devlete aittir.'],
+          },
+        ],
+      },
+      'İktisat Tarihi',
+      'İktisat Tarihi',
+      { disableCurriculumExpansion: true },
+    );
+    const turns = buildSceneSpeakerTurns(fullStudio.scenes[0], 0);
+    expect(turns.length).toBeGreaterThanOrEqual(1);
+    const totalSentencesInTurns = turns.reduce((acc, t) => acc + t.spokenSentences.length, 0);
+    expect(totalSentencesInTurns).toBe(fullStudio.scenes[0].sentences.length);
   });
 
   it('maps Turkish characters to anatomical mouth visemes', () => {

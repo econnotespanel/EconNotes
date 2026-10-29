@@ -7,7 +7,6 @@ import {
   Pause,
   Volume2,
   VolumeX,
-  Download,
   Sparkles,
   ChevronRight,
   ChevronLeft,
@@ -36,6 +35,7 @@ import {
   ExternalLink,
   ArrowLeft,
   GraduationCap,
+  Headphones,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -56,6 +56,8 @@ import {
   discoverTurkishVoices,
   selectVoicesForSpeakers,
   preloadAssignedNeuralVoices,
+  prepareSceneFirstTurn,
+  previewSpeakerVoice,
   playSceneConversationally,
   visemeFromTurkishChar,
   VoiceOption,
@@ -169,11 +171,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
   }, [personalNotes, notesStorageKey]);
 
-  // 6. MP4 Dışa Aktarma durumları
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportProgress, setExportProgress] = useState(0);
-  const [exportStatusText, setExportStatusText] = useState('');
-  const exportCancelRef = useRef<boolean>(false);
+  // 6. Akıcı Türkçe Neural Ses Ön-Hazırlık (Buffer) ve Önizleme durumları
+  const [isPreparingAudio, setIsPreparingAudio] = useState(false);
+  const [previewingSpeaker, setPreviewingSpeaker] = useState<Speaker | null>(null);
+  const prepareTokenRef = useRef<number>(0);
 
   // 7. Entegre Yapay Zekâ Akıl Hocası
   const [coachMessages, setCoachMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
@@ -364,22 +365,65 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSceneIndex, isPlaying, isMuted, playbackSpeed, speakerVoices, preferCloudNeural]);
 
-  const togglePlay = useCallback(() => {
-    setHasStartedOnce(true);
+  const togglePlay = useCallback(async () => {
+    if (isPreparingAudio) {
+      prepareTokenRef.current += 1;
+      setIsPreparingAudio(false);
+      return;
+    }
+
     if (isPlaying) {
       setIsPlaying(false);
       stopSpeech();
-    } else {
-      if (
-        activeSceneIndex === scenes.length - 1 &&
-        elapsedSceneTime >= currentScene.durationSec - 0.3
-      ) {
-        setActiveSceneIndex(0);
-        setElapsedSceneTime(0);
-      }
-      setIsPlaying(true);
+      return;
     }
-  }, [isPlaying, stopSpeech, activeSceneIndex, scenes.length, elapsedSceneTime, currentScene.durationSec]);
+
+    let targetSceneIdx = activeSceneIndex;
+    let targetElapsed = elapsedSceneTime;
+    if (
+      activeSceneIndex === scenes.length - 1 &&
+      elapsedSceneTime >= currentScene.durationSec - 0.3
+    ) {
+      targetSceneIdx = 0;
+      targetElapsed = 0;
+      setActiveSceneIndex(0);
+      setElapsedSceneTime(0);
+    }
+
+    const targetScene = scenes[targetSceneIdx] || currentScene;
+    if (!isMuted && volume > 0.01 && targetScene) {
+      const token = ++prepareTokenRef.current;
+      setIsPreparingAudio(true);
+      try {
+        const startPos = positionFromElapsed(targetScene, targetElapsed);
+        await prepareSceneFirstTurn(
+          targetScene,
+          speakerVoices,
+          preferCloudNeural,
+          startPos.sentenceIndex,
+        );
+      } catch {
+        // Sentez hatası olursa normal akış devam eder
+      }
+      if (prepareTokenRef.current !== token) return;
+      setIsPreparingAudio(false);
+    }
+
+    setHasStartedOnce(true);
+    setIsPlaying(true);
+  }, [
+    isPreparingAudio,
+    isPlaying,
+    stopSpeech,
+    activeSceneIndex,
+    scenes,
+    elapsedSceneTime,
+    currentScene,
+    isMuted,
+    volume,
+    speakerVoices,
+    preferCloudNeural,
+  ]);
 
   const goToScene = useCallback(
     (index: number, seekSec = 0) => {
@@ -693,146 +737,20 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
   };
 
-  // Yüksek Kaliteli MP4 Video Dersi Dışa Aktarma Motoru
-  const handleExportMP4 = async () => {
-    exportCancelRef.current = false;
-    setIsExporting(true);
-    setExportProgress(0);
-    setExportStatusText('Stüdyo sahne motoru hazırlanıyor...');
-
+  // Seçilen Türkçe Neural Anlatıcı Sesini Anında Önizleme ("Dinle")
+  const handlePreviewVoice = async (spk: Speaker) => {
+    if (previewingSpeaker) return;
     if (isPlaying) {
       setIsPlaying(false);
       stopSpeech();
     }
-
+    setPreviewingSpeaker(spk);
     try {
-      const exportCanvas = document.createElement('canvas');
-      exportCanvas.width = STAGE_W;
-      exportCanvas.height = STAGE_H;
-      const exportCtx = exportCanvas.getContext('2d');
-      if (!exportCtx) throw new Error('Canvas 2D başlatılamadı.');
-
-      // Saf sessiz ses kanalı (sıfır arka plan uğultusu / osilatör — MP4 kapsayıcı uyumluluğu için 0 kazanç)
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = AudioContextClass ? new AudioContextClass() : null;
-      const audioDest = audioCtx ? audioCtx.createMediaStreamDestination() : null;
-      if (audioCtx && audioDest) {
-        const silentGain = audioCtx.createGain();
-        silentGain.gain.setValueAtTime(0, audioCtx.currentTime);
-        silentGain.connect(audioDest);
-      }
-
-      const canvasStream = exportCanvas.captureStream(30);
-      audioDest?.stream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
-
-      let mimeType = 'video/mp4;codecs="avc1,mp4a.40.2"';
-      if (!MediaRecorder.isTypeSupported(mimeType)) {
-        if (MediaRecorder.isTypeSupported('video/mp4')) mimeType = 'video/mp4';
-        else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) mimeType = 'video/webm;codecs=vp9,opus';
-        else if (MediaRecorder.isTypeSupported('video/webm')) mimeType = 'video/webm';
-        else mimeType = '';
-      }
-
-      const recorderOptions: MediaRecorderOptions = { videoBitsPerSecond: 6_000_000 };
-      if (mimeType) recorderOptions.mimeType = mimeType;
-
-      const mediaRecorder = new MediaRecorder(canvasStream, recorderOptions);
-      const recordedChunks: Blob[] = [];
-      mediaRecorder.ondataavailable = e => {
-        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-      };
-
-      mediaRecorder.start(100);
-
-      const totalScenes = scenes.length;
-      for (let sIdx = 0; sIdx < totalScenes; sIdx++) {
-        if (exportCancelRef.current) break;
-        const scene = scenes[sIdx];
-        const sceneDuration = Math.min(scene.durationSec, 10);
-        const fps = 30;
-        const totalFrames = Math.round(sceneDuration * fps);
-
-        setExportStatusText(`Bölüm ${sIdx + 1}/${totalScenes}: ${scene.title}`);
-
-        for (let f = 0; f < totalFrames; f++) {
-          if (exportCancelRef.current) break;
-          const timeSecs = (f / totalFrames) * scene.durationSec;
-          const pos = positionFromElapsed(scene, timeSecs);
-          const sent = scene.sentences[pos.sentenceIndex] || '';
-          const ch = sent.charAt(Math.floor(pos.charInSentence));
-          const vInfo = visemeFromTurkishChar(ch);
-
-          const frame: StageFrame = {
-            scene,
-            sceneIndex: sIdx,
-            sceneCount: totalScenes,
-            progress: pos.progress,
-            overall: (sIdx + pos.progress) / totalScenes,
-            sceneTime: f / fps,
-            sentenceIndex: pos.sentenceIndex,
-            charInSentence: Math.floor(pos.charInSentence),
-            activeSpeaker: pos.activeSpeaker,
-            playing: true,
-            poster: false,
-            now: Date.now() + f * 33,
-            courseLabel: material.course || '',
-            showSubtitles: true,
-            viseme: vInfo.viseme,
-            mouthOpen: vInfo.open * (0.7 + Math.sin(f * 0.45) * 0.3),
-            inBreathPause: false,
-          };
-
-          renderStage(exportCtx, frame);
-
-          const pct = Math.round(((sIdx + f / totalFrames) / totalScenes) * 96);
-          setExportProgress(pct);
-
-          if (f % 8 === 0) {
-            await new Promise(r => setTimeout(r, 16));
-          }
-        }
-      }
-
-      await new Promise<void>(resolve => {
-        mediaRecorder.onstop = () => resolve();
-        mediaRecorder.stop();
-        audioCtx?.close().catch(() => {});
-      });
-
-      if (exportCancelRef.current) {
-        setIsExporting(false);
-        toast.info('MP4 hazırlama işlemi iptal edildi');
-        return;
-      }
-
-      setExportProgress(98);
-      setExportStatusText('Video dosyası paketleniyor...');
-
-      const ext = mimeType.includes('mp4') || !mimeType ? 'mp4' : 'webm';
-      const videoBlob = new Blob(recordedChunks, { type: mimeType || 'video/mp4' });
-      const downloadUrl = URL.createObjectURL(videoBlob);
-      const safeTitle =
-        (material.course ? `${material.course}-` : '') +
-        studio.title
-          .toLowerCase()
-          .replace(/[^a-z0-9ğüşıöç]+/gi, '-')
-          .replace(/^-+|-+$/g, '');
-
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = `${safeTitle}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(downloadUrl);
-
-      setExportProgress(100);
-      setExportStatusText('İndirme tamamlandı!');
-      toast.success('Ders videosu indirildi');
-      setTimeout(() => setIsExporting(false), 1100);
-    } catch (err: any) {
-      toast.error('Video dışa aktarılamadı: ' + (err?.message || 'Bilinmeyen hata'));
-      setIsExporting(false);
+      await previewSpeakerVoice(speakerVoices[spk], spk, isMuted ? 0.9 : Math.max(0.25, volume));
+    } catch {
+      toast.error('Ses önizlemesi şu an başlatılamadı.');
+    } finally {
+      setPreviewingSpeaker(null);
     }
   };
 
@@ -919,9 +837,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             </button>
 
             {voiceMenuOpen && (
-              <div className="absolute right-0 top-10 z-50 w-80 rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
+              <div className="absolute right-0 top-10 z-50 w-80 sm:w-[348px] rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white">HD Türkçe Neural Stüdyo Sesi</span>
+                  <div>
+                    <span className="font-semibold text-white">Akıcı Türkçe Neural Stüdyo Sesi</span>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      22kHz Derin Sinir Ağı · Doğal nefes ve akıcı cümle geçişi
+                    </p>
+                  </div>
                   <button
                     onClick={() => setVoiceMenuOpen(false)}
                     className="text-slate-400 hover:text-white"
@@ -934,7 +857,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
                   <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 space-y-1.5">
                     <div className="flex items-center justify-between text-[11px] text-cyan-200">
-                      <span>22kHz Neural Türkçe Ses Hazırlanıyor</span>
+                      <span>{vitsStatus.activeLabel || 'Akıcı Türkçe Neural Ses Hazırlanıyor'}</span>
                       <span className="font-mono">%{vitsStatus.progressPct}</span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-900">
@@ -944,7 +867,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       />
                     </div>
                     <p className="text-[10px] text-slate-300">
-                      İlk kullanımda önbelleğe alınır; sonraki derslerde anında çalışır.
+                      İlk kullanımda tarayıcı önbelleğine kaydedilir; sonraki derslerde anında başlar.
                     </p>
                   </div>
                 )}
@@ -953,7 +876,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
                   <div>
                     <div className="font-medium text-slate-100">Bulut & Neural Stüdyo Önceliği</div>
-                    <div className="text-[10px] text-slate-400">Saf stüdyo sessizliği, sıfır arka plan sesi</div>
+                    <div className="text-[10px] text-slate-400">Saf stüdyo sessizliği, sıfır arka plan uğultusu</div>
                   </div>
                   <input
                     type="checkbox"
@@ -963,17 +886,32 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   />
                 </label>
 
-                <div className="space-y-2 pt-1">
+                <div className="space-y-2.5 pt-1">
                   <div>
-                    <label className="block text-[11px] font-medium text-cyan-300 mb-1">
-                      Dr. Deniz (Akademik Anlatıcı)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-medium text-cyan-300">
+                        Dr. Deniz (Kürsü Profesörü)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handlePreviewVoice('Deniz')}
+                        disabled={previewingSpeaker !== null}
+                        className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-50"
+                      >
+                        {previewingSpeaker === 'Deniz' ? (
+                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        ) : (
+                          <Headphones className="h-2.5 w-2.5" />
+                        )}
+                        <span>Dinle</span>
+                      </button>
+                    </div>
                     <select
                       value={preferredDenizVoice}
                       onChange={e => setPreferredDenizVoice(e.target.value)}
                       className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
                     >
-                      <option value="">Otomatik ({speakerVoices.Deniz.label})</option>
+                      <option value="">Önerilen ({speakerVoices.Deniz.label})</option>
                       {voices.map(v => (
                         <option key={v.id} value={v.id}>
                           {v.cleanName} {v.quality === 'neural' ? '★ Neural HD' : v.quality === 'cloud' ? '· Bulut HD' : ''}
@@ -983,15 +921,30 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-purple-300 mb-1">
-                      Barış (Araştırmacı & Soru Soran)
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-medium text-purple-300">
+                        Barış (Araştırmacı & Soru Soran)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handlePreviewVoice('Barış')}
+                        disabled={previewingSpeaker !== null}
+                        className="inline-flex items-center gap-1 rounded-md border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-200 transition hover:bg-purple-500/20 disabled:opacity-50"
+                      >
+                        {previewingSpeaker === 'Barış' ? (
+                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        ) : (
+                          <Headphones className="h-2.5 w-2.5" />
+                        )}
+                        <span>Dinle</span>
+                      </button>
+                    </div>
                     <select
                       value={preferredBarisVoice}
                       onChange={e => setPreferredBarisVoice(e.target.value)}
                       className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-purple-500 focus:outline-none"
                     >
-                      <option value="">Otomatik ({speakerVoices.Barış.label})</option>
+                      <option value="">Önerilen ({speakerVoices.Barış.label})</option>
                       {voices.map(v => (
                         <option key={v.id} value={v.id}>
                           {v.cleanName} {v.quality === 'neural' ? '★ Neural HD' : v.quality === 'cloud' ? '· Bulut HD' : ''}
@@ -1043,17 +996,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             <FileDown className="h-3.5 w-3.5 text-emerald-400" />
             <span className="hidden xl:inline">Notları İndir</span>
           </button>
-
-          {/* MP4 İndir (Sıfır 1080p ibaresi) */}
-          <Button
-            size="sm"
-            onClick={handleExportMP4}
-            disabled={isExporting}
-            className="h-8 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-3 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 gap-1.5"
-          >
-            {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">MP4 İndir</span>
-          </Button>
 
           {/* Yan Panel Aç/Kapat */}
           <button
@@ -1147,8 +1089,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             }}
           />
 
-          {/* 16:9 Tuval Alanı */}
-          <div className="relative flex flex-1 min-h-0 items-center justify-center p-2 sm:p-4 lg:p-5">
+          {/* 16:9 Tuval Alanı — Platform İçi Korumalı Özel Stüdyo Oynatıcısı */}
+          <div
+            onContextMenu={e => e.preventDefault()}
+            className="relative flex flex-1 min-h-0 items-center justify-center p-2 sm:p-4 lg:p-5"
+          >
             <div className="relative aspect-video w-full max-h-full max-w-[1480px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#040710] shadow-[0_24px_80px_rgba(0,0,0,0.85)]">
               <canvas
                 ref={canvasRef}
@@ -1158,8 +1103,37 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 className="block h-full w-full cursor-pointer object-contain"
               />
 
+              {/* Akıcı Türkçe Neural Ses Ön-Hazırlık Katmanı */}
+              {isPreparingAudio && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#040710]/82 backdrop-blur-md px-6 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15 text-cyan-300 shadow-[0_0_40px_rgba(34,211,238,0.28)]">
+                    <Loader2 className="h-7 w-7 animate-spin" />
+                  </div>
+                  <h3 className="mt-4 text-base sm:text-lg font-bold text-white">
+                    Akıcı Türkçe Stüdyo Sesi Hazırlanıyor...
+                  </h3>
+                  <p className="mt-1 max-w-md text-xs text-slate-300">
+                    Dr. Deniz ve Barış için 22kHz Neural Türkçe ses motoru pürüzsüz cümle akışıyla sentezleniyor.
+                  </p>
+                  {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
+                    <div className="mt-3 w-full max-w-xs space-y-1">
+                      <div className="flex justify-between text-[11px] text-cyan-200 font-mono">
+                        <span>Stüdyo Ses Motoru</span>
+                        <span>%{vitsStatus.progressPct}</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-200"
+                          style={{ width: `${Math.max(8, vitsStatus.progressPct)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* İlk Başlangıç Sinematik Kapak Katmanı */}
-              {!hasStartedOnce && (
+              {!hasStartedOnce && !isPreparingAudio && (
                 <div
                   onClick={togglePlay}
                   className="group absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-gradient-to-t from-[#040710]/90 via-[#040710]/45 to-transparent backdrop-blur-[2px] transition-all"
@@ -1169,13 +1143,13 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </div>
                   <div className="mt-4 text-center px-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
-                      Dr. Deniz & Barış ile Kapsamlı Video Dersi
+                      Dr. Deniz & Barış · Akıcı Türkçe Neural Stüdyo
                     </p>
                     <h2 className="mt-1 text-lg sm:text-xl font-bold text-white">
                       Dersi Başlat ({scenes.length} Bölüm · {formatTime(totalDurationSec)})
                     </h2>
                     <p className="mt-1 text-xs text-slate-300">
-                      Görseller · Şekiller · Tablolar · Grafikler · Örnek Senaryolar
+                      Görseller · Şekiller · Tablolar · Analitik Grafikler · Vaka Senaryoları
                     </p>
                   </div>
                 </div>
@@ -1256,14 +1230,17 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <button
                   onClick={togglePlay}
-                  className="flex h-8 items-center gap-1.5 rounded-xl bg-white px-3.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-cyan-50"
+                  disabled={isPreparingAudio}
+                  className="flex h-8 items-center gap-1.5 rounded-xl bg-white px-3.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-cyan-50 disabled:opacity-75"
                 >
-                  {isPlaying ? (
+                  {isPreparingAudio ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-900" />
+                  ) : isPlaying ? (
                     <Pause className="h-3.5 w-3.5 fill-slate-950" />
                   ) : (
                     <Play className="h-3.5 w-3.5 fill-slate-950 ml-0.5" />
                   )}
-                  <span>{isPlaying ? 'Duraklat' : 'Oynat'}</span>
+                  <span>{isPreparingAudio ? 'Hazırlanıyor' : isPlaying ? 'Duraklat' : 'Oynat'}</span>
                 </button>
 
                 <button
@@ -1735,52 +1712,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           </aside>
         )}
       </div>
-
-      {/* 3. MP4 DIŞA AKTARMA MODALI */}
-      {isExporting && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1120] p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Video Dersi Hazırlanıyor</h3>
-                  <p className="text-xs text-slate-400">
-                    Tüm sahneler, tablolar, grafikler ve senaryolar işleniyor.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  exportCancelRef.current = true;
-                }}
-                className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10 hover:text-white"
-              >
-                İptal
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="truncate max-w-[280px] text-slate-300">{exportStatusText}</span>
-                <span className="font-mono font-bold text-cyan-400">%{exportProgress}</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-150"
-                  style={{ width: `${exportProgress}%` }}
-                />
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500 text-center">
-              İşlem tamamlandığında MP4 dosyası otomatik olarak cihazınıza indirilecektir.
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 

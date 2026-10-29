@@ -32,19 +32,23 @@ function encodeBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-/** Ham 16-bit mono PCM (24kHz) verisini standart RIFF WAV başlığıyla sarar */
+/** Ham 16-bit mono PCM (24kHz) verisini yumuşak giriş/çıkış zarfıyla standart RIFF WAV başlığıyla sarar */
 function wrapPcm16ToWav(pcm: Uint8Array, sampleRate = 24000, numChannels = 1): Uint8Array {
+  const evenLen = pcm.length - (pcm.length % 2);
+  const numSamples = evenLen / 2;
+  const fadeSamples = Math.min(Math.floor(sampleRate * 0.015), Math.floor(numSamples / 8));
   const byteRate = sampleRate * numChannels * 2;
   const blockAlign = numChannels * 2;
-  const wav = new Uint8Array(44 + pcm.length);
+  const wav = new Uint8Array(44 + evenLen);
   const view = new DataView(wav.buffer);
+  const srcView = new DataView(pcm.buffer, pcm.byteOffset, evenLen);
 
   const writeStr = (offset: number, str: string) => {
     for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
   };
 
   writeStr(0, 'RIFF');
-  view.setUint32(4, 36 + pcm.length, true);
+  view.setUint32(4, 36 + evenLen, true);
   writeStr(8, 'WAVE');
   writeStr(12, 'fmt ');
   view.setUint32(16, 16, true); // PCM
@@ -55,9 +59,25 @@ function wrapPcm16ToWav(pcm: Uint8Array, sampleRate = 24000, numChannels = 1): U
   view.setUint16(32, blockAlign, true);
   view.setUint16(34, 16, true); // 16-bit
   writeStr(36, 'data');
-  view.setUint32(40, pcm.length, true);
-  wav.set(pcm, 44);
+  view.setUint32(40, evenLen, true);
+
+  for (let i = 0; i < numSamples; i++) {
+    let s = srcView.getInt16(i * 2, true);
+    if (i < fadeSamples) {
+      s = Math.round(s * (i / Math.max(1, fadeSamples)));
+    } else if (i > numSamples - fadeSamples) {
+      s = Math.round(s * ((numSamples - i) / Math.max(1, fadeSamples)));
+    }
+    view.setInt16(44 + i * 2, s, true);
+  }
   return wav;
+}
+
+function decodeBase64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 function looksLikeContainerAudio(bytes: Uint8Array): boolean {
@@ -78,59 +98,144 @@ async function handleStudioTts(req: Request, body: CoachReq, apiKey: string): Pr
     throw new RequestError('Seslendirilecek metin geçersiz.', 400);
   }
 
-  // Resmi yapılandırılmış sağlayıcı denemeleri (varsa özel anahtar, yoksa Lovable AI Gateway TTS)
-  const openaiKey = Deno.env.get('OPENAI_API_KEY');
-  if (openaiKey) {
-    const r = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini-tts',
-        voice: speaker === 'Deniz' ? 'nova' : 'onyx',
-        input: text,
-        instructions: speaker === 'Deniz'
-          ? 'Sıcak, doğal, akıcı ve anlaşılır bir üniversite akademisyeni tonuyla Türkçe konuş.'
-          : 'Meraklı, enerjik, doğal ve samimi bir araştırmacı tonuyla Türkçe konuş.',
-        response_format: 'mp3',
-      }),
-    });
-    if (r.ok) {
-      const buf = new Uint8Array(await r.arrayBuffer());
-      if (buf.length > 256) {
-        return jsonResponse(req, { audioBase64: encodeBase64(buf), mimeType: 'audio/mpeg', provider: 'openai-tts' });
+  // 1. ElevenLabs Multilingual/Flash v2.5 (yapılandırılmışsa)
+  const elevenKey = Deno.env.get('ELEVENLABS_API_KEY');
+  if (elevenKey) {
+    try {
+      // Daniel (onwK4e9ZLuTAKqWW03F9) = kıdemli akademisyen, Liam (TX3LPaxmHKxFdv7VOQHJ) = genç araştırmacı
+      const voiceId = speaker === 'Deniz' ? 'onwK4e9ZLuTAKqWW03F9' : 'TX3LPaxmHKxFdv7VOQHJ';
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': elevenKey,
+          'Content-Type': 'application/json',
+          Accept: 'audio/mpeg',
+        },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_flash_v2_5',
+          language_code: 'tr',
+          voice_settings: {
+            stability: 0.52,
+            similarity_boost: 0.78,
+            style: 0.22,
+            use_speaker_boost: true,
+          },
+        }),
+        signal: AbortSignal.timeout(6500),
+      });
+      if (r.ok) {
+        const buf = new Uint8Array(await r.arrayBuffer());
+        if (buf.length > 256) {
+          return jsonResponse(req, {
+            audioBase64: encodeBase64(buf),
+            mimeType: 'audio/mpeg',
+            provider: 'elevenlabs-flash-tr',
+          });
+        }
       }
+    } catch {
+      // Sonraki sağlayıcıya geç
     }
   }
 
-  const gatewayAttempts = [
-    {
-      model: 'google/gemini-2.5-flash-tts',
-      voice: speaker === 'Deniz' ? 'Kore' : 'Orus',
-    },
-    {
-      model: 'google/gemini-3.1-flash-tts-preview',
-      voice: speaker === 'Deniz' ? 'Kore' : 'Puck',
-    },
-    {
-      model: 'openai/gpt-4o-mini-tts',
-      voice: speaker === 'Deniz' ? 'nova' : 'onyx',
-    },
+  // 2. OpenAI gpt-4o-mini-tts (yapılandırılmışsa)
+  const openaiKey = Deno.env.get('OPENAI_API_KEY');
+  if (openaiKey) {
+    try {
+      const r = await fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini-tts',
+          voice: speaker === 'Deniz' ? 'onyx' : 'ash',
+          input: text,
+          instructions: speaker === 'Deniz'
+            ? 'Sıcak, akıcı, duru bir İstanbul Türkçesiyle, deneyimli bir üniversite profesörü tonunda doğal ve kesintisiz konuş.'
+            : 'Meraklı, akıcı, enerjik ve doğal bir İstanbul Türkçesiyle genç bir akademik araştırmacı tonunda konuş.',
+          response_format: 'mp3',
+        }),
+        signal: AbortSignal.timeout(6500),
+      });
+      if (r.ok) {
+        const buf = new Uint8Array(await r.arrayBuffer());
+        if (buf.length > 256) {
+          return jsonResponse(req, { audioBase64: encodeBase64(buf), mimeType: 'audio/mpeg', provider: 'openai-tts' });
+        }
+      }
+    } catch {
+      // Sonraki sağlayıcıya geç
+    }
+  }
+
+  // 3. Google Gemini 2.5 Native Studio TTS (GEMINI_API_KEY yapılandırılmışsa)
+  const geminiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY');
+  if (geminiKey) {
+    try {
+      const voiceName = speaker === 'Deniz' ? 'Charon' : 'Orus';
+      const stylePrompt = speaker === 'Deniz'
+        ? `Akıcı, sıcak ve duru bir İstanbul Türkçesiyle deneyimli bir akademisyen gibi oku: ${text}`
+        : `Akıcı, dinamik ve doğal bir İstanbul Türkçesiyle meraklı bir araştırmacı gibi oku: ${text}`;
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: stylePrompt }] }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+              },
+            },
+          }),
+          signal: AbortSignal.timeout(6500),
+        },
+      );
+      if (r.ok) {
+        const j = await r.json();
+        const inline = j?.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+        if (inline?.data && typeof inline.data === 'string') {
+          const rawPcm = decodeBase64ToBytes(inline.data);
+          if (rawPcm.length > 256) {
+            const wavBytes = looksLikeContainerAudio(rawPcm) ? rawPcm : wrapPcm16ToWav(rawPcm, 24000, 1);
+            return jsonResponse(req, {
+              audioBase64: encodeBase64(wavBytes),
+              mimeType: 'audio/wav',
+              provider: 'gemini-2.5-tts',
+            });
+          }
+        }
+      }
+    } catch {
+      // Sonraki sağlayıcıya geç
+    }
+  }
+
+  // 4. Lovable AI Gateway TTS denemesi (Gemini TTS üzerinde mp3 zorlamadan doğal WAV/PCM kabul eder)
+  const gatewayAttempts: Array<{ model: string; voice: string; format?: string }> = [
+    { model: 'google/gemini-2.5-flash-tts', voice: speaker === 'Deniz' ? 'Charon' : 'Orus' },
+    { model: 'openai/gpt-4o-mini-tts', voice: speaker === 'Deniz' ? 'onyx' : 'ash', format: 'mp3' },
   ];
 
   for (const attempt of gatewayAttempts) {
     try {
+      const payload: Record<string, unknown> = {
+        model: attempt.model,
+        input: text,
+        voice: attempt.voice,
+      };
+      if (attempt.format) payload.response_format = attempt.format;
+
       const r = await fetch('https://ai.gateway.lovable.dev/v1/audio/speech', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: attempt.model,
-          input: text,
-          voice: attempt.voice,
-          response_format: 'mp3',
-        }),
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(3200),
       });
 
       if (!r.ok) continue;
@@ -142,7 +247,7 @@ async function handleStudioTts(req: Request, body: CoachReq, apiKey: string): Pr
         if (typeof b64 === 'string' && b64.length > 200) {
           return jsonResponse(req, {
             audioBase64: b64,
-            mimeType: j?.mimeType || 'audio/mpeg',
+            mimeType: j?.mimeType || 'audio/wav',
             provider: attempt.model,
           });
         }
@@ -173,7 +278,7 @@ async function handleStudioTts(req: Request, body: CoachReq, apiKey: string): Pr
         provider: attempt.model,
       });
     } catch {
-      // Bir sonraki modeli dene
+      // Hızlıca istemci içi 22.05kHz VITS Türkçe Neural motoruna devret
     }
   }
 

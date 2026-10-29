@@ -1,47 +1,89 @@
-// Tarayıcı İçi 22.05 kHz Derin Sinir Ağı (VITS ONNX) Türkçe Stüdyo Ses Motoru
-// Sunucuya veya işletim sisteminin eski SAPI5 seslerine bağımlı kalmadan, OPFS kalıcı
-// önbellekleme ve bellekte derlenmiş ONNX oturumu ile stüdyo kalitesinde Türkçe insan sesi üretir.
+// Tarayıcı İçi 22.05 kHz Derin Sinir Ağı (VITS ONNX) Akıcı Türkçe Stüdyo Ses Motoru v2
+// - Dört farklı doğal Türkçe Neural Stüdyo sesi (Eren Akıcı Akademik, Fahrettin Stüdyo, Obadiah Kürsü, Fettah Belgesel).
+// - Özel phoneme_id_map kodlaması, akıcı legato prozodi (düşük durasyon titremesi noise_w=0.30..0.34),
+//   ve cümleler arası örneklem-hassasiyetli (sample-accurate) kesintisiz konuşma bloğu birleştirme.
+// - OPFS kalıcı önbellekleme + stüdyo ses mastering (DC-offset temizliği, sıcak mikrofon tonu ve ses seviyesi dengeleme).
 
 import * as ort from 'onnxruntime-web';
 
 export type VitsTurkishVoiceId =
+  | 'tr_TR-eren-fluid'
   | 'tr_TR-fahrettin-medium'
-  | 'tr_TR-fettah-medium'
-  | 'tr_TR-dfki-medium';
+  | 'tr_TR-dfki-medium'
+  | 'tr_TR-fettah-medium';
 
 export interface VitsVoiceDescriptor {
   voiceId: VitsTurkishVoiceId;
   optionId: `vits:${VitsTurkishVoiceId}`;
   cleanName: string;
+  roleHint: string;
   gender: 'male' | 'female' | 'neutral';
   score: number;
   defaultLengthScale: number;
+  noiseScale: number;
+  noiseW: number;
+  onnxUrl: string;
+  jsonUrl: string;
 }
+
+const HF_PIPER_BASE = 'https://huggingface.co/diffusionstudio/piper-voices/resolve/main';
+const HF_EREN_BASE = 'https://huggingface.co/99eren99/piper-turkish-tts/resolve/main';
+const ONNX_WASM_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/';
+const PIPER_WASM_BASE = 'https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize';
 
 export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
   {
-    voiceId: 'tr_TR-fahrettin-medium',
-    optionId: 'vits:tr_TR-fahrettin-medium',
-    cleanName: 'Fahrettin · Stüdyo Neural HD',
+    voiceId: 'tr_TR-eren-fluid',
+    optionId: 'vits:tr_TR-eren-fluid',
+    cleanName: 'Eren · Akıcı Akademik Neural HD',
+    roleHint: 'Sıcak, akıcı kıdemli akademisyen tonu',
     gender: 'male',
-    score: 98,
-    defaultLengthScale: 0.98,
+    score: 102,
+    // config.json length_scale=1.2 olduğu için 1.2 * 0.87 = 1.044 doğal akıcı tempo verir
+    defaultLengthScale: 0.87,
+    noiseScale: 0.4,
+    noiseW: 0.3,
+    onnxUrl: `${HF_EREN_BASE}/model.onnx`,
+    jsonUrl: `${HF_EREN_BASE}/config.json`,
   },
   {
-    voiceId: 'tr_TR-fettah-medium',
-    optionId: 'vits:tr_TR-fettah-medium',
-    cleanName: 'Fettah · Akademik Neural HD',
+    voiceId: 'tr_TR-fahrettin-medium',
+    optionId: 'vits:tr_TR-fahrettin-medium',
+    cleanName: 'Fahrettin · Akıcı Stüdyo Neural HD',
+    roleHint: 'Dinamik, berrak araştırmacı tonu',
     gender: 'male',
-    score: 97,
-    defaultLengthScale: 1.0,
+    score: 101,
+    defaultLengthScale: 0.96,
+    noiseScale: 0.42,
+    noiseW: 0.34,
+    onnxUrl: `${HF_PIPER_BASE}/tr/tr_TR/fahrettin/medium/tr_TR-fahrettin-medium.onnx`,
+    jsonUrl: `${HF_PIPER_BASE}/tr/tr_TR/fahrettin/medium/tr_TR-fahrettin-medium.onnx.json`,
   },
   {
     voiceId: 'tr_TR-dfki-medium',
     optionId: 'vits:tr_TR-dfki-medium',
-    cleanName: 'DFKI · Stüdyo Neural HD',
-    gender: 'neutral',
-    score: 95,
-    defaultLengthScale: 0.99,
+    cleanName: 'Obadiah · Berrak Kürsü Neural HD',
+    roleHint: 'Duru, tane tane kürsü anlatımı',
+    gender: 'male',
+    score: 99,
+    defaultLengthScale: 0.95,
+    noiseScale: 0.42,
+    noiseW: 0.34,
+    onnxUrl: `${HF_PIPER_BASE}/tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx`,
+    jsonUrl: `${HF_PIPER_BASE}/tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx.json`,
+  },
+  {
+    voiceId: 'tr_TR-fettah-medium',
+    optionId: 'vits:tr_TR-fettah-medium',
+    cleanName: 'Fettah · Belgesel Anlatıcı Neural HD',
+    roleHint: 'Tok, sakin belgesel anlatımı',
+    gender: 'male',
+    score: 98,
+    defaultLengthScale: 0.98,
+    noiseScale: 0.42,
+    noiseW: 0.34,
+    onnxUrl: `${HF_PIPER_BASE}/tr/tr_TR/fettah/medium/tr_TR-fettah-medium.onnx`,
+    jsonUrl: `${HF_PIPER_BASE}/tr/tr_TR/fettah/medium/tr_TR-fettah-medium.onnx.json`,
   },
 ];
 
@@ -56,24 +98,18 @@ export interface SynthesizedSpeechClip {
   durationSec: number;
   /** 50 Hz (20ms adımlı) normalize edilmiş gerçek ses enerjisi zarfı [0..1] */
   envelope: number[];
+  /** Çok cümleli konuşma bloklarında her cümlenin bittiği tam saniye zaman damgası */
+  sentenceEndSec: number[];
 }
 
-const HF_BASE = 'https://huggingface.co/diffusionstudio/piper-voices/resolve/main';
-const ONNX_WASM_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.18.0/';
-const PIPER_WASM_BASE = 'https://cdn.jsdelivr.net/npm/@diffusionstudio/piper-wasm@1.0.0/build/piper_phonemize';
-
-const MODEL_PATHS: Record<VitsTurkishVoiceId, string> = {
-  'tr_TR-fahrettin-medium': 'tr/tr_TR/fahrettin/medium/tr_TR-fahrettin-medium.onnx',
-  'tr_TR-fettah-medium': 'tr/tr_TR/fettah/medium/tr_TR-fettah-medium.onnx',
-  'tr_TR-dfki-medium': 'tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx',
-};
-
 interface CompiledVitsModel {
+  descriptor: VitsVoiceDescriptor;
   session: ort.InferenceSession;
   config: {
     audio: { sample_rate: number };
     espeak: { voice: string };
     inference: { noise_scale: number; length_scale: number; noise_w: number };
+    phoneme_id_map?: Record<string, number[]>;
     speaker_id_map?: Record<string, number>;
   };
 }
@@ -120,43 +156,42 @@ export function subscribeVitsStatus(listener: (status: VitsEngineStatus) => void
   };
 }
 
-// OPFS + RAM önbellek katmanı (Gizli sekmede OPFS kapalı olsa bile RAM önbelleği tekrar indirmeyi önler)
+// OPFS + RAM önbellek katmanı (çakışmasız model anahtarlarıyla)
 const memoryModelBytes = new Map<string, ArrayBuffer>();
 const compiledModelCache = new Map<VitsTurkishVoiceId, Promise<CompiledVitsModel>>();
 const synthesizedClipCache = new Map<string, SynthesizedSpeechClip>();
 const MAX_CLIP_CACHE = 96;
 
-async function readOpfsFile(fileName: string): Promise<ArrayBuffer | null> {
-  const mem = memoryModelBytes.get(fileName);
+async function readOpfsFile(cacheFileName: string): Promise<ArrayBuffer | null> {
+  const mem = memoryModelBytes.get(cacheFileName);
   if (mem) return mem;
   if (typeof navigator === 'undefined' || !navigator.storage?.getDirectory) return null;
   try {
     const root = await navigator.storage.getDirectory();
-    const dir = await root.getDirectoryHandle('piper', { create: true });
-    const handle = await dir.getFileHandle(fileName);
+    const dir = await root.getDirectoryHandle('econnotes-vits-v2', { create: true });
+    const handle = await dir.getFileHandle(cacheFileName);
     const file = await handle.getFile();
-    if (file.size < 32) return null;
-    const buf = await file.arrayBuffer();
-    return buf;
+    if (file.size < 64) return null;
+    return await file.arrayBuffer();
   } catch {
     return null;
   }
 }
 
-async function writeOpfsFile(fileName: string, buffer: ArrayBuffer): Promise<void> {
+async function writeOpfsFile(cacheFileName: string, buffer: ArrayBuffer): Promise<void> {
   if (typeof navigator === 'undefined' || !navigator.storage?.getDirectory) {
-    memoryModelBytes.set(fileName, buffer);
+    memoryModelBytes.set(cacheFileName, buffer);
     return;
   }
   try {
     const root = await navigator.storage.getDirectory();
-    const dir = await root.getDirectoryHandle('piper', { create: true });
-    const handle = await dir.getFileHandle(fileName, { create: true });
+    const dir = await root.getDirectoryHandle('econnotes-vits-v2', { create: true });
+    const handle = await dir.getFileHandle(cacheFileName, { create: true });
     const writable = await (handle as any).createWritable();
     await writable.write(buffer);
     await writable.close();
   } catch {
-    memoryModelBytes.set(fileName, buffer);
+    memoryModelBytes.set(cacheFileName, buffer);
   }
 }
 
@@ -184,7 +219,7 @@ async function fetchWithProgress(
     if (value) {
       chunks.push(value);
       loaded += value.byteLength;
-      onProgress?.(loaded, total || 63_200_000);
+      onProgress?.(loaded, total || 63_500_000);
     }
   }
 
@@ -198,17 +233,17 @@ async function fetchWithProgress(
 }
 
 async function getOrDownloadAsset(
+  cacheFileName: string,
   url: string,
   onProgress?: (loaded: number, total: number) => void,
 ): Promise<ArrayBuffer> {
-  const fileName = url.split('/').pop() || 'model.bin';
-  const existing = await readOpfsFile(fileName);
+  const existing = await readOpfsFile(cacheFileName);
   if (existing) {
     onProgress?.(existing.byteLength, existing.byteLength);
     return existing;
   }
   const downloaded = await fetchWithProgress(url, onProgress);
-  await writeOpfsFile(fileName, downloaded);
+  await writeOpfsFile(cacheFileName, downloaded);
   return downloaded;
 }
 
@@ -250,26 +285,75 @@ function loadPiperPhonemizerFactory(): Promise<CreatePiperPhonemizeFn> {
   return phonemizerFactoryPromise;
 }
 
-async function phonemizeTurkishText(text: string, espeakVoice: string): Promise<number[]> {
+function encodePhonemesWithModelMap(
+  phonemes: string[],
+  phonemeMap?: Record<string, number[]>,
+  fallbackIds?: number[],
+): number[] {
+  if (!phonemeMap || Object.keys(phonemeMap).length === 0 || phonemes.length === 0) {
+    return fallbackIds || [];
+  }
+
+  const bos = phonemeMap['^']?.[0] ?? 1;
+  const eos = phonemeMap['$']?.[0] ?? 2;
+  const pad = phonemeMap['_']?.[0] ?? 0;
+  const spaceIds = phonemeMap[' '] ?? [3];
+
+  const out: number[] = [bos, pad];
+  for (let i = 0; i < phonemes.length; i++) {
+    const sym = phonemes[i];
+    const mapped = phonemeMap[sym];
+    if (mapped && mapped.length > 0) {
+      for (const id of mapped) {
+        out.push(id, pad);
+      }
+    }
+    // Cümle sonu noktalama işaretlerinden sonra eSpeak boşluk koymadıysa doğal nefes boşluğu ekle
+    if ((sym === '.' || sym === '?' || sym === '!' || sym === ';' || sym === ':') && i + 1 < phonemes.length) {
+      if (phonemes[i + 1] !== ' ') {
+        for (const sid of spaceIds) {
+          out.push(sid, pad);
+        }
+      }
+    }
+  }
+  out.push(eos);
+  return out.length > 3 ? out : fallbackIds || [];
+}
+
+async function phonemizeTurkishClauses(
+  clauses: string[],
+  espeakVoice: string,
+  phonemeMap?: Record<string, number[]>,
+): Promise<number[][]> {
+  const cleanClauses = clauses.map(c => c.trim()).filter(Boolean);
+  if (cleanClauses.length === 0) return [];
+
   const createPiperPhonemize = await loadPiperPhonemizerFactory();
-  return new Promise<number[]>((resolve, reject) => {
-    let settled = false;
+  return new Promise<number[][]>((resolve, reject) => {
+    const collected: number[][] = [];
+    let failed = false;
+
     createPiperPhonemize({
       print: (line: string) => {
-        if (settled) return;
+        if (failed) return;
         try {
           const parsed = JSON.parse(line);
-          if (Array.isArray(parsed?.phoneme_ids)) {
-            settled = true;
-            resolve(parsed.phoneme_ids);
+          if (Array.isArray(parsed?.phonemes) || Array.isArray(parsed?.phoneme_ids)) {
+            const ids = encodePhonemesWithModelMap(
+              Array.isArray(parsed.phonemes) ? parsed.phonemes : [],
+              phonemeMap,
+              Array.isArray(parsed.phoneme_ids) ? parsed.phoneme_ids : [],
+            );
+            collected.push(ids);
           }
         } catch {
-          // eSpeak bilgi çıktısıysa yoksay
+          // Bilgi satırlarını yoksay
         }
       },
       printErr: (errLine: string) => {
-        if (!settled && /error|fatal/i.test(errLine)) {
-          settled = true;
+        if (!failed && /fatal/i.test(errLine)) {
+          failed = true;
           reject(new Error(errLine));
         }
       },
@@ -284,18 +368,17 @@ async function phonemizeTurkishText(text: string, espeakVoice: string): Promise<
           '-l',
           espeakVoice || 'tr',
           '--input',
-          JSON.stringify([{ text: text.trim() }]),
+          JSON.stringify(cleanClauses.map(text => ({ text }))),
           '--espeak_data',
           '/espeak-ng-data',
         ]);
-        if (!settled) {
-          settled = true;
-          resolve([]);
+        if (!failed) {
+          resolve(collected);
         }
       })
       .catch(err => {
-        if (!settled) {
-          settled = true;
+        if (!failed) {
+          failed = true;
           reject(err);
         }
       });
@@ -303,34 +386,107 @@ async function phonemizeTurkishText(text: string, espeakVoice: string): Promise<
 }
 
 /**
- * 22.05 kHz Float32 PCM verisini 12ms yumuşak giriş/çıkış zarfıyla (tıklama/çıtırtı önleyici)
- * 16-bit RIFF WAV tamponuna çevirir ve 50 Hz gerçek ses enerjisi zarfı çıkarır.
+ * Ham VITS PCM dizisinin başındaki ve sonundaki ölü sessizliği nazikçe kırpar,
+ * tıklama önleyici kosinüs zarfı (14ms) uygular.
  */
-function encodeCleanWavAndEnvelope(
-  rawPcm: Float32Array,
+function trimAndSmoothClausePcm(raw: Float32Array, sampleRate: number): Float32Array {
+  if (raw.length === 0) return raw;
+  const threshold = 0.0035;
+  const padSamples = Math.floor(sampleRate * 0.025);
+
+  let start = 0;
+  while (start < raw.length - 1 && Math.abs(raw[start]) < threshold) start++;
+  start = Math.max(0, start - padSamples);
+
+  let end = raw.length - 1;
+  while (end > start && Math.abs(raw[end]) < threshold) end--;
+  end = Math.min(raw.length, end + padSamples * 2);
+
+  const sliced = raw.slice(start, end);
+  const fade = Math.min(Math.floor(sampleRate * 0.014), Math.floor(sliced.length / 6));
+  for (let i = 0; i < fade; i++) {
+    const w = 0.5 - 0.5 * Math.cos((Math.PI * i) / Math.max(1, fade));
+    sliced[i] *= w;
+    sliced[sliced.length - 1 - i] *= w;
+  }
+  return sliced;
+}
+
+/**
+ * Stüdyo ses mastering katmanı:
+ * - DC-offset giderme
+ * - Hafif sıcak mikrofon yumuşatma filtresi (metalik tizleri törpüler, konuşma netliğini korur)
+ * - Konuşmacılar arası dengeli ses yüksekliği (-1.3 dBFS normalize + yumuşak tanh limiter)
+ * - 16-bit RIFF WAV + 50 Hz gerçek RMS dudak enerjisi zarfı
+ */
+function masterAndEncodeStudioWav(
+  clausesPcm: Float32Array[],
+  clausesText: string[],
   sampleRate: number,
-): { wavBuffer: ArrayBuffer; durationSec: number; envelope: number[] } {
-  const numSamples = rawPcm.length;
-  const fadeSamples = Math.min(Math.floor(sampleRate * 0.014), Math.floor(numSamples / 8));
+): { wavBuffer: ArrayBuffer; durationSec: number; envelope: number[]; sentenceEndSec: number[] } {
+  // Cümleler arası doğal akıcı nefes aralığı (soru/ünlem sonrası 185ms, düz cümle sonrası 145ms)
+  const gapsSamples: number[] = clausesPcm.map((_, idx) => {
+    if (idx >= clausesPcm.length - 1) return Math.floor(sampleRate * 0.04);
+    const txt = (clausesText[idx] || '').trim();
+    const pauseSec = /[?!]$/.test(txt) ? 0.185 : 0.145;
+    return Math.floor(sampleRate * pauseSec);
+  });
+
+  let totalSamples = 0;
+  for (let i = 0; i < clausesPcm.length; i++) {
+    totalSamples += clausesPcm[i].length + gapsSamples[i];
+  }
+  totalSamples = Math.max(1, totalSamples);
+
+  const merged = new Float32Array(totalSamples);
+  const sentenceEndSec: number[] = [];
+  let writeCursor = 0;
+
+  for (let i = 0; i < clausesPcm.length; i++) {
+    const seg = clausesPcm[i];
+    merged.set(seg, writeCursor);
+    writeCursor += seg.length + gapsSamples[i];
+    sentenceEndSec.push(writeCursor / Math.max(1, sampleRate));
+  }
+
+  // DC-offset ve tepe genlik ölçümü
+  let dcSum = 0;
+  for (let i = 0; i < totalSamples; i++) dcSum += merged[i];
+  const dcMean = dcSum / totalSamples;
+
+  let peak = 0.001;
+  let prev = 0;
+  for (let i = 0; i < totalSamples; i++) {
+    const centered = merged[i] - dcMean;
+    // Hafif 1-kutuplu stüdyo kondenser mikrofon sıcaklığı (metalik dijital sertliği yumuşatır)
+    const warmed = centered * 0.88 + prev * 0.12;
+    prev = warmed;
+    merged[i] = warmed;
+    const abs = Math.abs(warmed);
+    if (abs > peak) peak = abs;
+  }
+
+  // Tüm ses modellerini dengeli stüdyo yüksekliğine getir (aşırı yükseltmeyi sınırla)
+  const targetPeak = 0.86;
+  const normGain = Math.min(2.2, Math.max(0.55, targetPeak / peak));
 
   // 50 Hz (20 ms pencere) RMS konuşma enerjisi zarfı
   const windowSize = Math.max(1, Math.floor(sampleRate / 50));
   const envelope: number[] = [];
-  for (let start = 0; start < numSamples; start += windowSize) {
-    const end = Math.min(numSamples, start + windowSize);
+  for (let start = 0; start < totalSamples; start += windowSize) {
+    const end = Math.min(totalSamples, start + windowSize);
     let sumSq = 0;
     for (let i = start; i < end; i++) {
-      const s = rawPcm[i];
+      const s = merged[i] * normGain;
       sumSq += s * s;
     }
     const rms = Math.sqrt(sumSq / Math.max(1, end - start));
-    envelope.push(Math.min(1, rms * 4.4));
+    envelope.push(Math.min(1, rms * 3.8));
   }
 
   const headerBytes = 44;
-  const view = new DataView(new ArrayBuffer(headerBytes + numSamples * 2));
+  const view = new DataView(new ArrayBuffer(headerBytes + totalSamples * 2));
 
-  // RIFF WAVE başlığı
   view.setUint32(0, 0x46464952, true); // "RIFF"
   view.setUint32(4, view.buffer.byteLength - 8, true);
   view.setUint32(8, 0x45564157, true); // "WAVE"
@@ -343,25 +499,30 @@ function encodeCleanWavAndEnvelope(
   view.setUint16(32, 2, true);
   view.setUint16(34, 16, true);
   view.setUint32(36, 0x61746164, true); // "data"
-  view.setUint32(40, numSamples * 2, true);
+  view.setUint32(40, totalSamples * 2, true);
 
+  const outerFade = Math.min(Math.floor(sampleRate * 0.015), Math.floor(totalSamples / 8));
   let byteOffset = headerBytes;
-  for (let i = 0; i < numSamples; i++) {
-    let gain = 0.94;
-    if (i < fadeSamples) {
-      gain *= i / Math.max(1, fadeSamples);
-    } else if (i > numSamples - fadeSamples) {
-      gain *= (numSamples - i) / Math.max(1, fadeSamples);
+  for (let i = 0; i < totalSamples; i++) {
+    let envFade = 1;
+    if (i < outerFade) {
+      envFade = i / Math.max(1, outerFade);
+    } else if (i > totalSamples - outerFade) {
+      envFade = (totalSamples - i) / Math.max(1, outerFade);
     }
-    const sample = Math.max(-1, Math.min(1, rawPcm[i] * gain));
-    view.setInt16(byteOffset, sample < 0 ? sample * 32768 : sample * 32767, true);
+    const amplified = merged[i] * normGain * envFade;
+    // Yumuşak analog doygunluk sınırı (çıtırtı/clipping sıfırlanır)
+    const softLimited = Math.abs(amplified) > 0.85 ? Math.tanh(amplified) : amplified;
+    const clamped = Math.max(-1, Math.min(1, softLimited));
+    view.setInt16(byteOffset, clamped < 0 ? clamped * 32768 : clamped * 32767, true);
     byteOffset += 2;
   }
 
   return {
     wavBuffer: view.buffer,
-    durationSec: numSamples / Math.max(1, sampleRate),
+    durationSec: totalSamples / Math.max(1, sampleRate),
     envelope,
+    sentenceEndSec,
   };
 }
 
@@ -369,27 +530,24 @@ function getCompiledModel(voiceId: VitsTurkishVoiceId): Promise<CompiledVitsMode
   const existing = compiledModelCache.get(voiceId);
   if (existing) return existing;
 
-  const descriptor = VITS_TURKISH_VOICES.find(v => v.voiceId === voiceId);
-  const label = descriptor?.cleanName || voiceId;
+  const descriptor =
+    VITS_TURKISH_VOICES.find(v => v.voiceId === voiceId) || VITS_TURKISH_VOICES[0];
+  const label = descriptor.cleanName;
 
   const loadPromise = (async () => {
     configureOrtOnce();
-    const relPath = MODEL_PATHS[voiceId];
-    const jsonUrl = `${HF_BASE}/${relPath}.json`;
-    const onnxUrl = `${HF_BASE}/${relPath}`;
-
-    updateStatus({ state: 'downloading', progressPct: 2, activeLabel: label });
+    updateStatus({ state: 'downloading', progressPct: 3, activeLabel: label });
 
     const [jsonBuf, onnxBuf, _phonemizer] = await Promise.all([
-      getOrDownloadAsset(jsonUrl),
-      getOrDownloadAsset(onnxUrl, (loaded, total) => {
-        const pct = total > 0 ? Math.min(92, Math.round((loaded / total) * 92)) : 50;
+      getOrDownloadAsset(`${descriptor.voiceId}.json`, descriptor.jsonUrl),
+      getOrDownloadAsset(`${descriptor.voiceId}.onnx`, descriptor.onnxUrl, (loaded, total) => {
+        const pct = total > 0 ? Math.min(92, Math.max(4, Math.round((loaded / total) * 92))) : 50;
         updateStatus({ state: 'downloading', progressPct: pct, activeLabel: label });
       }),
       loadPiperPhonemizerFactory(),
     ]);
 
-    updateStatus({ state: 'compiling', progressPct: 95, activeLabel: label });
+    updateStatus({ state: 'compiling', progressPct: 96, activeLabel: label });
     const configText = new TextDecoder('utf-8').decode(jsonBuf);
     const config = JSON.parse(configText);
 
@@ -398,13 +556,12 @@ function getCompiledModel(voiceId: VitsTurkishVoiceId): Promise<CompiledVitsMode
       graphOptimizationLevel: 'all',
     });
 
-    // OPFS etkinse dev ONNX ikilisini çift kopya tutmamak için geçici RAM haritasından serbest bırak
     if (typeof navigator !== 'undefined' && navigator.storage?.getDirectory) {
-      memoryModelBytes.delete(onnxUrl.split('/').pop() || '');
+      memoryModelBytes.delete(`${descriptor.voiceId}.onnx`);
     }
 
     updateStatus({ state: 'ready', progressPct: 100, activeLabel: label });
-    return { session, config } as CompiledVitsModel;
+    return { descriptor, session, config } as CompiledVitsModel;
   })().catch(err => {
     compiledModelCache.delete(voiceId);
     updateStatus({ state: 'error', progressPct: 0, activeLabel: label });
@@ -415,12 +572,12 @@ function getCompiledModel(voiceId: VitsTurkishVoiceId): Promise<CompiledVitsMode
   return loadPromise;
 }
 
-export function warmupVitsVoice(voiceId: VitsTurkishVoiceId = 'tr_TR-fahrettin-medium'): Promise<void> {
+export function warmupVitsVoice(voiceId: VitsTurkishVoiceId = 'tr_TR-eren-fluid'): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
   return getCompiledModel(voiceId).then(() => {});
 }
 
-// ONNX WASM oturumu eşzamanlı run() çağrılarını sıraya alır ("Session already started" hatasını sıfırlar)
+// Eşzamanlı ONNX WASM çıkarımlarını sıraya al
 let inferenceQueue: Promise<any> = Promise.resolve();
 
 function enqueueInference<T>(task: () => Promise<T>): Promise<T> {
@@ -430,61 +587,91 @@ function enqueueInference<T>(task: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Verilen Türkçe konuşma metnini tarayıcı içindeki 22.05 kHz VITS derin sinir ağıyla sentezler.
+ * Bir konuşmacının ardışık Türkçe cümlelerini tek bir akıcı, kesintisiz,
+ * örneklem-hassasiyetli (sample-accurate) stüdyo WAV akışı olarak sentezler.
  */
-export async function synthesizeVitsTurkish(
-  spokenText: string,
+export async function synthesizeVitsTurkishTurn(
+  spokenClauses: string[],
   voiceId: VitsTurkishVoiceId,
   customLengthScale?: number,
 ): Promise<SynthesizedSpeechClip | null> {
   if (typeof window === 'undefined') return null;
-  const trimmed = spokenText.trim();
-  if (!trimmed) return null;
+  const cleaned = spokenClauses.map(s => s.trim()).filter(Boolean);
+  if (cleaned.length === 0) return null;
 
-  const descriptor = VITS_TURKISH_VOICES.find(v => v.voiceId === voiceId);
-  const lengthScale = customLengthScale ?? descriptor?.defaultLengthScale ?? 1.0;
-  const cacheKey = `${voiceId}::${lengthScale.toFixed(2)}::${trimmed}`;
+  const descriptor =
+    VITS_TURKISH_VOICES.find(v => v.voiceId === voiceId) || VITS_TURKISH_VOICES[0];
+  const lengthScale = customLengthScale ?? descriptor.defaultLengthScale;
+  const cacheKey = `${descriptor.voiceId}::${lengthScale.toFixed(2)}::${cleaned.join(' || ')}`;
 
   const cached = synthesizedClipCache.get(cacheKey);
   if (cached) return cached;
 
   try {
-    const model = await getCompiledModel(voiceId);
+    const model = await getCompiledModel(descriptor.voiceId);
 
     const clip = await enqueueInference(async () => {
       const again = synthesizedClipCache.get(cacheKey);
       if (again) return again;
 
-      const phonemeIds = await phonemizeTurkishText(trimmed, model.config.espeak?.voice || 'tr');
-      if (!phonemeIds || phonemeIds.length === 0) return null;
+      const sampleRate = model.config.audio?.sample_rate || 22050;
+      const allPhonemeArrays = await phonemizeTurkishClauses(
+        cleaned,
+        model.config.espeak?.voice || 'tr',
+        model.config.phoneme_id_map,
+      );
 
-      const inputIds = BigInt64Array.from(phonemeIds, id => BigInt(id));
-      const inputLengths = BigInt64Array.from([BigInt(phonemeIds.length)]);
-      const noiseScale = model.config.inference?.noise_scale ?? 0.667;
+      if (!allPhonemeArrays.length) return null;
+
+      const noiseScale = descriptor.noiseScale;
       const baseLen = (model.config.inference?.length_scale ?? 1.0) * lengthScale;
-      const noiseW = model.config.inference?.noise_w ?? 0.8;
+      const noiseW = descriptor.noiseW;
+      const hasSid =
+        Boolean(model.config.speaker_id_map) &&
+        Object.keys(model.config.speaker_id_map || {}).length > 0;
 
-      const feeds: Record<string, ort.Tensor> = {
-        input: new ort.Tensor('int64', inputIds, [1, inputIds.length]),
-        input_lengths: new ort.Tensor('int64', inputLengths, [1]),
-        scales: new ort.Tensor('float32', new Float32Array([noiseScale, baseLen, noiseW]), [3]),
-      };
+      const pcmSegments: Float32Array[] = [];
+      for (let i = 0; i < allPhonemeArrays.length; i++) {
+        const phonemeIds = allPhonemeArrays[i];
+        if (!phonemeIds || phonemeIds.length < 3) {
+          pcmSegments.push(new Float32Array(Math.floor(sampleRate * 0.08)));
+          continue;
+        }
+        const inputIds = BigInt64Array.from(phonemeIds, id => BigInt(id));
+        const inputLengths = BigInt64Array.from([BigInt(phonemeIds.length)]);
+        const feeds: Record<string, ort.Tensor> = {
+          input: new ort.Tensor('int64', inputIds, [1, inputIds.length]),
+          input_lengths: new ort.Tensor('int64', inputLengths, [1]),
+          scales: new ort.Tensor('float32', new Float32Array([noiseScale, baseLen, noiseW]), [3]),
+        };
+        if (hasSid) {
+          feeds.sid = new ort.Tensor('int64', BigInt64Array.from([0n]), [1]);
+        }
 
-      if (model.config.speaker_id_map && Object.keys(model.config.speaker_id_map).length > 0) {
-        feeds.sid = new ort.Tensor('int64', BigInt64Array.from([0n]), [1]);
+        const results = await model.session.run(feeds);
+        const outputTensor = results.output || Object.values(results)[0];
+        if (outputTensor?.data) {
+          pcmSegments.push(trimAndSmoothClausePcm(outputTensor.data as Float32Array, sampleRate));
+        }
       }
 
-      const results = await model.session.run(feeds);
-      const outputTensor = results.output || Object.values(results)[0];
-      if (!outputTensor) return null;
+      if (pcmSegments.length === 0) return null;
 
-      const pcm = outputTensor.data as Float32Array;
-      const sampleRate = model.config.audio?.sample_rate || 22050;
-      const { wavBuffer, durationSec, envelope } = encodeCleanWavAndEnvelope(pcm, sampleRate);
+      const { wavBuffer, durationSec, envelope, sentenceEndSec } = masterAndEncodeStudioWav(
+        pcmSegments,
+        cleaned,
+        sampleRate,
+      );
       const blob = new Blob([wavBuffer], { type: 'audio/x-wav' });
       const blobUrl = URL.createObjectURL(blob);
 
-      const built: SynthesizedSpeechClip = { blobUrl, durationSec, envelope };
+      const built: SynthesizedSpeechClip = {
+        blobUrl,
+        durationSec,
+        envelope,
+        sentenceEndSec,
+      };
+
       if (synthesizedClipCache.size >= MAX_CLIP_CACHE) {
         const oldestKey = synthesizedClipCache.keys().next().value;
         if (oldestKey) {
@@ -499,20 +686,14 @@ export async function synthesizeVitsTurkish(
 
     return clip;
   } catch {
-    // Yedek olarak @diffusionstudio/vits-web predict dene
-    try {
-      const vits = await import('@diffusionstudio/vits-web');
-      const wavBlob = await vits.predict({ text: trimmed, voiceId });
-      const blobUrl = URL.createObjectURL(wavBlob);
-      const fallbackClip: SynthesizedSpeechClip = {
-        blobUrl,
-        durationSec: Math.max(1.2, trimmed.length / 13.4),
-        envelope: [],
-      };
-      synthesizedClipCache.set(cacheKey, fallbackClip);
-      return fallbackClip;
-    } catch {
-      return null;
-    }
+    return null;
   }
+}
+
+export async function synthesizeVitsTurkish(
+  spokenText: string,
+  voiceId: VitsTurkishVoiceId,
+  customLengthScale?: number,
+): Promise<SynthesizedSpeechClip | null> {
+  return synthesizeVitsTurkishTurn([spokenText], voiceId, customLengthScale);
 }
