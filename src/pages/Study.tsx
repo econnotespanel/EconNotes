@@ -25,7 +25,7 @@ import { extractFile } from '@/lib/extractFile';
 import { downloadLectureSummary } from '@/lib/liveLectureReport';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import LiveLectureCapture from '@/components/study/LiveLectureCapture';
-import NotebookLMVideoStudio from '@/components/study/NotebookLMVideoStudio';
+import InteractiveVideoStudio from '@/components/study/InteractiveVideoStudio';
 
 type MaterialType = 'flashcards' | 'quiz' | 'summary' | 'video';
 type ExamType = 'test' | 'classic' | 'mixed';
@@ -70,7 +70,7 @@ const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string;
   flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Hızlı tekrar için çevrilebilir kartlar', tone: 'text-primary', tint: 'bg-primary/10', code: 'KRT' },
   quiz: { label: 'Kısa Sınav', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Test veya klasik sınav denemesi', tone: 'text-accent', tint: 'bg-accent/10', code: 'SNV' },
   summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Özet, anahtar noktalar ve infografik', tone: 'text-success', tint: 'bg-success/10', code: 'ÖZT' },
-  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-warning to-destructive', desc: 'NotebookLM tarzı ikili podcast anlatımı & MP4 video', tone: 'text-warning', tint: 'bg-warning/10', code: 'VİD' },
+  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-warning to-destructive', desc: 'İki uzman anlatıcıyla animasyonlu video dersi & MP4 indirme', tone: 'text-warning', tint: 'bg-warning/10', code: 'VİD' },
 };
 
 
@@ -647,15 +647,18 @@ const Study = () => {
             </div>
 
             {materialType === 'video' && (
-              <div className="rounded-xl border border-warning/40 bg-gradient-to-r from-warning/10 via-warning/5 to-transparent p-3.5 flex items-start gap-3">
-                <VideoIcon className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-                <div className="space-y-1 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">NotebookLM Tarzı İkili Video & MP4 Üretimi</span>
-                    <Badge variant="outline" className="text-[10px] border-warning/40 text-warning">YENİ · MP4</Badge>
+              <div className="rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-accent/10 to-transparent p-4 flex items-start gap-3.5 shadow-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-white shadow-md shadow-primary/25">
+                  <VideoIcon className="h-5 w-5" />
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-foreground">Animasyonlu İnteraktif Video Stüdyosu & MP4</span>
+                    <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-semibold">HD · 60 FPS</Badge>
+                    <Badge className="bg-gradient-to-r from-amber-500 to-rose-500 text-white border-0 text-[10px] font-bold">MP4 VİDEO</Badge>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Seçtiğiniz not iki uzman sanal sunucu (<strong>Deniz</strong> & <strong>Barış</strong>) tarafından masaya yatırılır; ses dalgaları, görsel sunum slaytları, altyazılar ve indirilebilir <strong>MP4 video formatında</strong> üretilir.
+                    Seçtiğiniz ders notu iki dinamik anlatıcı (<strong>Deniz</strong> & <strong>Barış</strong>) ile eğlenceli ve animasyonlu bir video dersine dönüşür. Canlı ses dalgaları, interaktif slaytlar, altyazılar ve tek tıkla yüksek kaliteli <strong>MP4 video formatında</strong> indirilebilir.
                   </p>
                 </div>
               </div>
@@ -903,7 +906,7 @@ const MaterialViewer = ({ material, onReport, onProgressSaved }: { material: Stu
       case 'flashcards': return <FlashcardViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'quiz': return <QuizViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'summary': return <SummaryViewer material={material} />;
-      case 'video': return <NotebookLMVideoStudio material={material} />;
+      case 'video': return <InteractiveVideoStudio material={material} />;
     }
   };
   return (
@@ -1396,6 +1399,6 @@ const SummaryViewer = ({ material }: { material: StudyMaterial }) => {
   );
 };
 
-const VideoViewer = NotebookLMVideoStudio;
+const VideoViewer = InteractiveVideoStudio;
 
 export default Study;

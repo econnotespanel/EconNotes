@@ -225,17 +225,17 @@ examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı 
 Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
       break;
     case 'video':
-      task = `Kullanıcının verdiği ders notunu temel alarak Google NotebookLM tarzında İKİLİ SESLİ PODCAST / VİDEO DERSİ üret.
-Format: İki uzman sunucu ("Deniz": Analitik/Akademik Sunucu ve "Barış": Meraklı/Sorgulayıcı ve Pratik Örnekler Veren Sunucu) ders notundaki konuları derinlemesine, akıcı ve samimi bir diyalogla tartışırlar.
-podcastTitle: Dikkat çekici bir podcast ve video başlığı (örn. "Mikroiktisat Derinlemesine Bakış: Fırsat Maliyeti ve Piyasa Dengesi").
+      task = `Kullanıcının verdiği ders notunu temel alarak EconNotes İnteraktif Video Stüdyosu için eğlenceli, animasyonlu ve sürükleyici İKİLİ SESLİ VİDEO DERSİ üret.
+Format: İki uzman anlatıcı ("Deniz": Analitik/Akademik Anlatıcı ve "Barış": Meraklı/Sorgulayıcı ve Pratik Örnekler Veren Anlatıcı) ders notundaki konuları derinlemesine, enerjik, samimi ve interaktif bir diyalogla açıklarlar.
+podcastTitle: Dikkat çekici bir video dersi başlığı (örn. "Mikroiktisat İnteraktif Video Dersi: Fırsat Maliyeti ve Piyasa Dengesi").
 hosts: [ { "name": "Deniz", "role": "Akademik Analist" }, { "name": "Barış", "role": "Sorgulayıcı & Özetleyen" } ].
 outline: Bölümün genel akışını ve ana temasını anlatan 2-3 cümle.
 scenes: 6-10 sahne/diyalog sırası. Her sahnede:
 - time: "MM:SS" biçiminde zaman damgası (00:00'dan başlayarak sırayla)
 - speaker: "Deniz" veya "Barış" (ikili arasında dönüşümlü akmalı)
-- speakerRole: Sunucunun rolü ("Akademik Analist" veya "Sorgulayıcı & Özetleyen")
+- speakerRole: Anlatıcının rolü ("Akademik Analist" veya "Sorgulayıcı & Özetleyen")
 - title: O anki konunun / slaytın başlığı (örn. "Fırsat Maliyeti ve Karar Alma")
-- narration: Sunucunun doğal, konuşma dilinde söyleyeceği 2-4 cümlelik açıklama/cevap/yorum (NotebookLM podcast tarzı canlı diyalog)
+- narration: Anlatıcının doğal, akıcı, enerjik konuşma dilinde söyleyeceği 2-4 cümlelik açıklama/cevap/yorum (canlı ve eğlenceli diyalog)
 - keyTakeaways: Ekranda slayt maddesi olarak gösterilecek 1-3 kısa ve vurucu kavram/madde
 - visualCue: Ekranda gösterilecek grafik/şema/kavram haritası önerisi
 suggestedSearches: Konuyu pekiştirecek 3-5 YouTube/Google arama sorgusu.
