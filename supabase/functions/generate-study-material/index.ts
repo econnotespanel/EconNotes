@@ -164,6 +164,31 @@ const schemas: Record<string, any> = {
               items: { type: 'string' },
             },
             visualCue: { type: 'string' },
+            diagramData: {
+              type: 'object',
+              properties: {
+                diagramType: {
+                  type: 'string',
+                  enum: ['network', 'timeline', 'structure', 'comparison', 'curve'],
+                },
+                mainTitle: { type: 'string' },
+                nodes: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      label: { type: 'string' },
+                      subtext: { type: 'string' },
+                    },
+                    required: ['label'],
+                    additionalProperties: false,
+                  },
+                },
+                highlightMetric: { type: 'string' },
+              },
+              required: ['diagramType', 'mainTitle', 'nodes'],
+              additionalProperties: false,
+            },
           },
           required: ['time', 'speaker', 'title', 'narration', 'visualCue'],
           additionalProperties: false,
@@ -225,21 +250,21 @@ examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı 
 Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
       break;
     case 'video':
-      task = `Kullanıcının verdiği ders notunu temel alarak EconNotes İnteraktif Video Stüdyosu için eğlenceli, animasyonlu ve sürükleyici İKİLİ SESLİ VİDEO DERSİ üret.
-Format: İki uzman anlatıcı ("Deniz": Analitik/Akademik Anlatıcı ve "Barış": Meraklı/Sorgulayıcı ve Pratik Örnekler Veren Anlatıcı) ders notundaki konuları derinlemesine, enerjik, samimi ve interaktif bir diyalogla açıklarlar.
-podcastTitle: Dikkat çekici bir video dersi başlığı (örn. "Mikroiktisat İnteraktif Video Dersi: Fırsat Maliyeti ve Piyasa Dengesi").
-hosts: [ { "name": "Deniz", "role": "Akademik Analist" }, { "name": "Barış", "role": "Sorgulayıcı & Özetleyen" } ].
-outline: Bölümün genel akışını ve ana temasını anlatan 2-3 cümle.
-scenes: 6-10 sahne/diyalog sırası. Her sahnede:
-- time: "MM:SS" biçiminde zaman damgası (00:00'dan başlayarak sırayla)
-- speaker: "Deniz" veya "Barış" (ikili arasında dönüşümlü akmalı)
-- speakerRole: Anlatıcının rolü ("Akademik Analist" veya "Sorgulayıcı & Özetleyen")
-- title: O anki konunun / slaytın başlığı (örn. "Fırsat Maliyeti ve Karar Alma")
-- narration: Anlatıcının doğal, akıcı, enerjik konuşma dilinde söyleyeceği 2-4 cümlelik açıklama/cevap/yorum (canlı ve eğlenceli diyalog)
-- keyTakeaways: Ekranda slayt maddesi olarak gösterilecek 1-3 kısa ve vurucu kavram/madde
-- visualCue: Ekranda gösterilecek grafik/şema/kavram haritası önerisi
-suggestedSearches: Konuyu pekiştirecek 3-5 YouTube/Google arama sorgusu.
-Yalnızca kaynakta bulunan veya kaynakla doğrudan ilişkili akademik bilgileri kullan.`;
+      task = `Kullanıcının yüklediği ders notunu temel alarak EconNotes İnteraktif Video Stüdyosu için animasyonlu, yüksek kaliteli İKİLİ VİDEO DERSİ üret.
+KATI KURALLAR:
+1. KONU VE KAPSAM: YALNIZCA ve DOĞRUDAN kullanıcının verdiği ders notundaki konuyu, dersi, tarihleri, kurumları, şahısları, terimleri ve olayları ele al.
+   - ÖRNEĞİN; not Osmanlı İktisat Tarihi veya Selçuklu ise; Selçuklu maliyesi, İkta sistemi, Miri arazi rejimi, Vakıflar, Moğol istilası, Kösedağ, kervansaraylar, liman fetihleri vb. nottaki gerçek tarihi kurumları konuş. ASLA alakasız mikroiktisat veya genel ezber kalıplar KULLANMA.
+2. ANLATIMCILAR:
+   - Deniz: Akademik, analitik anlatıcı (nottaki kavramların nedenlerini, kurumsal arka planını açıklar).
+   - Barış: Meraklı, sorgulayıcı anlatıcı (öğrencinin aklına gelecek soruları sorar, örnekler ister, sınavda nasıl çıkacağını sorgular).
+3. DİYALOG: En az 6-8 kapsamlı sahne üret. Her sahne notun belirli bir alt başlığını adım adım işlesin. Doğal, samimi, akıcı ve tamamen nota sadık diyaloglar olsun.
+4. diagramData: Her sahne için akıllı tahtada çizilecek konuya özel görsel model üret:
+   - diagramType: Konu tarih/kurum ise 'timeline', 'network' veya 'structure'; iktisadi eğri veya piyasa ise 'curve'; veri/kıyaslama ise 'comparison'.
+   - mainTitle: O anki konunun tahta başlığı.
+   - nodes: Nottaki spesifik kavramlardan ve kurumlardan oluşan 4-6 somut düğüm (label: max 3-4 kelime, subtext: kısa açıklama).
+   - highlightMetric: Sınav için akılda kalması gereken en kritik hap bilgi veya tarih/sayı.
+5. outline: Notun özetini ve ana temasını anlatan 2-3 cümle.
+6. suggestedSearches: Konuyu pekiştirecek 3-5 YouTube/Google arama sorgusu.`;
       break;
   }
 
@@ -325,8 +350,8 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model,
-        temperature: body.materialType === 'summary' ? 0.15 : 0.2,
-        max_tokens: body.materialType === 'summary' ? 5000 : undefined,
+        temperature: (body.materialType === 'summary' || body.materialType === 'video') ? 0.15 : 0.2,
+        max_tokens: (body.materialType === 'summary' || body.materialType === 'video') ? 5000 : undefined,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: userContent },

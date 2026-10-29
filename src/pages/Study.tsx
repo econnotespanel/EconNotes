@@ -70,7 +70,7 @@ const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string;
   flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Hızlı tekrar için çevrilebilir kartlar', tone: 'text-primary', tint: 'bg-primary/10', code: 'KRT' },
   quiz: { label: 'Kısa Sınav', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Test veya klasik sınav denemesi', tone: 'text-accent', tint: 'bg-accent/10', code: 'SNV' },
   summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Özet, anahtar noktalar ve infografik', tone: 'text-success', tint: 'bg-success/10', code: 'ÖZT' },
-  video: { label: 'Video Özeti', icon: VideoIcon, color: 'from-warning to-destructive', desc: 'İki uzman anlatıcıyla animasyonlu video dersi & MP4 indirme', tone: 'text-warning', tint: 'bg-warning/10', code: 'VİD' },
+  video: { label: 'Video Dersi', icon: VideoIcon, color: 'from-cyan-500 to-blue-600', desc: 'İki uzman anlatıcı, akıllı tahta grafikleri ve animasyonlu canlı ders', tone: 'text-cyan-500', tint: 'bg-cyan-500/10', code: 'VİD' },
 };
 
 
@@ -277,13 +277,46 @@ const Study = () => {
       }
     }
 
-    rampProgressTo(95, 'Yapay zeka materyali üretiyor...');
+    if (materialType === 'video') {
+      const videoStages = [
+        { cap: 22, label: 'Ders notundaki akademik terimler, kavramlar ve kurumlar analiz ediliyor...' },
+        { cap: 48, label: 'Deniz ve Barış ikili anlatım diyalogları kurgulanıyor...' },
+        { cap: 72, label: 'Konuya özel dinamik akıllı tahta şemaları ve görsel modeller çiziliyor...' },
+        { cap: 88, label: 'Karakter animasyonları, ses sentezi ve zamanlama senkronize ediliyor...' },
+        { cap: 95, label: 'Sinematik video stüdyosu derleniyor...' },
+      ];
+      let currentStageIdx = 0;
+      setProgressLabel(videoStages[0].label);
+      if (progressTimer.current) window.clearInterval(progressTimer.current);
+      progressTimer.current = window.setInterval(() => {
+        setProgress(p => {
+          const currentStage = videoStages[currentStageIdx];
+          if (!currentStage) return Math.min(95, p + 1);
+          if (p < currentStage.cap) {
+            return p + 1;
+          } else if (currentStageIdx < videoStages.length - 1) {
+            currentStageIdx++;
+            setProgressLabel(videoStages[currentStageIdx].label);
+            return p + 1;
+          }
+          return p;
+        });
+      }, 400);
+    } else {
+      rampProgressTo(95, 'Yapay zeka materyali üretiyor...');
+    }
+
     try {
       const res = await supabase.functions.invoke('generate-study-material', { body: payload });
       if (res.error) throw res.error;
       if (res.data?.error) throw new Error(res.data.error);
 
-      setProgressNow(97, 'Kaydediliyor...');
+      if (materialType === 'video') {
+        setProgressNow(98, 'Stüdyo sahneleri tamamlanıyor...');
+        await new Promise(r => setTimeout(r, 600));
+      }
+
+      setProgressNow(100, 'Kaydediliyor ve stüdyo açılıyor...');
       const { data: inserted, error } = await supabase.from('study_materials').insert({
         user_id: user!.id,
         source_type: sourceMode === 'platform' ? 'platform' : 'own',
@@ -298,7 +331,7 @@ const Study = () => {
       if (error) throw error;
 
       stopProgress(true);
-      toast.success('Materyal hazır.');
+      toast.success(materialType === 'video' ? '🎬 Canlı video dersi stüdyosu hazır!' : 'Materyal hazır.');
       setCreateOpen(false);
       setActiveMaterial(inserted as StudyMaterial);
       setUploadFile(null); setUploadTitle(''); setUploadCourse(''); setUploadDescription('');
@@ -609,8 +642,17 @@ const Study = () => {
                     )}
                   </div>
                   <div className="relative mt-auto pt-4">
-                    <Button variant="secondary" className="w-full gap-2" onClick={() => setActiveMaterial(m)}>
-                      <Play className="h-3.5 w-3.5" /> Çalışmaya Başla
+                    <Button
+                      variant={m.material_type === 'video' ? 'default' : 'secondary'}
+                      className={`w-full gap-2 ${
+                        m.material_type === 'video'
+                          ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-md shadow-cyan-500/20'
+                          : ''
+                      }`}
+                      onClick={() => setActiveMaterial(m)}
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      {m.material_type === 'video' ? 'Stüdyoyu Başlat (Tam Ekran)' : 'Çalışmaya Başla'}
                     </Button>
                   </div>
                 </div>
@@ -647,18 +689,18 @@ const Study = () => {
             </div>
 
             {materialType === 'video' && (
-              <div className="rounded-2xl border border-primary/30 bg-gradient-to-r from-primary/10 via-accent/10 to-transparent p-4 flex items-start gap-3.5 shadow-sm">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary text-white shadow-md shadow-primary/25">
+              <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-transparent p-4 flex items-start gap-3.5 shadow-sm">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25">
                   <VideoIcon className="h-5 w-5" />
                 </div>
                 <div className="space-y-1.5 text-xs">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm text-foreground">Animasyonlu İnteraktif Video Stüdyosu & MP4</span>
-                    <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-semibold">HD · 60 FPS</Badge>
-                    <Badge className="bg-gradient-to-r from-amber-500 to-rose-500 text-white border-0 text-[10px] font-bold">MP4 VİDEO</Badge>
+                    <span className="font-bold text-sm text-foreground">Canlı İnteraktif Video Dersi Stüdyosu</span>
+                    <Badge className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30 text-[10px] font-semibold">HD · 60 FPS</Badge>
+                    <Badge className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 text-[10px] font-bold">DİNAMİK AKILLI TAHTA</Badge>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Seçtiğiniz ders notu iki dinamik anlatıcı (<strong>Deniz</strong> & <strong>Barış</strong>) ile eğlenceli ve animasyonlu bir video dersine dönüşür. Canlı ses dalgaları, interaktif slaytlar, altyazılar ve tek tıkla yüksek kaliteli <strong>MP4 video formatında</strong> indirilebilir.
+                    Seçtiğiniz ders notu iki dinamik anlatıcı (<strong>Deniz</strong> & <strong>Barış</strong>) ile eğlenceli ve animasyonlu bir video dersine dönüşür. Dersinize özel akıllı tahta şemaları, kavram haritaları, ses sentezi ve sinematik tam ekran deneyimi.
                   </p>
                 </div>
               </div>
@@ -785,8 +827,22 @@ const Study = () => {
 
       {/* Viewer */}
       <Dialog open={!!activeMaterial} onOpenChange={(o) => !o && setActiveMaterial(null)}>
-        <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-2xl p-3 sm:p-6">
-          {activeMaterial && <MaterialViewer key={activeMaterial.id} material={activeMaterial} onReport={() => setReportOpen(true)} onProgressSaved={() => void load()} />}
+        <DialogContent
+          className={
+            activeMaterial?.material_type === 'video'
+              ? 'fixed inset-0 z-50 h-[100dvh] w-screen max-w-none max-h-none rounded-none border-0 bg-slate-950 p-0 overflow-y-auto text-white shadow-none sm:max-w-none [&>button]:hidden'
+              : 'max-h-[92dvh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-2xl p-3 sm:p-6'
+          }
+        >
+          {activeMaterial && (
+            <MaterialViewer
+              key={activeMaterial.id}
+              material={activeMaterial}
+              onClose={() => setActiveMaterial(null)}
+              onReport={() => setReportOpen(true)}
+              onProgressSaved={() => void load()}
+            />
+          )}
         </DialogContent>
       </Dialog>
 
@@ -875,7 +931,7 @@ const ReportDialog = ({ open, onOpenChange, materialId, user }: { open: boolean;
                 <SelectItem value="quiz">Kısa sınav</SelectItem>
                 <SelectItem value="flashcards">Bilgi Kartları</SelectItem>
                 <SelectItem value="summary">Konu Özeti</SelectItem>
-                <SelectItem value="video">Video Özeti</SelectItem>
+                <SelectItem value="video">Video Dersi</SelectItem>
                 <SelectItem value="other">Diğer</SelectItem>
               </SelectContent>
             </Select>
@@ -899,14 +955,38 @@ const ReportDialog = ({ open, onOpenChange, materialId, user }: { open: boolean;
 };
 
 // ============ Viewers ============
-const MaterialViewer = ({ material, onReport, onProgressSaved }: { material: StudyMaterial; onReport: () => void; onProgressSaved: () => void }) => {
+const MaterialViewer = ({
+  material,
+  onClose,
+  onReport,
+  onProgressSaved,
+}: {
+  material: StudyMaterial;
+  onClose?: () => void;
+  onReport: () => void;
+  onProgressSaved: () => void;
+}) => {
   const [coachOpen, setCoachOpen] = useState(false);
+
+  if (material.material_type === 'video') {
+    return (
+      <div className="w-full min-h-screen bg-slate-950 text-white flex flex-col">
+        <InteractiveVideoStudio
+          material={material}
+          onClose={onClose}
+          onReport={onReport}
+          onOpenCoach={() => setCoachOpen(true)}
+        />
+        <StudyCoachPanel material={material} open={coachOpen} onClose={() => setCoachOpen(false)} />
+      </div>
+    );
+  }
+
   const renderer = () => {
     switch (material.material_type) {
       case 'flashcards': return <FlashcardViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'quiz': return <QuizViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'summary': return <SummaryViewer material={material} />;
-      case 'video': return <InteractiveVideoStudio material={material} />;
     }
   };
   return (

@@ -10,7 +10,7 @@ import {
   Radio, Layers, CheckCircle2, ChevronRight, ChevronLeft,
   ExternalLink, Mic, Headphones, FileText, Loader2, Flame, Lightbulb,
   Brain, Target, Rocket, Activity, BarChart3, LineChart, Network,
-  Zap, Compass, BookmarkCheck
+  Zap, X, Maximize2, Minimize2, Wand2, Bug
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -26,6 +26,13 @@ export interface StudyMaterial {
   created_at: string;
 }
 
+interface DiagramData {
+  diagramType: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve';
+  mainTitle: string;
+  nodes: { label: string; subtext?: string }[];
+  highlightMetric?: string;
+}
+
 interface NormalizedScene {
   id: string;
   index: number;
@@ -36,7 +43,8 @@ interface NormalizedScene {
   narration: string;
   keyTakeaways: string[];
   visualCue: string;
-  chartType: 'curve' | 'network' | 'bars' | 'formula';
+  chartType: 'curve' | 'network' | 'timeline' | 'structure' | 'comparison';
+  diagramData?: DiagramData;
   durationSeconds: number;
 }
 
@@ -63,16 +71,112 @@ interface AmbientParticle {
 
 interface InteractiveVideoStudioProps {
   material: StudyMaterial;
+  onClose?: () => void;
+  onReport?: () => void;
+  onOpenCoach?: () => void;
 }
 
-export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ material }) => {
+// -------------------------------------------------------------
+// INTELLIGENT CONCEPT EXTRACTOR (100% GOUNDED IN NOTE CONTENT)
+// -------------------------------------------------------------
+function extractDynamicConcepts(scene: NormalizedScene, course: string | null, noteTitle: string) {
+  // 1. If AI generated explicit diagramData with nodes, prioritize it!
+  if (scene.diagramData?.nodes && scene.diagramData.nodes.length >= 2) {
+    return {
+      mainTitle: scene.diagramData.mainTitle || scene.title,
+      type: scene.diagramData.diagramType || 'network',
+      nodes: scene.diagramData.nodes.map(n => ({
+        label: n.label.replace(/^[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]+/, '').trim(),
+        subtext: n.subtext || '',
+      })),
+      metric: scene.diagramData.highlightMetric || scene.keyTakeaways[0] || '',
+    };
+  }
+
+  // 2. Extract concepts dynamically from keyTakeaways, title, visualCue & narration
+  const rawTerms: string[] = [];
+
+  // A) From Takeaways:
+  scene.keyTakeaways.forEach(tk => {
+    const clean = tk.replace(/^[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]+/, '').trim();
+    const parts = clean.split(/[,:;.—–-]/);
+    if (parts[0] && parts[0].length >= 3) {
+      const words = parts[0].trim().split(' ').slice(0, 4).join(' ');
+      if (words.length <= 26) rawTerms.push(words);
+      else rawTerms.push(parts[0].trim().substring(0, 24));
+    }
+  });
+
+  // B) From Visual Cue:
+  if (scene.visualCue) {
+    const cueClean = scene.visualCue.replace(/^(görsel|şema|harita|tablo|grafik|önerisi)[:\s-]*/i, '').trim();
+    const cueParts = cueClean.split(/[,:;.—–-]/);
+    if (cueParts[0] && cueParts[0].length >= 3) {
+      rawTerms.push(cueParts[0].trim().split(' ').slice(0, 3).join(' '));
+    }
+  }
+
+  // C) From Title:
+  const titleParts = scene.title.split(/[,:;.—–-]|ve\s+/i).map(t => t.trim()).filter(t => t.length >= 3);
+  titleParts.forEach(tp => rawTerms.push(tp.split(' ').slice(0, 3).join(' ')));
+
+  // D) From Narration keywords if needed:
+  if (rawTerms.length < 4) {
+    const sentences = scene.narration.split(/[.?!]/).map(s => s.trim()).filter(s => s.length > 10);
+    sentences.forEach(s => {
+      const words = s.split(' ').slice(0, 3).join(' ');
+      if (words && !rawTerms.includes(words)) rawTerms.push(words);
+    });
+  }
+
+  // Deduplicate
+  const unique = Array.from(new Set(rawTerms.map(t => t.trim()))).filter(Boolean);
+
+  const finalNodes = unique.slice(0, 5).map(label => ({
+    label: label.length > 25 ? label.substring(0, 23) + '..' : label,
+    subtext: '',
+  }));
+
+  // Determine smart diagram type based on topic:
+  const textToCheck = `${course || ''} ${noteTitle} ${scene.title} ${scene.narration}`.toLowerCase();
+  let smartType: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve' = 'network';
+
+  if (textToCheck.includes('tarih') || textToCheck.includes('savaş') || textToCheck.includes('dönem') || textToCheck.includes('yüzyıl') || textToCheck.includes('kronoloji') || textToCheck.includes('yıl')) {
+    smartType = 'timeline';
+  } else if (textToCheck.includes('sistem') || textToCheck.includes('kurum') || textToCheck.includes('idari') || textToCheck.includes('örgüt') || textToCheck.includes('teşkilat')) {
+    smartType = 'structure';
+  } else if (textToCheck.includes('kıyas') || textToCheck.includes('karşılaştır') || textToCheck.includes('fark') || textToCheck.includes('oran') || textToCheck.includes('pay')) {
+    smartType = 'comparison';
+  } else if (textToCheck.includes('arz') && textToCheck.includes('talep')) {
+    smartType = 'curve';
+  }
+
+  return {
+    mainTitle: scene.title,
+    type: smartType,
+    nodes: finalNodes.length >= 2 ? finalNodes : [
+      { label: scene.title.substring(0, 20), subtext: '' },
+      { label: course || 'Ders Analizi', subtext: '' },
+      { label: 'Kritik Bilgi', subtext: '' },
+      { label: 'Sınav Notu', subtext: '' },
+    ],
+    metric: scene.keyTakeaways[0] || scene.visualCue || '',
+  };
+}
+
+export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
+  material,
+  onClose,
+  onReport,
+  onOpenCoach
+}) => {
   const content = material.content || {};
   const rawScenes = Array.isArray(content.scenes) ? content.scenes : [];
-  const videoTitle = content.podcastTitle || content.videoTitle || material.title || 'Animasyonlu Görsel Ders';
-  const outline = content.outline || 'Ders notundaki kavramların canlı animasyonlu karakterler ve grafiklerle anlatımı.';
+  const videoTitle = content.podcastTitle || content.videoTitle || material.title || 'Animasyonlu Ders Dersi';
+  const outline = content.outline || 'Ders notundaki kritik kavramların animasyonlu ikili anlatımı.';
   const suggestedSearches: string[] = Array.isArray(content.suggestedSearches) ? content.suggestedSearches : [];
 
-  // Determine chart types dynamically based on scene content
+  // Normalize scenes
   const scenes: NormalizedScene[] = useMemo(() => {
     if (rawScenes.length === 0) {
       return [{
@@ -81,23 +185,20 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         time: '00:00',
         speaker: 'Deniz',
         speakerRole: 'Akademik Anlatıcı',
-        title: 'Giriş ve Kavramsal Çerçeve',
+        title: 'Giriş ve Genel Bakış',
         narration: outline,
-        keyTakeaways: ['Ders notu kavramları animasyonla inceleniyor', 'Kritik sınav noktaları ve grafikler gösteriliyor'],
-        visualCue: 'Piyasa Dengesi ve Fiyat Mekanizması',
-        chartType: 'curve',
+        keyTakeaways: ['Ders notu kavramları animasyonla inceleniyor', 'Önemli sınav noktaları ve grafikler gösteriliyor'],
+        visualCue: 'Kavram Haritası ve Başlıklar',
+        chartType: 'network',
         durationSeconds: 10,
       }];
     }
-
-    const chartTypes: ('curve' | 'network' | 'bars' | 'formula')[] = ['curve', 'bars', 'network', 'formula'];
 
     return rawScenes.map((s: any, idx: number) => {
       const isEven = idx % 2 === 0;
       const speakerName = s.speaker || (isEven ? 'Deniz' : 'Barış');
       const speakerRole = s.speakerRole || (isEven ? 'Akademik Anlatıcı' : 'Sorgulayıcı & Özetleyen');
       const text = s.narration || s.title || '';
-      
       const calculatedDuration = Math.max(6, Math.min(28, Math.round(text.length / 13)));
 
       let takeaways: string[] = Array.isArray(s.keyTakeaways) ? s.keyTakeaways.filter(Boolean) : [];
@@ -106,14 +207,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         const sentences = text.split(/[.?!]/).map((st: string) => st.trim()).filter((st: string) => st.length > 15);
         if (sentences.length > 0) takeaways.push(sentences[0]);
       }
-
-      // Infer chart type from text
-      let chosenChart = chartTypes[idx % chartTypes.length];
-      const lower = (text + ' ' + (s.visualCue || '')).toLowerCase();
-      if (lower.includes('formül') || lower.includes('denklem') || lower.includes('hesap')) chosenChart = 'formula';
-      else if (lower.includes('büyüme') || lower.includes('oran') || lower.includes('yüzde') || lower.includes('karşılaştırma')) chosenChart = 'bars';
-      else if (lower.includes('ağ') || lower.includes('ilişki') || lower.includes('harita') || lower.includes('zincir')) chosenChart = 'network';
-      else chosenChart = 'curve';
 
       return {
         id: `scene-${idx}`,
@@ -125,7 +218,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         narration: text,
         keyTakeaways: takeaways.slice(0, 3),
         visualCue: s.visualCue || 'Animasyonlu Tahta ve Grafik Çizimi',
-        chartType: chosenChart,
+        chartType: (s.diagramData?.diagramType || 'network') as any,
+        diagramData: s.diagramData,
         durationSeconds: calculatedDuration,
       };
     });
@@ -142,8 +236,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [elapsedSceneTime, setElapsedSceneTime] = useState(0);
-  const [manualChartMode, setManualChartMode] = useState<'auto' | 'curve' | 'network' | 'bars' | 'formula'>('auto');
-  
+  const [manualChartMode, setManualChartMode] = useState<'auto' | 'network' | 'timeline' | 'structure' | 'comparison' | 'curve'>('auto');
+
   // Interactive reaction counters
   const [reactions, setReactions] = useState<{ [key: string]: number }>({
     '🔥': 42,
@@ -161,7 +255,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
   // Floating emojis and particles ref
   const floatingEmojisRef = useRef<FloatingEmoji[]>([]);
   const particlesRef = useRef<AmbientParticle[]>([]);
-  
+
   // Canvas ref & animation
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -171,7 +265,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
   activeSceneIndexRef.current = activeSceneIndex;
 
   const currentScene = scenes[activeSceneIndex] || scenes[0];
-  const activeChart = manualChartMode === 'auto' ? currentScene.chartType : manualChartMode;
+  const dynamicConceptData = useMemo(() => {
+    return extractDynamicConcepts(currentScene, material.course, material.title);
+  }, [currentScene, material.course, material.title]);
+
+  const activeChart = manualChartMode === 'auto' ? dynamicConceptData.type : manualChartMode;
 
   // Initialize ambient drifting particles once
   useEffect(() => {
@@ -339,16 +437,16 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     baseX: number,
     baseY: number,
     isSpeaking: boolean,
-    now: number
+    now: number,
+    targetLaserX: number,
+    targetLaserY: number
   ) => {
     ctx.save();
-    // Breathing & speaking body sway
     const breathing = Math.sin(now / 450) * 3;
     const speakingBounce = isSpeaking ? Math.sin(now / 120) * 2.5 : 0;
     const y = baseY + breathing + speakingBounce;
     const x = baseX;
 
-    // Active Speaker Energy Aura
     if (isSpeaking) {
       const auraGrad = ctx.createRadialGradient(x + 60, y + 80, 10, x + 60, y + 80, 150);
       auraGrad.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
@@ -395,27 +493,24 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.roundRect(x + 30, y + 25, 60, 68, 28);
     ctx.fill();
 
-    // Hair (Neat Academic Brunette)
+    // Hair
     ctx.fillStyle = '#261c14';
     ctx.beginPath();
     ctx.arc(x + 60, y + 36, 36, Math.PI, Math.PI * 2);
     ctx.roundRect(x + 24, y + 26, 72, 28, 14);
     ctx.fill();
 
-    // Glasses (Smart Cyan Glow Frames)
+    // Glasses
     ctx.strokeStyle = '#06b6d4';
     ctx.lineWidth = 3;
-    // Left Lens
     ctx.strokeRect(x + 36, y + 46, 20, 15);
-    // Right Lens
     ctx.strokeRect(x + 64, y + 46, 20, 15);
-    // Bridge
     ctx.beginPath();
     ctx.moveTo(x + 56, y + 53);
     ctx.lineTo(x + 64, y + 53);
     ctx.stroke();
 
-    // Eyes (Blinking animation every ~3.5 seconds)
+    // Eyes
     const isBlinking = (now % 3500) < 180;
     if (isBlinking) {
       ctx.strokeStyle = '#1e293b';
@@ -427,14 +522,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.lineTo(x + 80, y + 54);
       ctx.stroke();
     } else {
-      // Pupils looking towards the center smartboard!
       ctx.fillStyle = '#1e293b';
       ctx.beginPath();
       ctx.arc(x + 48, y + 54, 4, 0, Math.PI * 2);
       ctx.arc(x + 76, y + 54, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Catchlight in eyes
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(x + 49, y + 52, 1.5, 0, Math.PI * 2);
@@ -442,18 +535,16 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.fill();
     }
 
-    // Mouth (Animated Lip-Sync when speaking)
+    // Mouth
     if (isSpeaking) {
       const mouthOpen = 3 + Math.abs(Math.sin(now / 90)) * 8;
       ctx.fillStyle = '#991b1b';
       ctx.beginPath();
       ctx.ellipse(x + 60, y + 74, 9, mouthOpen, 0, 0, Math.PI * 2);
       ctx.fill();
-      // Teeth
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(x + 54, y + 74 - mouthOpen + 1, 12, 3);
     } else {
-      // Gentle smile
       ctx.strokeStyle = '#991b1b';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -467,14 +558,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(x + 88, y + 130);
-    // Arm points up-right to the smartboard
-    const pointerAngle = Math.sin(now / 300) * 0.08;
     const handX = x + 160;
-    const handY = y + 100 + pointerAngle * 30;
+    const handY = y + 100;
     ctx.lineTo(handX, handY);
     ctx.stroke();
 
-    // Hand holding stylus
     ctx.fillStyle = '#fde2e4';
     ctx.beginPath();
     ctx.arc(handX, handY, 7, 0, Math.PI * 2);
@@ -488,24 +576,20 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.lineTo(handX + 30, handY - 15);
     ctx.stroke();
 
-    // Laser beam from stylus to the smartboard graph!
+    // Laser beam to target node on board
     if (isSpeaking) {
-      const laserEndTargetX = 520 + Math.sin(now / 400) * 50;
-      const laserEndTargetY = 280 + Math.cos(now / 350) * 40;
-      
       ctx.strokeStyle = 'rgba(6, 182, 212, 0.65)';
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
       ctx.beginPath();
       ctx.moveTo(handX + 30, handY - 15);
-      ctx.lineTo(laserEndTargetX, laserEndTargetY);
+      ctx.lineTo(targetLaserX, targetLaserY);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Laser dot on board
       ctx.fillStyle = '#38bdf8';
       ctx.beginPath();
-      ctx.arc(laserEndTargetX, laserEndTargetY, 5 + Math.sin(now / 100) * 2, 0, Math.PI * 2);
+      ctx.arc(targetLaserX, targetLaserY, 5 + Math.sin(now / 100) * 2, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -540,7 +624,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     const y = baseY + breathing + speakingBounce;
     const x = baseX;
 
-    // Active Speaker Energy Aura
     if (isSpeaking) {
       const auraGrad = ctx.createRadialGradient(x + 60, y + 80, 10, x + 60, y + 80, 150);
       auraGrad.addColorStop(0, 'rgba(244, 63, 94, 0.4)');
@@ -551,13 +634,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.fill();
     }
 
-    // Torso / Crimson Modern Hoodie
+    // Torso / Crimson Hoodie
     ctx.fillStyle = '#881337';
     ctx.beginPath();
     ctx.roundRect(x + 20, y + 105, 80, 140, [24, 24, 4, 4]);
     ctx.fill();
 
-    // Hoodie strings & pocket
     ctx.strokeStyle = '#f43f5e';
     ctx.lineWidth = 2.5;
     ctx.beginPath();
@@ -577,27 +659,27 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.roundRect(x + 30, y + 25, 60, 68, 28);
     ctx.fill();
 
-    // Hair (Messy/Wavy Modern Brown)
+    // Hair
     ctx.fillStyle = '#3f2212';
     ctx.beginPath();
     ctx.arc(x + 60, y + 36, 36, Math.PI * 0.9, Math.PI * 2.1);
     ctx.roundRect(x + 22, y + 18, 76, 32, 16);
     ctx.fill();
 
-    // Glowing DJ Headphones around ears
+    // Headphones
     ctx.strokeStyle = '#f43f5e';
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.arc(x + 60, y + 42, 38, Math.PI * 1.1, Math.PI * 1.9);
     ctx.stroke();
-    // Ear cushions
+
     ctx.fillStyle = '#f43f5e';
     ctx.beginPath();
     ctx.roundRect(x + 20, y + 40, 12, 26, 6);
     ctx.roundRect(x + 88, y + 40, 12, 26, 6);
     ctx.fill();
 
-    // Eyes (Blinking animation every ~4.2 seconds)
+    // Eyes
     const isBlinking = ((now + 800) % 4200) < 180;
     if (isBlinking) {
       ctx.strokeStyle = '#1e293b';
@@ -609,14 +691,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.lineTo(x + 80, y + 54);
       ctx.stroke();
     } else {
-      // Pupils looking towards the center smartboard!
       ctx.fillStyle = '#1e293b';
       ctx.beginPath();
       ctx.arc(x + 44, y + 54, 4, 0, Math.PI * 2);
       ctx.arc(x + 72, y + 54, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Catchlight
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(x + 43, y + 52, 1.5, 0, Math.PI * 2);
@@ -624,7 +704,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.fill();
     }
 
-    // Mouth (Animated Lip-Sync when speaking)
+    // Mouth
     if (isSpeaking) {
       const mouthOpen = 3 + Math.abs(Math.sin(now / 95)) * 8;
       ctx.fillStyle = '#881337';
@@ -634,7 +714,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(x + 54, y + 74 - mouthOpen + 1, 12, 3);
     } else {
-      // Attentive listening / slight smile
       ctx.strokeStyle = '#881337';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -642,26 +721,24 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.stroke();
     }
 
-    // Left Arm (Gesturing in question or taking notes)
+    // Left Arm Gesturing in thought
     ctx.strokeStyle = '#881337';
     ctx.lineWidth = 14;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(x + 32, y + 130);
-    // Gesturing hand raised in thought
     const questionSway = isSpeaking ? Math.sin(now / 200) * 15 : 0;
     const handX = x - 35;
     const handY = y + 120 + questionSway;
     ctx.lineTo(handX, handY);
     ctx.stroke();
 
-    // Hand
     ctx.fillStyle = '#ffedd5';
     ctx.beginPath();
     ctx.arc(handX, handY, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    // Fun Speech Bubble / Lightbulb above Barış when active
+    // Thought/Question Bubble when Barış talks
     if (isSpeaking) {
       ctx.save();
       ctx.fillStyle = 'rgba(244, 63, 94, 0.25)';
@@ -678,7 +755,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.restore();
     }
 
-    // Name Tag Badge Below Barış
+    // Name Tag
     ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
     ctx.strokeStyle = isSpeaking ? '#f43f5e' : 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1.5;
@@ -695,148 +772,156 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.restore();
   };
 
-  // 3. Draw Dynamic Economics Graphics Engine on Smartboard
+  // 3. Draw 100% Dynamic Smartboard Graphics (Zero Hardcoding!)
   const drawDynamicChart = (
     ctx: CanvasRenderingContext2D,
-    type: 'curve' | 'network' | 'bars' | 'formula',
+    type: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve',
     cx: number,
     cy: number,
     cw: number,
     ch: number,
     now: number,
-    scene: NormalizedScene
+    scene: NormalizedScene,
+    concepts: { mainTitle: string; type: string; nodes: { label: string; subtext?: string }[]; metric: string }
   ) => {
     ctx.save();
     ctx.beginPath();
     ctx.rect(cx, cy, cw, ch);
     ctx.clip();
 
-    if (type === 'curve') {
-      // ----------------------------------------------------
-      // A) SUPPLY & DEMAND CURVES (Arz ve Talep Eğrisi)
-      // ----------------------------------------------------
-      const originX = cx + 55;
-      const originY = cy + ch - 35;
-      const axisW = cw - 90;
-      const axisH = ch - 65;
+    const nodes = concepts.nodes;
 
-      // Coordinate axes
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
-      ctx.lineWidth = 2;
+    if (type === 'timeline') {
+      // -------------------------------------------------------------------
+      // 1. KRONOLOJİ & TARİHSEL SÜREÇ ÇİZELGESİ (History, Evolution, Steps)
+      // -------------------------------------------------------------------
+      const stepCount = Math.min(nodes.length, 4);
+      const startX = cx + 50;
+      const stepW = (cw - 100) / Math.max(1, stepCount - 1);
+      const lineY = cy + ch / 2 - 10;
+
+      // Glowing Horizontal Line
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      // Y-axis (Price / Fiyat)
-      ctx.moveTo(originX, originY);
-      ctx.lineTo(originX, originY - axisH);
-      // X-axis (Quantity / Miktar)
-      ctx.moveTo(originX, originY);
-      ctx.lineTo(originX + axisW, originY);
+      ctx.moveTo(startX, lineY);
+      ctx.lineTo(startX + (stepCount - 1) * stepW, lineY);
       ctx.stroke();
 
-      // Axis labels
+      // Animated Laser Pulse on timeline
+      const pulseT = ((now / 1500) % 1);
+      const pulseX = startX + (stepCount - 1) * stepW * pulseT;
       ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 11px Inter, sans-serif';
-      ctx.fillText('P (Fiyat)', originX - 45, originY - axisH + 12);
-      ctx.fillText('Q (Miktar)', originX + axisW - 25, originY + 22);
-
-      // Grid lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-      ctx.lineWidth = 1;
-      for (let g = 1; g <= 4; g++) {
-        ctx.beginPath();
-        ctx.moveTo(originX, originY - (axisH / 5) * g);
-        ctx.lineTo(originX + axisW, originY - (axisH / 5) * g);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(originX + (axisW / 5) * g, originY);
-        ctx.lineTo(originX + (axisW / 5) * g, originY - axisH);
-        ctx.stroke();
-      }
-
-      // Dynamic curve shift modulation
-      const shift = Math.sin(now / 800) * 12;
-
-      // Demand Curve (D - Talep: Rose, slope downward)
-      ctx.strokeStyle = '#f43f5e';
-      ctx.lineWidth = 3.5;
-      ctx.shadowColor = 'rgba(244, 63, 94, 0.8)';
-      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 12;
       ctx.beginPath();
-      ctx.moveTo(originX + 20 + shift, originY - axisH + 20);
-      ctx.bezierCurveTo(
-        originX + axisW * 0.4 + shift, originY - axisH * 0.6,
-        originX + axisW * 0.7 + shift, originY - axisH * 0.3,
-        originX + axisW - 20 + shift, originY - 20
-      );
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      ctx.fillStyle = '#f43f5e';
-      ctx.font = 'bold 13px Inter, sans-serif';
-      ctx.fillText('D (Talep)', originX + axisW - 15 + shift, originY - 25);
-
-      // Supply Curve (S - Arz: Cyan, slope upward)
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 3.5;
-      ctx.shadowColor = 'rgba(6, 182, 212, 0.8)';
-      ctx.shadowBlur = 10;
-      ctx.beginPath();
-      ctx.moveTo(originX + 20, originY - 20);
-      ctx.bezierCurveTo(
-        originX + axisW * 0.3, originY - axisH * 0.3,
-        originX + axisW * 0.6, originY - axisH * 0.6,
-        originX + axisW - 20, originY - axisH + 20
-      );
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      ctx.fillStyle = '#06b6d4';
-      ctx.font = 'bold 13px Inter, sans-serif';
-      ctx.fillText('S (Arz)', originX + axisW - 15, originY - axisH + 30);
-
-      // Equilibrium Point E* (Denge Noktası)
-      const eqX = originX + axisW * 0.5 + shift * 0.5;
-      const eqY = originY - axisH * 0.5;
-
-      // Dashed projection lines to axes
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(eqX, eqY);
-      ctx.lineTo(originX, eqY);
-      ctx.moveTo(eqX, eqY);
-      ctx.lineTo(eqX, originY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = '10px font-mono, monospace';
-      ctx.fillText('Pe*', originX - 25, eqY + 4);
-      ctx.fillText('Qe*', eqX - 8, originY + 16);
-
-      // Pulsing Equilibrium node
-      const pulseR = 6 + Math.sin(now / 150) * 2.5;
-      ctx.fillStyle = '#fbbf24'; // Amber-gold
-      ctx.shadowColor = 'rgba(251, 191, 36, 0.9)';
-      ctx.shadowBlur = 14;
-      ctx.beginPath();
-      ctx.arc(eqX, eqY, pulseR, 0, Math.PI * 2);
+      ctx.arc(pulseX, lineY, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 12px Inter, sans-serif';
-      ctx.fillText('E* (Piyasa Dengesi)', eqX + 12, eqY - 10);
+      // Draw Steps
+      nodes.slice(0, stepCount).forEach((nd, i) => {
+        const sx = startX + i * stepW;
+        const isCurrent = i === Math.floor(pulseT * stepCount);
 
-    } else if (type === 'bars') {
-      // ----------------------------------------------------
-      // B) GROWTH & COMPARISON BARS (Büyüme & Trend Grafiği)
-      // ----------------------------------------------------
-      const barCount = 4;
+        // Step Circle
+        ctx.fillStyle = isCurrent ? '#06b6d4' : '#1e293b';
+        ctx.strokeStyle = isCurrent ? '#38bdf8' : 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(sx, lineY, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px font-mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${i + 1}`, sx, lineY);
+
+        // Milestone Label Card
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.strokeStyle = isCurrent ? '#06b6d4' : 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 1;
+        const cardY = i % 2 === 0 ? lineY - 65 : lineY + 30;
+        ctx.beginPath();
+        ctx.roundRect(sx - 65, cardY, 130, 36, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = isCurrent ? '#38bdf8' : '#f1f5f9';
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillText(nd.label, sx, cardY + 18);
+      });
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+
+    } else if (type === 'structure') {
+      // -------------------------------------------------------------------
+      // 2. KURUMSAL YAPI & HİYERARŞİ (Organizations, Institutions, Law)
+      // -------------------------------------------------------------------
+      const centerX = cx + cw / 2;
+      const topY = cy + 40;
+
+      // Top Central Authority Node
+      const rootLabel = concepts.mainTitle.length > 24 ? concepts.mainTitle.substring(0, 22) + '..' : concepts.mainTitle;
+      ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(centerX - 100, topY, 200, 42, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 13px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(`🏛️ ${rootLabel}`, centerX, topY + 26);
+
+      // Child Institutional Nodes
+      const children = nodes.slice(0, 4);
+      const childCount = children.length;
+      const childW = 120;
+      const spacing = (cw - 60) / childCount;
+
+      children.forEach((nd, ci) => {
+        const cX = cx + 30 + ci * spacing + spacing / 2;
+        const cY = topY + 110;
+
+        // Connecting Conduit Line
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(centerX, topY + 42);
+        ctx.lineTo(cX, cY);
+        ctx.stroke();
+
+        // Node Box
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(cX - childW / 2, cY, childW, 46, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.fillText(nd.label, cX, cY + 22);
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.fillText(`Bölüm ${ci + 1}`, cX, cY + 36);
+      });
+      ctx.textAlign = 'left';
+
+    } else if (type === 'comparison') {
+      // -------------------------------------------------------------------
+      // 3. KARŞILAŞTIRMA & FAKTÖR ÇUBUKLARI (Real concepts from note!)
+      // -------------------------------------------------------------------
+      const items = nodes.slice(0, 4);
+      const barCount = items.length;
       const bW = (cw - 80) / barCount - 25;
-      const labels = ['Verimlilik', 'Marjinal Kâr', 'Talep Esnekliği', 'Toplam Hasılat'];
-      const heights = [0.45, 0.85, 0.65, 0.92];
       const colors = [
         ['#06b6d4', '#3b82f6'],
         ['#10b981', '#059669'],
@@ -846,126 +931,108 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
 
       for (let b = 0; b < barCount; b++) {
         const bX = cx + 50 + b * (bW + 25);
-        // Spring bounce animation on bars
-        const animatedH = (ch - 80) * heights[b] * (0.92 + 0.08 * Math.sin(now / 300 + b));
-        const bY = cy + ch - 40 - animatedH;
+        const dynamicH = (ch - 85) * (0.5 + 0.4 * Math.sin(now / 500 + b * 0.8));
+        const bY = cy + ch - 40 - dynamicH;
 
-        // Gradient Bar
         const bGrad = ctx.createLinearGradient(0, bY, 0, cy + ch - 40);
-        bGrad.addColorStop(0, colors[b][0]);
-        bGrad.addColorStop(1, colors[b][1]);
+        bGrad.addColorStop(0, colors[b % colors.length][0]);
+        bGrad.addColorStop(1, colors[b % colors.length][1]);
         ctx.fillStyle = bGrad;
-        ctx.shadowColor = colors[b][0];
-        ctx.shadowBlur = 12;
         ctx.beginPath();
-        ctx.roundRect(bX, bY, bW, animatedH, [10, 10, 2, 2]);
+        ctx.roundRect(bX, bY, bW, dynamicH, [10, 10, 2, 2]);
         ctx.fill();
-        ctx.shadowBlur = 0;
 
-        // Percentage Badge
+        // Label above (Real Term!)
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 12px font-mono, monospace';
+        ctx.font = 'bold 11px Inter, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`+${Math.round(heights[b] * 100)}%`, bX + bW / 2, bY - 8);
+        ctx.fillText(items[b].label, bX + bW / 2, bY - 10);
 
-        // Label below
+        // Footnote
         ctx.fillStyle = '#94a3b8';
-        ctx.font = '11px Inter, sans-serif';
-        ctx.fillText(labels[b], bX + bW / 2, cy + ch - 18);
+        ctx.font = '10px font-mono, monospace';
+        ctx.fillText(`Faktör #${b + 1}`, bX + bW / 2, cy + ch - 18);
       }
       ctx.textAlign = 'left';
 
-    } else if (type === 'network') {
-      // ----------------------------------------------------
-      // C) CONCEPT NETWORK / MIND MAP (Zihin Haritası)
-      // ----------------------------------------------------
+    } else {
+      // -------------------------------------------------------------------
+      // 4. KAVRAM AĞI / ZİHİN HARİTASI (Real Extracted Terms!)
+      // -------------------------------------------------------------------
       const centerX = cx + cw / 2;
-      const centerY = cy + ch / 2 - 10;
-      const nodes = [
-        { label: 'Temel Prensip', x: centerX, y: centerY, r: 36, color: '#06b6d4' },
-        { label: 'Fırsat Maliyeti', x: centerX - 140, y: centerY - 50, r: 28, color: '#f59e0b' },
-        { label: 'Esneklik', x: centerX + 140, y: centerY - 50, r: 28, color: '#f43f5e' },
-        { label: 'Marjinal Fayda', x: centerX - 120, y: centerY + 65, r: 26, color: '#10b981' },
-        { label: 'Kâr Maksimizasyonu', x: centerX + 120, y: centerY + 65, r: 26, color: '#8b5cf6' },
-      ];
+      const centerY = cy + ch / 2 - 15;
 
-      // Draw pulsating network connecting lines
-      nodes.slice(1).forEach((nd, i) => {
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      const centerLabel = concepts.mainTitle.length > 22 ? concepts.mainTitle.substring(0, 20) + '..' : concepts.mainTitle;
+
+      // Center Core Node
+      ctx.fillStyle = 'rgba(6, 182, 212, 0.28)';
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = '#06b6d4';
+      ctx.shadowBlur = 16;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 42, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(centerLabel, centerX, centerY);
+
+      // Orbiting Concept Nodes (4-5 real terms from this note!)
+      const satNodes = nodes.slice(0, 5);
+      const satCount = satNodes.length;
+
+      satNodes.forEach((nd, i) => {
+        const angle = (i * (2 * Math.PI / satCount)) - (Math.PI / 2);
+        const radiusDist = 135 + Math.sin(now / 400 + i) * 6;
+        const nx = centerX + Math.cos(angle) * radiusDist;
+        const ny = centerY + Math.sin(angle) * (radiusDist * 0.75);
+
+        // Connecting laser wire
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
         ctx.moveTo(centerX, centerY);
-        ctx.lineTo(nd.x, nd.y);
+        ctx.lineTo(nx, ny);
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Animated light packet traveling along the wire
-        const packetT = ((now / 600) + i * 0.25) % 1;
-        const pkX = centerX + (nd.x - centerX) * packetT;
-        const pkY = centerY + (nd.y - centerY) * packetT;
+        // Light energy packet
+        const packetT = ((now / 600) + i * 0.2) % 1;
+        const pkX = centerX + (nx - centerX) * packetT;
+        const pkY = centerY + (ny - centerY) * packetT;
         ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
         ctx.arc(pkX, pkY, 4, 0, Math.PI * 2);
         ctx.fill();
-      });
 
-      // Draw Glowing Nodes
-      nodes.forEach((nd) => {
-        ctx.fillStyle = nd.color;
-        ctx.shadowColor = nd.color;
-        ctx.shadowBlur = 14;
+        // Node Circle
+        const nodeColors = ['#f59e0b', '#f43f5e', '#10b981', '#8b5cf6', '#3b82f6'];
+        const col = nodeColors[i % nodeColors.length];
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = col;
+        ctx.shadowBlur = 10;
         ctx.beginPath();
-        ctx.arc(nd.x, nd.y, nd.r, 0, Math.PI * 2);
+        ctx.arc(nx, ny, 30, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
         ctx.shadowBlur = 0;
 
+        // Text inside node
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 10px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(nd.label, nd.x, nd.y);
+        ctx.font = 'bold 9px Inter, sans-serif';
+        ctx.fillText(nd.label, nx, ny);
       });
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-
-    } else {
-      // ----------------------------------------------------
-      // D) FORMULA & LAW BOARD (Akademik Formül & Prensip)
-      // ----------------------------------------------------
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(cx + 40, cy + 30, cw - 80, ch - 60, 16);
-      ctx.fill();
-      ctx.stroke();
-
-      // Top Header
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 12px "Space Grotesk", sans-serif';
-      ctx.fillText('AKADEMİK ANALİZ & MATEMATİKSEL MODEL', cx + 60, cy + 62);
-
-      // Large Glowing Formula
-      const formula = 'MR = MC  ⇒  Kâr Maksimizasyonu Koşulu';
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 22px "Space Grotesk", monospace';
-      ctx.shadowColor = '#38bdf8';
-      ctx.shadowBlur = 10;
-      ctx.fillText(formula, cx + 60, cy + 110);
-      ctx.shadowBlur = 0;
-
-      // Formula breakdown items
-      const formulasList = [
-        '• Marjinal Hasılat (MR) = Marjinal Maliyet (MC) dengesi sağlanmalıdır.',
-        '• Fiyat Esnekliği: Ed = (%ΔQ) / (%ΔP)',
-        '• Tüketici Artığı = Ödemeye Hazır Olunan Fiyat - Gerçek Fiyat',
-      ];
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = '13px Inter, sans-serif';
-      formulasList.forEach((fm, fIdx) => {
-        ctx.fillText(fm, cx + 60, cy + 148 + fIdx * 26);
-      });
     }
 
     ctx.restore();
@@ -981,8 +1048,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     scene: NormalizedScene,
     sceneIdx: number,
     totalScenes: number,
-    activeChartType: 'curve' | 'network' | 'bars' | 'formula',
-    now: number
+    activeChartType: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve',
+    now: number,
+    concepts: { mainTitle: string; type: string; nodes: { label: string; subtext?: string }[]; metric: string }
   ) => {
     ctx.save();
 
@@ -1001,7 +1069,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.roundRect(bx, by, bw, 42, [20, 20, 0, 0]);
     ctx.fill();
 
-    // Chart Type Badge
+    // Red Recording Indicator on board
     ctx.fillStyle = '#06b6d4';
     ctx.beginPath();
     ctx.arc(bx + 26, by + 21, 6, 0, Math.PI * 2);
@@ -1013,23 +1081,24 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
 
     // Chart mode pill (Top Right of board)
     const chartLabels = {
-      curve: '📊 ARZ-TALEP GRAFİĞİ',
-      network: '🧠 KAVRAM HARİTASI',
-      bars: '📈 BÜYÜME VE TREND',
-      formula: '📝 FORMÜL MODELİ',
+      network: '🧠 KAVRAM VE KURUM AĞI',
+      timeline: '⏳ TARİHSEL SÜREÇ / KRONOLOJİ',
+      structure: '🏛️ KURUMSAL VE İDARİ YAPI',
+      comparison: '📊 KARŞILAŞTIRMALI ANALİZ',
+      curve: '📈 İKTİSADİ EĞRİ',
     };
     ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
     ctx.beginPath();
-    ctx.roundRect(bx + bw - 180, by + 10, 165, 24, 12);
+    ctx.roundRect(bx + bw - 210, by + 10, 195, 24, 12);
     ctx.fill();
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 10px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(chartLabels[activeChartType], bx + bw - 98, by + 26);
+    ctx.fillText(chartLabels[activeChartType] || '🧠 KAVRAM HARİTASI', bx + bw - 112, by + 26);
     ctx.textAlign = 'left';
 
     // Draw the dynamic animated graphic chart
-    drawDynamicChart(ctx, activeChartType, bx + 15, by + 50, bw - 30, bh - 110, now, scene);
+    drawDynamicChart(ctx, activeChartType, bx + 15, by + 50, bw - 30, bh - 110, now, scene, concepts);
 
     // Bottom Takeaways Ticker inside Board
     ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
@@ -1062,9 +1131,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     playing: boolean,
     courseName: string,
     mainTitle: string,
-    chartType: 'curve' | 'network' | 'bars' | 'formula',
+    chartType: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve',
     particles: AmbientParticle[],
-    emojis: FloatingEmoji[]
+    emojis: FloatingEmoji[],
+    concepts: { mainTitle: string; type: string; nodes: { label: string; subtext?: string }[]; metric: string }
   ) => {
     const isDenizActive = !scene.speaker.toLowerCase().includes('barış');
     const now = Date.now();
@@ -1105,7 +1175,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.fill();
     ctx.stroke();
 
-    // Red Live Recording Dot
     const dotPulse = playing ? 0.7 + 0.3 * Math.sin(now / 180) : 0.8;
     ctx.fillStyle = `rgba(239, 68, 68, ${dotPulse})`;
     ctx.beginPath();
@@ -1116,7 +1185,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.font = 'bold 12px "Space Grotesk", Inter, sans-serif';
     ctx.fillText('ECONNOTES CANLI ANİMASYONLU STÜDYO', 70, 40);
 
-    // Top Right Info
     ctx.textAlign = 'right';
     ctx.fillStyle = '#cbd5e1';
     ctx.font = 'bold 13px Inter, sans-serif';
@@ -1132,10 +1200,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     const boardY = 72;
     const boardW = width - 460;
     const boardH = 450;
-    drawSmartboard(ctx, boardX, boardY, boardW, boardH, scene, sceneIdx, totalScenes, chartType, now);
+    drawSmartboard(ctx, boardX, boardY, boardW, boardH, scene, sceneIdx, totalScenes, chartType, now, concepts);
 
     // 5. Left Stage: Animated Character DENİZ (x = 35, y = 140)
-    drawDenizCharacter(ctx, 35, 140, isDenizActive && playing, now);
+    const laserTargetX = boardX + 160;
+    const laserTargetY = boardY + 180;
+    drawDenizCharacter(ctx, 35, 140, isDenizActive && playing, now, laserTargetX, laserTargetY);
 
     // 6. Right Stage: Animated Character BARIŞ (x = width - 160, y = 140)
     drawBarisCharacter(ctx, width - 165, 140, !isDenizActive && playing, now);
@@ -1155,12 +1225,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     ctx.fill();
     ctx.stroke();
 
-    // Speaker Indicator
     ctx.fillStyle = isDenizActive ? '#06b6d4' : '#f43f5e';
     ctx.font = 'bold 15px Inter, sans-serif';
     ctx.fillText(`🎙️ ${scene.speaker.toUpperCase()} (${scene.speakerRole}):`, subX + 28, subY + 34);
 
-    // Kinetic Karaoke text
     const words = scene.narration.split(' ');
     const totalWords = words.length;
     const spokenProgressRatio = Math.min(1.0, timeSecs / Math.max(1, scene.durationSeconds));
@@ -1214,11 +1282,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
       ctx.restore();
     }
 
-    // 9. Bottom Progress Bar (y = 708 to 720)
+    // 9. Bottom Progress Bar
     ctx.save();
     const timelineY = height - 10;
     const overallProgress = (sceneIdx + (timeSecs / Math.max(1, scene.durationSeconds))) / totalScenes;
-    
+
     ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
     ctx.fillRect(0, timelineY, width, 10);
 
@@ -1280,7 +1348,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         videoTitle,
         activeChart,
         particlesRef.current,
-        floatingEmojisRef.current
+        floatingEmojisRef.current,
+        dynamicConceptData
       );
 
       animId = requestAnimationFrame(render);
@@ -1292,7 +1361,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [drawFrame, currentScene, activeSceneIndex, scenes, elapsedSceneTime, isPlaying, material.course, videoTitle, activeChart, playbackSpeed, playSpeechForScene, playSoundEffect]);
+  }, [drawFrame, currentScene, activeSceneIndex, scenes, elapsedSceneTime, isPlaying, material.course, videoTitle, activeChart, dynamicConceptData, playbackSpeed, playSpeechForScene, playSoundEffect]);
 
   // High Quality MP4 Video Export Engine
   const handleExportMP4 = async () => {
@@ -1371,6 +1440,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
         const isBaris = scene.speaker.toLowerCase().includes('barış');
         osc.frequency.setValueAtTime(isBaris ? 280 : 420, audioCtx.currentTime);
 
+        const sceneConceptData = extractDynamicConcepts(scene, material.course, material.title);
+
         for (let f = 0; f < totalFrames; f++) {
           const timeSecs = f / fps;
           drawFrame(
@@ -1384,9 +1455,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
             true,
             material.course || 'EconNotes',
             videoTitle,
-            scene.chartType,
+            sceneConceptData.type as any,
             particlesRef.current,
-            []
+            [],
+            sceneConceptData
           );
 
           const currentTotalFrames = sIdx * totalFrames + f;
@@ -1438,433 +1510,458 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({ 
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner / Studio Card */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl">
-        <div className="absolute top-0 right-0 -mt-8 -mr-8 h-48 w-48 rounded-full bg-cyan-500/15 blur-3xl" />
-        <div className="absolute bottom-0 left-0 -mb-8 -ml-8 h-48 w-48 rounded-full bg-rose-500/15 blur-3xl" />
-
-        <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge className="bg-gradient-to-r from-cyan-500 via-blue-600 to-primary text-white font-bold tracking-wider text-[11px] px-2.5 py-0.5 shadow-sm">
-                <Sparkles className="h-3 w-3 mr-1" /> CANLI ANİMASYONLU KARAKTERLER & GRAFİKLER
-              </Badge>
-              <Badge variant="outline" className="border-rose-500/40 text-rose-400 text-[11px] font-semibold">
-                İKİLİ DERS & AKILLI TAHTA
+    <div className="flex flex-col min-h-screen w-full bg-slate-950 text-white">
+      {/* Top Cinema Studio Navigation Bar */}
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-800 bg-slate-950/95 px-4 py-3 backdrop-blur sm:px-6">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20">
+            <Video className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-[10px] font-semibold">
+                CANLI STÜDYO DERSİ
               </Badge>
               {material.course && (
-                <Badge variant="secondary" className="text-[11px]">
+                <Badge variant="outline" className="border-slate-700 text-slate-300 text-[10px]">
                   {material.course}
                 </Badge>
               )}
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white font-display">
+            <h1 className="truncate text-base font-bold text-white sm:text-lg mt-0.5">
               {videoTitle}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              {outline}
-            </p>
+            </h1>
           </div>
+        </div>
 
-          {/* MP4 Download Primary Button */}
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
+          {onOpenCoach && (
             <Button
-              onClick={handleExportMP4}
-              disabled={isExporting}
-              className="bg-gradient-to-r from-cyan-500 via-blue-600 to-rose-500 hover:from-cyan-600 hover:to-rose-600 text-white font-bold shadow-lg shadow-cyan-500/20 gap-2 h-11 px-5 rounded-xl transition-transform active:scale-95"
+              size="sm"
+              variant="outline"
+              onClick={onOpenCoach}
+              className="border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300 hover:bg-fuchsia-500/20 text-xs hidden sm:inline-flex gap-1"
             >
-              {isExporting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Hazırlanıyor...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  MP4 Olarak İndir
-                </>
-              )}
+              <Wand2 className="h-3.5 w-3.5" />
+              <span>Akıl Hocası</span>
             </Button>
-          </div>
+          )}
+
+          {onReport && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onReport}
+              className="text-slate-400 hover:text-white text-xs hidden sm:inline-flex gap-1"
+            >
+              <Bug className="h-3.5 w-3.5" />
+              <span>Bildir</span>
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            onClick={handleExportMP4}
+            disabled={isExporting}
+            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs h-8 px-3 rounded-lg gap-1.5 shadow-md shadow-cyan-500/20"
+          >
+            {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">MP4 İndir</span>
+          </Button>
+
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="h-8 w-8 rounded-full text-slate-400 hover:bg-white/10 hover:text-white ml-1"
+              title="Kapat"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* Main 16:9 Video Canvas Display */}
-      <div className="relative group overflow-hidden rounded-2xl border border-slate-800 bg-black shadow-2xl">
-        <canvas
-          ref={canvasRef}
-          width={1280}
-          height={720}
-          className="w-full aspect-video block object-contain"
-        />
+      {/* Main Studio Viewport (Full Screen Theater Mode) */}
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-5">
+        {/* Widescreen 16:9 Canvas Viewport */}
+        <div className="relative group overflow-hidden rounded-3xl border border-slate-800 bg-black shadow-2xl">
+          <canvas
+            ref={canvasRef}
+            width={1280}
+            height={720}
+            className="w-full aspect-video block object-contain"
+          />
 
-        {/* Floating In-Video Controls Overlay */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-4 sm:p-5 flex flex-col gap-2">
-          {/* Progress bar scrubber */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-cyan-400">
-              {formatTime(activeSceneIndex * 15 + elapsedSceneTime)}
-            </span>
-            <div className="flex-1 flex gap-1 items-center h-2 cursor-pointer">
-              {scenes.map((s, idx) => (
-                <div
-                  key={s.id}
-                  onClick={() => goToScene(idx)}
-                  className={`h-2 flex-1 rounded-full transition-all ${
-                    idx === activeSceneIndex
-                      ? 'bg-gradient-to-r from-cyan-400 to-rose-400 shadow-[0_0_10px_rgba(6,182,212,0.9)]'
-                      : idx < activeSceneIndex
-                      ? 'bg-slate-500 hover:bg-slate-400'
-                      : 'bg-slate-800 hover:bg-slate-700'
-                  }`}
-                  title={`${s.speaker}: ${s.title}`}
-                />
-              ))}
-            </div>
-            <span className="text-xs font-mono text-slate-400">
-              {formatTime(totalDuration)}
-            </span>
-          </div>
-
-          {/* Bottom control buttons */}
-          <div className="flex items-center justify-between gap-3 pt-1">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => goToScene(activeSceneIndex - 1)}
-                disabled={activeSceneIndex === 0}
-                className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
-                title="Önceki Bölüm"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-
-              <Button
-                onClick={togglePlay}
-                className={`h-11 w-11 rounded-full text-white shadow-lg ${
-                  isPlaying
-                    ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/30'
-                    : 'bg-cyan-500 hover:bg-cyan-600 shadow-cyan-500/30'
-                }`}
-                title={isPlaying ? 'Durdur' : 'Oynat'}
-              >
-                {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => goToScene(activeSceneIndex + 1)}
-                disabled={activeSceneIndex === scenes.length - 1}
-                className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
-                title="Sonraki Bölüm"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </Button>
-
-              <div className="hidden sm:flex items-center gap-2 ml-2 px-3 py-1 rounded-full bg-slate-900/85 border border-slate-700/60">
-                <span
-                  className="h-2 w-2 rounded-full animate-ping"
-                  style={{ backgroundColor: currentScene.speaker.toLowerCase().includes('barış') ? '#f43f5e' : '#06b6d4' }}
-                />
-                <span className="text-xs font-semibold text-white">
-                  {currentScene.speaker}: {currentScene.title}
-                </span>
-              </div>
-            </div>
-
-            {/* Right side controls (Speed, Audio, MP4) */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const speeds = [1.0, 1.25, 1.5, 0.85];
-                  const nextSpeed = speeds[(speeds.indexOf(playbackSpeed) + 1) % speeds.length];
-                  setPlaybackSpeed(nextSpeed);
-                  if (isPlaying) playSpeechForScene(activeSceneIndex);
-                }}
-                className="text-xs font-mono text-slate-300 hover:bg-white/10 h-8 px-2.5 rounded-lg"
-                title="Oynatma Hızı"
-              >
-                {playbackSpeed}x
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  const next = !isMuted;
-                  setIsMuted(next);
-                  if (next) stopSpeech();
-                  else if (isPlaying) playSpeechForScene(activeSceneIndex);
-                }}
-                className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
-                title={isMuted ? 'Sesi Aç' : 'Sesi Kapat'}
-              >
-                {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleExportMP4}
-                disabled={isExporting}
-                className="border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs h-8 px-3 rounded-lg gap-1.5"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">MP4 İndir</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Interactive Smartboard Mode Switcher & Reactions */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {/* Tahta Grafik Modu Seçici */}
-        <div className="flex items-center gap-1.5 p-2 rounded-2xl border border-slate-800 bg-slate-950/80 overflow-x-auto">
-          <span className="text-[11px] font-semibold text-slate-400 pl-2 shrink-0">Tahta Modu:</span>
-          {[
-            { id: 'auto', label: 'Otomatik', icon: Zap },
-            { id: 'curve', label: 'Arz-Talep', icon: LineChart },
-            { id: 'network', label: 'Zihin Haritası', icon: Network },
-            { id: 'bars', label: 'Büyüme', icon: BarChart3 },
-            { id: 'formula', label: 'Formül', icon: Activity },
-          ].map((mode) => {
-            const Icon = mode.icon;
-            const isSelected = manualChartMode === mode.id;
-            return (
-              <button
-                key={mode.id}
-                onClick={() => setManualChartMode(mode.id as any)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                  isSelected
-                    ? 'bg-cyan-500 text-white shadow-sm shadow-cyan-500/30 font-semibold'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                <span>{mode.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Live Reaction Emojis */}
-        <div className="flex items-center justify-between p-2 rounded-2xl border border-slate-800 bg-slate-950/80">
-          <span className="text-[11px] font-semibold text-slate-400 pl-2 shrink-0">Tepki Ver:</span>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              { emoji: '🔥', label: 'Efsane' },
-              { emoji: '💡', label: 'Anladım' },
-              { emoji: '🧠', label: 'Kritik' },
-              { emoji: '🎯', label: 'Sınav' },
-              { emoji: '🚀', label: 'Akıcı' },
-            ].map(({ emoji, label }) => (
-              <button
-                key={emoji}
-                onClick={() => addReaction(emoji)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-slate-800 bg-slate-900/90 hover:bg-slate-800 text-xs text-white transition-transform active:scale-125 hover:border-cyan-500/50"
-                title={`${label} tepkisi ver`}
-              >
-                <span>{emoji}</span>
-                <span className="font-mono text-[10px] text-cyan-400">+{reactions[emoji] || 0}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs: Interactive Transcript, Slide Cards, and Search Suggestions */}
-      <Tabs defaultValue="transcript" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-md bg-slate-900 border border-slate-800">
-          <TabsTrigger value="transcript" className="text-xs sm:text-sm gap-1.5">
-            <Radio className="h-3.5 w-3.5" /> İnteraktif Döküm
-          </TabsTrigger>
-          <TabsTrigger value="slides" className="text-xs sm:text-sm gap-1.5">
-            <Layers className="h-3.5 w-3.5" /> Canlı Slaytlar
-          </TabsTrigger>
-          <TabsTrigger value="resources" className="text-xs sm:text-sm gap-1.5">
-            <Video className="h-3.5 w-3.5" /> Öneriler
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Tab 1: Dual-Host Transcript with time-jump */}
-        <TabsContent value="transcript" className="mt-4 space-y-3">
-          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-            <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-              <div>
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Mic className="h-4 w-4 text-cyan-400" /> Deniz & Barış — İkili Ders Diyaloğu
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Herhangi bir cümlenin yanındaki oynat butonuna basarak videoyu doğrudan o sahneye sarabilirsiniz.
-                </p>
-              </div>
-              <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 text-xs">
-                {scenes.length} Sahne
-              </Badge>
-            </div>
-
-            <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
-              {scenes.map((s, idx) => {
-                const isBaris = s.speaker.toLowerCase().includes('barış');
-                const isActive = idx === activeSceneIndex;
-
-                return (
+          {/* Floating In-Video Controls Overlay */}
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-4 sm:p-5 flex flex-col gap-2">
+            {/* Progress bar scrubber */}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-mono text-cyan-400">
+                {formatTime(activeSceneIndex * 15 + elapsedSceneTime)}
+              </span>
+              <div className="flex-1 flex gap-1 items-center h-2 cursor-pointer">
+                {scenes.map((s, idx) => (
                   <div
                     key={s.id}
                     onClick={() => goToScene(idx)}
-                    className={`relative p-4 rounded-xl border transition-all cursor-pointer ${
-                      isActive
-                        ? isBaris
-                          ? 'border-rose-500/60 bg-rose-950/20 shadow-lg shadow-rose-950/30'
-                          : 'border-cyan-500/60 bg-cyan-950/20 shadow-lg shadow-cyan-950/30'
-                        : 'border-slate-800/70 bg-slate-900/40 hover:bg-slate-800/50'
+                    className={`h-2 flex-1 rounded-full transition-all ${
+                      idx === activeSceneIndex
+                        ? 'bg-gradient-to-r from-cyan-400 to-rose-400 shadow-[0_0_10px_rgba(6,182,212,0.9)]'
+                        : idx < activeSceneIndex
+                        ? 'bg-slate-500 hover:bg-slate-400'
+                        : 'bg-slate-800 hover:bg-slate-700'
                     }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow"
-                          style={{ backgroundColor: isBaris ? '#f43f5e' : '#06b6d4' }}
-                        >
-                          {isBaris ? '💡' : '🎓'}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-sm text-white">{s.speaker}</span>
-                            <span className="text-[11px] text-slate-400">· {s.speakerRole}</span>
-                            <Badge variant="outline" className="text-[10px] font-mono py-0 h-4 border-slate-700">
-                              {s.time}
-                            </Badge>
-                          </div>
-                          <p className="text-xs font-medium text-slate-300 mt-0.5">{s.title}</p>
-                        </div>
-                      </div>
+                    title={`${s.speaker}: ${s.title}`}
+                  />
+                ))}
+              </div>
+              <span className="text-xs font-mono text-slate-400">
+                {formatTime(totalDuration)}
+              </span>
+            </div>
 
-                      <Button
-                        size="sm"
-                        variant={isActive ? 'default' : 'outline'}
-                        className={`h-7 px-2.5 text-xs gap-1 rounded-lg ${
-                          isActive
-                            ? isBaris
-                              ? 'bg-rose-600 text-white hover:bg-rose-700'
-                              : 'bg-cyan-500 text-white hover:bg-cyan-600'
-                            : 'border-slate-700 text-slate-300'
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          goToScene(idx);
-                          if (!isPlaying) togglePlay();
-                        }}
-                      >
-                        <Play className="h-3 w-3" />
-                        {isActive && isPlaying ? 'Çalıyor' : 'Oynat'}
-                      </Button>
-                    </div>
+            {/* Bottom control buttons */}
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => goToScene(activeSceneIndex - 1)}
+                  disabled={activeSceneIndex === 0}
+                  className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
+                  title="Önceki Bölüm"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
 
-                    <p className="mt-2.5 text-sm text-slate-200 leading-relaxed pl-10">
-                      {s.narration}
-                    </p>
+                <Button
+                  onClick={togglePlay}
+                  className={`h-11 w-11 rounded-full text-white shadow-lg ${
+                    isPlaying
+                      ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/30'
+                      : 'bg-cyan-500 hover:bg-cyan-600 shadow-cyan-500/30'
+                  }`}
+                  title={isPlaying ? 'Durdur' : 'Oynat'}
+                >
+                  {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+                </Button>
 
-                    {s.keyTakeaways.length > 0 && (
-                      <div className="mt-2.5 pl-10 flex flex-wrap gap-1.5">
-                        {s.keyTakeaways.map((tk, tIdx) => (
-                          <span
-                            key={tIdx}
-                            className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60"
-                          >
-                            <CheckCircle2 className="h-3 w-3 text-cyan-400" />
-                            {tk}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => goToScene(activeSceneIndex + 1)}
+                  disabled={activeSceneIndex === scenes.length - 1}
+                  className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
+                  title="Sonraki Bölüm"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+
+                <div className="hidden sm:flex items-center gap-2 ml-2 px-3 py-1 rounded-full bg-slate-900/85 border border-slate-700/60">
+                  <span
+                    className="h-2 w-2 rounded-full animate-ping"
+                    style={{ backgroundColor: currentScene.speaker.toLowerCase().includes('barış') ? '#f43f5e' : '#06b6d4' }}
+                  />
+                  <span className="text-xs font-semibold text-white">
+                    {currentScene.speaker}: {currentScene.title}
+                  </span>
+                </div>
+              </div>
+
+              {/* Right side controls (Speed, Audio, MP4) */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const speeds = [1.0, 1.25, 1.5, 0.85];
+                    const nextSpeed = speeds[(speeds.indexOf(playbackSpeed) + 1) % speeds.length];
+                    setPlaybackSpeed(nextSpeed);
+                    if (isPlaying) playSpeechForScene(activeSceneIndex);
+                  }}
+                  className="text-xs font-mono text-slate-300 hover:bg-white/10 h-8 px-2.5 rounded-lg"
+                  title="Oynatma Hızı"
+                >
+                  {playbackSpeed}x
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    const next = !isMuted;
+                    setIsMuted(next);
+                    if (next) stopSpeech();
+                    else if (isPlaying) playSpeechForScene(activeSceneIndex);
+                  }}
+                  className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
+                  title={isMuted ? 'Sesi Aç' : 'Sesi Kapat'}
+                >
+                  {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExportMP4}
+                  disabled={isExporting}
+                  className="border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs h-8 px-3 rounded-lg gap-1.5"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">MP4 İndir</span>
+                </Button>
+              </div>
             </div>
           </div>
-        </TabsContent>
+        </div>
 
-        {/* Tab 2: Visual Slide Cards */}
-        <TabsContent value="slides" className="mt-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {scenes.map((s, idx) => (
-              <Card
-                key={s.id}
-                onClick={() => goToScene(idx)}
-                className={`cursor-pointer transition-all border ${
-                  idx === activeSceneIndex
-                    ? 'border-cyan-500 bg-cyan-950/15 shadow-md shadow-cyan-500/10'
-                    : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
-                }`}
-              >
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-[10px]">{s.time}</Badge>
-                    <span className="font-semibold" style={{ color: s.speaker.toLowerCase().includes('barış') ? '#f43f5e' : '#06b6d4' }}>
-                      {s.speaker}
-                    </span>
-                  </div>
-                  <CardTitle className="text-base font-bold mt-1 text-white">{s.title}</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 pt-1 space-y-2">
-                  {s.keyTakeaways.map((point, pIdx) => (
-                    <div key={pIdx} className="flex items-start gap-1.5 text-xs text-slate-300">
-                      <span className="text-cyan-400 font-bold mt-0.5">•</span>
-                      <span>{point}</span>
-                    </div>
-                  ))}
-                  {s.visualCue && (
-                    <div className="rounded border border-dashed border-cyan-500/30 bg-cyan-500/5 p-2 text-[11px] text-cyan-300 mt-2">
-                      <span className="font-semibold">Şema: </span>{s.visualCue}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+        {/* Dynamic Mode Switcher & Reactions Bar */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {/* Tahta Grafik Modu Seçici */}
+          <div className="flex items-center gap-1.5 p-2 rounded-2xl border border-slate-800 bg-slate-900/80 overflow-x-auto">
+            <span className="text-[11px] font-semibold text-slate-400 pl-2 shrink-0">Tahta Modu:</span>
+            {[
+              { id: 'auto', label: 'Otomatik', icon: Zap },
+              { id: 'network', label: 'Kavram Ağı', icon: Network },
+              { id: 'timeline', label: 'Kronoloji', icon: Activity },
+              { id: 'structure', label: 'Kurumsal Yapı', icon: Layers },
+              { id: 'comparison', label: 'Kıyaslama', icon: BarChart3 },
+              { id: 'curve', label: 'İktisadi Eğri', icon: LineChart },
+            ].map((mode) => {
+              const Icon = mode.icon;
+              const isSelected = manualChartMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  onClick={() => setManualChartMode(mode.id as any)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                    isSelected
+                      ? 'bg-cyan-500 text-white shadow-sm shadow-cyan-500/30 font-semibold'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{mode.label}</span>
+                </button>
+              );
+            })}
           </div>
-        </TabsContent>
 
-        {/* Tab 3: Suggested Searches & YouTube */}
-        <TabsContent value="resources" className="mt-4 space-y-3">
-          <Card className="border-slate-800 bg-slate-950/60">
-            <CardHeader className="p-4 pb-2">
-              <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
-                <Video className="h-4 w-4 text-rose-500" /> Konuyu Pekiştirecek YouTube Arama Sorguları
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Bu nottaki kritik kavramları derinleştirmek için özel hazırlanmış arama önerileri.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-2">
-              {suggestedSearches.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {suggestedSearches.map((q, i) => (
-                    <a
-                      key={i}
-                      href={`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-200 hover:border-rose-500/50 hover:bg-rose-500/10 transition"
-                    >
-                      <ExternalLink className="h-3 w-3 text-rose-400" />
-                      {q}
-                    </a>
-                  ))}
+          {/* Live Reaction Emojis */}
+          <div className="flex items-center justify-between p-2 rounded-2xl border border-slate-800 bg-slate-900/80">
+            <span className="text-[11px] font-semibold text-slate-400 pl-2 shrink-0">Tepki Ver:</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { emoji: '🔥', label: 'Efsane' },
+                { emoji: '💡', label: 'Anladım' },
+                { emoji: '🧠', label: 'Kritik' },
+                { emoji: '🎯', label: 'Sınav' },
+                { emoji: '🚀', label: 'Akıcı' },
+              ].map(({ emoji, label }) => (
+                <button
+                  key={emoji}
+                  onClick={() => addReaction(emoji)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-slate-800 bg-slate-950 hover:bg-slate-800 text-xs text-white transition-transform active:scale-125 hover:border-cyan-500/50"
+                  title={`${label} tepkisi ver`}
+                >
+                  <span>{emoji}</span>
+                  <span className="font-mono text-[10px] text-cyan-400">+{reactions[emoji] || 0}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs: Interactive Transcript, Slide Cards, and Search Suggestions */}
+        <Tabs defaultValue="transcript" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 max-w-md bg-slate-900 border border-slate-800">
+            <TabsTrigger value="transcript" className="text-xs sm:text-sm gap-1.5">
+              <Radio className="h-3.5 w-3.5" /> İnteraktif Döküm
+            </TabsTrigger>
+            <TabsTrigger value="slides" className="text-xs sm:text-sm gap-1.5">
+              <Layers className="h-3.5 w-3.5" /> Canlı Slaytlar
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="text-xs sm:text-sm gap-1.5">
+              <Video className="h-3.5 w-3.5" /> Öneriler
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab 1: Dual-Host Transcript with time-jump */}
+          <TabsContent value="transcript" className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+              <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                    <Mic className="h-4 w-4 text-cyan-400" /> Deniz & Barış — İkili Ders Diyaloğu
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Herhangi bir cümlenin yanındaki oynat butonuna basarak videoyu doğrudan o sahneye sarabilirsiniz.
+                  </p>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Ek arama önerisi bulunamadı.</p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 text-xs">
+                  {scenes.length} Sahne
+                </Badge>
+              </div>
+
+              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
+                {scenes.map((s, idx) => {
+                  const isBaris = s.speaker.toLowerCase().includes('barış');
+                  const isActive = idx === activeSceneIndex;
+
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => goToScene(idx)}
+                      className={`relative p-4 rounded-xl border transition-all cursor-pointer ${
+                        isActive
+                          ? isBaris
+                            ? 'border-rose-500/60 bg-rose-950/20 shadow-lg shadow-rose-950/30'
+                            : 'border-cyan-500/60 bg-cyan-950/20 shadow-lg shadow-cyan-950/30'
+                          : 'border-slate-800/70 bg-slate-950/40 hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow"
+                            style={{ backgroundColor: isBaris ? '#f43f5e' : '#06b6d4' }}
+                          >
+                            {isBaris ? '💡' : '🎓'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm text-white">{s.speaker}</span>
+                              <span className="text-[11px] text-slate-400">· {s.speakerRole}</span>
+                              <Badge variant="outline" className="text-[10px] font-mono py-0 h-4 border-slate-700">
+                                {s.time}
+                              </Badge>
+                            </div>
+                            <p className="text-xs font-medium text-slate-300 mt-0.5">{s.title}</p>
+                          </div>
+                        </div>
+
+                        <Button
+                          size="sm"
+                          variant={isActive ? 'default' : 'outline'}
+                          className={`h-7 px-2.5 text-xs gap-1 rounded-lg ${
+                            isActive
+                              ? isBaris
+                                ? 'bg-rose-600 text-white hover:bg-rose-700'
+                                : 'bg-cyan-500 text-white hover:bg-cyan-600'
+                              : 'border-slate-700 text-slate-300'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            goToScene(idx);
+                            if (!isPlaying) togglePlay();
+                          }}
+                        >
+                          <Play className="h-3 w-3" />
+                          {isActive && isPlaying ? 'Çalıyor' : 'Oynat'}
+                        </Button>
+                      </div>
+
+                      <p className="mt-2.5 text-sm text-slate-200 leading-relaxed pl-10">
+                        {s.narration}
+                      </p>
+
+                      {s.keyTakeaways.length > 0 && (
+                        <div className="mt-2.5 pl-10 flex flex-wrap gap-1.5">
+                          {s.keyTakeaways.map((tk, tIdx) => (
+                            <span
+                              key={tIdx}
+                              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60"
+                            >
+                              <CheckCircle2 className="h-3 w-3 text-cyan-400" />
+                              {tk}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Tab 2: Visual Slide Cards */}
+          <TabsContent value="slides" className="mt-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {scenes.map((s, idx) => (
+                <Card
+                  key={s.id}
+                  onClick={() => goToScene(idx)}
+                  className={`cursor-pointer transition-all border ${
+                    idx === activeSceneIndex
+                      ? 'border-cyan-500 bg-cyan-950/15 shadow-md shadow-cyan-500/10'
+                      : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
+                  }`}
+                >
+                  <CardHeader className="p-4 pb-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-[10px]">{s.time}</Badge>
+                      <span className="font-semibold" style={{ color: s.speaker.toLowerCase().includes('barış') ? '#f43f5e' : '#06b6d4' }}>
+                        {s.speaker}
+                      </span>
+                    </div>
+                    <CardTitle className="text-base font-bold mt-1 text-white">{s.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-1 space-y-2">
+                    {s.keyTakeaways.map((point, pIdx) => (
+                      <div key={pIdx} className="flex items-start gap-1.5 text-xs text-slate-300">
+                        <span className="text-cyan-400 font-bold mt-0.5">•</span>
+                        <span>{point}</span>
+                      </div>
+                    ))}
+                    {s.visualCue && (
+                      <div className="rounded border border-dashed border-cyan-500/30 bg-cyan-500/5 p-2 text-[11px] text-cyan-300 mt-2">
+                        <span className="font-semibold">Şema: </span>{s.visualCue}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Tab 3: Suggested Searches & YouTube */}
+          <TabsContent value="resources" className="mt-4 space-y-3">
+            <Card className="border-slate-800 bg-slate-900/60">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Video className="h-4 w-4 text-rose-500" /> Konuyu Pekiştirecek YouTube Arama Sorguları
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Bu nottaki kritik kavramları derinleştirmek için özel hazırlanmış arama önerileri.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-2">
+                {suggestedSearches.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedSearches.map((q, i) => (
+                      <a
+                        key={i}
+                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-950 text-xs text-slate-200 hover:border-rose-500/50 hover:bg-rose-500/10 transition"
+                      >
+                        <ExternalLink className="h-3 w-3 text-rose-400" />
+                        {q}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Ek arama önerisi bulunamadı.</p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </main>
 
       {/* High Quality MP4 Export Progress Modal */}
       <Dialog open={isExporting} onOpenChange={() => {}}>

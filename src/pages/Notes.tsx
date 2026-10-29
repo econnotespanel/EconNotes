@@ -17,7 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Video } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
