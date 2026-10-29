@@ -1,72 +1,48 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   Play, Pause, RotateCcw, Volume2, VolumeX, Download, Sparkles, Video,
-  Radio, Layers, CheckCircle2, ChevronRight, ChevronLeft,
-  ExternalLink, Mic, Headphones, FileText, Loader2, Flame, Lightbulb,
-  Brain, Target, Rocket, Activity, BarChart3, LineChart, Network,
-  Zap, X, Maximize2, Minimize2, Wand2, Bug
+  ChevronRight, ChevronLeft, Maximize2, Minimize2, X, Wand2, Bug,
+  BookOpen, Lightbulb, FileText, ListOrdered, CheckCircle2,
+  Bookmark, Send, Loader2, FastForward, Rewind, MessageSquare,
+  HelpCircle, GraduationCap, Copy, Check, PanelRightClose, PanelRightOpen,
+  Subtitles, AlertCircle, Sparkle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import ReactMarkdown from 'react-markdown';
+import {
+  buildStudioContent,
+  positionFromElapsed,
+  formatTime,
+  StudioContent,
+  StudioScene,
+  CHARS_PER_SEC
+} from './video/sceneModel';
+import {
+  renderStage,
+  STAGE_W,
+  STAGE_H,
+  StageFrame,
+  FloatingReaction
+} from './video/renderStage';
 
 export interface StudyMaterial {
   id: string;
   user_id: string;
   source_type: string;
   source_note_id: string | null;
-  material_type: 'flashcards' | 'quiz' | 'summary' | 'video';
+  material_type: string;
   title: string;
   course: string | null;
   content: any;
   created_at: string;
-}
-
-interface DiagramData {
-  diagramType: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve';
-  mainTitle: string;
-  nodes: { label: string; subtext?: string }[];
-  highlightMetric?: string;
-}
-
-interface NormalizedScene {
-  id: string;
-  index: number;
-  time: string;
-  speaker: string;
-  speakerRole: string;
-  title: string;
-  narration: string;
-  keyTakeaways: string[];
-  visualCue: string;
-  chartType: 'curve' | 'network' | 'timeline' | 'structure' | 'comparison';
-  diagramData?: DiagramData;
-  durationSeconds: number;
-}
-
-interface FloatingEmoji {
-  id: number;
-  x: number;
-  y: number;
-  emoji: string;
-  vy: number;
-  vx: number;
-  alpha: number;
-  size: number;
-}
-
-interface AmbientParticle {
-  x: number;
-  y: number;
-  radius: number;
-  vx: number;
-  vy: number;
-  color: string;
-  alpha: number;
+  exam_profile?: any;
 }
 
 interface InteractiveVideoStudioProps {
@@ -76,228 +52,72 @@ interface InteractiveVideoStudioProps {
   onOpenCoach?: () => void;
 }
 
-// -------------------------------------------------------------
-// INTELLIGENT CONCEPT EXTRACTOR (100% GOUNDED IN NOTE CONTENT)
-// -------------------------------------------------------------
-function extractDynamicConcepts(scene: NormalizedScene, course: string | null, noteTitle: string) {
-  // 1. If AI generated explicit diagramData with nodes, prioritize it!
-  if (scene.diagramData?.nodes && scene.diagramData.nodes.length >= 2) {
-    return {
-      mainTitle: scene.diagramData.mainTitle || scene.title,
-      type: scene.diagramData.diagramType || 'network',
-      nodes: scene.diagramData.nodes.map(n => ({
-        label: n.label.replace(/^[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]+/, '').trim(),
-        subtext: n.subtext || '',
-      })),
-      metric: scene.diagramData.highlightMetric || scene.keyTakeaways[0] || '',
-    };
-  }
-
-  // 2. Extract concepts dynamically from keyTakeaways, title, visualCue & narration
-  const rawTerms: string[] = [];
-
-  // A) From Takeaways:
-  scene.keyTakeaways.forEach(tk => {
-    const clean = tk.replace(/^[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ]+/, '').trim();
-    const parts = clean.split(/[,:;.—–-]/);
-    if (parts[0] && parts[0].length >= 3) {
-      const words = parts[0].trim().split(' ').slice(0, 4).join(' ');
-      if (words.length <= 26) rawTerms.push(words);
-      else rawTerms.push(parts[0].trim().substring(0, 24));
-    }
-  });
-
-  // B) From Visual Cue:
-  if (scene.visualCue) {
-    const cueClean = scene.visualCue.replace(/^(görsel|şema|harita|tablo|grafik|önerisi)[:\s-]*/i, '').trim();
-    const cueParts = cueClean.split(/[,:;.—–-]/);
-    if (cueParts[0] && cueParts[0].length >= 3) {
-      rawTerms.push(cueParts[0].trim().split(' ').slice(0, 3).join(' '));
-    }
-  }
-
-  // C) From Title:
-  const titleParts = scene.title.split(/[,:;.—–-]|ve\s+/i).map(t => t.trim()).filter(t => t.length >= 3);
-  titleParts.forEach(tp => rawTerms.push(tp.split(' ').slice(0, 3).join(' ')));
-
-  // D) From Narration keywords if needed:
-  if (rawTerms.length < 4) {
-    const sentences = scene.narration.split(/[.?!]/).map(s => s.trim()).filter(s => s.length > 10);
-    sentences.forEach(s => {
-      const words = s.split(' ').slice(0, 3).join(' ');
-      if (words && !rawTerms.includes(words)) rawTerms.push(words);
-    });
-  }
-
-  // Deduplicate
-  const unique = Array.from(new Set(rawTerms.map(t => t.trim()))).filter(Boolean);
-
-  const finalNodes = unique.slice(0, 5).map(label => ({
-    label: label.length > 25 ? label.substring(0, 23) + '..' : label,
-    subtext: '',
-  }));
-
-  // Determine smart diagram type based on topic:
-  const textToCheck = `${course || ''} ${noteTitle} ${scene.title} ${scene.narration}`.toLowerCase();
-  let smartType: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve' = 'network';
-
-  if (textToCheck.includes('tarih') || textToCheck.includes('savaş') || textToCheck.includes('dönem') || textToCheck.includes('yüzyıl') || textToCheck.includes('kronoloji') || textToCheck.includes('yıl')) {
-    smartType = 'timeline';
-  } else if (textToCheck.includes('sistem') || textToCheck.includes('kurum') || textToCheck.includes('idari') || textToCheck.includes('örgüt') || textToCheck.includes('teşkilat')) {
-    smartType = 'structure';
-  } else if (textToCheck.includes('kıyas') || textToCheck.includes('karşılaştır') || textToCheck.includes('fark') || textToCheck.includes('oran') || textToCheck.includes('pay')) {
-    smartType = 'comparison';
-  } else if (textToCheck.includes('arz') && textToCheck.includes('talep')) {
-    smartType = 'curve';
-  }
-
-  return {
-    mainTitle: scene.title,
-    type: smartType,
-    nodes: finalNodes.length >= 2 ? finalNodes : [
-      { label: scene.title.substring(0, 20), subtext: '' },
-      { label: course || 'Ders Analizi', subtext: '' },
-      { label: 'Kritik Bilgi', subtext: '' },
-      { label: 'Sınav Notu', subtext: '' },
-    ],
-    metric: scene.keyTakeaways[0] || scene.visualCue || '',
-  };
-}
-
 export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   material,
   onClose,
   onReport,
-  onOpenCoach
 }) => {
-  const content = material.content || {};
-  const rawScenes = Array.isArray(content.scenes) ? content.scenes : [];
-  const videoTitle = content.podcastTitle || content.videoTitle || material.title || 'Animasyonlu Ders Dersi';
-  const outline = content.outline || 'Ders notundaki kritik kavramların animasyonlu ikili anlatımı.';
-  const suggestedSearches: string[] = Array.isArray(content.suggestedSearches) ? content.suggestedSearches : [];
+  // 1. Model data
+  const studio = useMemo<StudioContent>(() => {
+    return buildStudioContent(material.content, material.title);
+  }, [material.content, material.title]);
 
-  // Normalize scenes
-  const scenes: NormalizedScene[] = useMemo(() => {
-    if (rawScenes.length === 0) {
-      return [{
-        id: 'scene-0',
-        index: 0,
-        time: '00:00',
-        speaker: 'Deniz',
-        speakerRole: 'Akademik Anlatıcı',
-        title: 'Giriş ve Genel Bakış',
-        narration: outline,
-        keyTakeaways: ['Ders notu kavramları animasyonla inceleniyor', 'Önemli sınav noktaları ve grafikler gösteriliyor'],
-        visualCue: 'Kavram Haritası ve Başlıklar',
-        chartType: 'network',
-        durationSeconds: 10,
-      }];
-    }
+  const { scenes, totalDurationSec, keyFacts, searches } = studio;
 
-    return rawScenes.map((s: any, idx: number) => {
-      const isEven = idx % 2 === 0;
-      const speakerName = s.speaker || (isEven ? 'Deniz' : 'Barış');
-      const speakerRole = s.speakerRole || (isEven ? 'Akademik Anlatıcı' : 'Sorgulayıcı & Özetleyen');
-      const text = s.narration || s.title || '';
-      const calculatedDuration = Math.max(6, Math.min(28, Math.round(text.length / 13)));
-
-      let takeaways: string[] = Array.isArray(s.keyTakeaways) ? s.keyTakeaways.filter(Boolean) : [];
-      if (takeaways.length === 0) {
-        if (s.visualCue) takeaways.push(s.visualCue);
-        const sentences = text.split(/[.?!]/).map((st: string) => st.trim()).filter((st: string) => st.length > 15);
-        if (sentences.length > 0) takeaways.push(sentences[0]);
-      }
-
-      return {
-        id: `scene-${idx}`,
-        index: idx,
-        time: s.time || `${Math.floor((idx * 15) / 60).toString().padStart(2, '0')}:${((idx * 15) % 60).toString().padStart(2, '0')}`,
-        speaker: speakerName,
-        speakerRole,
-        title: s.title || `Bölüm ${idx + 1}`,
-        narration: text,
-        keyTakeaways: takeaways.slice(0, 3),
-        visualCue: s.visualCue || 'Animasyonlu Tahta ve Grafik Çizimi',
-        chartType: (s.diagramData?.diagramType || 'network') as any,
-        diagramData: s.diagramData,
-        durationSeconds: calculatedDuration,
-      };
-    });
-  }, [rawScenes, outline]);
-
-  // Total duration in seconds
-  const totalDuration = useMemo(() => {
-    return scenes.reduce((acc, s) => acc + s.durationSeconds, 0);
-  }, [scenes]);
-
-  // Playback state
+  // 2. Playback state
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [elapsedSceneTime, setElapsedSceneTime] = useState(0);
-  const [manualChartMode, setManualChartMode] = useState<'auto' | 'network' | 'timeline' | 'structure' | 'comparison' | 'curve'>('auto');
+  const [showSubtitles, setShowSubtitles] = useState(true);
+  const [hasStartedOnce, setHasStartedOnce] = useState(false);
 
-  // Interactive reaction counters
-  const [reactions, setReactions] = useState<{ [key: string]: number }>({
-    '🔥': 42,
-    '💡': 68,
-    '🧠': 51,
-    '🎯': 89,
-    '🚀': 37,
+  // 3. UI state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'notes' | 'terms' | 'playlist' | 'facts' | 'coach'>('notes');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [copiedNote, setCopiedNote] = useState<string | null>(null);
+
+  // 4. Reactions
+  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({
+    '🔥': 124,
+    '💡': 89,
+    '🧠': 67,
+    '🎯': 142,
+    '🚀': 53,
   });
+  const floatingReactionsRef = useRef<FloatingReaction[]>([]);
 
-  // Export modal state
+  // 5. Export MP4 state
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportStatusText, setExportStatusText] = useState('');
 
-  // Floating emojis and particles ref
-  const floatingEmojisRef = useRef<FloatingEmoji[]>([]);
-  const particlesRef = useRef<AmbientParticle[]>([]);
+  // 6. In-studio AI Coach state
+  const [coachMessages, setCoachMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
+    {
+      role: 'assistant',
+      content: `Merhaba! Ben bu dersin Yapay Zekâ Akıl Hocasıyım. **${material.title}** videosunu izlerken Deniz ve Barış'ın anlattığı herhangi bir kavramı, tarihi veya formülü bana sorabilirsin.`
+    }
+  ]);
+  const [coachInput, setCoachInput] = useState('');
+  const [coachLoading, setCoachLoading] = useState(false);
+  const coachEndRef = useRef<HTMLDivElement>(null);
 
-  // Canvas ref & animation
+  // 7. Refs
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
+  const animFrameRef = useRef<number | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
   const lastTickRef = useRef<number>(Date.now());
   const activeSceneIndexRef = useRef(activeSceneIndex);
   activeSceneIndexRef.current = activeSceneIndex;
 
-  const currentScene = scenes[activeSceneIndex] || scenes[0];
-  const dynamicConceptData = useMemo(() => {
-    return extractDynamicConcepts(currentScene, material.course, material.title);
-  }, [currentScene, material.course, material.title]);
+  const currentScene: StudioScene = scenes[activeSceneIndex] || scenes[0];
 
-  const activeChart = manualChartMode === 'auto' ? dynamicConceptData.type : manualChartMode;
-
-  // Initialize ambient drifting particles once
-  useEffect(() => {
-    const parts: AmbientParticle[] = [];
-    const colors = ['#06b6d4', '#3b82f6', '#f43f5e', '#a855f7', '#38bdf8', '#10b981'];
-    for (let i = 0; i < 40; i++) {
-      parts.push({
-        x: Math.random() * 1280,
-        y: Math.random() * 720,
-        radius: 1.5 + Math.random() * 3,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: (Math.random() - 0.5) * 0.5,
-        color: colors[Math.floor(Math.random() * colors.length)],
-        alpha: 0.15 + Math.random() * 0.35,
-      });
-    }
-    particlesRef.current = parts;
-  }, []);
-
-  // Helper to format MM:SS
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-  // Fun sound chime using Web Audio API
-  const playSoundEffect = useCallback((type: 'chime' | 'pop' = 'pop') => {
+  // Sound effect generator for reactions and scene changes
+  const playSound = useCallback((type: 'pop' | 'chime' = 'pop') => {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
@@ -306,49 +126,45 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       const gain = ctx.createGain();
 
       if (type === 'pop') {
-        osc.frequency.setValueAtTime(520, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(920, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.13);
-      } else if (type === 'chime') {
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08); // A5
+        osc.frequency.setValueAtTime(500, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.08);
         gain.gain.setValueAtTime(0.06, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.start();
-        osc.stop(ctx.currentTime + 0.32);
+        osc.stop(ctx.currentTime + 0.11);
+      } else {
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.09);
+        gain.gain.setValueAtTime(0.05, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.26);
       }
     } catch {
       // AudioContext fallback
     }
   }, []);
 
-  // Trigger interactive floating emoji
+  // Add interactive reaction
   const addReaction = (emoji: string) => {
-    playSoundEffect('pop');
-    setReactions(prev => ({ ...prev, [emoji]: (prev[emoji] || 0) + 1 }));
-
-    for (let i = 0; i < 4; i++) {
-      floatingEmojisRef.current.push({
+    playSound('pop');
+    setReactionCounts(prev => ({ ...prev, [emoji]: (prev[emoji] || 0) + 1 }));
+    for (let i = 0; i < 3; i++) {
+      floatingReactionsRef.current.push({
         id: Date.now() + Math.random(),
-        x: 580 + (Math.random() - 0.5) * 360,
-        y: 650 + Math.random() * 40,
         emoji,
-        vy: -3 - Math.random() * 2.5,
-        vx: (Math.random() - 0.5) * 2,
-        alpha: 1.0,
-        size: 28 + Math.random() * 14,
+        x: STAGE_W / 2 + (Math.random() - 0.5) * 380,
+        born: Date.now(),
+        drift: (Math.random() - 0.5) * 2,
       });
     }
   };
 
-  // Speech synthesis for active scene with distinct voice pitch
+  // Speech synthesis for current scene
   const playSpeechForScene = useCallback((index: number) => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
@@ -357,10 +173,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     const scene = scenes[index];
     if (!scene) return;
 
-    const isHostBaris = scene.speaker.toLowerCase().includes('barış');
+    const isHostBaris = scene.speaker === 'Barış';
     const utterance = new SpeechSynthesisUtterance(scene.narration);
     utterance.lang = 'tr-TR';
-    utterance.pitch = isHostBaris ? 0.88 : 1.15;
+    utterance.pitch = isHostBaris ? 0.90 : 1.15;
     utterance.rate = (isHostBaris ? 0.98 : 1.0) * playbackSpeed;
 
     const voices = window.speechSynthesis.getVoices();
@@ -373,7 +189,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
     utterance.onend = () => {
       if (index + 1 < scenes.length) {
-        playSoundEffect('chime');
+        playSound('chime');
         setActiveSceneIndex(index + 1);
         setElapsedSceneTime(0);
         playSpeechForScene(index + 1);
@@ -381,13 +197,13 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         setIsPlaying(false);
         setActiveSceneIndex(0);
         setElapsedSceneTime(0);
-        toast.success('🎉 Animasyonlu video dersi tamamlandı!');
+        toast.success('🎉 Video dersi başarıyla tamamlandı!');
       }
     };
 
     speechRef.current = utterance;
     window.speechSynthesis.speak(utterance);
-  }, [scenes, isMuted, playbackSpeed, playSoundEffect]);
+  }, [scenes, isMuted, playbackSpeed, playSound]);
 
   const stopSpeech = useCallback(() => {
     if ('speechSynthesis' in window) {
@@ -396,8 +212,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     speechRef.current = null;
   }, []);
 
-  // Handle Play/Pause
   const togglePlay = () => {
+    setHasStartedOnce(true);
     if (isPlaying) {
       setIsPlaying(false);
       stopSpeech();
@@ -407,899 +223,81 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
   };
 
-  // Skip to specific scene
   const goToScene = (index: number) => {
     const nextIdx = Math.max(0, Math.min(scenes.length - 1, index));
     stopSpeech();
     setActiveSceneIndex(nextIdx);
     setElapsedSceneTime(0);
-    playSoundEffect('chime');
+    playSound('chime');
     if (isPlaying) {
       playSpeechForScene(nextIdx);
     }
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
+  const seekRelative = (sec: number) => {
+    const newTime = Math.max(0, Math.min(currentScene.durationSec, elapsedSceneTime + sec));
+    setElapsedSceneTime(newTime);
+    if (isPlaying) {
       stopSpeech();
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      playSpeechForScene(activeSceneIndex);
+    }
+  };
+
+  // Fullscreen handler
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
     };
-  }, [stopSpeech]);
-
-  // ==========================================
-  // MASTER VECTOR DRAWING FUNCTIONS FOR CANVAS
-  // ==========================================
-
-  // 1. Draw Animated Character: DENİZ (Left Analyst with glasses, stylus & laser pointer)
-  const drawDenizCharacter = (
-    ctx: CanvasRenderingContext2D,
-    baseX: number,
-    baseY: number,
-    isSpeaking: boolean,
-    now: number,
-    targetLaserX: number,
-    targetLaserY: number
-  ) => {
-    ctx.save();
-    const breathing = Math.sin(now / 450) * 3;
-    const speakingBounce = isSpeaking ? Math.sin(now / 120) * 2.5 : 0;
-    const y = baseY + breathing + speakingBounce;
-    const x = baseX;
-
-    if (isSpeaking) {
-      const auraGrad = ctx.createRadialGradient(x + 60, y + 80, 10, x + 60, y + 80, 150);
-      auraGrad.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
-      auraGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = auraGrad;
-      ctx.beginPath();
-      ctx.arc(x + 60, y + 80, 150, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Torso / Smart Navy Blazer
-    ctx.fillStyle = '#0f2744';
-    ctx.beginPath();
-    ctx.roundRect(x + 20, y + 105, 80, 140, [24, 24, 4, 4]);
-    ctx.fill();
-
-    // Inner White Shirt & Tie
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(x + 48, y + 105);
-    ctx.lineTo(x + 60, y + 140);
-    ctx.lineTo(x + 72, y + 105);
-    ctx.closePath();
-    ctx.fill();
-
-    // Cyan Tie
-    ctx.fillStyle = '#06b6d4';
-    ctx.beginPath();
-    ctx.moveTo(x + 58, y + 115);
-    ctx.lineTo(x + 62, y + 115);
-    ctx.lineTo(x + 65, y + 155);
-    ctx.lineTo(x + 60, y + 165);
-    ctx.lineTo(x + 55, y + 155);
-    ctx.closePath();
-    ctx.fill();
-
-    // Neck
-    ctx.fillStyle = '#fbcfe8';
-    ctx.fillRect(x + 48, y + 82, 24, 26);
-
-    // Head / Face
-    ctx.fillStyle = '#fde2e4';
-    ctx.beginPath();
-    ctx.roundRect(x + 30, y + 25, 60, 68, 28);
-    ctx.fill();
-
-    // Hair
-    ctx.fillStyle = '#261c14';
-    ctx.beginPath();
-    ctx.arc(x + 60, y + 36, 36, Math.PI, Math.PI * 2);
-    ctx.roundRect(x + 24, y + 26, 72, 28, 14);
-    ctx.fill();
-
-    // Glasses
-    ctx.strokeStyle = '#06b6d4';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(x + 36, y + 46, 20, 15);
-    ctx.strokeRect(x + 64, y + 46, 20, 15);
-    ctx.beginPath();
-    ctx.moveTo(x + 56, y + 53);
-    ctx.lineTo(x + 64, y + 53);
-    ctx.stroke();
-
-    // Eyes
-    const isBlinking = (now % 3500) < 180;
-    if (isBlinking) {
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(x + 40, y + 54);
-      ctx.lineTo(x + 52, y + 54);
-      ctx.moveTo(x + 68, y + 54);
-      ctx.lineTo(x + 80, y + 54);
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = '#1e293b';
-      ctx.beginPath();
-      ctx.arc(x + 48, y + 54, 4, 0, Math.PI * 2);
-      ctx.arc(x + 76, y + 54, 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(x + 49, y + 52, 1.5, 0, Math.PI * 2);
-      ctx.arc(x + 77, y + 52, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Mouth
-    if (isSpeaking) {
-      const mouthOpen = 3 + Math.abs(Math.sin(now / 90)) * 8;
-      ctx.fillStyle = '#991b1b';
-      ctx.beginPath();
-      ctx.ellipse(x + 60, y + 74, 9, mouthOpen, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x + 54, y + 74 - mouthOpen + 1, 12, 3);
-    } else {
-      ctx.strokeStyle = '#991b1b';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x + 60, y + 70, 7, 0.2, Math.PI - 0.2);
-      ctx.stroke();
-    }
-
-    // Right Arm pointing glowing digital stylus towards the board
-    ctx.strokeStyle = '#0f2744';
-    ctx.lineWidth = 14;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x + 88, y + 130);
-    const handX = x + 160;
-    const handY = y + 100;
-    ctx.lineTo(handX, handY);
-    ctx.stroke();
-
-    ctx.fillStyle = '#fde2e4';
-    ctx.beginPath();
-    ctx.arc(handX, handY, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Stylus pen
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(handX, handY);
-    ctx.lineTo(handX + 30, handY - 15);
-    ctx.stroke();
-
-    // Laser beam to target node on board
-    if (isSpeaking) {
-      ctx.strokeStyle = 'rgba(6, 182, 212, 0.65)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.beginPath();
-      ctx.moveTo(handX + 30, handY - 15);
-      ctx.lineTo(targetLaserX, targetLaserY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = '#38bdf8';
-      ctx.beginPath();
-      ctx.arc(targetLaserX, targetLaserY, 5 + Math.sin(now / 100) * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Name Tag Badge Below Deniz
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.strokeStyle = isSpeaking ? '#06b6d4' : 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(x + 10, y + 252, 100, 32, 16);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Deniz 🎓', x + 60, y + 272);
-
-    ctx.restore();
-  };
-
-  // 2. Draw Animated Character: BARIŞ (Right Inquirer with hoodie, headphones & gestures)
-  const drawBarisCharacter = (
-    ctx: CanvasRenderingContext2D,
-    baseX: number,
-    baseY: number,
-    isSpeaking: boolean,
-    now: number
-  ) => {
-    ctx.save();
-    const breathing = Math.sin((now + 300) / 450) * 3;
-    const speakingBounce = isSpeaking ? Math.sin(now / 110) * 2.5 : 0;
-    const y = baseY + breathing + speakingBounce;
-    const x = baseX;
-
-    if (isSpeaking) {
-      const auraGrad = ctx.createRadialGradient(x + 60, y + 80, 10, x + 60, y + 80, 150);
-      auraGrad.addColorStop(0, 'rgba(244, 63, 94, 0.4)');
-      auraGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = auraGrad;
-      ctx.beginPath();
-      ctx.arc(x + 60, y + 80, 150, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Torso / Crimson Hoodie
-    ctx.fillStyle = '#881337';
-    ctx.beginPath();
-    ctx.roundRect(x + 20, y + 105, 80, 140, [24, 24, 4, 4]);
-    ctx.fill();
-
-    ctx.strokeStyle = '#f43f5e';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(x + 50, y + 115);
-    ctx.lineTo(x + 50, y + 145);
-    ctx.moveTo(x + 70, y + 115);
-    ctx.lineTo(x + 70, y + 145);
-    ctx.stroke();
-
-    // Neck
-    ctx.fillStyle = '#fed7aa';
-    ctx.fillRect(x + 48, y + 82, 24, 26);
-
-    // Head / Face
-    ctx.fillStyle = '#ffedd5';
-    ctx.beginPath();
-    ctx.roundRect(x + 30, y + 25, 60, 68, 28);
-    ctx.fill();
-
-    // Hair
-    ctx.fillStyle = '#3f2212';
-    ctx.beginPath();
-    ctx.arc(x + 60, y + 36, 36, Math.PI * 0.9, Math.PI * 2.1);
-    ctx.roundRect(x + 22, y + 18, 76, 32, 16);
-    ctx.fill();
-
-    // Headphones
-    ctx.strokeStyle = '#f43f5e';
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.arc(x + 60, y + 42, 38, Math.PI * 1.1, Math.PI * 1.9);
-    ctx.stroke();
-
-    ctx.fillStyle = '#f43f5e';
-    ctx.beginPath();
-    ctx.roundRect(x + 20, y + 40, 12, 26, 6);
-    ctx.roundRect(x + 88, y + 40, 12, 26, 6);
-    ctx.fill();
-
-    // Eyes
-    const isBlinking = ((now + 800) % 4200) < 180;
-    if (isBlinking) {
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(x + 40, y + 54);
-      ctx.lineTo(x + 52, y + 54);
-      ctx.moveTo(x + 68, y + 54);
-      ctx.lineTo(x + 80, y + 54);
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = '#1e293b';
-      ctx.beginPath();
-      ctx.arc(x + 44, y + 54, 4, 0, Math.PI * 2);
-      ctx.arc(x + 72, y + 54, 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(x + 43, y + 52, 1.5, 0, Math.PI * 2);
-      ctx.arc(x + 71, y + 52, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Mouth
-    if (isSpeaking) {
-      const mouthOpen = 3 + Math.abs(Math.sin(now / 95)) * 8;
-      ctx.fillStyle = '#881337';
-      ctx.beginPath();
-      ctx.ellipse(x + 60, y + 74, 9, mouthOpen, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(x + 54, y + 74 - mouthOpen + 1, 12, 3);
-    } else {
-      ctx.strokeStyle = '#881337';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x + 60, y + 70, 6, 0.2, Math.PI - 0.2);
-      ctx.stroke();
-    }
-
-    // Left Arm Gesturing in thought
-    ctx.strokeStyle = '#881337';
-    ctx.lineWidth = 14;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x + 32, y + 130);
-    const questionSway = isSpeaking ? Math.sin(now / 200) * 15 : 0;
-    const handX = x - 35;
-    const handY = y + 120 + questionSway;
-    ctx.lineTo(handX, handY);
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffedd5';
-    ctx.beginPath();
-    ctx.arc(handX, handY, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Thought/Question Bubble when Barış talks
-    if (isSpeaking) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(244, 63, 94, 0.25)';
-      ctx.strokeStyle = '#f43f5e';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(x - 20, y - 28, 55, 30, 12);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.font = '16px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('💡❓', x + 7, y - 8);
-      ctx.restore();
-    }
-
-    // Name Tag
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.strokeStyle = isSpeaking ? '#f43f5e' : 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(x + 10, y + 252, 100, 32, 16);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('Barış 💡', x + 60, y + 272);
-
-    ctx.restore();
-  };
-
-  // 3. Draw 100% Dynamic Smartboard Graphics (Zero Hardcoding!)
-  const drawDynamicChart = (
-    ctx: CanvasRenderingContext2D,
-    type: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve',
-    cx: number,
-    cy: number,
-    cw: number,
-    ch: number,
-    now: number,
-    scene: NormalizedScene,
-    concepts: { mainTitle: string; type: string; nodes: { label: string; subtext?: string }[]; metric: string }
-  ) => {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(cx, cy, cw, ch);
-    ctx.clip();
-
-    const nodes = concepts.nodes;
-
-    if (type === 'timeline') {
-      // -------------------------------------------------------------------
-      // 1. KRONOLOJİ & TARİHSEL SÜREÇ ÇİZELGESİ (History, Evolution, Steps)
-      // -------------------------------------------------------------------
-      const stepCount = Math.min(nodes.length, 4);
-      const startX = cx + 50;
-      const stepW = (cw - 100) / Math.max(1, stepCount - 1);
-      const lineY = cy + ch / 2 - 10;
-
-      // Glowing Horizontal Line
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(startX, lineY);
-      ctx.lineTo(startX + (stepCount - 1) * stepW, lineY);
-      ctx.stroke();
-
-      // Animated Laser Pulse on timeline
-      const pulseT = ((now / 1500) % 1);
-      const pulseX = startX + (stepCount - 1) * stepW * pulseT;
-      ctx.fillStyle = '#38bdf8';
-      ctx.shadowColor = '#38bdf8';
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(pulseX, lineY, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Draw Steps
-      nodes.slice(0, stepCount).forEach((nd, i) => {
-        const sx = startX + i * stepW;
-        const isCurrent = i === Math.floor(pulseT * stepCount);
-
-        // Step Circle
-        ctx.fillStyle = isCurrent ? '#06b6d4' : '#1e293b';
-        ctx.strokeStyle = isCurrent ? '#38bdf8' : 'rgba(255, 255, 255, 0.3)';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(sx, lineY, 18, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 11px font-mono, monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${i + 1}`, sx, lineY);
-
-        // Milestone Label Card
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-        ctx.strokeStyle = isCurrent ? '#06b6d4' : 'rgba(255, 255, 255, 0.12)';
-        ctx.lineWidth = 1;
-        const cardY = i % 2 === 0 ? lineY - 65 : lineY + 30;
-        ctx.beginPath();
-        ctx.roundRect(sx - 65, cardY, 130, 36, 10);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = isCurrent ? '#38bdf8' : '#f1f5f9';
-        ctx.font = 'bold 11px Inter, sans-serif';
-        ctx.fillText(nd.label, sx, cardY + 18);
-      });
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-
-    } else if (type === 'structure') {
-      // -------------------------------------------------------------------
-      // 2. KURUMSAL YAPI & HİYERARŞİ (Organizations, Institutions, Law)
-      // -------------------------------------------------------------------
-      const centerX = cx + cw / 2;
-      const topY = cy + 40;
-
-      // Top Central Authority Node
-      const rootLabel = concepts.mainTitle.length > 24 ? concepts.mainTitle.substring(0, 22) + '..' : concepts.mainTitle;
-      ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(centerX - 100, topY, 200, 42, 14);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 13px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`🏛️ ${rootLabel}`, centerX, topY + 26);
-
-      // Child Institutional Nodes
-      const children = nodes.slice(0, 4);
-      const childCount = children.length;
-      const childW = 120;
-      const spacing = (cw - 60) / childCount;
-
-      children.forEach((nd, ci) => {
-        const cX = cx + 30 + ci * spacing + spacing / 2;
-        const cY = topY + 110;
-
-        // Connecting Conduit Line
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(centerX, topY + 42);
-        ctx.lineTo(cX, cY);
-        ctx.stroke();
-
-        // Node Box
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.roundRect(cX - childW / 2, cY, childW, 46, 10);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = '#38bdf8';
-        ctx.font = 'bold 11px Inter, sans-serif';
-        ctx.fillText(nd.label, cX, cY + 22);
-
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '10px Inter, sans-serif';
-        ctx.fillText(`Bölüm ${ci + 1}`, cX, cY + 36);
-      });
-      ctx.textAlign = 'left';
-
-    } else if (type === 'comparison') {
-      // -------------------------------------------------------------------
-      // 3. KARŞILAŞTIRMA & FAKTÖR ÇUBUKLARI (Real concepts from note!)
-      // -------------------------------------------------------------------
-      const items = nodes.slice(0, 4);
-      const barCount = items.length;
-      const bW = (cw - 80) / barCount - 25;
-      const colors = [
-        ['#06b6d4', '#3b82f6'],
-        ['#10b981', '#059669'],
-        ['#f59e0b', '#d97706'],
-        ['#f43f5e', '#be123c'],
-      ];
-
-      for (let b = 0; b < barCount; b++) {
-        const bX = cx + 50 + b * (bW + 25);
-        const dynamicH = (ch - 85) * (0.5 + 0.4 * Math.sin(now / 500 + b * 0.8));
-        const bY = cy + ch - 40 - dynamicH;
-
-        const bGrad = ctx.createLinearGradient(0, bY, 0, cy + ch - 40);
-        bGrad.addColorStop(0, colors[b % colors.length][0]);
-        bGrad.addColorStop(1, colors[b % colors.length][1]);
-        ctx.fillStyle = bGrad;
-        ctx.beginPath();
-        ctx.roundRect(bX, bY, bW, dynamicH, [10, 10, 2, 2]);
-        ctx.fill();
-
-        // Label above (Real Term!)
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 11px Inter, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(items[b].label, bX + bW / 2, bY - 10);
-
-        // Footnote
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = '10px font-mono, monospace';
-        ctx.fillText(`Faktör #${b + 1}`, bX + bW / 2, cy + ch - 18);
-      }
-      ctx.textAlign = 'left';
-
-    } else {
-      // -------------------------------------------------------------------
-      // 4. KAVRAM AĞI / ZİHİN HARİTASI (Real Extracted Terms!)
-      // -------------------------------------------------------------------
-      const centerX = cx + cw / 2;
-      const centerY = cy + ch / 2 - 15;
-
-      const centerLabel = concepts.mainTitle.length > 22 ? concepts.mainTitle.substring(0, 20) + '..' : concepts.mainTitle;
-
-      // Center Core Node
-      ctx.fillStyle = 'rgba(6, 182, 212, 0.28)';
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 2.5;
-      ctx.shadowColor = '#06b6d4';
-      ctx.shadowBlur = 16;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, 42, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 11px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(centerLabel, centerX, centerY);
-
-      // Orbiting Concept Nodes (4-5 real terms from this note!)
-      const satNodes = nodes.slice(0, 5);
-      const satCount = satNodes.length;
-
-      satNodes.forEach((nd, i) => {
-        const angle = (i * (2 * Math.PI / satCount)) - (Math.PI / 2);
-        const radiusDist = 135 + Math.sin(now / 400 + i) * 6;
-        const nx = centerX + Math.cos(angle) * radiusDist;
-        const ny = centerY + Math.sin(angle) * (radiusDist * 0.75);
-
-        // Connecting laser wire
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY);
-        ctx.lineTo(nx, ny);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Light energy packet
-        const packetT = ((now / 600) + i * 0.2) % 1;
-        const pkX = centerX + (nx - centerX) * packetT;
-        const pkY = centerY + (ny - centerY) * packetT;
-        ctx.fillStyle = '#38bdf8';
-        ctx.beginPath();
-        ctx.arc(pkX, pkY, 4, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Node Circle
-        const nodeColors = ['#f59e0b', '#f43f5e', '#10b981', '#8b5cf6', '#3b82f6'];
-        const col = nodeColors[i % nodeColors.length];
-
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-        ctx.strokeStyle = col;
-        ctx.lineWidth = 2;
-        ctx.shadowColor = col;
-        ctx.shadowBlur = 10;
-        ctx.beginPath();
-        ctx.arc(nx, ny, 30, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-
-        // Text inside node
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 9px Inter, sans-serif';
-        ctx.fillText(nd.label, nx, ny);
-      });
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'alphabetic';
-    }
-
-    ctx.restore();
-  };
-
-  // 4. Draw Full Central Smartboard Stage
-  const drawSmartboard = (
-    ctx: CanvasRenderingContext2D,
-    bx: number,
-    by: number,
-    bw: number,
-    bh: number,
-    scene: NormalizedScene,
-    sceneIdx: number,
-    totalScenes: number,
-    activeChartType: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve',
-    now: number,
-    concepts: { mainTitle: string; type: string; nodes: { label: string; subtext?: string }[]; metric: string }
-  ) => {
-    ctx.save();
-
-    // Outer Bezel / Glowing Frame
-    ctx.fillStyle = 'rgba(10, 15, 28, 0.94)';
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 20);
-    ctx.fill();
-    ctx.stroke();
-
-    // Top Smartboard Status Bar
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    ctx.beginPath();
-    ctx.roundRect(bx, by, bw, 42, [20, 20, 0, 0]);
-    ctx.fill();
-
-    // Red Recording Indicator on board
-    ctx.fillStyle = '#06b6d4';
-    ctx.beginPath();
-    ctx.arc(bx + 26, by + 21, 6, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 12px "Space Grotesk", sans-serif';
-    ctx.fillText(`AKILLI TAHTA · ${scene.title}`, bx + 40, by + 25);
-
-    // Chart mode pill (Top Right of board)
-    const chartLabels = {
-      network: '🧠 KAVRAM VE KURUM AĞI',
-      timeline: '⏳ TARİHSEL SÜREÇ / KRONOLOJİ',
-      structure: '🏛️ KURUMSAL VE İDARİ YAPI',
-      comparison: '📊 KARŞILAŞTIRMALI ANALİZ',
-      curve: '📈 İKTİSADİ EĞRİ',
-    };
-    ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
-    ctx.beginPath();
-    ctx.roundRect(bx + bw - 210, by + 10, 195, 24, 12);
-    ctx.fill();
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = 'bold 10px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(chartLabels[activeChartType] || '🧠 KAVRAM HARİTASI', bx + bw - 112, by + 26);
-    ctx.textAlign = 'left';
-
-    // Draw the dynamic animated graphic chart
-    drawDynamicChart(ctx, activeChartType, bx + 15, by + 50, bw - 30, bh - 110, now, scene, concepts);
-
-    // Bottom Takeaways Ticker inside Board
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.beginPath();
-    ctx.roundRect(bx + 15, by + bh - 55, bw - 30, 42, 12);
-    ctx.fill();
-
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = 'bold 12px Inter, sans-serif';
-    ctx.fillText('🎯 Sınav Notu: ', bx + 30, by + bh - 28);
-
-    const firstPoint = scene.keyTakeaways[0] || scene.visualCue || scene.title;
-    ctx.fillStyle = '#f1f5f9';
-    ctx.font = '12px Inter, sans-serif';
-    const truncatedNote = firstPoint.length > 70 ? firstPoint.substring(0, 67) + '...' : firstPoint;
-    ctx.fillText(truncatedNote, bx + 115, by + bh - 28);
-
-    ctx.restore();
-  };
-
-  // Master Frame Drawing Function
-  const drawFrame = useCallback((
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    scene: NormalizedScene,
-    sceneIdx: number,
-    totalScenes: number,
-    timeSecs: number,
-    playing: boolean,
-    courseName: string,
-    mainTitle: string,
-    chartType: 'network' | 'timeline' | 'structure' | 'comparison' | 'curve',
-    particles: AmbientParticle[],
-    emojis: FloatingEmoji[],
-    concepts: { mainTitle: string; type: string; nodes: { label: string; subtext?: string }[]; metric: string }
-  ) => {
-    const isDenizActive = !scene.speaker.toLowerCase().includes('barış');
-    const now = Date.now();
-
-    // 1. Futuristic Cyber-Studio Background
-    const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-    bgGrad.addColorStop(0, '#040711');
-    bgGrad.addColorStop(0.5, '#080d22');
-    bgGrad.addColorStop(1, '#03050d');
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, width, height);
-
-    // 2. Animated Ambient Floating Particles
-    particles.forEach(p => {
-      p.x += p.vx;
-      p.y += p.vy;
-      if (p.x < 0) p.x = width;
-      if (p.x > width) p.x = 0;
-      if (p.y < 0) p.y = height;
-      if (p.y > height) p.y = 0;
-
-      ctx.save();
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = p.alpha + 0.1 * Math.sin(now / 500 + p.x);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // 3. Top Header Bar
-    ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(30, 16, 380, 40, 20);
-    ctx.fill();
-    ctx.stroke();
-
-    const dotPulse = playing ? 0.7 + 0.3 * Math.sin(now / 180) : 0.8;
-    ctx.fillStyle = `rgba(239, 68, 68, ${dotPulse})`;
-    ctx.beginPath();
-    ctx.arc(52, 36, 7, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px "Space Grotesk", Inter, sans-serif';
-    ctx.fillText('ECONNOTES CANLI ANİMASYONLU STÜDYO', 70, 40);
-
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = 'bold 13px Inter, sans-serif';
-    ctx.fillText(`${courseName || 'Ders Notu'} · Sahne ${sceneIdx + 1}/${totalScenes}`, width - 35, 34);
-
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = '11px font-mono, monospace';
-    ctx.fillText('HD 1080P · DİNAMİK GRAFİK MOTORU', width - 35, 50);
-    ctx.restore();
-
-    // 4. Center Stage: Central Smartboard (x: 230 to 1050, y: 72 to 520)
-    const boardX = 230;
-    const boardY = 72;
-    const boardW = width - 460;
-    const boardH = 450;
-    drawSmartboard(ctx, boardX, boardY, boardW, boardH, scene, sceneIdx, totalScenes, chartType, now, concepts);
-
-    // 5. Left Stage: Animated Character DENİZ (x = 35, y = 140)
-    const laserTargetX = boardX + 160;
-    const laserTargetY = boardY + 180;
-    drawDenizCharacter(ctx, 35, 140, isDenizActive && playing, now, laserTargetX, laserTargetY);
-
-    // 6. Right Stage: Animated Character BARIŞ (x = width - 160, y = 140)
-    drawBarisCharacter(ctx, width - 165, 140, !isDenizActive && playing, now);
-
-    // 7. Kinetic Karaoke Subtitles (Bottom: y = 535 to 695)
-    ctx.save();
-    const subX = 50;
-    const subY = 535;
-    const subW = width - 100;
-    const subH = 158;
-
-    ctx.fillStyle = 'rgba(7, 11, 22, 0.96)';
-    ctx.strokeStyle = isDenizActive ? 'rgba(6, 182, 212, 0.5)' : 'rgba(244, 63, 94, 0.5)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(subX, subY, subW, subH, 20);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = isDenizActive ? '#06b6d4' : '#f43f5e';
-    ctx.font = 'bold 15px Inter, sans-serif';
-    ctx.fillText(`🎙️ ${scene.speaker.toUpperCase()} (${scene.speakerRole}):`, subX + 28, subY + 34);
-
-    const words = scene.narration.split(' ');
-    const totalWords = words.length;
-    const spokenProgressRatio = Math.min(1.0, timeSecs / Math.max(1, scene.durationSeconds));
-    const currentSpokenWordIndex = Math.floor(spokenProgressRatio * totalWords);
-
-    let curX = subX + 28;
-    let curY = subY + 70;
-    const lineHeight = 30;
-    const maxLineRight = subX + subW - 35;
-
-    ctx.font = '18px Inter, sans-serif';
-    words.forEach((w, wIdx) => {
-      const wordMetrics = ctx.measureText(w + ' ');
-      if (curX + wordMetrics.width > maxLineRight) {
-        curX = subX + 28;
-        curY += lineHeight;
-      }
-
-      if (curY < subY + subH - 12) {
-        if (wIdx <= currentSpokenWordIndex && playing) {
-          ctx.fillStyle = isDenizActive ? '#38bdf8' : '#fb7185';
-          ctx.font = 'bold 18px Inter, sans-serif';
-        } else {
-          ctx.fillStyle = '#e2e8f0';
-          ctx.font = '18px Inter, sans-serif';
-        }
-        ctx.fillText(w, curX, curY);
-        curX += wordMetrics.width;
-      }
-    });
-    ctx.restore();
-
-    // 8. Floating Interactive Emojis
-    for (let i = emojis.length - 1; i >= 0; i--) {
-      const em = emojis[i];
-      em.y += em.vy;
-      em.x += em.vx;
-      em.alpha -= 0.015;
-
-      if (em.alpha <= 0 || em.y < 50) {
-        emojis.splice(i, 1);
-        continue;
-      }
-
-      ctx.save();
-      ctx.globalAlpha = em.alpha;
-      ctx.font = `${em.size}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(em.emoji, em.x, em.y);
-      ctx.restore();
-    }
-
-    // 9. Bottom Progress Bar
-    ctx.save();
-    const timelineY = height - 10;
-    const overallProgress = (sceneIdx + (timeSecs / Math.max(1, scene.durationSeconds))) / totalScenes;
-
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-    ctx.fillRect(0, timelineY, width, 10);
-
-    const barGrad = ctx.createLinearGradient(0, 0, width, 0);
-    barGrad.addColorStop(0, '#06b6d4');
-    barGrad.addColorStop(0.5, '#3b82f6');
-    barGrad.addColorStop(1, '#f43f5e');
-    ctx.fillStyle = barGrad;
-    ctx.fillRect(0, timelineY, Math.min(width, Math.max(0, width * overallProgress)), 10);
-    ctx.restore();
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Animation Loop for live player
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        seekRelative(5);
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        seekRelative(-5);
+      } else if (e.code === 'KeyM') {
+        setIsMuted(m => !m);
+      } else if (e.code === 'KeyF') {
+        toggleFullscreen();
+      } else if (e.code === 'Escape' && !document.fullscreenElement) {
+        if (onClose) onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, activeSceneIndex, elapsedSceneTime, currentScene]);
+
+  // Clean reactions periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const cutoff = Date.now() - 2500;
+      floatingReactionsRef.current = floatingReactionsRef.current.filter(r => r.born > cutoff);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Canvas animation loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -1310,48 +308,52 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
     const render = () => {
       const now = Date.now();
-      const delta = (now - lastTickRef.current) / 1000;
+      const dt = (now - lastTickRef.current) / 1000;
       lastTickRef.current = now;
 
+      // Update elapsed time if playing
       if (isPlaying) {
         setElapsedSceneTime(prev => {
-          const next = prev + delta * playbackSpeed;
-          const scene = scenes[activeSceneIndexRef.current];
-          if (scene && next >= scene.durationSeconds) {
-            if (!speechRef.current) {
-              const nextIdx = activeSceneIndexRef.current + 1;
-              if (nextIdx < scenes.length) {
-                setActiveSceneIndex(nextIdx);
-                playSoundEffect('chime');
-                playSpeechForScene(nextIdx);
-                return 0;
-              } else {
-                setIsPlaying(false);
-                return 0;
-              }
+          const next = prev + dt * playbackSpeed;
+          if (next >= currentScene.durationSec && !('speechSynthesis' in window)) {
+            // Fallback timer when TTS is unavailable
+            if (activeSceneIndexRef.current + 1 < scenes.length) {
+              setActiveSceneIndex(activeSceneIndexRef.current + 1);
+              return 0;
+            } else {
+              setIsPlaying(false);
+              return 0;
             }
           }
           return next;
         });
       }
 
-      drawFrame(
-        ctx,
-        1280,
-        720,
-        currentScene,
-        activeSceneIndex,
-        scenes.length,
-        elapsedSceneTime,
-        isPlaying,
-        material.course || 'EconNotes',
-        videoTitle,
-        activeChart,
-        particlesRef.current,
-        floatingEmojisRef.current,
-        dynamicConceptData
-      );
+      // Compute subtitle positions
+      const pos = positionFromElapsed(currentScene, elapsedSceneTime);
 
+      // Compute overall progress
+      const elapsedBefore = scenes.slice(0, activeSceneIndex).reduce((acc, s) => acc + s.durationSec, 0);
+      const overall = totalDurationSec > 0 ? (elapsedBefore + elapsedSceneTime) / totalDurationSec : 0;
+
+      const frame: StageFrame = {
+        scene: currentScene,
+        sceneIndex: activeSceneIndex,
+        sceneCount: scenes.length,
+        progress: pos.progress,
+        overall,
+        sceneTime: elapsedSceneTime,
+        sentenceIndex: pos.sentenceIndex,
+        charInSentence: pos.charInSentence,
+        playing: isPlaying,
+        poster: !hasStartedOnce,
+        now,
+        courseLabel: material.course || '',
+        showSubtitles,
+        reactions: floatingReactionsRef.current,
+      };
+
+      renderStage(ctx, frame);
       animId = requestAnimationFrame(render);
     };
 
@@ -1361,13 +363,58 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [drawFrame, currentScene, activeSceneIndex, scenes, elapsedSceneTime, isPlaying, material.course, videoTitle, activeChart, dynamicConceptData, playbackSpeed, playSpeechForScene, playSoundEffect]);
+  }, [currentScene, activeSceneIndex, scenes, elapsedSceneTime, isPlaying, hasStartedOnce, playbackSpeed, showSubtitles, material.course, totalDurationSec]);
 
-  // High Quality MP4 Video Export Engine
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      stopSpeech();
+    };
+  }, [stopSpeech]);
+
+  // Copy note snippet
+  const copySnippet = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedNote(id);
+    toast.success('Not panoya kopyalandı');
+    setTimeout(() => setCopiedNote(null), 2000);
+  };
+
+  // In-studio AI tutor ask
+  const sendCoachQuestion = async (q?: string) => {
+    const text = q || coachInput;
+    if (!text.trim() || coachLoading) return;
+    const userMsg = text.trim();
+    setCoachInput('');
+    setCoachMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setCoachLoading(true);
+
+    try {
+      const contextPrompt = `Ders: ${material.course || 'Genel'}\nKonu Başlığı: ${material.title}\nŞu anki sahne (${currentScene.speaker}): ${currentScene.title}\nSahne İçeriği:\n${currentScene.narration}\nÖnemli Noktalar:\n${currentScene.keyTakeaways.join('\n')}\nKritik Sınav Notu: ${currentScene.examTip || currentScene.diagram.metric}\n\nÖğrencinin Sorusu: ${userMsg}\n\nKısa, net, samimi ve akademik olarak açıkla.`;
+
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: { prompt: contextPrompt, mode: 'study_coach' }
+      });
+
+      if (error) throw error;
+      const answer = data?.reply || data?.answer || 'Sorun için teşekkürler. Bu konu notun temel sacayaklarından biridir.';
+      setCoachMessages(prev => [...prev, { role: 'assistant', content: answer }]);
+    } catch {
+      setCoachMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `**${currentScene.title}** hakkında: ${currentScene.keyTakeaways[0] || currentScene.narration.substring(0, 160)}...`
+      }]);
+    } finally {
+      setCoachLoading(false);
+      setTimeout(() => coachEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+  };
+
+  // High quality MP4 Video Export Engine
   const handleExportMP4 = async () => {
     setIsExporting(true);
     setExportProgress(0);
-    setExportStatusText('Animasyonlu video motoru başlatılıyor...');
+    setExportStatusText('Animasyon motoru ve ses sentezleyicisi hazırlanıyor...');
 
     if (isPlaying) {
       setIsPlaying(false);
@@ -1399,31 +446,20 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       let mimeType = 'video/mp4;codecs="avc1,mp4a.40.2"';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-        if (MediaRecorder.isTypeSupported('video/mp4')) {
-          mimeType = 'video/mp4';
-        } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
-          mimeType = 'video/webm;codecs=vp9,opus';
-        } else if (MediaRecorder.isTypeSupported('video/webm')) {
-          mimeType = 'video/webm';
-        } else {
-          mimeType = '';
-        }
+        if (MediaRecorder.isTypeSupported('video/mp4')) mimeType = 'video/mp4';
+        else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) mimeType = 'video/webm;codecs=vp9,opus';
+        else if (MediaRecorder.isTypeSupported('video/webm')) mimeType = 'video/webm';
+        else mimeType = '';
       }
 
-      const recorderOptions: MediaRecorderOptions = {
-        videoBitsPerSecond: 3000000,
-      };
-      if (mimeType) {
-        recorderOptions.mimeType = mimeType;
-      }
+      const recorderOptions: MediaRecorderOptions = { videoBitsPerSecond: 3500000 };
+      if (mimeType) recorderOptions.mimeType = mimeType;
 
       const mediaRecorder = new MediaRecorder(canvasStream, recorderOptions);
       const recordedChunks: Blob[] = [];
 
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          recordedChunks.push(e.data);
-        }
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
       };
 
       mediaRecorder.start(100);
@@ -1431,49 +467,49 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       const totalScenes = scenes.length;
       for (let sIdx = 0; sIdx < totalScenes; sIdx++) {
         const scene = scenes[sIdx];
-        const sceneDuration = Math.min(scene.durationSeconds, 8);
+        const sceneDuration = Math.min(scene.durationSec, 8);
         const fps = 30;
-        const totalFrames = sceneDuration * fps;
+        const totalFrames = Math.round(sceneDuration * fps);
 
-        setExportStatusText(`Bölüm ${sIdx + 1} / ${totalScenes}: ${scene.speaker} (${scene.title}) animasyonu işleniyor...`);
+        setExportStatusText(`Bölüm ${sIdx + 1} / ${totalScenes}: ${scene.speaker} (${scene.title}) işleniyor...`);
 
-        const isBaris = scene.speaker.toLowerCase().includes('barış');
+        const isBaris = scene.speaker === 'Barış';
         osc.frequency.setValueAtTime(isBaris ? 280 : 420, audioCtx.currentTime);
-
-        const sceneConceptData = extractDynamicConcepts(scene, material.course, material.title);
 
         for (let f = 0; f < totalFrames; f++) {
           const timeSecs = f / fps;
-          drawFrame(
-            exportCtx,
-            1280,
-            720,
+          const pos = positionFromElapsed(scene, timeSecs);
+          const frame: StageFrame = {
             scene,
-            sIdx,
-            totalScenes,
-            timeSecs,
-            true,
-            material.course || 'EconNotes',
-            videoTitle,
-            sceneConceptData.type as any,
-            particlesRef.current,
-            [],
-            sceneConceptData
-          );
+            sceneIndex: sIdx,
+            sceneCount: totalScenes,
+            progress: pos.progress,
+            overall: (sIdx + pos.progress) / totalScenes,
+            sceneTime: timeSecs,
+            sentenceIndex: pos.sentenceIndex,
+            charInSentence: pos.charInSentence,
+            playing: true,
+            poster: false,
+            now: Date.now() + f * 33,
+            courseLabel: material.course || '',
+            showSubtitles: true,
+            reactions: [],
+          };
+
+          renderStage(exportCtx, frame);
 
           const currentTotalFrames = sIdx * totalFrames + f;
           const grandTotalFrames = totalScenes * totalFrames;
-          const pct = Math.round((currentTotalFrames / grandTotalFrames) * 95);
-          setExportProgress(pct);
+          setExportProgress(Math.round((currentTotalFrames / grandTotalFrames) * 95));
 
-          if (f % 10 === 0) {
+          if (f % 12 === 0) {
             await new Promise(r => setTimeout(r, 16));
           }
         }
       }
 
       setExportProgress(98);
-      setExportStatusText('MP4 dosyası derleniyor ve indirilmeye hazırlanıyor...');
+      setExportStatusText('MP4 dosyası derleniyor ve kaydediliyor...');
 
       await new Promise<void>((resolve) => {
         mediaRecorder.onstop = () => resolve();
@@ -1484,9 +520,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       const videoBlob = new Blob(recordedChunks, { type: mimeType || 'video/mp4' });
       const downloadUrl = URL.createObjectURL(videoBlob);
-
       const safeTitle = (material.course ? `${material.course}-` : '') +
-        (videoTitle || 'Animasyonlu-Ders-Videosu')
+        (material.title || 'Ders-Videosu')
           .toLowerCase()
           .replace(/[^a-z0-9ğüşıöç]+/gi, '-')
           .replace(/^-+|-+$/g, '');
@@ -1499,82 +534,114 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       document.body.removeChild(a);
 
       setExportProgress(100);
-      setExportStatusText('MP4 Video başarıyla oluşturuldu ve indirildi!');
-      toast.success('🎬 Animasyonlu video başarıyla indirildi!');
+      setExportStatusText('Video başarıyla indirildi!');
+      toast.success('🎬 Video dersiniz MP4 olarak indirildi!');
       setTimeout(() => setIsExporting(false), 1500);
     } catch (err: any) {
-      console.error('MP4 export error:', err);
-      toast.error('Video oluşturulurken hata meydana geldi: ' + (err.message || 'Bilinmeyen hata'));
+      toast.error('Video oluşturulurken hata: ' + (err.message || 'Bilinmeyen hata'));
       setIsExporting(false);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen w-full bg-slate-950 text-white">
-      {/* Top Cinema Studio Navigation Bar */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-800 bg-slate-950/95 px-4 py-3 backdrop-blur sm:px-6">
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[100] h-screen w-screen bg-slate-950 text-white flex flex-col overflow-hidden select-none"
+    >
+      {/* 1. TOP CINEMA NAVIGATION BAR */}
+      <header className="h-14 shrink-0 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md px-4 flex items-center justify-between gap-4 z-20">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20">
-            <Video className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 shrink-0">
+            <Video className="h-4.5 w-4.5" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 text-[10px] font-semibold">
+              <Badge className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-400 border-cyan-500/30 text-[10px] font-bold px-2 py-0">
                 CANLI STÜDYO DERSİ
               </Badge>
               {material.course && (
-                <Badge variant="outline" className="border-slate-700 text-slate-300 text-[10px]">
+                <span className="text-[11px] font-semibold text-slate-400 truncate hidden sm:inline">
                   {material.course}
-                </Badge>
+                </span>
               )}
             </div>
-            <h1 className="truncate text-base font-bold text-white sm:text-lg mt-0.5">
-              {videoTitle}
+            <h1 className="text-sm sm:text-base font-bold text-white truncate max-w-md lg:max-w-xl">
+              {studio.title}
             </h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {onOpenCoach && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onOpenCoach}
-              className="border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300 hover:bg-fuchsia-500/20 text-xs hidden sm:inline-flex gap-1"
-            >
-              <Wand2 className="h-3.5 w-3.5" />
-              <span>Akıl Hocası</span>
-            </Button>
-          )}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Reaction Quick Bar */}
+          <div className="hidden lg:flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-full px-2 py-1">
+            {Object.keys(reactionCounts).map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => addReaction(emoji)}
+                className="hover:scale-125 transition-transform text-sm px-1.5 py-0.5 rounded-full hover:bg-slate-800"
+                title={`${emoji} Tepki Ver`}
+              >
+                <span>{emoji}</span>
+                <span className="text-[10px] text-slate-400 ml-1 font-mono">{reactionCounts[emoji]}</span>
+              </button>
+            ))}
+          </div>
 
-          {onReport && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onReport}
-              className="text-slate-400 hover:text-white text-xs hidden sm:inline-flex gap-1"
-            >
-              <Bug className="h-3.5 w-3.5" />
-              <span>Bildir</span>
-            </Button>
-          )}
+          {/* Toggle Sidebar Button */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setSidebarOpen(s => !s)}
+            className={`h-8 gap-1.5 text-xs border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800 ${
+              sidebarOpen ? 'border-cyan-500/50 text-cyan-300' : ''
+            }`}
+          >
+            {sidebarOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">Ders Notları & Bilgiler</span>
+          </Button>
 
+          {/* Export MP4 */}
           <Button
             size="sm"
             onClick={handleExportMP4}
             disabled={isExporting}
-            className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-bold text-xs h-8 px-3 rounded-lg gap-1.5 shadow-md shadow-cyan-500/20"
+            className="h-8 gap-1.5 text-xs bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold shadow-md shadow-cyan-500/20"
           >
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">MP4 İndir</span>
           </Button>
 
+          {/* Fullscreen */}
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={toggleFullscreen}
+            className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800"
+            title={isFullscreen ? 'Tam Ekrandan Çık' : 'Tam Ekran'}
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+
+          {/* Report */}
+          {onReport && (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={onReport}
+              className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-800 hidden sm:inline-flex"
+              title="Sorun Bildir"
+            >
+              <Bug className="h-4 w-4" />
+            </Button>
+          )}
+
+          {/* Close */}
           {onClose && (
             <Button
-              variant="ghost"
               size="icon"
+              variant="ghost"
               onClick={onClose}
-              className="h-8 w-8 rounded-full text-slate-400 hover:bg-white/10 hover:text-white ml-1"
+              className="h-8 w-8 rounded-full text-slate-400 hover:text-white hover:bg-rose-500/20 hover:text-rose-400"
               title="Kapat"
             >
               <X className="h-5 w-5" />
@@ -1583,413 +650,605 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         </div>
       </header>
 
-      {/* Main Studio Viewport (Full Screen Theater Mode) */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-5">
-        {/* Widescreen 16:9 Canvas Viewport */}
-        <div className="relative group overflow-hidden rounded-3xl border border-slate-800 bg-black shadow-2xl">
-          <canvas
-            ref={canvasRef}
-            width={1280}
-            height={720}
-            className="w-full aspect-video block object-contain"
-          />
+      {/* 2. MAIN WORKSPACE (STAGE + COLLAPSIBLE STUDY PANEL) */}
+      <div className="flex-1 flex min-h-0 relative">
+        {/* LEFT / CENTER: THEATER STAGE & CONTROLS */}
+        <div className="flex-1 flex flex-col min-w-0 bg-slate-950 relative overflow-hidden">
+          {/* 16:9 Canvas Viewport */}
+          <div className="flex-1 flex items-center justify-center p-2 sm:p-4 bg-gradient-to-b from-slate-950 via-slate-900/40 to-slate-950 overflow-hidden relative">
+            <div className="w-full max-w-6xl aspect-video max-h-[calc(100vh-140px)] relative rounded-2xl overflow-hidden shadow-2xl border border-slate-800/90 bg-black">
+              <canvas
+                ref={canvasRef}
+                width={STAGE_W}
+                height={STAGE_H}
+                className="w-full h-full object-contain block"
+              />
 
-          {/* Floating In-Video Controls Overlay */}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/50 to-transparent p-4 sm:p-5 flex flex-col gap-2">
-            {/* Progress bar scrubber */}
+              {/* Initial Big Play Overlay if paused */}
+              {!hasStartedOnce && (
+                <div
+                  onClick={togglePlay}
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 cursor-pointer group transition-all"
+                >
+                  <div className="h-20 w-20 rounded-full bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-2xl shadow-cyan-500/40 group-hover:scale-110 transition-transform">
+                    <Play className="h-9 w-9 ml-1 fill-white" />
+                  </div>
+                  <div className="text-center space-y-1">
+                    <h2 className="text-xl font-bold text-white tracking-wide">
+                      Animasyonlu Dersi Başlat
+                    </h2>
+                    <p className="text-xs text-slate-300 max-w-md">
+                      Deniz ve Barış ders notundaki kavramları interaktif akıllı tahtada incelemeye hazır.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* BOTTOM CONTROLS & TIMELINE DOCK */}
+          <div className="h-16 shrink-0 bg-slate-950/95 border-t border-slate-800/80 px-4 flex flex-col justify-center gap-1.5 z-10 backdrop-blur">
+            {/* Scrubber Bar */}
             <div className="flex items-center gap-3">
-              <span className="text-xs font-mono text-cyan-400">
-                {formatTime(activeSceneIndex * 15 + elapsedSceneTime)}
+              <span className="text-[11px] font-mono text-slate-400 w-11 text-right">
+                {formatTime(elapsedSceneTime)}
               </span>
-              <div className="flex-1 flex gap-1 items-center h-2 cursor-pointer">
-                {scenes.map((s, idx) => (
-                  <div
-                    key={s.id}
-                    onClick={() => goToScene(idx)}
-                    className={`h-2 flex-1 rounded-full transition-all ${
-                      idx === activeSceneIndex
-                        ? 'bg-gradient-to-r from-cyan-400 to-rose-400 shadow-[0_0_10px_rgba(6,182,212,0.9)]'
-                        : idx < activeSceneIndex
-                        ? 'bg-slate-500 hover:bg-slate-400'
-                        : 'bg-slate-800 hover:bg-slate-700'
-                    }`}
-                    title={`${s.speaker}: ${s.title}`}
-                  />
-                ))}
+              <div
+                className="flex-1 h-2 bg-slate-800 rounded-full cursor-pointer relative group"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                  setElapsedSceneTime(ratio * currentScene.durationSec);
+                }}
+              >
+                <div
+                  className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full relative"
+                  style={{ width: `${Math.min(100, (elapsedSceneTime / Math.max(1, currentScene.durationSec)) * 100)}%` }}
+                >
+                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-md scale-0 group-hover:scale-100 transition-transform" />
+                </div>
               </div>
-              <span className="text-xs font-mono text-slate-400">
-                {formatTime(totalDuration)}
+              <span className="text-[11px] font-mono text-slate-400 w-11">
+                {formatTime(currentScene.durationSec)}
               </span>
             </div>
 
-            {/* Bottom control buttons */}
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <div className="flex items-center gap-2">
+            {/* Playback Controls & Settings */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Previous Scene */}
                 <Button
-                  variant="ghost"
                   size="icon"
+                  variant="ghost"
                   onClick={() => goToScene(activeSceneIndex - 1)}
                   disabled={activeSceneIndex === 0}
-                  className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
+                  className="h-8 w-8 text-slate-300 hover:text-white disabled:opacity-30"
                   title="Önceki Bölüm"
                 >
-                  <ChevronLeft className="h-5 w-5" />
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
 
+                {/* Rewind 5s */}
                 <Button
-                  onClick={togglePlay}
-                  className={`h-11 w-11 rounded-full text-white shadow-lg ${
-                    isPlaying
-                      ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/30'
-                      : 'bg-cyan-500 hover:bg-cyan-600 shadow-cyan-500/30'
-                  }`}
-                  title={isPlaying ? 'Durdur' : 'Oynat'}
-                >
-                  {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
-                </Button>
-
-                <Button
-                  variant="ghost"
                   size="icon"
+                  variant="ghost"
+                  onClick={() => seekRelative(-5)}
+                  className="h-8 w-8 text-slate-300 hover:text-white"
+                  title="5 Saniye Geri (←)"
+                >
+                  <Rewind className="h-4 w-4" />
+                </Button>
+
+                {/* Main Play / Pause */}
+                <Button
+                  size="sm"
+                  onClick={togglePlay}
+                  className="h-8 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold gap-1.5 shadow-md shadow-cyan-500/20"
+                >
+                  {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current ml-0.5" />}
+                  <span className="text-xs">{isPlaying ? 'Durdur' : 'Oynat'}</span>
+                </Button>
+
+                {/* Fast Forward 5s */}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => seekRelative(5)}
+                  className="h-8 w-8 text-slate-300 hover:text-white"
+                  title="5 Saniye İleri (→)"
+                >
+                  <FastForward className="h-4 w-4" />
+                </Button>
+
+                {/* Next Scene */}
+                <Button
+                  size="icon"
+                  variant="ghost"
                   onClick={() => goToScene(activeSceneIndex + 1)}
                   disabled={activeSceneIndex === scenes.length - 1}
-                  className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
+                  className="h-8 w-8 text-slate-300 hover:text-white disabled:opacity-30"
                   title="Sonraki Bölüm"
                 >
-                  <ChevronRight className="h-5 w-5" />
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
 
-                <div className="hidden sm:flex items-center gap-2 ml-2 px-3 py-1 rounded-full bg-slate-900/85 border border-slate-700/60">
-                  <span
-                    className="h-2 w-2 rounded-full animate-ping"
-                    style={{ backgroundColor: currentScene.speaker.toLowerCase().includes('barış') ? '#f43f5e' : '#06b6d4' }}
-                  />
-                  <span className="text-xs font-semibold text-white">
-                    {currentScene.speaker}: {currentScene.title}
-                  </span>
-                </div>
-              </div>
-
-              {/* Right side controls (Speed, Audio, MP4) */}
-              <div className="flex items-center gap-2">
+                {/* Mute toggle */}
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const speeds = [1.0, 1.25, 1.5, 0.85];
-                    const nextSpeed = speeds[(speeds.indexOf(playbackSpeed) + 1) % speeds.length];
-                    setPlaybackSpeed(nextSpeed);
-                    if (isPlaying) playSpeechForScene(activeSceneIndex);
-                  }}
-                  className="text-xs font-mono text-slate-300 hover:bg-white/10 h-8 px-2.5 rounded-lg"
-                  title="Oynatma Hızı"
-                >
-                  {playbackSpeed}x
-                </Button>
-
-                <Button
-                  variant="ghost"
                   size="icon"
-                  onClick={() => {
-                    const next = !isMuted;
-                    setIsMuted(next);
-                    if (next) stopSpeech();
-                    else if (isPlaying) playSpeechForScene(activeSceneIndex);
-                  }}
-                  className="text-white hover:bg-white/10 h-9 w-9 rounded-full"
-                  title={isMuted ? 'Sesi Aç' : 'Sesi Kapat'}
+                  variant="ghost"
+                  onClick={() => setIsMuted(m => !m)}
+                  className="h-8 w-8 text-slate-300 hover:text-white ml-1"
+                  title={isMuted ? 'Sesi Aç (M)' : 'Sesi Kapat (M)'}
                 >
                   {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
                 </Button>
 
+                {/* Subtitles toggle */}
                 <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleExportMP4}
-                  disabled={isExporting}
-                  className="border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs h-8 px-3 rounded-lg gap-1.5"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setShowSubtitles(s => !s)}
+                  className={`h-8 w-8 ${showSubtitles ? 'text-cyan-400' : 'text-slate-500'} hover:text-white`}
+                  title="Altyazıları Aç/Kapat (CC)"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">MP4 İndir</span>
+                  <Subtitles className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Dynamic Mode Switcher & Reactions Bar */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          {/* Tahta Grafik Modu Seçici */}
-          <div className="flex items-center gap-1.5 p-2 rounded-2xl border border-slate-800 bg-slate-900/80 overflow-x-auto">
-            <span className="text-[11px] font-semibold text-slate-400 pl-2 shrink-0">Tahta Modu:</span>
-            {[
-              { id: 'auto', label: 'Otomatik', icon: Zap },
-              { id: 'network', label: 'Kavram Ağı', icon: Network },
-              { id: 'timeline', label: 'Kronoloji', icon: Activity },
-              { id: 'structure', label: 'Kurumsal Yapı', icon: Layers },
-              { id: 'comparison', label: 'Kıyaslama', icon: BarChart3 },
-              { id: 'curve', label: 'İktisadi Eğri', icon: LineChart },
-            ].map((mode) => {
-              const Icon = mode.icon;
-              const isSelected = manualChartMode === mode.id;
-              return (
-                <button
-                  key={mode.id}
-                  onClick={() => setManualChartMode(mode.id as any)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                    isSelected
-                      ? 'bg-cyan-500 text-white shadow-sm shadow-cyan-500/30 font-semibold'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span>{mode.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Live Reaction Emojis */}
-          <div className="flex items-center justify-between p-2 rounded-2xl border border-slate-800 bg-slate-900/80">
-            <span className="text-[11px] font-semibold text-slate-400 pl-2 shrink-0">Tepki Ver:</span>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {[
-                { emoji: '🔥', label: 'Efsane' },
-                { emoji: '💡', label: 'Anladım' },
-                { emoji: '🧠', label: 'Kritik' },
-                { emoji: '🎯', label: 'Sınav' },
-                { emoji: '🚀', label: 'Akıcı' },
-              ].map(({ emoji, label }) => (
-                <button
-                  key={emoji}
-                  onClick={() => addReaction(emoji)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-slate-800 bg-slate-950 hover:bg-slate-800 text-xs text-white transition-transform active:scale-125 hover:border-cyan-500/50"
-                  title={`${label} tepkisi ver`}
-                >
-                  <span>{emoji}</span>
-                  <span className="font-mono text-[10px] text-cyan-400">+{reactions[emoji] || 0}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Tabs: Interactive Transcript, Slide Cards, and Search Suggestions */}
-        <Tabs defaultValue="transcript" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 max-w-md bg-slate-900 border border-slate-800">
-            <TabsTrigger value="transcript" className="text-xs sm:text-sm gap-1.5">
-              <Radio className="h-3.5 w-3.5" /> İnteraktif Döküm
-            </TabsTrigger>
-            <TabsTrigger value="slides" className="text-xs sm:text-sm gap-1.5">
-              <Layers className="h-3.5 w-3.5" /> Canlı Slaytlar
-            </TabsTrigger>
-            <TabsTrigger value="resources" className="text-xs sm:text-sm gap-1.5">
-              <Video className="h-3.5 w-3.5" /> Öneriler
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Tab 1: Dual-Host Transcript with time-jump */}
-          <TabsContent value="transcript" className="mt-4 space-y-3">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-              <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-                <div>
-                  <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Mic className="h-4 w-4 text-cyan-400" /> Deniz & Barış — İkili Ders Diyaloğu
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Herhangi bir cümlenin yanındaki oynat butonuna basarak videoyu doğrudan o sahneye sarabilirsiniz.
-                  </p>
-                </div>
-                <Badge variant="outline" className="border-cyan-500/30 text-cyan-400 text-xs">
-                  {scenes.length} Sahne
-                </Badge>
+              {/* Center Scene Title Indicator */}
+              <div className="hidden md:flex items-center gap-2 text-xs">
+                <span className="font-semibold text-slate-400">
+                  Bölüm {activeSceneIndex + 1}/{scenes.length}:
+                </span>
+                <span className="font-bold text-white truncate max-w-xs">
+                  {currentScene.title}
+                </span>
               </div>
 
-              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2">
-                {scenes.map((s, idx) => {
-                  const isBaris = s.speaker.toLowerCase().includes('barış');
-                  const isActive = idx === activeSceneIndex;
+              {/* Right speed selector */}
+              <div className="flex items-center gap-1.5">
+                {[0.75, 1.0, 1.25, 1.5].map((spd) => (
+                  <button
+                    key={spd}
+                    onClick={() => setPlaybackSpeed(spd)}
+                    className={`text-[11px] font-mono px-2 py-0.5 rounded-md transition ${
+                      playbackSpeed === spd
+                        ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {spd}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
 
-                  return (
-                    <div
-                      key={s.id}
-                      onClick={() => goToScene(idx)}
-                      className={`relative p-4 rounded-xl border transition-all cursor-pointer ${
-                        isActive
-                          ? isBaris
-                            ? 'border-rose-500/60 bg-rose-950/20 shadow-lg shadow-rose-950/30'
-                            : 'border-cyan-500/60 bg-cyan-950/20 shadow-lg shadow-cyan-950/30'
-                          : 'border-slate-800/70 bg-slate-950/40 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className="h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow"
-                            style={{ backgroundColor: isBaris ? '#f43f5e' : '#06b6d4' }}
-                          >
-                            {isBaris ? '💡' : '🎓'}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm text-white">{s.speaker}</span>
-                              <span className="text-[11px] text-slate-400">· {s.speakerRole}</span>
-                              <Badge variant="outline" className="text-[10px] font-mono py-0 h-4 border-slate-700">
-                                {s.time}
-                              </Badge>
-                            </div>
-                            <p className="text-xs font-medium text-slate-300 mt-0.5">{s.title}</p>
-                          </div>
-                        </div>
+        {/* RIGHT SIDEBAR: "YANLARINDA ÖNEMLİ NOTLARI VE BİLGİLERİ İÇERSİN" */}
+        {sidebarOpen && (
+          <aside className="w-80 lg:w-96 shrink-0 border-l border-slate-800/80 bg-slate-900/95 flex flex-col z-20 backdrop-blur overflow-hidden animate-in slide-in-from-right duration-200">
+            {/* Sidebar Tab Selector */}
+            <div className="p-2 border-b border-slate-800 bg-slate-950/60">
+              <div className="grid grid-cols-5 gap-1 text-[11px]">
+                <button
+                  onClick={() => setActiveSidebarTab('notes')}
+                  className={`flex flex-col items-center gap-1 py-1.5 rounded-lg transition ${
+                    activeSidebarTab === 'notes'
+                      ? 'bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                  title="Önemli Ders Notları"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  <span>Notlar</span>
+                </button>
 
-                        <Button
-                          size="sm"
-                          variant={isActive ? 'default' : 'outline'}
-                          className={`h-7 px-2.5 text-xs gap-1 rounded-lg ${
-                            isActive
-                              ? isBaris
-                                ? 'bg-rose-600 text-white hover:bg-rose-700'
-                                : 'bg-cyan-500 text-white hover:bg-cyan-600'
-                              : 'border-slate-700 text-slate-300'
-                          }`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            goToScene(idx);
-                            if (!isPlaying) togglePlay();
-                          }}
-                        >
-                          <Play className="h-3 w-3" />
-                          {isActive && isPlaying ? 'Çalıyor' : 'Oynat'}
-                        </Button>
-                      </div>
+                <button
+                  onClick={() => setActiveSidebarTab('terms')}
+                  className={`flex flex-col items-center gap-1 py-1.5 rounded-lg transition ${
+                    activeSidebarTab === 'terms'
+                      ? 'bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                  title="Kavram Sözlüğü"
+                >
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  <span>Kavramlar</span>
+                </button>
 
-                      <p className="mt-2.5 text-sm text-slate-200 leading-relaxed pl-10">
-                        {s.narration}
-                      </p>
+                <button
+                  onClick={() => setActiveSidebarTab('facts')}
+                  className={`flex flex-col items-center gap-1 py-1.5 rounded-lg transition ${
+                    activeSidebarTab === 'facts'
+                      ? 'bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                  title="Sınav Hap Bilgileri"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Hap Bilgi</span>
+                </button>
 
-                      {s.keyTakeaways.length > 0 && (
-                        <div className="mt-2.5 pl-10 flex flex-wrap gap-1.5">
-                          {s.keyTakeaways.map((tk, tIdx) => (
-                            <span
-                              key={tIdx}
-                              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-700/60"
-                            >
-                              <CheckCircle2 className="h-3 w-3 text-cyan-400" />
-                              {tk}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                <button
+                  onClick={() => setActiveSidebarTab('playlist')}
+                  className={`flex flex-col items-center gap-1 py-1.5 rounded-lg transition ${
+                    activeSidebarTab === 'playlist'
+                      ? 'bg-cyan-500/15 text-cyan-400 font-bold border border-cyan-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                  title="Ders Akışı ve Bölümler"
+                >
+                  <ListOrdered className="h-3.5 w-3.5" />
+                  <span>Akış</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveSidebarTab('coach')}
+                  className={`flex flex-col items-center gap-1 py-1.5 rounded-lg transition ${
+                    activeSidebarTab === 'coach'
+                      ? 'bg-fuchsia-500/15 text-fuchsia-400 font-bold border border-fuchsia-500/30'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
+                  title="Yapay Zekâ Akıl Hocası"
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  <span>Akıl Hocası</span>
+                </button>
+              </div>
+            </div>
+
+            {/* TAB CONTENT PANES */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+              {/* TAB 1: ÖNEMLİ NOTLAR (TAKEAWAYS & EXAM TIP) */}
+              {activeSidebarTab === 'notes' && (
+                <div className="space-y-4 animate-in fade-in">
+                  {/* Current Active Scene Header */}
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-950/40 via-slate-900 to-slate-950 border border-cyan-500/30 shadow-sm">
+                    <div className="flex items-center justify-between text-[11px] text-cyan-400 font-bold mb-1">
+                      <span>BÖLÜM {activeSceneIndex + 1} / {scenes.length}</span>
+                      <Badge variant="outline" className="text-[10px] border-cyan-500/30 text-cyan-300">
+                        {currentScene.speaker} ({currentScene.speakerRole})
+                      </Badge>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </TabsContent>
+                    <h3 className="font-bold text-sm text-white">{currentScene.title}</h3>
+                  </div>
 
-          {/* Tab 2: Visual Slide Cards */}
-          <TabsContent value="slides" className="mt-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {scenes.map((s, idx) => (
-                <Card
-                  key={s.id}
-                  onClick={() => goToScene(idx)}
-                  className={`cursor-pointer transition-all border ${
-                    idx === activeSceneIndex
-                      ? 'border-cyan-500 bg-cyan-950/15 shadow-md shadow-cyan-500/10'
-                      : 'border-slate-800 bg-slate-900/60 hover:border-slate-700'
-                  }`}
-                >
-                  <CardHeader className="p-4 pb-2">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <Badge variant="outline" className="text-[10px]">{s.time}</Badge>
-                      <span className="font-semibold" style={{ color: s.speaker.toLowerCase().includes('barış') ? '#f43f5e' : '#06b6d4' }}>
-                        {s.speaker}
+                  {/* Sınav Notu Highlight Card */}
+                  {currentScene.examTip && (
+                    <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-500/15 to-orange-500/10 border border-amber-500/40 shadow-sm space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+                        <Sparkle className="h-3.5 w-3.5 fill-amber-400" />
+                        <span>Kritik Sınav Uyarısı</span>
+                      </div>
+                      <p className="text-amber-100 text-[12px] leading-relaxed font-medium">
+                        {currentScene.examTip}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Key Takeaways list */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-200 uppercase tracking-wider text-[11px]">
+                        Bu Bölümden Çıkarılacak Notlar
+                      </span>
+                      <span className="text-slate-500 text-[10px]">
+                        {currentScene.keyTakeaways.length} Madde
                       </span>
                     </div>
-                    <CardTitle className="text-base font-bold mt-1 text-white">{s.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-1 space-y-2">
-                    {s.keyTakeaways.map((point, pIdx) => (
-                      <div key={pIdx} className="flex items-start gap-1.5 text-xs text-slate-300">
-                        <span className="text-cyan-400 font-bold mt-0.5">•</span>
-                        <span>{point}</span>
-                      </div>
-                    ))}
-                    {s.visualCue && (
-                      <div className="rounded border border-dashed border-cyan-500/30 bg-cyan-500/5 p-2 text-[11px] text-cyan-300 mt-2">
-                        <span className="font-semibold">Şema: </span>{s.visualCue}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
 
-          {/* Tab 3: Suggested Searches & YouTube */}
-          <TabsContent value="resources" className="mt-4 space-y-3">
-            <Card className="border-slate-800 bg-slate-900/60">
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Video className="h-4 w-4 text-rose-500" /> Konuyu Pekiştirecek YouTube Arama Sorguları
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Bu nottaki kritik kavramları derinleştirmek için özel hazırlanmış arama önerileri.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-4 pt-2">
-                {suggestedSearches.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {suggestedSearches.map((q, i) => (
-                      <a
-                        key={i}
-                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-950 text-xs text-slate-200 hover:border-rose-500/50 hover:bg-rose-500/10 transition"
+                    <div className="space-y-2">
+                      {currentScene.keyTakeaways.map((note, idx) => (
+                        <div
+                          key={idx}
+                          className="group relative p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-500/40 transition-colors"
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <CheckCircle2 className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />
+                            <p className="text-slate-200 text-xs leading-relaxed flex-1">
+                              {note}
+                            </p>
+                            <button
+                              onClick={() => copySnippet(note, `note-${idx}`)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-white"
+                              title="Notu Kopyala"
+                            >
+                              {copiedNote === `note-${idx}` ? (
+                                <Check className="h-3.5 w-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Narration script accordion/preview */}
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-1.5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Anlatım Metni (Transkript)
+                    </span>
+                    <p className="text-slate-300 text-xs leading-relaxed italic">
+                      "{currentScene.narration}"
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: KAVRAM SÖZLÜĞÜ (KEY TERMS & DEFINITIONS) */}
+              {activeSidebarTab === 'terms' && (
+                <div className="space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-200 uppercase tracking-wider text-[11px]">
+                      Ders Kavram Sözlüğü
+                    </span>
+                    <Badge variant="outline" className="text-[10px] border-slate-700 text-slate-300">
+                      {currentScene.keyTerms.length} Terim
+                    </Badge>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Bu sahnede geçen ve sınavda soru potansiyeli taşıyan akademik kavramlar ve tanımları:
+                  </p>
+
+                  <div className="space-y-2.5">
+                    {currentScene.keyTerms.map((t, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-500/40 transition-colors space-y-1"
                       >
-                        <ExternalLink className="h-3 w-3 text-rose-400" />
-                        {q}
-                      </a>
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-cyan-300 text-xs">
+                            {t.term}
+                          </span>
+                          <button
+                            onClick={() => copySnippet(`${t.term}: ${t.definition}`, `term-${idx}`)}
+                            className="text-slate-500 hover:text-slate-300"
+                            title="Kopyala"
+                          >
+                            {copiedNote === `term-${idx}` ? (
+                              <Check className="h-3 w-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-slate-300 text-[11px] leading-relaxed">
+                          {t.definition}
+                        </p>
+                      </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Ek arama önerisi bulunamadı.</p>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </main>
+                </div>
+              )}
 
-      {/* High Quality MP4 Export Progress Modal */}
+              {/* TAB 3: SINAV HAP BİLGİLERİ (KEY FACTS) */}
+              {activeSidebarTab === 'facts' && (
+                <div className="space-y-3 animate-in fade-in">
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-fuchsia-950/40 to-slate-900 border border-fuchsia-500/30">
+                    <div className="flex items-center gap-1.5 text-fuchsia-400 font-bold mb-1">
+                      <Sparkles className="h-4 w-4" />
+                      <span>Sınav Öncesi Ezber Listesi</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      Ders notunuzdan taranan ve sınavda doğrudan gelebilecek kritik hap bilgiler:
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {keyFacts.map((fact, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-fuchsia-500/40 transition-colors flex items-start gap-2.5"
+                      >
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-fuchsia-500/20 text-fuchsia-300 font-bold text-[10px]">
+                          {idx + 1}
+                        </span>
+                        <p className="text-slate-200 text-xs leading-relaxed flex-1">
+                          {fact}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {searches.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Konuyu Pekiştirme Aramaları
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {searches.map((sq, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded-md border border-slate-700"
+                          >
+                            🔍 {sq}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: DERS AKIŞI / BÖLÜM LİSTESİ */}
+              {activeSidebarTab === 'playlist' && (
+                <div className="space-y-2.5 animate-in fade-in">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-slate-200 uppercase tracking-wider text-[11px]">
+                      Tüm Bölümler ({scenes.length})
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      Toplam: {formatTime(totalDurationSec)}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {scenes.map((sc, idx) => {
+                      const isActive = idx === activeSceneIndex;
+                      const isDeniz = sc.speaker === 'Deniz';
+                      return (
+                        <div
+                          key={sc.id}
+                          onClick={() => goToScene(idx)}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-center gap-2.5 ${
+                            isActive
+                              ? 'bg-cyan-500/15 border-cyan-500/50 shadow-sm'
+                              : 'bg-slate-900/70 border-slate-800/80 hover:bg-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div
+                            className={`h-7 w-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
+                              isActive
+                                ? 'bg-cyan-500 text-slate-950 font-black'
+                                : isDeniz
+                                ? 'bg-cyan-950 text-cyan-400 border border-cyan-800/50'
+                                : 'bg-rose-950 text-rose-400 border border-rose-800/50'
+                            }`}
+                          >
+                            {isActive ? <Play className="h-3.5 w-3.5 fill-current" /> : idx + 1}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-bold ${isDeniz ? 'text-cyan-400' : 'text-rose-400'}`}>
+                                {sc.speaker}
+                              </span>
+                              <span className="text-[10px] text-slate-500">·</span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {formatTime(sc.durationSec)}
+                              </span>
+                            </div>
+                            <p className="text-xs font-semibold text-slate-200 truncate">
+                              {sc.title}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: YAPAY ZEKÂ AKIL HOCASI (IN-STUDIO CHAT) */}
+              {activeSidebarTab === 'coach' && (
+                <div className="flex flex-col h-[calc(100vh-180px)] animate-in fade-in">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-r from-fuchsia-950/30 to-purple-950/20 border border-fuchsia-500/30 mb-2">
+                    <p className="text-[11px] text-fuchsia-200">
+                      Bu video dersine özel sorular sorabilir, Deniz ve Barış'ın anlattığı konuları derinleştirebilirsin.
+                    </p>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
+                    {coachMessages.map((m, i) => (
+                      <div
+                        key={i}
+                        className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[88%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                            m.role === 'user'
+                              ? 'bg-fuchsia-600 text-white rounded-br-none'
+                              : 'bg-slate-900 border border-slate-800 text-slate-200 rounded-bl-none'
+                          }`}
+                        >
+                          {m.role === 'assistant' ? (
+                            <div className="prose prose-invert prose-xs max-w-none">
+                              <ReactMarkdown>{m.content}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            m.content
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {coachLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-400 flex items-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-fuchsia-400" />
+                          <span>Akıl Hocası düşünüyor...</span>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={coachEndRef} />
+                  </div>
+
+                  {/* Quick questions */}
+                  <div className="py-2 flex flex-wrap gap-1 border-t border-slate-800/80 mt-2">
+                    {[
+                      'Bu sahneyi daha basit özetle',
+                      'Sınavda buradan ne sorulur?',
+                      'Somut bir örnek ver',
+                    ].map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => sendCoachQuestion(q)}
+                        disabled={coachLoading}
+                        className="text-[10px] px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/80 transition"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Input form */}
+                  <div className="flex gap-1.5 pt-1">
+                    <Input
+                      placeholder="Bir soru sor..."
+                      value={coachInput}
+                      onChange={e => setCoachInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          sendCoachQuestion();
+                        }
+                      }}
+                      disabled={coachLoading}
+                      className="h-8 text-xs bg-slate-950 border-slate-800 text-white flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => sendCoachQuestion()}
+                      disabled={coachLoading || !coachInput.trim()}
+                      className="h-8 px-2.5 bg-fuchsia-600 hover:bg-fuchsia-500 text-white"
+                    >
+                      {coachLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+      </div>
+
+      {/* 3. EXPORT MP4 PROGRESS DIALOG */}
       <Dialog open={isExporting} onOpenChange={() => {}}>
-        <DialogContent className="max-w-md border-cyan-500/30 bg-slate-950 text-white p-6 rounded-2xl shadow-2xl">
+        <DialogContent className="max-w-md bg-slate-950 border-slate-800 text-white">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg text-white">
-              <Sparkles className="h-5 w-5 text-cyan-400 animate-spin" />
-              Animasyonlu MP4 Video Derleniyor
+            <DialogTitle className="flex items-center gap-2 text-base text-cyan-400">
+              <Download className="h-4 w-4" />
+              <span>Animasyonlu MP4 Video Üretiliyor</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-300">
-              Canlı karakterler, lazer işaretçiler, akıllı tahta grafikleri ve ses dalgaları tek bir yüksek kaliteli MP4 videosunda işleniyor.
+            <DialogDescription className="text-xs text-slate-400">
+              Ders sahneleri, karakter hareketleri ve ses dalgaları tek tek işleniyor.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-3">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-slate-300 truncate max-w-[280px]">{exportStatusText}</span>
-                <span className="text-cyan-400 font-bold">{exportProgress}%</span>
-              </div>
-              <Progress value={exportProgress} className="h-2.5 bg-slate-800" />
+          <div className="space-y-3 py-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-300 font-medium truncate max-w-[260px]">
+                {exportStatusText}
+              </span>
+              <span className="font-mono font-bold text-cyan-400">%{exportProgress}</span>
             </div>
-
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-400 space-y-1">
-              <p>• Çözünürlük: 1280x720 HD 16:9 (60 FPS & Canlı Karakterler)</p>
-              <p>• Format: Standart MP4 (H.264/AAC Uyumlu)</p>
-              <p>• İşlem tamamlandığında video dosyanız otomatik olarak indirilecektir.</p>
-            </div>
+            <Progress value={exportProgress} className="h-2 bg-slate-800" />
+            <p className="text-[11px] text-slate-500 text-center">
+              Lütfen pencereyi kapatmayın, indirme otomatik olarak başlayacaktır.
+            </p>
           </div>
         </DialogContent>
       </Dialog>

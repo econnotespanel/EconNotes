@@ -189,17 +189,34 @@ const schemas: Record<string, any> = {
               required: ['diagramType', 'mainTitle', 'nodes'],
               additionalProperties: false,
             },
+            examTip: { type: 'string' },
+            keyTerms: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  term: { type: 'string' },
+                  definition: { type: 'string' },
+                },
+                required: ['term', 'definition'],
+                additionalProperties: false,
+              },
+            },
           },
-          required: ['time', 'speaker', 'title', 'narration', 'visualCue'],
+          required: ['time', 'speaker', 'title', 'narration', 'keyTakeaways', 'visualCue', 'diagramData', 'examTip', 'keyTerms'],
           additionalProperties: false,
         },
+      },
+      keyFacts: {
+        type: 'array',
+        items: { type: 'string' },
       },
       suggestedSearches: {
         type: 'array',
         items: { type: 'string' },
       },
     },
-    required: ['outline', 'podcastTitle', 'scenes', 'suggestedSearches'],
+    required: ['outline', 'podcastTitle', 'scenes', 'keyFacts', 'suggestedSearches'],
     additionalProperties: false,
   },
 };
@@ -263,8 +280,15 @@ KATI KURALLAR:
    - mainTitle: O anki konunun tahta başlığı.
    - nodes: Nottaki spesifik kavramlardan ve kurumlardan oluşan 4-6 somut düğüm (label: max 3-4 kelime, subtext: kısa açıklama).
    - highlightMetric: Sınav için akılda kalması gereken en kritik hap bilgi veya tarih/sayı.
-5. outline: Notun özetini ve ana temasını anlatan 2-3 cümle.
-6. suggestedSearches: Konuyu pekiştirecek 3-5 YouTube/Google arama sorgusu.`;
+   - Düğümleri anlatım sırasına göre diz: anlatıcı konuştukça tahtada sırayla açılacaklar.
+5. keyTakeaways: Her sahne için 3-4 adet, öğrencinin not defterine yazacağı kısa ve somut not (tarih, isim, kurum, tanım, neden-sonuç). Genel laf değil, nottan gelen bilgi.
+6. keyTerms: Her sahnede geçen 2-4 kritik terim ve nottaki anlamına sadık kısa tanımı.
+7. examTip: Her sahne için "sınavda böyle sorulabilir / şuna dikkat" tarzında tek cümlelik somut ipucu.
+8. narration: Her sahnede 4-7 cümle; cümleler kısa ve seslendirmeye uygun olsun (uzun parantez, madde işareti, emoji yok).
+9. keyFacts: Tüm nottan sınav için ezberlenmesi gereken 5-8 kritik bilgi (tarih, sayı, isim, kurum).
+10. outline: Notun özetini ve ana temasını anlatan 2-3 cümle.
+11. suggestedSearches: Konuyu pekiştirecek 3-5 YouTube/Google arama sorgusu.
+Kaynakta bulunmayan bilgi uydurma. Kaynak kısa ise sahne sayısını azalt ama içerik dışına çıkma.`;
       break;
   }
 
@@ -351,7 +375,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model,
         temperature: (body.materialType === 'summary' || body.materialType === 'video') ? 0.15 : 0.2,
-        max_tokens: (body.materialType === 'summary' || body.materialType === 'video') ? 5000 : undefined,
+        max_tokens: body.materialType === 'video' ? 16000 : body.materialType === 'summary' ? 5000 : undefined,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: userContent },

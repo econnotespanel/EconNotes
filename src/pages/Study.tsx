@@ -825,16 +825,22 @@ const Study = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Viewer */}
-      <Dialog open={!!activeMaterial} onOpenChange={(o) => !o && setActiveMaterial(null)}>
-        <DialogContent
-          className={
-            activeMaterial?.material_type === 'video'
-              ? 'fixed inset-0 z-50 h-[100dvh] w-screen max-w-none max-h-none rounded-none border-0 bg-slate-950 p-0 overflow-y-auto text-white shadow-none sm:max-w-none [&>button]:hidden'
-              : 'max-h-[92dvh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-2xl p-3 sm:p-6'
-          }
-        >
-          {activeMaterial && (
+      {/* Interactive Video Studio - True Full Screen Cinema Overlay */}
+      {activeMaterial && activeMaterial.material_type === 'video' && (
+        <InteractiveVideoStudio
+          material={activeMaterial}
+          onClose={() => setActiveMaterial(null)}
+          onReport={() => setReportOpen(true)}
+        />
+      )}
+
+      {/* Viewer Dialog for flashcards, quiz, summary */}
+      <Dialog
+        open={!!activeMaterial && activeMaterial.material_type !== 'video'}
+        onOpenChange={(o) => !o && setActiveMaterial(null)}
+      >
+        <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-2xl p-3 sm:p-6">
+          {activeMaterial && activeMaterial.material_type !== 'video' && (
             <MaterialViewer
               key={activeMaterial.id}
               material={activeMaterial}
@@ -968,25 +974,12 @@ const MaterialViewer = ({
 }) => {
   const [coachOpen, setCoachOpen] = useState(false);
 
-  if (material.material_type === 'video') {
-    return (
-      <div className="w-full min-h-screen bg-slate-950 text-white flex flex-col">
-        <InteractiveVideoStudio
-          material={material}
-          onClose={onClose}
-          onReport={onReport}
-          onOpenCoach={() => setCoachOpen(true)}
-        />
-        <StudyCoachPanel material={material} open={coachOpen} onClose={() => setCoachOpen(false)} />
-      </div>
-    );
-  }
-
   const renderer = () => {
     switch (material.material_type) {
       case 'flashcards': return <FlashcardViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'quiz': return <QuizViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'summary': return <SummaryViewer material={material} />;
+      default: return null;
     }
   };
   return (
