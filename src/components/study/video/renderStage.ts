@@ -1,7 +1,9 @@
-// EconNotes Video Stüdyosu — 1920x1080 Full HD Sinematik Sahne Çizim Motoru
-// Hem canlı oynatıcı hem de 1080p MP4 dışa aktarma aynı saf çizim motorunu kullanır.
+// EconNotes Video Stüdyosu — Sinematik Sahne ve Çok-Modlu Akıllı Tahta Çizim Motoru
+// Görseller (İllüstrasyonlar), Şekiller, Tablolar, Grafikler, Senaryolar, Zaman Akışı ve Kıyaslama
+// şemalarını hem canlı oynatıcıda hem de MP4 dışa aktarmada aynı yüksek netlikte üretir.
 
-import type { StudioScene, DiagramNode, Speaker } from './sceneModel';
+import lightLogoUrl from '@/assets/econnotes-brand-light.png';
+import type { StudioScene, DiagramNode, Speaker, VisualTheme } from './sceneModel';
 import type { Viseme } from './speechEngine';
 import { drawStudioPresentersAndDesk } from './drawPresenters';
 
@@ -20,6 +22,8 @@ export interface StageFrame {
   sceneTime: number;
   sentenceIndex: number;
   charInSentence: number;
+  /** O anki cümlenin aktif konuşmacısı */
+  activeSpeaker?: Speaker;
   playing: boolean;
   /** Oynatma başlamadan önceki kapak görünümü */
   poster: boolean;
@@ -48,14 +52,19 @@ const SPEAKER_COLOR: Record<Speaker, string> = {
 };
 
 const TYPE_LABEL: Record<string, string> = {
-  timeline: 'TARİHSEL AKIŞ & SÜREÇ',
+  visual: 'GÖRSEL & İLLÜSTRASYON ANALİZİ',
+  shapes: 'ŞEKİLLER & DÖNGÜSEL MEKANİZMA',
+  table: 'AKADEMİK KARŞILAŞTIRMA TABLOSU',
+  chart: 'ANALİTİK GRAFİK & ETKİ EĞRİSİ',
+  curve: 'ANALİTİK GRAFİK & ETKİ EĞRİSİ',
+  scenario: 'VAKA & SENARYO SİMÜLASYONU',
+  timeline: 'TARİHSEL & SÜREÇSEL AKIŞ',
+  comparison: 'İKİLİ KARŞILAŞTIRMA MATRİSİ',
   structure: 'KURUMSAL & KAVRAMSAL YAPI',
-  network: 'KAVRAM İLİŞKİ AĞI',
-  comparison: 'KARŞILAŞTIRMALI ANALİZ',
-  curve: 'MODEL & GRAFİK ANALİZİ',
+  network: 'KAVRAM İLİŞKİ MODELİ',
 };
 
-const BOARD = { x: 344, y: 74, w: 1232, h: 726 };
+const BOARD = { x: 340, y: 72, w: 1240, h: 728 };
 const SUB = { x: 364, y: 828, w: 1192, h: 170 };
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
@@ -74,6 +83,42 @@ function rr(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: n
 
 function font(weight: number, size: number) {
   return `${weight} ${size}px ${FONT}`;
+}
+
+// ---------------------------------------------------------------- Saf Beyaz EconNotes Logo Önbelleği
+let whiteLogoCanvas: HTMLCanvasElement | null = null;
+let logoLoadStarted = false;
+
+function ensureWhiteEconLogo(): HTMLCanvasElement | null {
+  if (whiteLogoCanvas) return whiteLogoCanvas;
+  if (typeof document === 'undefined' || typeof Image === 'undefined') return null;
+
+  if (!logoLoadStarted) {
+    logoLoadStarted = true;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const w = img.naturalWidth || 420;
+        const h = img.naturalHeight || 96;
+        const off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        const octx = off.getContext('2d');
+        if (!octx) return;
+        octx.drawImage(img, 0, 0, w, h);
+        octx.globalCompositeOperation = 'source-in';
+        octx.fillStyle = '#ffffff';
+        octx.fillRect(0, 0, w, h);
+        whiteLogoCanvas = off;
+      } catch {
+        // ignore
+      }
+    };
+    img.src = lightLogoUrl;
+  }
+
+  return whiteLogoCanvas;
 }
 
 export function wrapText(
@@ -118,14 +163,14 @@ function drawLines(ctx: CanvasRenderingContext2D, lines: string[], x: number, y:
 }
 
 function appearAmount(i: number, n: number, progress: number) {
-  const start = 0.03 + (i / Math.max(1, n)) * 0.68;
+  const start = 0.03 + (i / Math.max(1, n)) * 0.66;
   return easeOut((progress - start) / 0.11);
 }
 
 function activeIndex(n: number, progress: number) {
   let idx = 0;
   for (let i = 0; i < n; i++) {
-    if (progress >= 0.03 + (i / Math.max(1, n)) * 0.68) idx = i;
+    if (progress >= 0.03 + (i / Math.max(1, n)) * 0.66) idx = i;
   }
   return idx;
 }
@@ -133,22 +178,22 @@ function activeIndex(n: number, progress: number) {
 // ---------------------------------------------------------------- Stüdyo Arka Planı
 function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: number) {
   const bg = ctx.createLinearGradient(0, 0, 0, STAGE_H);
-  bg.addColorStop(0, '#080d1a');
-  bg.addColorStop(0.55, '#050812');
+  bg.addColorStop(0, '#080e1c');
+  bg.addColorStop(0.55, '#050813');
   bg.addColorStop(1, '#02040a');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, STAGE_W, STAGE_H);
 
-  // Mimari akustik dikey duvar panelleri (çok ince stüdyo dokusu)
+  // Akustik ahşap/kompozit duvar panelleri
   ctx.fillStyle = 'rgba(148, 163, 184, 0.018)';
   for (let x = 24; x < STAGE_W; x += 36) {
     ctx.fillRect(x, 0, 10, STAGE_H - 130);
   }
 
-  // Yumuşak stüdyo tavan spot ışıkları (volumetric cones)
+  // Yumuşak stüdyo tavan spot ışıkları
   const spots = [
     { x: 240, y: -60, r: 680, c: '34, 211, 238', a: 0.10 },
-    { x: STAGE_W / 2, y: -120, r: 820, c: '59, 130, 246', a: 0.09 },
+    { x: STAGE_W / 2, y: -120, r: 840, c: '59, 130, 246', a: 0.09 },
     { x: STAGE_W - 240, y: -60, r: 680, c: '168, 85, 247', a: 0.10 },
   ];
   spots.forEach((s, i) => {
@@ -160,17 +205,16 @@ function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: numbe
     ctx.fillRect(0, 0, STAGE_W, STAGE_H);
   });
 
-  // İnce yatay ufuk ışık çizgisi
   const horizonGrad = ctx.createLinearGradient(0, 0, STAGE_W, 0);
   horizonGrad.addColorStop(0, 'rgba(34, 211, 238, 0)');
-  horizonGrad.addColorStop(0.25, 'rgba(34, 211, 238, 0.12)');
-  horizonGrad.addColorStop(0.75, 'rgba(168, 85, 247, 0.12)');
+  horizonGrad.addColorStop(0.25, 'rgba(34, 211, 238, 0.13)');
+  horizonGrad.addColorStop(0.75, 'rgba(168, 85, 247, 0.13)');
   horizonGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
   ctx.fillStyle = horizonGrad;
   ctx.fillRect(0, 816, STAGE_W, 1.5);
 }
 
-// ---------------------------------------------------------------- Üst Yayın Bilgisi (HUD)
+// ---------------------------------------------------------------- Üst Yayın Bilgisi (Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı)
 function drawBroadcastHud(ctx: CanvasRenderingContext2D, f: StageFrame) {
   // Üst ince ilerleme şeridi
   ctx.fillStyle = 'rgba(148, 163, 184, 0.12)';
@@ -182,45 +226,68 @@ function drawBroadcastHud(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.fillStyle = pg;
   ctx.fillRect(0, 0, STAGE_W * clamp(f.overall), 4);
 
-  // Sol üst yayın rozeti
-  rr(ctx, 32, 22, 236, 40, 20);
-  ctx.fillStyle = 'rgba(7, 11, 22, 0.78)';
+  // Sol üst: Saf Beyaz EconNotes Marka Logosu (yüksek görünürlüklü koyu cam zemin üzerinde)
+  const logoImg = ensureWhiteEconLogo();
+  const pillX = 32;
+  const pillY = 18;
+  const pillH = 44;
+  const pillW = 204;
+
+  rr(ctx, pillX, pillY, pillW, pillH, 22);
+  ctx.fillStyle = 'rgba(6, 10, 22, 0.84)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
   ctx.lineWidth = 1;
   ctx.stroke();
 
-  const pulse = 0.55 + Math.sin(f.now / 360) * 0.45;
-  ctx.fillStyle = f.playing ? `rgba(16, 185, 129, ${pulse})` : 'rgba(148, 163, 184, 0.65)';
-  ctx.beginPath();
-  ctx.arc(54, 42, 5.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#f8fafc';
-  ctx.font = font(700, 15);
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('EconNotes', 70, 42);
-  ctx.fillStyle = '#67e8f9';
-  ctx.font = font(600, 12.5);
-  ctx.fillText('STÜDYO 1080p', 160, 42.5);
+  if (logoImg && logoImg.width > 0 && logoImg.height > 0) {
+    const targetH = 27;
+    const ratio = logoImg.width / logoImg.height;
+    const targetW = Math.min(pillW - 34, targetH * ratio);
+    const drawH = targetW / ratio;
+    const lx = pillX + (pillW - targetW) / 2;
+    const ly = pillY + (pillH - drawH) / 2;
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 255, 255, 0.18)';
+    ctx.shadowBlur = 8;
+    ctx.drawImage(logoImg, lx, ly, targetW, drawH);
+    ctx.restore();
+  } else {
+    // İlk milisaniye vektörel saf beyaz EconNotes yedek çizimi
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(900, 20);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('E', pillX + 24, pillY + pillH / 2 + 1);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(pillX + 41, pillY + 13, 5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.font = font(800, 17.5);
+    ctx.fillText('EconNotes', pillX + 54, pillY + pillH / 2 + 1);
+    ctx.restore();
+  }
 
   // Sağ üst bölüm göstergesi
   const chLabel = `BÖLÜM ${String(f.sceneIndex + 1).padStart(2, '0')} / ${String(f.sceneCount).padStart(2, '0')}`;
   ctx.font = font(700, 13.5);
   const cw = ctx.measureText(chLabel).width + 38;
-  rr(ctx, STAGE_W - 32 - cw, 22, cw, 40, 20);
-  ctx.fillStyle = 'rgba(7, 11, 22, 0.78)';
+  rr(ctx, STAGE_W - 32 - cw, 20, cw, 40, 20);
+  ctx.fillStyle = 'rgba(6, 10, 22, 0.82)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.28)';
   ctx.stroke();
-  ctx.fillStyle = '#f1f5f9';
+  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
-  ctx.fillText(chLabel, STAGE_W - 32 - cw / 2, 42.5);
+  ctx.textBaseline = 'middle';
+  ctx.fillText(chLabel, STAGE_W - 32 - cw / 2, 40.5);
   ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
 }
 
-// ---------------------------------------------------------------- Akıllı Tahta
+// ---------------------------------------------------------------- Akıllı Tahta Ana Gövde
 interface Point {
   x: number;
   y: number;
@@ -233,777 +300,1340 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
   const reveal = f.poster ? 1 : f.progress;
   const d = f.scene.diagram;
 
-  // Dış yumuşak gölge + cam gövde
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.72)';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.74)';
   ctx.shadowBlur = 64;
   ctx.shadowOffsetY = 24;
   rr(ctx, x, y, w, h, 30);
-  ctx.fillStyle = 'rgba(10, 16, 32, 0.95)';
+  ctx.fillStyle = 'rgba(10, 16, 32, 0.96)';
   ctx.fill();
   ctx.restore();
 
-  // İnce iç cam yansıması
   const glass = ctx.createLinearGradient(x, y, x, y + h);
-  glass.addColorStop(0, 'rgba(56, 189, 248, 0.06)');
-  glass.addColorStop(0.35, 'rgba(15, 23, 42, 0)');
-  glass.addColorStop(1, 'rgba(168, 85, 247, 0.04)');
+  glass.addColorStop(0, 'rgba(56, 189, 248, 0.065)');
+  glass.addColorStop(0.38, 'rgba(15, 23, 42, 0)');
+  glass.addColorStop(1, 'rgba(168, 85, 247, 0.045)');
   rr(ctx, x, y, w, h, 30);
   ctx.fillStyle = glass;
   ctx.fill();
 
-  // Zarif çerçeve konturu
   const border = ctx.createLinearGradient(x, y, x + w, y + h);
   border.addColorStop(0, 'rgba(56, 189, 248, 0.55)');
   border.addColorStop(0.5, 'rgba(99, 102, 241, 0.28)');
   border.addColorStop(1, 'rgba(192, 132, 252, 0.45)');
   ctx.strokeStyle = border;
   ctx.lineWidth = 1.8;
-  rr(ctx, x + 1, y + 1, w - 2, h - 2, 29);
   ctx.stroke();
 
-  // Üst kategori etiketi + ders adı
-  const typeLabel = TYPE_LABEL[d.type] || 'DERS ANALİZ TAHTASI';
+  ctx.save();
+  rr(ctx, x, y, w, h, 30);
+  ctx.clip();
+
+  // İnce koordinat ızgarası
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.032)';
+  ctx.lineWidth = 1;
+  for (let gx = x + 48; gx < x + w; gx += 48) {
+    ctx.beginPath();
+    ctx.moveTo(gx, y + 114);
+    ctx.lineTo(gx, y + h - 54);
+    ctx.stroke();
+  }
+  for (let gy = y + 140; gy < y + h - 54; gy += 48) {
+    ctx.beginPath();
+    ctx.moveTo(x, gy);
+    ctx.lineTo(x + w, gy);
+    ctx.stroke();
+  }
+
+  // Üst kategori etiketi
+  const typeLabel = TYPE_LABEL[d.type] || 'STÜDYO DERS ŞEMASI';
   ctx.font = font(700, 12.5);
-  const tw = ctx.measureText(typeLabel).width + 30;
-  rr(ctx, x + 38, y + 28, tw, 30, 15);
-  ctx.fillStyle = 'rgba(34, 211, 238, 0.14)';
+  const tagW = ctx.measureText(typeLabel).width + 28;
+  rr(ctx, x + 36, y + 22, tagW, 28, 14);
+  ctx.fillStyle = 'rgba(34, 211, 238, 0.13)';
   ctx.fill();
-  ctx.strokeStyle = 'rgba(34, 211, 238, 0.32)';
+  ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.fillStyle = '#67e8f9';
   ctx.textBaseline = 'middle';
-  ctx.textAlign = 'left';
-  ctx.fillText(typeLabel, x + 53, y + 43.5);
+  ctx.fillText(typeLabel, x + 50, y + 36.5);
 
-  if (f.courseLabel) {
-    ctx.font = font(500, 14);
-    ctx.fillStyle = '#94a3b8';
-    ctx.textAlign = 'right';
-    const cLine = wrapText(ctx, f.courseLabel, 380, 1)[0] || '';
-    ctx.fillText(cLine, x + w - 38, y + 43.5);
-    ctx.textAlign = 'left';
+  // Sağ üst ders adı rozeti
+  if (d.rootBadge) {
+    ctx.font = font(600, 12.5);
+    const rb = wrapText(ctx, d.rootBadge, 280, 1)[0] || '';
+    const rbw = ctx.measureText(rb).width + 26;
+    rr(ctx, x + w - 36 - rbw, y + 22, rbw, 28, 14);
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.09)';
+    ctx.fill();
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(rb, x + w - 36 - rbw + 13, y + 36.5);
   }
-
-  // Ana başlık (net ve keskin tipografi)
-  const titleFade = f.poster ? 1 : easeOut(clamp(f.sceneTime / 0.6));
-  ctx.save();
-  ctx.globalAlpha = titleFade;
-  ctx.font = font(800, 33);
-  ctx.fillStyle = '#f8fafc';
   ctx.textBaseline = 'alphabetic';
-  const titleText = wrapText(ctx, d.title, w - 76, 1)[0] || '';
-  ctx.fillText(titleText, x + 38, y + 98);
-  ctx.restore();
 
-  // İnce ayırıcı çizgi
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.14)';
-  ctx.fillRect(x + 38, y + 118, w - 76, 1);
+  // Ana sahne başlığı
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = font(800, 29);
+  const titleLine = wrapText(ctx, d.title || f.scene.title, w - 72, 1)[0] || '';
+  ctx.fillText(titleLine, x + 36, y + 86);
 
-  // Diyagram çizim alanı
-  const hasMetric = Boolean(d.metric);
-  const bottomReserve = hasMetric ? 86 : 32;
-  const area: Area = {
-    x: x + 38,
-    y: y + 138,
-    w: w - 76,
-    h: h - 138 - bottomReserve,
+  const sep = ctx.createLinearGradient(x + 36, 0, x + w - 36, 0);
+  sep.addColorStop(0, 'rgba(34, 211, 238, 0.45)');
+  sep.addColorStop(0.6, 'rgba(148, 163, 184, 0.14)');
+  sep.addColorStop(1, 'rgba(148, 163, 184, 0.02)');
+  ctx.fillStyle = sep;
+  ctx.fillRect(x + 36, y + 104, w - 72, 1.5);
+
+  const hasBottomNote = Boolean(d.metric || f.scene.examTip);
+  const contentArea: Area = {
+    x: x + 34,
+    y: y + 120,
+    w: w - 68,
+    h: h - 120 - (hasBottomNote ? 68 : 24),
   };
 
-  ctx.save();
-  rr(ctx, area.x - 10, area.y - 10, area.w + 20, area.h + 20, 16);
-  ctx.clip();
+  let focusPoint: Point = { x: x + w / 2, y: y + h / 2 };
+  const nodes = d.nodes.slice(0, 5);
 
-  let target: Point;
-  switch (d.type) {
-    case 'timeline':
-      target = drawTimelineDiagram(ctx, area, d.nodes, reveal, f.now);
-      break;
-    case 'structure':
-      target = drawStructureDiagram(ctx, area, d.rootBadge, d.nodes, reveal, f.now);
-      break;
-    case 'comparison':
-      target = drawComparisonDiagram(ctx, area, d.nodes, reveal, f.now);
-      break;
-    case 'curve':
-      target = drawCurveDiagram(ctx, area, d.nodes, reveal, f.now);
-      break;
-    default:
-      target = drawNetworkDiagram(ctx, area, d.rootBadge, d.nodes, reveal, f.now);
-      break;
+  if (nodes.length === 0) {
+    focusPoint = drawTakeawayCards(ctx, contentArea, f.scene.keyTakeaways, reveal);
+  } else if (d.type === 'visual') {
+    focusPoint = drawVisualShowcase(ctx, contentArea, nodes, d.visualTheme, reveal, f.now);
+  } else if (d.type === 'shapes' || d.type === 'structure' || d.type === 'network') {
+    focusPoint = drawShapesDiagram(ctx, contentArea, nodes, d.rootBadge || 'MERKEZ YAPI', reveal, f.now);
+  } else if (d.type === 'table') {
+    focusPoint = drawDataTable(ctx, contentArea, nodes, reveal);
+  } else if (d.type === 'chart' || d.type === 'curve') {
+    focusPoint = drawAnalyticsChart(ctx, contentArea, nodes, reveal, f.now);
+  } else if (d.type === 'scenario') {
+    focusPoint = drawScenarioBoard(ctx, contentArea, nodes, reveal, f.now);
+  } else if (d.type === 'timeline') {
+    focusPoint = drawTimeline(ctx, contentArea, nodes, reveal, f.now);
+  } else if (d.type === 'comparison') {
+    focusPoint = drawComparison(ctx, contentArea, nodes, reveal);
+  } else {
+    focusPoint = drawVisualShowcase(ctx, contentArea, nodes, d.visualTheme, reveal, f.now);
   }
-  ctx.restore();
 
-  // Alt sınav ipucu şeridi
-  const metricT = f.poster ? 1 : easeOut((reveal - 0.35) / 0.15);
-  if (hasMetric && metricT > 0) {
-    const my = y + h - 68 + (1 - metricT) * 14;
-    ctx.save();
-    ctx.globalAlpha = metricT;
-    rr(ctx, x + 38, my, w - 76, 48, 14);
-    const mg = ctx.createLinearGradient(x + 38, 0, x + w - 38, 0);
-    mg.addColorStop(0, 'rgba(245, 158, 11, 0.16)');
-    mg.addColorStop(1, 'rgba(249, 115, 22, 0.05)');
-    ctx.fillStyle = mg;
+  // Alt sınav vurgu bandı
+  const bottomNote = d.metric || f.scene.examTip;
+  if (bottomNote) {
+    const my = y + h - 56;
+    rr(ctx, x + 34, my, w - 68, 40, 12);
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.10)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.42)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.30)';
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    rr(ctx, x + 48, my + 9, 132, 30, 9);
-    ctx.fillStyle = '#f59e0b';
-    ctx.fill();
-    ctx.fillStyle = '#0f172a';
-    ctx.font = font(800, 12.5);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('ÖNEMLİ NOT', x + 114, my + 24.5);
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = font(700, 13.5);
+    const prefix = 'ÖNEMLİ NOT:';
+    ctx.fillText(prefix, x + 50, my + 25);
+    const pw = ctx.measureText(prefix).width;
 
-    ctx.textAlign = 'left';
     ctx.fillStyle = '#fef3c7';
-    ctx.font = font(600, 17.5);
-    const mLine = wrapText(ctx, d.metric, w - 76 - 166, 1)[0] || '';
-    ctx.fillText(mLine, x + 194, my + 25);
-    ctx.restore();
+    ctx.font = font(500, 14.5);
+    const noteLine = wrapText(ctx, bottomNote, w - 124 - pw, 1)[0] || '';
+    ctx.fillText(noteLine, x + 62 + pw, my + 25);
   }
+
+  ctx.restore();
+  return focusPoint;
+}
+
+function drawTakeawayCards(ctx: CanvasRenderingContext2D, a: Area, items: string[], reveal: number): Point {
+  const list = items.slice(0, 4);
+  const gap = 16;
+  const cardH = Math.min(110, (a.h - gap * (list.length - 1)) / Math.max(1, list.length));
+  const act = activeIndex(list.length, reveal);
+  let target: Point = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
+
+  list.forEach((txt, i) => {
+    const t = appearAmount(i, list.length, reveal);
+    if (t <= 0) return;
+    const cy = a.y + i * (cardH + gap) + (1 - t) * 16;
+    const [c1] = PALETTE[i % PALETTE.length];
+    const isAct = i === act;
+    if (isAct) target = { x: a.x + a.w / 2, y: cy + cardH / 2 };
+
+    ctx.save();
+    ctx.globalAlpha = t;
+    rr(ctx, a.x, cy, a.w, cardH, 16);
+    ctx.fillStyle = isAct ? 'rgba(20, 32, 58, 0.92)' : 'rgba(15, 23, 42, 0.72)';
+    ctx.fill();
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.2)';
+    ctx.lineWidth = isAct ? 2 : 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#f1f5f9';
+    ctx.font = font(500, 18);
+    const lines = wrapText(ctx, txt, a.w - 60, 2);
+    drawLines(ctx, lines, a.x + 30, cy + 42, 26);
+    ctx.restore();
+  });
 
   return target;
 }
 
-// 1. ZAMAN ÇİZELGESİ / AŞAMALI AKIŞ
-function drawTimelineDiagram(
+// ================================================================ 1. GÖRSEL & İLLÜSTRASYON SAHNESİ ('visual')
+function drawThematicIllustration(
   ctx: CanvasRenderingContext2D,
-  a: Area,
-  nodesIn: DiagramNode[],
-  reveal: number,
+  box: Area,
+  theme: VisualTheme,
   now: number,
-): Point {
-  const nodes = nodesIn.slice(0, 5);
-  const n = Math.max(1, nodes.length);
-  const slot = a.w / n;
-  const lineY = a.y + 126;
-  const act = activeIndex(n, reveal);
-  const firstX = a.x + slot / 2;
-  const lastX = a.x + slot * (n - 0.5);
+  activeIdx: number,
+): Point[] {
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const slow = now / 2800;
 
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(firstX, lineY);
-  ctx.lineTo(lastX, lineY);
-  ctx.stroke();
+  ctx.save();
+  rr(ctx, box.x, box.y, box.w, box.h, 24);
+  const bg = ctx.createLinearGradient(box.x, box.y, box.x + box.w, box.y + box.h);
+  if (theme === 'history') {
+    bg.addColorStop(0, '#0f1d38');
+    bg.addColorStop(0.55, '#13243f');
+    bg.addColorStop(1, '#1d1636');
+  } else if (theme === 'economics') {
+    bg.addColorStop(0, '#0b2239');
+    bg.addColorStop(0.55, '#0d293e');
+    bg.addColorStop(1, '#0c1f33');
+  } else if (theme === 'law') {
+    bg.addColorStop(0, '#141e38');
+    bg.addColorStop(1, '#1f1938');
+  } else {
+    bg.addColorStop(0, '#0d1b36');
+    bg.addColorStop(1, '#191638');
+  }
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.clip();
 
-  const actX = a.x + slot * (act + 0.5);
-  const nextBoost = slot * 0.5 * appearAmount(Math.min(n - 1, act + 1), n, reveal);
-  const lg = ctx.createLinearGradient(firstX, 0, Math.max(firstX + 1, lastX), 0);
-  lg.addColorStop(0, '#22d3ee');
-  lg.addColorStop(1, '#a855f7');
-  ctx.strokeStyle = lg;
-  ctx.beginPath();
-  ctx.moveTo(firstX, lineY);
-  ctx.lineTo(Math.min(lastX, Math.max(firstX, actX + nextBoost)), lineY);
-  ctx.stroke();
+  // Arka plan atmosferik hale
+  const glow = ctx.createRadialGradient(cx, cy - 30, 12, cx, cy, box.w * 0.65);
+  glow.addColorStop(0, theme === 'history' ? 'rgba(251, 191, 36, 0.20)' : 'rgba(34, 211, 238, 0.22)');
+  glow.addColorStop(1, 'rgba(15, 23, 42, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(box.x, box.y, box.w, box.h);
 
-  nodes.forEach((nd, i) => {
-    const cx = a.x + slot * (i + 0.5);
-    const t = appearAmount(i, n, reveal);
-    const isAct = i === act && reveal > 0.02;
+  // Üst sol rozet
+  rr(ctx, box.x + 18, box.y + 18, 148, 28, 14);
+  ctx.fillStyle = 'rgba(6, 10, 22, 0.65)';
+  ctx.fill();
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = font(700, 11.5);
+  ctx.fillText('KONU İLLÜSTRASYONU', box.x + 32, box.y + 36);
 
-    ctx.fillStyle = 'rgba(51, 65, 85, 0.85)';
+  if (theme === 'history') {
+    // 8 köşeli Selçuklu/Osmanlı geometrik yıldız madalyonu (üst merkezde yavaş döner)
+    ctx.save();
+    ctx.translate(cx, box.y + 125);
+    ctx.rotate(slow * 0.22);
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.42)';
+    ctx.lineWidth = 1.6;
+    for (let k = 0; k < 2; k++) {
+      ctx.save();
+      ctx.rotate((k * Math.PI) / 4);
+      ctx.strokeRect(-42, -42, 84, 84);
+      ctx.restore();
+    }
     ctx.beginPath();
-    ctx.arc(cx, lineY, 11, 0, Math.PI * 2);
+    ctx.arc(0, 0, 22, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.22)';
     ctx.fill();
-    if (t <= 0) return;
+    ctx.stroke();
+    ctx.restore();
 
-    const s = easeOutBack(t);
-    const r = 28 * s;
-    if (isAct) {
-      const pr = r + 12 + Math.sin(now / 260) * 3.5;
-      ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
-      ctx.lineWidth = 2.5;
+    // Anıtsal Taçkapı / Kervansaray Kemeri ve Kubbe Silüeti
+    const baseLine = box.y + box.h - 78;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+    ctx.lineWidth = 2.2;
+
+    // Yan sur duvarları
+    rr(ctx, cx - 165, baseLine - 135, 330, 135, [14, 14, 0, 0]);
+    ctx.fill();
+    ctx.stroke();
+
+    // Merkez kubbe
+    ctx.beginPath();
+    ctx.arc(cx, baseLine - 135, 78, Math.PI, 0);
+    ctx.fillStyle = 'rgba(30, 58, 95, 0.85)';
+    ctx.fill();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.stroke();
+
+    // Sivri Selçuklu kemeri
+    ctx.beginPath();
+    ctx.moveTo(cx - 56, baseLine);
+    ctx.lineTo(cx - 56, baseLine - 72);
+    ctx.quadraticCurveTo(cx - 56, baseLine - 122, cx, baseLine - 138);
+    ctx.quadraticCurveTo(cx + 56, baseLine - 122, cx + 56, baseLine - 72);
+    ctx.lineTo(cx + 56, baseLine);
+    ctx.closePath();
+    const archGlow = ctx.createLinearGradient(cx, baseLine - 138, cx, baseLine);
+    archGlow.addColorStop(0, 'rgba(251, 191, 36, 0.45)');
+    archGlow.addColorStop(1, 'rgba(34, 211, 238, 0.14)');
+    ctx.fillStyle = archGlow;
+    ctx.fill();
+    ctx.strokeStyle = '#fbbf24';
+    ctx.stroke();
+
+    // Alt ekili miri toprak / ticaret yolu katmanları
+    for (let r = 0; r < 3; r++) {
       ctx.beginPath();
-      ctx.arc(cx, lineY, pr, 0, Math.PI * 2);
+      const ry = baseLine + 16 + r * 18;
+      ctx.moveTo(box.x + 20, ry);
+      ctx.bezierCurveTo(cx - 80, ry - 8, cx + 80, ry + 8, box.x + box.w - 20, ry - 4);
+      ctx.strokeStyle = r === 0 ? 'rgba(52, 211, 153, 0.55)' : 'rgba(56, 189, 248, 0.30)';
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
-
-    const [c1, c2] = PALETTE[i % PALETTE.length];
-    const cg = ctx.createLinearGradient(cx - r, lineY - r, cx + r, lineY + r);
-    cg.addColorStop(0, c1);
-    cg.addColorStop(1, c2);
-    ctx.fillStyle = cg;
-    ctx.beginPath();
-    ctx.arc(cx, lineY, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.globalAlpha = t;
-    ctx.fillStyle = '#08101f';
-    ctx.font = font(800, 19);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(i + 1).padStart(2, '0'), cx, lineY + 1);
-
-    // Üst başlık
-    const off = (1 - t) * 18;
-    ctx.fillStyle = isAct ? '#ffffff' : '#e2e8f0';
-    ctx.font = font(700, 20);
-    ctx.textBaseline = 'alphabetic';
-    const labelLines = wrapText(ctx, nd.label, slot - 24, 2);
-    const ly = lineY - 48 - (labelLines.length - 1) * 24 + off;
-    drawLines(ctx, labelLines, cx, ly, 24);
-
-    // Alt açıklama kartı
-    if (nd.subtext) {
-      const cardW = slot - 20;
-      const cardX = cx - cardW / 2;
-      const cardY = lineY + 48 + off;
-      const maxCardH = a.y + a.h - cardY - 6;
-      ctx.font = font(500, 16.5);
-      const maxSubLines = Math.max(2, Math.floor((maxCardH - 36) / 24));
-      const subLines = wrapText(ctx, nd.subtext, cardW - 32, maxSubLines);
-      const cardH = Math.min(maxCardH, subLines.length * 24 + 34);
-
-      rr(ctx, cardX, cardY, cardW, cardH, 16);
-      ctx.fillStyle = isAct ? 'rgba(20, 33, 58, 0.96)' : 'rgba(15, 23, 42, 0.78)';
+  } else if (theme === 'economics') {
+    // Hassas İktisadi Denge Terazisi + Yükselen Piyasa Çubukları
+    const baseY = box.y + box.h - 72;
+    const barVals = [0.38, 0.56, 0.48, 0.76, 0.9];
+    barVals.forEach((v, idx) => {
+      const bw = 34;
+      const bx = cx - 118 + idx * 50;
+      const bh = 150 * v * (0.92 + Math.sin(slow + idx) * 0.06);
+      const g = ctx.createLinearGradient(bx, baseY - bh, bx, baseY);
+      g.addColorStop(0, idx === activeIdx % 5 ? '#fbbf24' : '#22d3ee');
+      g.addColorStop(1, 'rgba(59, 130, 246, 0.18)');
+      rr(ctx, bx, baseY - bh, bw, bh, [8, 8, 2, 2]);
+      ctx.fillStyle = g;
       ctx.fill();
-      ctx.strokeStyle = isAct ? c1 : 'rgba(71, 85, 105, 0.45)';
-      ctx.lineWidth = isAct ? 1.8 : 1;
+    });
+
+    // Üst denge halkası ve terazi kolu
+    const tilt = Math.sin(slow * 1.1) * 0.08;
+    ctx.save();
+    ctx.translate(cx, box.y + 155);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, 14, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.rotate(tilt);
+    ctx.beginPath();
+    ctx.moveTo(-115, 0);
+    ctx.lineTo(115, 0);
+    ctx.stroke();
+
+    [-105, 105].forEach(px => {
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px - 22, 42);
+      ctx.lineTo(px + 22, 42);
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.75)';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(px, 46, 26, 0, Math.PI);
+      ctx.fillStyle = 'rgba(34, 211, 238, 0.25)';
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.restore();
+  } else if (theme === 'law') {
+    // Klasik Kurumsal Alınlık ve 4 Sütunlu Devlet/Hukuk Yapısı
+    const baseY = box.y + box.h - 90;
+    ctx.strokeStyle = '#60a5fa';
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.85)';
+    ctx.lineWidth = 2.2;
+
+    // Üçgen alınlık
+    ctx.beginPath();
+    ctx.moveTo(cx - 150, box.y + 170);
+    ctx.lineTo(cx, box.y + 96);
+    ctx.lineTo(cx + 150, box.y + 170);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 4 sütun
+    for (let c = 0; c < 4; c++) {
+      const colX = cx - 118 + c * 70;
+      rr(ctx, colX, box.y + 178, 26, baseY - (box.y + 178), 6);
+      ctx.fillStyle = c === activeIdx % 4 ? 'rgba(56, 189, 248, 0.35)' : 'rgba(148, 163, 184, 0.18)';
+      ctx.fill();
+      ctx.stroke();
+    }
+    rr(ctx, cx - 156, baseY, 312, 22, 6);
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    // Bilimsel / Kavramsal Prizma ve Yörünge Halkaları
+    ctx.save();
+    ctx.translate(cx, cy);
+    for (let r = 0; r < 3; r++) {
+      ctx.save();
+      ctx.rotate((r * Math.PI) / 3 + slow * 0.35);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 145, 54, 0, 0, Math.PI * 2);
+      ctx.strokeStyle = r === 0 ? 'rgba(34, 211, 238, 0.65)' : r === 1 ? 'rgba(167, 139, 250, 0.55)' : 'rgba(52, 211, 153, 0.5)';
+      ctx.lineWidth = 2;
       ctx.stroke();
 
-      ctx.fillStyle = isAct ? '#f1f5f9' : '#cbd5e1';
-      drawLines(ctx, subLines, cx, cardY + 30, 24);
+      const orbAngle = slow * 1.4 + r * 2;
+      const ox = Math.cos(orbAngle) * 145;
+      const oy = Math.sin(orbAngle) * 54;
+      ctx.beginPath();
+      ctx.arc(ox, oy, 7, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.restore();
     }
-    ctx.globalAlpha = 1;
-  });
 
-  ctx.textAlign = 'left';
-  return { x: actX, y: lineY };
+    // Merkez prizma
+    ctx.beginPath();
+    ctx.arc(0, 0, 34, 0, Math.PI * 2);
+    const core = ctx.createRadialGradient(-8, -8, 4, 0, 0, 34);
+    core.addColorStop(0, '#ffffff');
+    core.addColorStop(0.4, '#22d3ee');
+    core.addColorStop(1, '#6366f1');
+    ctx.fillStyle = core;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  // Dış çerçeve
+  rr(ctx, box.x, box.y, box.w, box.h, 24);
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.38)';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  // Sağdaki kartlara bağlanacak odak noktaları
+  return [
+    { x: box.x + box.w - 18, y: box.y + box.h * 0.24 },
+    { x: box.x + box.w - 18, y: box.y + box.h * 0.44 },
+    { x: box.x + box.w - 18, y: box.y + box.h * 0.64 },
+    { x: box.x + box.w - 18, y: box.y + box.h * 0.82 },
+  ];
 }
 
-// 2. KURUMSAL & KAVRAMSAL HİYERARŞİ (Başlık tekrarı olmadan!)
-function drawStructureDiagram(
+function drawVisualShowcase(
   ctx: CanvasRenderingContext2D,
   a: Area,
-  rootBadge: string,
-  nodesIn: DiagramNode[],
+  nodes: DiagramNode[],
+  theme: VisualTheme,
   reveal: number,
   now: number,
 ): Point {
-  const nodes = nodesIn.slice(0, 4);
-  const n = Math.max(1, nodes.length);
+  const list = nodes.slice(0, 4);
+  const n = list.length;
   const act = activeIndex(n, reveal);
 
-  // Üst kök rozet (tahta başlığını tekrarlamaz; ders veya üst çerçeve adını gösterir)
-  const badgeText = rootBadge.toLocaleUpperCase('tr-TR');
-  ctx.font = font(700, 14);
-  const rootW = Math.min(460, Math.max(240, ctx.measureText(badgeText).width + 64));
-  const rootH = 48;
-  const rootX = a.x + (a.w - rootW) / 2;
-  const rootY = a.y + 4;
+  const illBox: Area = {
+    x: a.x,
+    y: a.y + 4,
+    w: Math.round(a.w * 0.41),
+    h: a.h - 8,
+  };
+  const anchors = drawThematicIllustration(ctx, illBox, theme, now, act);
 
-  const rg = ctx.createLinearGradient(rootX, 0, rootX + rootW, 0);
-  rg.addColorStop(0, 'rgba(14, 116, 144, 0.85)');
-  rg.addColorStop(1, 'rgba(67, 56, 202, 0.85)');
-  rr(ctx, rootX, rootY, rootW, rootH, 24);
-  ctx.fillStyle = rg;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(103, 232, 249, 0.45)';
-  ctx.lineWidth = 1.3;
-  ctx.stroke();
+  const rightX = illBox.x + illBox.w + 34;
+  const rightW = a.x + a.w - rightX;
+  const gap = 14;
+  const cardH = Math.min(118, (a.h - gap * (n - 1)) / Math.max(1, n));
+  let target: Point = { x: illBox.x + illBox.w / 2, y: illBox.y + illBox.h / 2 };
 
-  ctx.fillStyle = '#f8fafc';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(wrapText(ctx, badgeText, rootW - 36, 1)[0] || '', rootX + rootW / 2, rootY + rootH / 2 + 0.5);
-
-  const gap = 22;
-  const cardW = (a.w - gap * (n - 1)) / n;
-  const childY = a.y + 104;
-  const childH = a.h - 110;
-  const busY = rootY + rootH + 26;
-  let target: Point = { x: rootX + rootW / 2, y: rootY + rootH / 2 };
-
-  // Ana dikey hat
-  ctx.strokeStyle = 'rgba(100, 116, 139, 0.35)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(rootX + rootW / 2, rootY + rootH);
-  ctx.lineTo(rootX + rootW / 2, busY);
-  ctx.stroke();
-
-  nodes.forEach((nd, i) => {
+  list.forEach((nd, i) => {
     const t = appearAmount(i, n, reveal);
-    const bx = a.x + i * (cardW + gap);
-    const cx = bx + cardW / 2;
+    if (t <= 0) return;
     const isAct = i === act && reveal > 0.02;
     const [c1, c2] = PALETTE[i % PALETTE.length];
+    const cy = a.y + i * (cardH + gap) + (1 - t) * 16;
+    const anchor = anchors[i % anchors.length];
 
-    // Bağlantı kolu
-    ctx.strokeStyle = t > 0 ? (isAct ? c1 : 'rgba(100, 116, 139, 0.45)') : 'rgba(71, 85, 105, 0.2)';
-    ctx.lineWidth = isAct ? 2.4 : 1.6;
-    ctx.beginPath();
-    ctx.moveTo(rootX + rootW / 2, busY);
-    ctx.lineTo(cx, busY);
-    ctx.lineTo(cx, childY);
-    ctx.stroke();
-
-    if (t <= 0) return;
-
-    const lift = isAct ? -6 - Math.sin(now / 340) * 2 : 0;
-    const by = childY + (1 - t) * 24 + lift;
-
+    // İllüstrasyondan karta ışıklı işaret çizgisi
     ctx.save();
     ctx.globalAlpha = t;
-    if (isAct) {
-      ctx.shadowColor = c1 + '55';
-      ctx.shadowBlur = 32;
-    }
-    rr(ctx, bx, by, cardW, childH, 20);
-    ctx.fillStyle = isAct ? 'rgba(20, 30, 54, 0.98)' : 'rgba(14, 21, 38, 0.92)';
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    ctx.strokeStyle = isAct ? c1 : 'rgba(71, 85, 105, 0.5)';
-    ctx.lineWidth = isAct ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(anchor.x, anchor.y);
+    ctx.bezierCurveTo(
+      anchor.x + 16,
+      anchor.y,
+      rightX - 18,
+      cy + cardH / 2,
+      rightX,
+      cy + cardH / 2,
+    );
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.28)';
+    ctx.lineWidth = isAct ? 2.2 : 1.2;
     ctx.stroke();
 
-    // Üst renk şeridi
-    const barG = ctx.createLinearGradient(bx, 0, bx + cardW, 0);
+    ctx.beginPath();
+    ctx.arc(anchor.x, anchor.y, isAct ? 5.5 : 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = c1;
+    ctx.fill();
+
+    // Kart gövdesi
+    rr(ctx, rightX, cy, rightW, cardH, 18);
+    ctx.fillStyle = isAct ? 'rgba(20, 33, 60, 0.95)' : 'rgba(15, 23, 42, 0.80)';
+    ctx.fill();
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.22)';
+    ctx.lineWidth = isAct ? 2 : 1.1;
+    ctx.stroke();
+
+    // Sol vurgu şeridi
+    const barG = ctx.createLinearGradient(rightX, cy, rightX, cy + cardH);
     barG.addColorStop(0, c1);
     barG.addColorStop(1, c2);
-    rr(ctx, bx, by, cardW, 6, [20, 20, 0, 0]);
+    rr(ctx, rightX, cy, 6, cardH, [18, 0, 0, 18]);
     ctx.fillStyle = barG;
     ctx.fill();
 
-    // Numara rozeti
-    rr(ctx, bx + 20, by + 22, 36, 26, 8);
-    ctx.fillStyle = c1 + '24';
-    ctx.fill();
-    ctx.fillStyle = c1;
-    ctx.font = font(800, 13);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(i + 1).padStart(2, '0'), bx + 38, by + 35.5);
+    // Üst başlık + rozet
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(700, 18);
+    const lbl = wrapText(ctx, nd.label, rightW - 140, 1)[0] || '';
+    ctx.fillText(lbl, rightX + 22, cy + 31);
 
-    // Başlık
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = font(700, 21);
-    const ll = wrapText(ctx, nd.label, cardW - 40, 2);
-    drawLines(ctx, ll, bx + 20, by + 78, 26);
-
-    // Ayırıcı
-    const sepY = by + 70 + ll.length * 26;
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.14)';
-    ctx.fillRect(bx + 20, sepY, cardW - 40, 1);
-
-    // Alt metin
-    if (nd.subtext) {
-      ctx.fillStyle = isAct ? '#e2e8f0' : '#cbd5e1';
-      ctx.font = font(400, 17);
-      const maxSub = Math.max(2, Math.floor((childH - (sepY - by) - 28) / 25));
-      const sl = wrapText(ctx, nd.subtext, cardW - 40, maxSub);
-      drawLines(ctx, sl, bx + 20, sepY + 28, 25);
+    if (nd.badge) {
+      ctx.font = font(600, 11);
+      const bt = wrapText(ctx, nd.badge, 120, 1)[0] || '';
+      const bw = ctx.measureText(bt).width + 18;
+      rr(ctx, rightX + rightW - bw - 16, cy + 13, bw, 22, 11);
+      ctx.fillStyle = `${c1}22`;
+      ctx.fill();
+      ctx.fillStyle = c1;
+      ctx.fillText(bt, rightX + rightW - bw - 7, cy + 28);
     }
 
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = font(400, 15);
+    const subLines = wrapText(ctx, nd.subtext, rightW - 38, 2);
+    drawLines(ctx, subLines, rightX + 22, cy + 58, 22);
     ctx.restore();
-    if (isAct) target = { x: cx, y: by + 50 };
+
+    if (isAct) target = { x: rightX + rightW / 2, y: cy + cardH / 2 };
   });
 
-  ctx.textAlign = 'left';
   return target;
 }
 
-// 3. KAVRAM İLİŞKİ AĞI
-function drawNetworkDiagram(
+// ================================================================ 2. GEOMETRİK ŞEKİLLER & DÖNGÜSEL MODEL ('shapes')
+function drawPolygon(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, sides: number, rot = 0) {
+  ctx.beginPath();
+  for (let i = 0; i < sides; i++) {
+    const ang = rot + (i * Math.PI * 2) / sides;
+    const px = cx + Math.cos(ang) * r;
+    const py = cy + Math.sin(ang) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+function drawShapesDiagram(
   ctx: CanvasRenderingContext2D,
   a: Area,
-  rootBadge: string,
-  nodesIn: DiagramNode[],
+  nodes: DiagramNode[],
+  centerTitle: string,
   reveal: number,
   now: number,
 ): Point {
-  const nodes = nodesIn.slice(0, 5);
-  const n = Math.max(1, nodes.length);
+  const list = nodes.slice(0, 4);
+  const n = list.length;
   const act = activeIndex(n, reveal);
   const cx = a.x + a.w / 2;
   const cy = a.y + a.h / 2;
-  const rx = a.w / 2 - 190;
-  const ry = a.h / 2 - 86;
-  let target: Point = { x: cx, y: cy };
 
-  const positions = nodes.map((_, i) => {
-    const ang = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-    return {
-      x: cx + Math.cos(ang) * rx,
-      y: cy + Math.sin(ang) * ry,
-    };
-  });
-
-  // Bağlantı eğrileri
-  positions.forEach((p, i) => {
-    const t = appearAmount(i, n, reveal);
-    if (t <= 0) return;
-    const isAct = i === act;
-    const [c1] = PALETTE[i % PALETTE.length];
-    ctx.save();
-    ctx.globalAlpha = t;
-    ctx.strokeStyle = isAct ? c1 : 'rgba(100, 116, 139, 0.45)';
-    ctx.lineWidth = isAct ? 2.6 : 1.6;
-    const mx = (cx + p.x) / 2;
-    const my = (cy + p.y) / 2 - 18;
-    const ex = cx + (p.x - cx) * t;
-    const ey = cy + (p.y - cy) * t;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.quadraticCurveTo(mx, my, ex, ey);
-    ctx.stroke();
-
-    if (isAct) {
-      const k = (now / 1400) % 1;
-      const qx = (1 - k) * (1 - k) * cx + 2 * (1 - k) * k * mx + k * k * p.x;
-      const qy = (1 - k) * (1 - k) * cy + 2 * (1 - k) * k * my + k * k * p.y;
-      ctx.fillStyle = c1;
-      ctx.beginPath();
-      ctx.arc(qx, qy, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  });
-
-  // Merkez çekirdek
-  const hubR = 88;
-  const hg = ctx.createRadialGradient(cx - 20, cy - 20, 12, cx, cy, hubR);
-  hg.addColorStop(0, '#0891b2');
-  hg.addColorStop(1, '#312e81');
+  // Dış döngüsel yörünge halkası ve hareketli akış okları
+  const rx = 250;
+  const ry = 165;
   ctx.save();
-  ctx.shadowColor = 'rgba(34, 211, 238, 0.35)';
-  ctx.shadowBlur = 36;
-  ctx.fillStyle = hg;
   ctx.beginPath();
-  ctx.arc(cx, cy, hubR, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 8]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Yörünge üzerinde dönen 4 akış partikülü
+  for (let p = 0; p < 4; p++) {
+    const ang = (now / 2600 + p * (Math.PI / 2)) % (Math.PI * 2);
+    const px = cx + Math.cos(ang) * rx;
+    const py = cy + Math.sin(ang) * ry;
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.fillStyle = '#22d3ee';
+    ctx.fill();
+  }
   ctx.restore();
 
-  ctx.strokeStyle = 'rgba(165, 243, 252, 0.45)';
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.arc(cx, cy, hubR + 8, now / 1400, now / 1400 + Math.PI * 1.35);
+  // Merkez altıgen çekirdek şekli
+  ctx.save();
+  drawPolygon(ctx, cx, cy, 74, 6, -Math.PI / 6);
+  const hubG = ctx.createLinearGradient(cx - 70, cy - 70, cx + 70, cy + 70);
+  hubG.addColorStop(0, 'rgba(14, 116, 144, 0.92)');
+  hubG.addColorStop(1, 'rgba(67, 56, 202, 0.92)');
+  ctx.fillStyle = hubG;
+  ctx.shadowColor = 'rgba(34, 211, 238, 0.35)';
+  ctx.shadowBlur = 26;
+  ctx.fill();
+  ctx.strokeStyle = '#67e8f9';
+  ctx.lineWidth = 2.2;
   ctx.stroke();
+  ctx.restore();
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = font(700, 16.5);
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
-  const hubLines = wrapText(ctx, rootBadge || 'Ana Konu', 144, 3);
-  drawLines(ctx, hubLines, cx, cy - ((hubLines.length - 1) * 21) / 2 + 6, 21);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = font(800, 14.5);
+  const centerLines = wrapText(ctx, centerTitle, 112, 2);
+  drawLines(ctx, centerLines, cx, cy - (centerLines.length - 1) * 9 + 5, 19);
+  ctx.textAlign = 'left';
 
-  // Çevre kavram kartları
-  positions.forEach((p, i) => {
+  // 4 köşe geometrik şekil + açıklama kartı
+  const corners = [
+    { x: a.x + 12, y: a.y + 8 },
+    { x: a.x + a.w - 372, y: a.y + 8 },
+    { x: a.x + a.w - 372, y: a.y + a.h - 156 },
+    { x: a.x + 12, y: a.y + a.h - 156 },
+  ];
+  const cardW = 360;
+  const cardH = 146;
+  let target: Point = { x: cx, y: cy };
+
+  list.forEach((nd, i) => {
     const t = appearAmount(i, n, reveal);
     if (t <= 0) return;
-    const nd = nodes[i];
     const isAct = i === act && reveal > 0.02;
-    const [c1] = PALETTE[i % PALETTE.length];
-    const cw = 330;
+    const [c1, c2] = PALETTE[i % PALETTE.length];
+    const pos = corners[i % corners.length];
+    const scale = 0.92 + easeOutBack(t) * 0.08;
 
-    ctx.font = font(700, 19);
-    const ll = wrapText(ctx, nd.label, cw - 36, 2);
-    ctx.font = font(400, 15.5);
-    const sl = nd.subtext ? wrapText(ctx, nd.subtext, cw - 36, 3) : [];
-    const ch = 30 + ll.length * 23 + (sl.length ? sl.length * 21 + 10 : 0);
+    const midX = pos.x + cardW / 2;
+    const midY = pos.y + cardH / 2;
 
-    const bx = clamp(p.x - cw / 2, a.x, a.x + a.w - cw);
-    const by = clamp(p.y - ch / 2, a.y, a.y + a.h - ch);
-    const s = 0.85 + 0.15 * easeOutBack(t);
+    // Merkez çekirdeğe bağlantı kolu
+    ctx.save();
+    ctx.globalAlpha = t;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(midX, midY);
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.24)';
+    ctx.lineWidth = isAct ? 2.4 : 1.3;
+    ctx.stroke();
+    ctx.restore();
 
     ctx.save();
     ctx.globalAlpha = t;
-    ctx.translate(bx + cw / 2, by + ch / 2);
-    ctx.scale(s, s);
-    ctx.translate(-(bx + cw / 2), -(by + ch / 2));
+    ctx.translate(midX, midY);
+    ctx.scale(scale, scale);
+    ctx.translate(-midX, -midY);
 
-    if (isAct) {
-      ctx.shadowColor = c1 + '55';
-      ctx.shadowBlur = 28;
-    }
-    rr(ctx, bx, by, cw, ch, 16);
-    ctx.fillStyle = isAct ? 'rgba(20, 30, 54, 0.98)' : 'rgba(13, 20, 37, 0.94)';
+    rr(ctx, pos.x, pos.y, cardW, cardH, 20);
+    ctx.fillStyle = isAct ? 'rgba(20, 33, 60, 0.96)' : 'rgba(15, 23, 42, 0.85)';
     ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = isAct ? c1 : 'rgba(71, 85, 105, 0.55)';
-    ctx.lineWidth = isAct ? 2 : 1;
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.25)';
+    ctx.lineWidth = isAct ? 2.2 : 1.2;
     ctx.stroke();
 
-    rr(ctx, bx + 8, by + 14, 4, ch - 28, 2);
-    ctx.fillStyle = c1;
-    ctx.fill();
-
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = font(700, 19);
-    drawLines(ctx, ll, bx + 22, by + 32, 23);
-
-    if (sl.length) {
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = font(400, 15.5);
-      drawLines(ctx, sl, bx + 22, by + 40 + ll.length * 23, 21);
+    // Sol üst geometrik şekil rozeti (altıgen / eşkenar dörtgen / daire / kare)
+    const gx = pos.x + 32;
+    const gy = pos.y + 34;
+    const shapeGrad = ctx.createLinearGradient(gx - 18, gy - 18, gx + 18, gy + 18);
+    shapeGrad.addColorStop(0, c1);
+    shapeGrad.addColorStop(1, c2);
+    ctx.fillStyle = shapeGrad;
+    if (i % 3 === 0) {
+      drawPolygon(ctx, gx, gy, 18, 6);
+      ctx.fill();
+    } else if (i % 3 === 1) {
+      drawPolygon(ctx, gx, gy, 19, 4);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(gx, gy, 17, 0, Math.PI * 2);
+      ctx.fill();
     }
+    ctx.fillStyle = '#040711';
+    ctx.font = font(800, 13.5);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`0${i + 1}`, gx, gy + 0.5);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(700, 17.5);
+    ctx.fillText(wrapText(ctx, nd.label, cardW - 76, 1)[0] || '', pos.x + 60, pos.y + 40);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = font(400, 14.5);
+    const sl = wrapText(ctx, nd.subtext, cardW - 40, 3);
+    drawLines(ctx, sl, pos.x + 20, pos.y + 72, 21);
     ctx.restore();
 
-    if (isAct) target = { x: bx + cw / 2, y: by + ch / 2 };
+    if (isAct) target = { x: midX, y: midY };
   });
 
-  ctx.textAlign = 'left';
   return target;
 }
 
-// 4. KARŞILAŞTIRMALI ANALİZ SÜTUNLARI
-function drawComparisonDiagram(
+// ================================================================ 3. AKADEMİK KARŞILAŞTIRMA & VERİ TABLOSU ('table')
+function drawDataTable(
   ctx: CanvasRenderingContext2D,
   a: Area,
-  nodesIn: DiagramNode[],
+  nodes: DiagramNode[],
+  reveal: number,
+): Point {
+  const rows = nodes.slice(0, 4);
+  const n = rows.length;
+  const act = activeIndex(n, reveal);
+
+  const tableX = a.x;
+  const tableY = a.y + 4;
+  const tableW = a.w;
+  const headerH = 50;
+  const rowH = Math.min(112, (a.h - headerH - 12) / Math.max(1, n));
+  const totalH = headerH + rowH * n;
+
+  // Sütun genişlikleri
+  const colNoW = 68;
+  const colConceptW = Math.round(tableW * 0.25);
+  const colBadgeW = 178;
+  const colDescW = tableW - colNoW - colConceptW - colBadgeW;
+
+  // Tablo dış çerçevesi
+  ctx.save();
+  rr(ctx, tableX, tableY, tableW, totalH, 20);
+  ctx.fillStyle = 'rgba(11, 18, 35, 0.90)';
+  ctx.fill();
+  ctx.clip();
+
+  // Tablo Üst Başlık Satırı
+  const hg = ctx.createLinearGradient(tableX, tableY, tableX + tableW, tableY);
+  hg.addColorStop(0, 'rgba(34, 211, 238, 0.20)');
+  hg.addColorStop(0.6, 'rgba(59, 130, 246, 0.16)');
+  hg.addColorStop(1, 'rgba(168, 85, 247, 0.18)');
+  ctx.fillStyle = hg;
+  ctx.fillRect(tableX, tableY, tableW, headerH);
+
+  ctx.fillStyle = '#67e8f9';
+  ctx.font = font(700, 12.5);
+  ctx.textBaseline = 'middle';
+  ctx.fillText('NO', tableX + 24, tableY + headerH / 2);
+  ctx.fillText('KAVRAM / BOYUT', tableX + colNoW + 18, tableY + headerH / 2);
+  ctx.fillText('TEMEL İŞLEYİŞ VE AÇIKLAMA', tableX + colNoW + colConceptW + 20, tableY + headerH / 2);
+  ctx.fillText('SINAV / ETKİ ROLÜ', tableX + colNoW + colConceptW + colDescW + 18, tableY + headerH / 2);
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.22)';
+  ctx.fillRect(tableX, tableY + headerH, tableW, 1.2);
+
+  let target: Point = { x: tableX + tableW / 2, y: tableY + totalH / 2 };
+
+  rows.forEach((nd, i) => {
+    const t = appearAmount(i, n, reveal);
+    const ry = tableY + headerH + i * rowH;
+    const isAct = i === act && reveal > 0.02;
+    const [c1] = PALETTE[i % PALETTE.length];
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0.15, t);
+
+    // Satır arka planı
+    if (isAct) {
+      const rg = ctx.createLinearGradient(tableX, ry, tableX + tableW, ry);
+      rg.addColorStop(0, `${c1}26`);
+      rg.addColorStop(1, 'rgba(30, 41, 59, 0.55)');
+      ctx.fillStyle = rg;
+      ctx.fillRect(tableX, ry, tableW, rowH);
+
+      // Sol parlak aktif şerit
+      ctx.fillStyle = c1;
+      ctx.fillRect(tableX, ry + 6, 5, rowH - 12);
+      target = { x: tableX + colNoW + colConceptW / 2, y: ry + rowH / 2 };
+    } else if (i % 2 === 1) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
+      ctx.fillRect(tableX, ry, tableW, rowH);
+    }
+
+    // Alt satır çizgisi
+    if (i < n - 1) {
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.13)';
+      ctx.fillRect(tableX, ry + rowH, tableW, 1);
+    }
+
+    // Sütun dikey ayraçları
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.09)';
+    ctx.fillRect(tableX + colNoW, ry, 1, rowH);
+    ctx.fillRect(tableX + colNoW + colConceptW, ry, 1, rowH);
+    ctx.fillRect(tableX + colNoW + colConceptW + colDescW, ry, 1, rowH);
+
+    // 1. Sütun: Numara rozeti
+    rr(ctx, tableX + 18, ry + rowH / 2 - 15, 32, 30, 9);
+    ctx.fillStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.14)';
+    ctx.fill();
+    ctx.fillStyle = isAct ? '#040711' : '#e2e8f0';
+    ctx.font = font(800, 14);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`0${i + 1}`, tableX + 34, ry + rowH / 2 + 0.5);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    // 2. Sütun: Kavram Başlığı
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(700, 17);
+    const cLines = wrapText(ctx, nd.label, colConceptW - 34, 2);
+    const cStartY = ry + rowH / 2 - ((cLines.length - 1) * 22) / 2 + 6;
+    drawLines(ctx, cLines, tableX + colNoW + 18, cStartY, 22);
+
+    // 3. Sütun: İşleyiş ve Açıklama
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = font(400, 15.5);
+    const dLines = wrapText(ctx, nd.subtext, colDescW - 38, 3);
+    const dStartY = ry + rowH / 2 - ((dLines.length - 1) * 22) / 2 + 5;
+    drawLines(ctx, dLines, tableX + colNoW + colConceptW + 20, dStartY, 22);
+
+    // 4. Sütun: Etki / Önem Rozeti
+    const badgeLabel = wrapText(ctx, nd.badge || 'Temel Unsur', colBadgeW - 44, 1)[0] || 'Temel Unsur';
+    ctx.font = font(700, 12.5);
+    const bw = Math.min(colBadgeW - 28, ctx.measureText(badgeLabel).width + 24);
+    const bx = tableX + colNoW + colConceptW + colDescW + 16;
+    const by = ry + rowH / 2 - 15;
+    rr(ctx, bx, by, bw, 30, 15);
+    ctx.fillStyle = `${c1}24`;
+    ctx.fill();
+    ctx.strokeStyle = `${c1}66`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = c1;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeLabel, bx + 12, by + 15.5);
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.restore();
+  });
+
+  ctx.restore();
+
+  rr(ctx, tableX, tableY, tableW, totalH, 20);
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.34)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  return target;
+}
+
+// ================================================================ 4. ANALİTİK SÜTUN & EĞRİ GRAFİĞİ ('chart')
+function drawAnalyticsChart(
+  ctx: CanvasRenderingContext2D,
+  a: Area,
+  nodes: DiagramNode[],
   reveal: number,
   now: number,
 ): Point {
-  const nodes = nodesIn.slice(0, 4);
-  const n = Math.max(1, nodes.length);
+  const list = nodes.slice(0, 4);
+  const n = list.length;
   const act = activeIndex(n, reveal);
-  const gap = n === 2 ? 78 : 24;
-  const colW = (a.w - gap * (n - 1)) / n;
-  const colH = a.h - 8;
-  let target: Point = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
 
-  nodes.forEach((nd, i) => {
+  const plotX = a.x + 54;
+  const plotY = a.y + 24;
+  const plotW = Math.round(a.w * 0.52);
+  const plotH = a.h - 74;
+
+  // Y ekseni ızgara çizgileri (%0 - %100)
+  ctx.save();
+  for (let g = 0; g <= 4; g++) {
+    const gy = plotY + plotH - (g / 4) * plotH;
+    ctx.strokeStyle = g === 0 ? 'rgba(148, 163, 184, 0.45)' : 'rgba(148, 163, 184, 0.13)';
+    ctx.lineWidth = g === 0 ? 1.8 : 1;
+    ctx.beginPath();
+    ctx.moveTo(plotX, gy);
+    ctx.lineTo(plotX + plotW, gy);
+    ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = font(600, 12);
+    ctx.textAlign = 'right';
+    ctx.fillText(`%${g * 25}`, plotX - 10, gy + 4);
+  }
+  ctx.textAlign = 'left';
+
+  // Sütunlar + üst eğri noktaları
+  const slotW = plotW / Math.max(1, n);
+  const barW = Math.min(74, slotW * 0.52);
+  const curvePts: Point[] = [];
+  let target: Point = { x: plotX + plotW / 2, y: plotY + plotH / 2 };
+
+  list.forEach((nd, i) => {
+    const val = Math.max(25, Math.min(98, nd.value ?? 78));
+    const t = appearAmount(i, n, reveal);
+    const grow = easeOut(clamp(reveal * 1.4 - i * 0.12));
+    const bh = (val / 100) * (plotH - 22) * grow;
+    const bx = plotX + i * slotW + (slotW - barW) / 2;
+    const by = plotY + plotH - bh;
+    const [c1, c2] = PALETTE[i % PALETTE.length];
+    const isAct = i === act && reveal > 0.02;
+
+    if (bh > 2) {
+      const bg = ctx.createLinearGradient(bx, by, bx, plotY + plotH);
+      bg.addColorStop(0, c1);
+      bg.addColorStop(1, `${c2}44`);
+      rr(ctx, bx, by, barW, bh, [12, 12, 2, 2]);
+      ctx.fillStyle = bg;
+      ctx.fill();
+
+      if (isAct) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    const pt = { x: bx + barW / 2, y: by };
+    curvePts.push(pt);
+    if (isAct) target = pt;
+
+    // X ekseni altı kısa etiket
+    ctx.fillStyle = isAct ? '#ffffff' : '#cbd5e1';
+    ctx.font = font(isAct ? 700 : 600, 13);
+    ctx.textAlign = 'center';
+    const xLbl = wrapText(ctx, nd.label, slotW - 10, 1)[0] || '';
+    ctx.fillText(xLbl, bx + barW / 2, plotY + plotH + 26);
+
+    // Sütun üstü değer rozeti
+    if (t > 0.2) {
+      ctx.globalAlpha = t;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = font(800, 14);
+      ctx.fillText(`%${val}`, bx + barW / 2, by - 12);
+      ctx.globalAlpha = 1;
+    }
+  });
+  ctx.textAlign = 'left';
+
+  // Sütunların üzerinden geçen akıcı analitik eğilim eğrisi
+  if (curvePts.length >= 2) {
+    ctx.beginPath();
+    ctx.moveTo(curvePts[0].x, curvePts[0].y);
+    for (let i = 1; i < curvePts.length; i++) {
+      const prev = curvePts[i - 1];
+      const cur = curvePts[i];
+      const midX = (prev.x + cur.x) / 2;
+      ctx.bezierCurveTo(midX, prev.y, midX, cur.y, cur.x, cur.y);
+    }
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = 'rgba(251, 191, 36, 0.45)';
+    ctx.shadowBlur = 14;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    curvePts.forEach((p, idx) => {
+      const pulse = idx === act ? 7 + Math.sin(now / 260) * 1.5 : 5;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, pulse, 0, Math.PI * 2);
+      ctx.fillStyle = '#fbbf24';
+      ctx.fill();
+      ctx.strokeStyle = '#070b16';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  }
+  ctx.restore();
+
+  // Sağ analitik açıklama kartları
+  const rx = plotX + plotW + 34;
+  const rw = a.x + a.w - rx;
+  const gap = 12;
+  const cardH = Math.min(112, (a.h - gap * (n - 1)) / Math.max(1, n));
+
+  list.forEach((nd, i) => {
     const t = appearAmount(i, n, reveal);
     if (t <= 0) return;
     const isAct = i === act && reveal > 0.02;
-    const x = a.x + i * (colW + gap);
-    const y = a.y + (1 - t) * 26 + (isAct ? -5 - Math.sin(now / 340) * 2 : 0);
-    const [c1, c2] = PALETTE[i % PALETTE.length];
+    const [c1] = PALETTE[i % PALETTE.length];
+    const cy = a.y + i * (cardH + gap);
 
     ctx.save();
     ctx.globalAlpha = t;
-    if (isAct) {
-      ctx.shadowColor = c1 + '55';
-      ctx.shadowBlur = 30;
-    }
-    rr(ctx, x, y, colW, colH, 20);
-    ctx.fillStyle = 'rgba(14, 21, 38, 0.96)';
+    rr(ctx, rx, cy, rw, cardH, 16);
+    ctx.fillStyle = isAct ? 'rgba(20, 33, 60, 0.95)' : 'rgba(15, 23, 42, 0.78)';
     ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = isAct ? c1 : 'rgba(71, 85, 105, 0.55)';
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.22)';
     ctx.lineWidth = isAct ? 2 : 1;
     ctx.stroke();
 
-    const hg = ctx.createLinearGradient(x, y, x + colW, y + 82);
-    hg.addColorStop(0, c1 + '38');
-    hg.addColorStop(1, c2 + '18');
-    rr(ctx, x, y, colW, 82, [20, 20, 0, 0]);
+    ctx.fillStyle = c1;
+    ctx.beginPath();
+    ctx.arc(rx + 18, cy + 25, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(700, 16.5);
+    ctx.fillText(wrapText(ctx, nd.label, rw - 88, 1)[0] || '', rx + 32, cy + 30);
+
+    ctx.fillStyle = c1;
+    ctx.font = font(800, 14);
+    ctx.textAlign = 'right';
+    ctx.fillText(`%${nd.value ?? 78}`, rx + rw - 16, cy + 30);
+    ctx.textAlign = 'left';
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = font(400, 14.5);
+    const sl = wrapText(ctx, nd.subtext, rw - 34, 2);
+    drawLines(ctx, sl, rx + 18, cy + 56, 21);
+    ctx.restore();
+  });
+
+  return target;
+}
+
+// ================================================================ 5. VAKA & SENARYO SİMÜLASYONU ('scenario')
+function drawScenarioStepIcon(ctx: CanvasRenderingContext2D, stepIdx: number, cx: number, cy: number, color: string) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = `${color}24`;
+  ctx.lineWidth = 2;
+
+  rr(ctx, cx - 20, cy - 20, 40, 40, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.beginPath();
+  if (stepIdx === 0) {
+    // Pusula / Bağlam ikonu
+    ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+    ctx.moveTo(cx - 4, cy + 4);
+    ctx.lineTo(cx + 5, cy - 5);
+  } else if (stepIdx === 1) {
+    // Aktörler ikonu
+    ctx.arc(cx - 4, cy - 4, 4.5, 0, Math.PI * 2);
+    ctx.moveTo(cx - 12, cy + 9);
+    ctx.quadraticCurveTo(cx - 4, cy + 2, cx + 4, cy + 9);
+    ctx.moveTo(cx + 9, cy - 4);
+    ctx.arc(cx + 6, cy - 4, 3.5, 0, Math.PI * 2);
+  } else if (stepIdx === 2) {
+    // Mekanizma / Şimşek-Çark ikonu
+    ctx.moveTo(cx + 2, cy - 10);
+    ctx.lineTo(cx - 6, cy + 1);
+    ctx.lineTo(cx + 1, cy + 1);
+    ctx.lineTo(cx - 2, cy + 10);
+    ctx.lineTo(cx + 7, cy - 1);
+    ctx.lineTo(cx, cy - 1);
+    ctx.closePath();
+  } else {
+    // Sonuç / Onay Kalkanı ikonu
+    ctx.moveTo(cx - 7, cy + 1);
+    ctx.lineTo(cx - 2, cy + 6);
+    ctx.lineTo(cx + 8, cy - 5);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawScenarioBoard(
+  ctx: CanvasRenderingContext2D,
+  a: Area,
+  nodes: DiagramNode[],
+  reveal: number,
+  now: number,
+): Point {
+  const stages = nodes.slice(0, 4);
+  const n = stages.length;
+  const act = activeIndex(n, reveal);
+  const stageTitles = ['01 · BAĞLAM VE DURUM', '02 · AKTÖRLER VE KOŞULLAR', '03 · İŞLEYEN MEKANİZMA', '04 · SONUÇ VE ÇIKARIM'];
+
+  const gapX = 34;
+  const gapY = 26;
+  const cardW = (a.w - gapX) / 2;
+  const cardH = (a.h - gapY) / 2;
+
+  const coords = [
+    { x: a.x, y: a.y },
+    { x: a.x + cardW + gapX, y: a.y },
+    { x: a.x + cardW + gapX, y: a.y + cardH + gapY },
+    { x: a.x, y: a.y + cardH + gapY },
+  ];
+
+  // Kartlar arası ışıklı senaryo akış okları (1 -> 2 -> 3 -> 4)
+  ctx.save();
+  for (let i = 0; i < Math.min(n - 1, 3); i++) {
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+    const sx = p1.x + cardW / 2;
+    const sy = p1.y + cardH / 2;
+    const ex = p2.x + cardW / 2;
+    const ey = p2.y + cardH / 2;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.strokeStyle = i < act ? '#22d3ee' : 'rgba(148, 163, 184, 0.25)';
+    ctx.lineWidth = 2.6;
+    ctx.setLineDash([7, 6]);
+    ctx.lineDashOffset = -(now / 45);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  let target: Point = { x: a.x + a.w / 2, y: a.y + a.h / 2 };
+
+  stages.forEach((nd, i) => {
+    const t = appearAmount(i, n, reveal);
+    if (t <= 0) return;
+    const isAct = i === act && reveal > 0.02;
+    const [c1] = PALETTE[i % PALETTE.length];
+    const pos = coords[i % coords.length];
+
+    ctx.save();
+    ctx.globalAlpha = t;
+    rr(ctx, pos.x, pos.y, cardW, cardH, 22);
+    ctx.fillStyle = isAct ? 'rgba(19, 32, 60, 0.97)' : 'rgba(13, 21, 39, 0.90)';
+    ctx.fill();
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.24)';
+    ctx.lineWidth = isAct ? 2.4 : 1.2;
+    ctx.stroke();
+
+    drawScenarioStepIcon(ctx, i, pos.x + 38, pos.y + 40, c1);
+
+    // Aşama etiketi
+    ctx.fillStyle = c1;
+    ctx.font = font(800, 12);
+    ctx.fillText(stageTitles[i] || `AŞAMA 0${i + 1}`, pos.x + 70, pos.y + 32);
+
+    // Kart başlığı
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(700, 19);
+    const cleanLbl = nd.label.replace(/^0?\d\s*·\s*/, '');
+    ctx.fillText(wrapText(ctx, cleanLbl, cardW - 92, 1)[0] || '', pos.x + 70, pos.y + 56);
+
+    // Senaryo açıklaması
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = font(400, 15.5);
+    const lines = wrapText(ctx, nd.subtext, cardW - 48, 4);
+    drawLines(ctx, lines, pos.x + 24, pos.y + 94, 23);
+
+    ctx.restore();
+    if (isAct) target = { x: pos.x + cardW / 2, y: pos.y + cardH / 2 };
+  });
+
+  return target;
+}
+
+// ================================================================ 6. TARİHSEL & SÜREÇSEL ZAMAN AKIŞI ('timeline')
+function drawTimeline(
+  ctx: CanvasRenderingContext2D,
+  a: Area,
+  nodes: DiagramNode[],
+  reveal: number,
+  now: number,
+): Point {
+  const list = nodes.slice(0, 4);
+  const n = list.length;
+  const act = activeIndex(n, reveal);
+  const trackY = a.y + a.h / 2;
+  const startX = a.x + 120;
+  const endX = a.x + a.w - 120;
+  const span = Math.max(1, endX - startX);
+
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.20)';
+  rr(ctx, startX, trackY - 3, span, 6, 3);
+  ctx.fill();
+
+  const fillW = span * clamp((reveal - 0.04) / 0.78);
+  if (fillW > 2) {
+    const g = ctx.createLinearGradient(startX, 0, endX, 0);
+    g.addColorStop(0, '#22d3ee');
+    g.addColorStop(0.5, '#3b82f6');
+    g.addColorStop(1, '#a855f7');
+    ctx.fillStyle = g;
+    rr(ctx, startX, trackY - 3, fillW, 6, 3);
+    ctx.fill();
+  }
+
+  let target: Point = { x: a.x + a.w / 2, y: trackY };
+  const cardW = Math.min(280, (a.w - 36) / Math.max(2, n) - 14);
+  const cardH = 176;
+
+  list.forEach((nd, i) => {
+    const t = appearAmount(i, n, reveal);
+    if (t <= 0) return;
+    const px = n === 1 ? (startX + endX) / 2 : startX + (i / (n - 1)) * span;
+    const upper = i % 2 === 0;
+    const cy = upper ? trackY - 40 - cardH : trackY + 40;
+    const cx = clamp(px - cardW / 2, a.x + 4, a.x + a.w - cardW - 4);
+    const isAct = i === act && reveal > 0.02;
+    const [c1] = PALETTE[i % PALETTE.length];
+
+    ctx.save();
+    ctx.globalAlpha = t;
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px, trackY);
+    ctx.lineTo(px, upper ? cy + cardH : cy);
+    ctx.stroke();
+
+    const r = isAct ? 13 + Math.sin(now / 260) * 2 : 10;
+    ctx.beginPath();
+    ctx.arc(px, trackY, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#0a1020';
+    ctx.fill();
+    ctx.strokeStyle = c1;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    rr(ctx, cx, cy, cardW, cardH, 18);
+    ctx.fillStyle = isAct ? 'rgba(20, 33, 60, 0.96)' : 'rgba(15, 23, 42, 0.85)';
+    ctx.fill();
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.24)';
+    ctx.lineWidth = isAct ? 2 : 1.1;
+    ctx.stroke();
+
+    ctx.fillStyle = c1;
+    ctx.font = font(800, 12);
+    ctx.fillText(`ADIM 0${i + 1}`, cx + 18, cy + 28);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(700, 17);
+    const tl = wrapText(ctx, nd.label, cardW - 36, 2);
+    drawLines(ctx, tl, cx + 18, cy + 54, 21);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = font(400, 14);
+    const sl = wrapText(ctx, nd.subtext, cardW - 36, 3);
+    drawLines(ctx, sl, cx + 18, cy + 56 + tl.length * 21, 19.5);
+    ctx.restore();
+
+    if (isAct) target = { x: px, y: cy + cardH / 2 };
+  });
+
+  return target;
+}
+
+// ================================================================ 7. İKİLİ KARŞILAŞTIRMA MATRİSİ ('comparison')
+function drawComparison(
+  ctx: CanvasRenderingContext2D,
+  a: Area,
+  nodes: DiagramNode[],
+  reveal: number,
+): Point {
+  const act = activeIndex(nodes.length, reveal);
+  const gap = 58;
+  const colW = (a.w - gap) / 2;
+  const split = Math.ceil(nodes.length / 2);
+  const cols = [nodes.slice(0, split), nodes.slice(split)];
+  const colColors: [string, string][] = [
+    ['#22d3ee', '#3b82f6'],
+    ['#c084fc', '#ec4899'],
+  ];
+
+  const vx = a.x + a.w / 2;
+  const vy = a.y + a.h / 2;
+  ctx.beginPath();
+  ctx.arc(vx, vy, 23, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = font(800, 13.5);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('VS', vx, vy + 0.5);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  let target: Point = { x: vx, y: vy };
+
+  cols.forEach((items, ci) => {
+    if (!items.length) return;
+    const cx = a.x + ci * (colW + gap);
+    const [c1, c2] = colColors[ci];
+
+    rr(ctx, cx, a.y, colW, a.h, 22);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+    ctx.fill();
+    ctx.strokeStyle = `${c1}55`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    const hg = ctx.createLinearGradient(cx, a.y, cx + colW, a.y);
+    hg.addColorStop(0, `${c1}30`);
+    hg.addColorStop(1, `${c2}18`);
+    rr(ctx, cx, a.y, colW, 56, [22, 22, 0, 0]);
     ctx.fillStyle = hg;
     ctx.fill();
 
-    rr(ctx, x, y, colW, 5, [20, 20, 0, 0]);
-    ctx.fillStyle = c1;
-    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(800, 18.5);
+    ctx.fillText(wrapText(ctx, items[0].label, colW - 44, 1)[0] || '', cx + 24, a.y + 35);
 
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = font(700, 22);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    const ll = wrapText(ctx, nd.label, colW - 44, 2);
-    drawLines(ctx, ll, x + 22, y + (ll.length === 1 ? 50 : 38), 26);
+    let iy = a.y + 74;
+    items.forEach((it, ii) => {
+      const globalIdx = ci === 0 ? ii : split + ii;
+      const t = appearAmount(globalIdx, nodes.length, reveal);
+      if (t <= 0) return;
+      const isAct = globalIdx === act && reveal > 0.02;
 
-    if (nd.subtext) {
+      ctx.save();
+      ctx.globalAlpha = t;
+      const showSubTitle = ii > 0;
+      ctx.font = font(400, 15.5);
+      const sl = wrapText(ctx, it.subtext || it.label, colW - 64, 4);
+      const boxH = (showSubTitle ? 34 : 0) + sl.length * 23 + 28;
+
+      rr(ctx, cx + 18, iy, colW - 36, boxH, 16);
+      ctx.fillStyle = isAct ? 'rgba(24, 38, 68, 0.95)' : 'rgba(30, 41, 59, 0.45)';
+      ctx.fill();
+      if (isAct) {
+        ctx.strokeStyle = c1;
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        target = { x: cx + colW / 2, y: iy + boxH / 2 };
+      }
+
+      let ty = iy + 28;
+      if (showSubTitle) {
+        ctx.fillStyle = c1;
+        ctx.font = font(700, 16.5);
+        ctx.fillText(wrapText(ctx, it.label, colW - 68, 1)[0] || '', cx + 34, ty);
+        ty += 28;
+      }
+
       ctx.fillStyle = '#e2e8f0';
-      ctx.font = font(400, 18);
-      const maxLines = Math.max(2, Math.floor((colH - 120) / 27));
-      drawLines(ctx, wrapText(ctx, nd.subtext, colW - 44, maxLines), x + 22, y + 122, 27);
-    }
-    ctx.restore();
-    if (isAct) target = { x: x + colW / 2, y: y + 44 };
-  });
+      ctx.font = font(400, 15.5);
+      drawLines(ctx, sl, cx + 34, ty, 23);
+      ctx.restore();
 
-  if (n === 2 && appearAmount(1, n, reveal) > 0.2) {
-    const vx = a.x + colW + gap / 2;
-    const vy = a.y + colH / 2;
-    ctx.save();
-    rr(ctx, vx - 28, vy - 28, 56, 56, 28);
-    ctx.fillStyle = '#0f172a';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.65)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = '#fbbf24';
-    ctx.font = font(800, 17);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('VS', vx, vy + 1);
-    ctx.restore();
-  }
-
-  ctx.textAlign = 'left';
-  return target;
-}
-
-// 5. EKONOMİK EĞRİ & MODEL GRAFİĞİ
-function drawCurveDiagram(
-  ctx: CanvasRenderingContext2D,
-  a: Area,
-  nodesIn: DiagramNode[],
-  reveal: number,
-  now: number,
-): Point {
-  const nodes = nodesIn.slice(0, 4);
-  const n = Math.max(1, nodes.length);
-  const act = activeIndex(n, reveal);
-  const gx = a.x + 54;
-  const gy = a.y + 18;
-  const gw = a.w * 0.52;
-  const gh = a.h - 54;
-  const ox = gx;
-  const oy = gy + gh;
-
-  // Izgara çizgileri
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.1)';
-  ctx.lineWidth = 1;
-  for (let i = 1; i <= 4; i++) {
-    const py = gy + (gh / 5) * i;
-    const px = ox + (gw / 5) * i;
-    ctx.beginPath();
-    ctx.moveTo(ox, py);
-    ctx.lineTo(ox + gw, py);
-    ctx.moveTo(px, gy);
-    ctx.lineTo(px, oy);
-    ctx.stroke();
-  }
-
-  // Eksenler
-  ctx.strokeStyle = 'rgba(226, 232, 240, 0.78)';
-  ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(ox, gy);
-  ctx.lineTo(ox, oy);
-  ctx.lineTo(ox + gw, oy);
-  ctx.stroke();
-
-  ctx.fillStyle = '#cbd5e1';
-  ctx.font = font(700, 16);
-  ctx.fillText('Fiyat (P)', ox - 44, gy - 4);
-  ctx.fillText('Miktar (Q)', ox + gw - 74, oy + 32);
-
-  const curves = [
-    { color: '#22d3ee', f: (u: number) => oy - gh * (0.14 + 0.72 * u) },
-    { color: '#f472b6', f: (u: number) => oy - gh * (0.86 - 0.72 * u) },
-  ];
-
-  curves.forEach((c, ci) => {
-    const t = ci < n ? appearAmount(ci, n, reveal) : 0;
-    if (t <= 0) return;
-    ctx.strokeStyle = c.color;
-    ctx.lineWidth = 4.5;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    const steps = 48;
-    for (let s = 0; s <= steps * t; s++) {
-      const u = s / steps;
-      const px = ox + 36 + u * (gw - 72);
-      const py = c.f(u);
-      if (s === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.stroke();
-
-    if (t > 0.85 && nodes[ci]) {
-      ctx.fillStyle = c.color;
-      ctx.font = font(700, 16);
-      const lbl = wrapText(ctx, nodes[ci].label, 190, 1)[0] || '';
-      ctx.fillText(lbl, ox + gw - 180, c.f(1) + (ci === 0 ? -14 : 26));
-    }
-  });
-
-  let target: Point = { x: ox + gw / 2, y: oy - gh / 2 };
-  if (n >= 2 && appearAmount(1, n, reveal) > 0.85) {
-    const ex = ox + 36 + 0.5 * (gw - 72);
-    const ey = oy - gh * 0.5;
-    ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.55)';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.moveTo(ex, ey);
-    ctx.lineTo(ex, oy);
-    ctx.moveTo(ex, ey);
-    ctx.lineTo(ox, ey);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    const pr = 9 + Math.sin(now / 240) * 2.5;
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath();
-    ctx.arc(ex, ey, pr, 0, Math.PI * 2);
-    ctx.fill();
-    target = { x: ex, y: ey };
-  }
-
-  // Sağ açıklama kartları
-  const lx = a.x + a.w * 0.58;
-  const lw = a.w * 0.42;
-  let ly = a.y + 12;
-  nodes.forEach((nd, i) => {
-    const t = appearAmount(i, n, reveal);
-    if (t <= 0) return;
-    const isAct = i === act && reveal > 0.02;
-    const [c1] = PALETTE[i % PALETTE.length];
-
-    ctx.save();
-    ctx.globalAlpha = t;
-    ctx.font = font(400, 15.5);
-    const sl = nd.subtext ? wrapText(ctx, nd.subtext, lw - 42, 2) : [];
-    const ch = 42 + sl.length * 22;
-
-    rr(ctx, lx + (1 - t) * 18, ly, lw, ch, 14);
-    ctx.fillStyle = isAct ? 'rgba(20, 33, 58, 0.95)' : 'rgba(15, 23, 42, 0.78)';
-    ctx.fill();
-    ctx.strokeStyle = isAct ? c1 : 'rgba(71, 85, 105, 0.45)';
-    ctx.stroke();
-
-    ctx.fillStyle = c1;
-    ctx.beginPath();
-    ctx.arc(lx + 18, ly + 22, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = font(700, 17.5);
-    ctx.fillText(wrapText(ctx, nd.label, lw - 48, 1)[0] || '', lx + 32, ly + 27);
-
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = font(400, 15.5);
-    drawLines(ctx, sl, lx + 32, ly + 52, 22);
-    ctx.restore();
-    ly += ch + 12;
+      iy += boxH + 14;
+    });
   });
 
   return target;
 }
 
-// ---------------------------------------------------------------- Altyazı (Teleprompter)
-function drawCinemaSubtitles(ctx: CanvasRenderingContext2D, f: StageFrame) {
+// ---------------------------------------------------------------- Altyazı (Teleprompter — Dinamik Konuşmacı Takibi)
+function drawCinemaSubtitles(ctx: CanvasRenderingContext2D, f: StageFrame, activeSpeaker: Speaker) {
   const sc = f.scene;
-  const accent = SPEAKER_COLOR[sc.speaker];
+  const accent = SPEAKER_COLOR[activeSpeaker];
   const { x, y, w, h } = SUB;
 
   ctx.save();
   ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
   ctx.shadowBlur = 36;
   rr(ctx, x, y, w, h, 22);
-  ctx.fillStyle = 'rgba(6, 10, 20, 0.92)';
+  ctx.fillStyle = 'rgba(6, 10, 20, 0.93)';
   ctx.fill();
   ctx.restore();
 
   rr(ctx, x, y, w, h, 22);
-  ctx.strokeStyle = accent + '55';
+  ctx.strokeStyle = `${accent}58`;
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
@@ -1015,21 +1645,21 @@ function drawCinemaSubtitles(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.textBaseline = 'alphabetic';
   ctx.font = font(700, 14);
   ctx.fillStyle = accent;
-  const spkTitle = sc.speaker === 'Deniz' ? 'DR. DENİZ' : 'BARIŞ';
+  const spkTitle = activeSpeaker === 'Deniz' ? 'DR. DENİZ' : 'BARIŞ';
   ctx.fillText(spkTitle, x + 28, y + 34);
 
   ctx.font = font(500, 13);
   ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
   ctx.textAlign = 'right';
   ctx.fillText(
-    `Cümle ${Math.min(f.sentenceIndex + 1, sc.sentences.length)} / ${sc.sentences.length}`,
+    `Diyalog ${Math.min(f.sentenceIndex + 1, sc.sentences.length)} / ${sc.sentences.length}`,
     x + w - 26,
     y + 34,
   );
   ctx.textAlign = 'left';
 
   const sentence = sc.sentences[f.sentenceIndex] || sc.narration;
-  ctx.font = font(600, 26);
+  ctx.font = font(600, 25.5);
   const maxW = w - 58;
   const words = sentence.split(' ').filter(Boolean);
   const lines: { word: string; start: number }[][] = [[]];
@@ -1058,7 +1688,7 @@ function drawCinemaSubtitles(ctx: CanvasRenderingContext2D, f: StageFrame) {
 
   lines.slice(startLine, startLine + 3).forEach((line, li) => {
     let lx = x + 28;
-    const ly = y + 74 + li * 36;
+    const ly = y + 74 + li * 35;
     line.forEach(({ word, start }) => {
       const end = start + word.length;
       const isCurrentWord = !f.poster && f.playing && f.charInSentence >= start && f.charInSentence <= end + 1;
@@ -1079,14 +1709,14 @@ function drawCinemaSubtitles(ctx: CanvasRenderingContext2D, f: StageFrame) {
 
 // ---------------------------------------------------------------- Bölüm Geçiş Bandı
 function drawChapterIntroOverlay(ctx: CanvasRenderingContext2D, f: StageFrame) {
-  if (f.poster || f.sceneTime > 0.95) return;
-  const t = f.sceneTime / 0.95;
+  if (f.poster || f.sceneTime > 0.92) return;
+  const t = f.sceneTime / 0.92;
   const alpha = t < 0.2 ? t / 0.2 : t > 0.72 ? (1 - t) / 0.28 : 1;
   const yShift = (1 - easeOut(t / 0.35)) * 18;
 
   ctx.save();
   ctx.globalAlpha = clamp(alpha) * 0.96;
-  const bw = 960;
+  const bw = 980;
   const bh = 132;
   const bx = (STAGE_W - bw) / 2;
   const by = 368 + yShift;
@@ -1104,12 +1734,12 @@ function drawChapterIntroOverlay(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#67e8f9';
-  ctx.font = font(700, 14.5);
-  const spk = f.scene.speaker === 'Deniz' ? 'DR. DENİZ' : 'BARIŞ';
-  ctx.fillText(`BÖLÜM ${String(f.sceneIndex + 1).padStart(2, '0')}  ·  ${spk}`, STAGE_W / 2, by + 46);
+  ctx.font = font(700, 14);
+  const typeTag = TYPE_LABEL[f.scene.diagram.type] || 'STÜDYO BÖLÜMÜ';
+  ctx.fillText(`BÖLÜM ${String(f.sceneIndex + 1).padStart(2, '0')}  ·  ${typeTag}`, STAGE_W / 2, by + 46);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = font(800, 32);
+  ctx.font = font(800, 31);
   ctx.fillText(wrapText(ctx, f.scene.title, bw - 80, 1)[0] || '', STAGE_W / 2, by + 92);
   ctx.restore();
   ctx.textAlign = 'left';
@@ -1119,8 +1749,11 @@ export function renderStage(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.save();
   drawBroadcastStudioBackground(ctx, f.now);
 
-  const denizSpeaks = f.playing && f.scene.speaker === 'Deniz';
-  const barisSpeaks = f.playing && f.scene.speaker === 'Barış';
+  const activeSpeaker: Speaker =
+    f.activeSpeaker || f.scene.sentenceSpeakers?.[f.sentenceIndex] || f.scene.speaker;
+
+  const denizSpeaks = f.playing && activeSpeaker === 'Deniz';
+  const barisSpeaks = f.playing && activeSpeaker === 'Barış';
 
   const target = drawSmartBoard(ctx, f);
 
@@ -1141,7 +1774,7 @@ export function renderStage(ctx: CanvasRenderingContext2D, f: StageFrame) {
   );
 
   if (f.showSubtitles) {
-    drawCinemaSubtitles(ctx, f);
+    drawCinemaSubtitles(ctx, f, activeSpeaker);
   }
 
   drawBroadcastHud(ctx, f);

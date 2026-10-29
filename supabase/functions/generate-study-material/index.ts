@@ -159,6 +159,18 @@ const schemas: Record<string, any> = {
             speakerRole: { type: 'string' },
             title: { type: 'string' },
             narration: { type: 'string' },
+            turns: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  speaker: { type: 'string', enum: ['Deniz', 'Barış'] },
+                  text: { type: 'string' },
+                },
+                required: ['speaker', 'text'],
+                additionalProperties: false,
+              },
+            },
             keyTakeaways: {
               type: 'array',
               items: { type: 'string' },
@@ -169,7 +181,11 @@ const schemas: Record<string, any> = {
               properties: {
                 diagramType: {
                   type: 'string',
-                  enum: ['network', 'timeline', 'structure', 'comparison', 'curve'],
+                  enum: ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison', 'network', 'structure', 'curve'],
+                },
+                visualTheme: {
+                  type: 'string',
+                  enum: ['history', 'economics', 'law', 'science', 'society'],
                 },
                 mainTitle: { type: 'string' },
                 nodes: {
@@ -179,8 +195,10 @@ const schemas: Record<string, any> = {
                     properties: {
                       label: { type: 'string' },
                       subtext: { type: 'string' },
+                      badge: { type: 'string' },
+                      value: { type: 'number' },
                     },
-                    required: ['label'],
+                    required: ['label', 'subtext'],
                     additionalProperties: false,
                   },
                 },
@@ -267,26 +285,35 @@ examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı 
 Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
       break;
     case 'video':
-      task = `Kullanıcının yüklediği ders notunu temel alarak EconNotes Stüdyosu için Full HD kalitede, gerçek bir yayın stüdyosu doğallığında İKİLİ VİDEO DERSİ üret.
+      task = `Kullanıcının yüklediği ders notunu temel alarak EconNotes Stüdyosu için EN AZ 5-7 DAKİKA SÜRECEK (toplam 750-1000 kelime konuşma metni, 10-12 kapsamlı sahne) zengin, sinematik bir İKİLİ VİDEO DERSİ üret.
 KATI KURALLAR:
-1. KONU VE KAPSAM: YALNIZCA ve DOĞRUDAN kullanıcının verdiği ders notundaki konuyu, dersi, tarihleri, kurumları, şahısları, terimleri ve olayları ele al. ASLA notta bulunmayan genel kalıplar veya alakasız ders terimleri kullanma.
-2. İNSAN DOĞALLIĞINDA KONUŞMA DİLİ (ROBOTİK KİTAP DİLİ YASAK):
-   - Deniz (Dr. Deniz): Konuya hâkim, sıcak, berrak ve analitik anlatıcı. Neden-sonuç ilişkilerini somutlaştırır.
-   - Barış: Zeki, meraklı araştırmacı. Deniz'in sözünü doğal biçimde devralır, öğrencinin tam o an aklına takılacak kritik soruyu sorar ("Peki Deniz, burada şu ayrımı nasıl yapıyoruz?", "Dur bir saniye, yani köylü toprağın mülkiyetine sahip değil ama kullanım hakkı onda, doğru mu?"), bağlantıları yakalar.
-   - Metinler sesli okunacağı için ASLA parantez içi liste, kısaltma ("vb.", "yy.", "örn."), madde işareti veya ansiklopedi cümlesi kurma. Doğal konuşma ritminde, akıcı, kısa-orta uzunlukta cümleler kur; sayıları ve yüzyılları okunaklı yaz.
-3. SAHNE KURGUSU: 6-9 sahne üret. Deniz ve Barış sırayla birbirine pas atarak ilerlesin; her sahne notun belirgin bir alt başlığını derinlemesine işlesin.
-4. diagramData (AKILLI TAHTA — TEKRARSIZ VE ÇEŞİTLİ):
-   - Ardışık sahnelerde tek tip şema kullanma; içeriğe göre 'timeline' (tarihsel süreç/aşamalar), 'structure' (kurumsal yapı/unsurlar), 'comparison' (iki dönem/kavram/rejim kıyaslaması), 'network' (kavram ilişkileri) ve yalnızca gerçekten grafiksel eğri varsa 'curve' arasında çeşitlilik sağla.
-   - mainTitle: Sahnenin net tahta başlığı (en fazla 6-7 kelime).
-   - nodes: 3-5 somut düğüm. label alanı SADECE 2-4 kelimelik net kavram adı olsun (yarım cümle YASAK). subtext alanı ise label'ı tekrar etmeyen, doğrudan açıklayıcı 1 net cümle olsun.
-   - highlightMetric: Sınav için akılda kalması gereken en çarpıcı tek cümlelik bilgi.
-   - Düğümleri konuşma akış sırasına göre diz.
-5. keyTakeaways: Her sahne için 3-4 adet, öğrencinin defterine yazacağı somut ders notu.
-6. keyTerms: Her sahnede geçen 2-4 kritik terim ve nottaki anlamına sadık net tanımı.
-7. examTip: Her sahne için sınavda nasıl sorulabileceğine dair tek cümlelik somut uyarı.
-8. keyFacts: Tüm nottan sınav öncesi ezberlenmesi gereken 6-8 kritik hap bilgi.
-9. outline: Notun ana çerçevesini özetleyen 2-3 cümle.
-10. suggestedSearches: Konuyu pekiştirecek 3-5 akademik arama sorgusu.
+1. KONU VE KAPSAM: YALNIZCA ve DOĞRUDAN kullanıcının verdiği ders notundaki konuyu, dersi, tarihleri, kurumları, şahısları, formülleri, verileri ve olayları ele al. ASLA notta bulunmayan genel kalıplar veya alakasız ders terimleri kullanma.
+2. GERÇEK STÜDYO DİYALOĞU VE SÜRE (EN AZ 5 DAKİKA — 10 İLA 12 SAHNE):
+   - Toplam 10 ila 12 sahne üret. Her sahne 75-95 kelimelik doyurucu bir anlatım içersin ki ders süresi en az 5-7 dakika olsun.
+   - Her sahnede "turns" dizisini doldur (sahne başına 2-4 karşılıklı konuşma turu: Deniz anlatır, Barış tam öğrencinin merak edeceği soruyu sorar veya somutlaştırır, Deniz derinleştirir). Ayrıca "narration" alanına bu turların birleştirilmiş akıcı metnini yaz.
+   - Deniz (Dr. Deniz): Sıcak, berrak, analitik akademisyen. Neden-sonuç ilişkilerini ve mekanizmaları somutlaştırır.
+   - Barış: Zeki, meraklı, enerjik araştırmacı. Kuru özet dinlemez; "Peki Deniz, bunu somut bir senaryoda düşünelim...", "Dur bir dakika, buradaki kritik fark tam olarak ne?" gibi doğal geçişlerle tempoyu canlı tutar.
+   - Metinler sesli okunacağı için ASLA parantez içi liste, kısaltma ("vb.", "yy.", "örn."), madde işareti veya robotik kitap cümlesi kurma. Sayıları ve yüzyılları okunaklı Türkçe ile yaz.
+3. ZENGİN GÖRSEL SAHNE TÜRLERİ (diagramData.diagramType — HEPSİNİ DERS BOYUNCA KULLAN):
+   Ders boyunca aşağıdaki görsel şema türlerinin TAMAMINI ilgili sahnelere dağıtarak kullan:
+   - 'visual' (Görsel & İllüstrasyon Vitrin Sahnesi): Konunun tarihsel/iktisadi/kurumsal atmosferini anlatan illüstratif görsel analiz. visualTheme alanını ('history', 'economics', 'law', 'science', 'society') konuya göre seç.
+   - 'shapes' (Geometrik Şekiller & Döngüsel Mekanizma): Birbirini besleyen unsurların çokgen/döngüsel şekillerle işleyiş şeması.
+   - 'table' (Akademik Karşılaştırma & Veri Tablosu): 4-5 satırlık yapılandırılmış tablo; her düğümde label (kavram/boyut), subtext (işleyiş ve açıklama) ve badge (ör. "Kilit İlke", "Yüksek Etki", "Kurumsal") bulunsun.
+   - 'chart' (Analitik Sütun & Eğri Grafiği): Faktörlerin göreli ağırlığını, dönemsel değişimini veya etki düzeyini gösteren grafik; her düğüme 15 ile 98 arasında anlamlı bir "value" (sayısal etki/oran puanı) ekle.
+   - 'scenario' (Vaka & Senaryo Simülasyonu): Nottaki bilginin somut bir tarihsel veya uygulamalı senaryo üzerinden 4 adımda (1. Bağlam/Durum, 2. Aktörler, 3. İşleyen Mekanizma, 4. Sonuç) canlandırılması.
+   - 'timeline' (Zaman ve Süreç Akışı) ve 'comparison' (İkili Karşılaştırma Matrisi).
+4. DÜĞÜM KALİTESİ (nodes):
+   - Her sahnede 4 somut düğüm üret.
+   - label: SADECE 2-4 kelimelik tam ve anlamlı başlık (edat/bağlaçla biten yarım cümle YASAK).
+   - subtext: label'ı tekrar etmeyen, doğrudan açıklayıcı 1 net cümle.
+   - highlightMetric: Sahnenin alt bandında görünecek en çarpıcı tek cümlelik sınav/analiz çıkarımı.
+5. EĞİTSEL DONANIM:
+   - keyTakeaways: Her sahne için 3-4 somut ders notu.
+   - keyTerms: Her sahnede geçen 2-4 kritik terim ve tanımı.
+   - examTip: Sınavda nasıl sorulabileceğine dair net uyarı.
+   - keyFacts: Tüm nottan sınav öncesi bilinmesi gereken 8-10 kritik hap bilgi.
+   - outline: 2-3 cümlelik ders çerçevesi.
+   - suggestedSearches: 4-5 akademik arama önerisi.
 Kaynakta bulunmayan bilgi uydurma.`;
       break;
   }
@@ -374,7 +401,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model,
         temperature: (body.materialType === 'summary' || body.materialType === 'video') ? 0.15 : 0.2,
-        max_tokens: body.materialType === 'video' ? 16000 : body.materialType === 'summary' ? 5000 : undefined,
+        max_tokens: body.materialType === 'video' ? 24000 : body.materialType === 'summary' ? 5000 : undefined,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: userContent },

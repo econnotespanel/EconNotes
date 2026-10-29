@@ -40,12 +40,15 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
+import EconLogo from '@/components/EconLogo';
 import {
   buildStudioContent,
   positionFromElapsed,
   formatTime,
   StudioContent,
   StudioScene,
+  Speaker,
+  DiagramType,
   CHARS_PER_SEC,
 } from './video/sceneModel';
 import { renderStage, STAGE_W, STAGE_H, StageFrame } from './video/renderStage';
@@ -54,6 +57,7 @@ import {
   selectVoicesForSpeakers,
   playSceneConversationally,
   visemeFromTurkishChar,
+  StudioAmbienceEngine,
   VoiceOption,
   Viseme,
 } from './video/speechEngine';
@@ -87,12 +91,25 @@ interface InteractiveVideoStudioProps {
   onOpenCoach?: () => void;
 }
 
+const DIAGRAM_BADGE_TR: Record<DiagramType, string> = {
+  visual: 'Görsel & İllüstrasyon',
+  shapes: 'Şekiller & Döngü',
+  table: 'Karşılaştırma Tablosu',
+  chart: 'Analitik Grafik',
+  curve: 'Analitik Grafik',
+  scenario: 'Vaka Senaryosu',
+  timeline: 'Zaman Akışı',
+  comparison: 'İkili Kıyaslama',
+  structure: 'Kurumsal Yapı',
+  network: 'Kavram Ağı',
+};
+
 export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   material,
   onClose,
   onReport,
 }) => {
-  // 1. Ders içeriği modeli
+  // 1. Ders içeriği modeli (en az 5+ dakika zengin çok-modlu ders)
   const studio = useMemo<StudioContent>(() => {
     return buildStudioContent(material.content, material.title, material.course || '');
   }, [material.content, material.title, material.course]);
@@ -108,11 +125,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const [elapsedSceneTime, setElapsedSceneTime] = useState(0);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [hasStartedOnce, setHasStartedOnce] = useState(false);
+  const [liveSpeaker, setLiveSpeaker] = useState<Speaker>('Deniz');
 
-  // 3. Ses motoru durumları
+  // 3. Stüdyo ses & ambiyans durumları
   const [voices, setVoices] = useState<VoiceOption[]>([]);
   const [preferredDenizVoice, setPreferredDenizVoice] = useState<string>('');
   const [preferredBarisVoice, setPreferredBarisVoice] = useState<string>('');
+  const [preferCloudNeural, setPreferCloudNeural] = useState<boolean>(true);
+  const [studioAmbienceOn, setStudioAmbienceOn] = useState<boolean>(true);
   const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
 
   // 4. Arayüz ve çalışma paneli durumları
@@ -144,16 +164,17 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
   }, [personalNotes, notesStorageKey]);
 
-  // 6. 1080p MP4 Dışa Aktarma durumları
+  // 6. MP4 Dışa Aktarma durumları
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [exportStatusText, setExportStatusText] = useState('');
+  const exportCancelRef = useRef<boolean>(false);
 
-  // 7. Entegre Yapay Zekâ Akıl Hocası (gerçek study-coach fonksiyonuna bağlı)
+  // 7. Entegre Yapay Zekâ Akıl Hocası
   const [coachMessages, setCoachMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
     {
       role: 'assistant',
-      content: `Merhaba! **${studio.title}** dersindeyiz. Dr. Deniz ve Barış'ın anlattığı bölümlerle ilgili anlamadığın bir kavramı, sınav sorusu ihtimalini veya ek örnek isteğini doğrudan sorabilirsin.`,
+      content: `Merhaba! **${studio.title}** dersindeyiz. Dr. Deniz ve Barış'ın tartıştığı görseller, tablolar, grafikler veya örnek senaryolarla ilgili aklına takılan her soruyu sorabilirsin.`,
     },
   ]);
   const [coachInput, setCoachInput] = useState('');
@@ -164,25 +185,49 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stopSpeechFnRef = useRef<(() => void) | null>(null);
+  const ambienceRef = useRef<StudioAmbienceEngine | null>(null);
   const lastTickRef = useRef<number>(performance.now());
   const smoothMouthRef = useRef<number>(0);
 
-  // Canlı konuşma sınır (onboundary) takip referansı
   const speechSyncRef = useRef<{
     sentenceIndex: number;
     charInSentence: number;
     hasBoundaryEvents: boolean;
     inBreathPause: boolean;
+    activeSpeaker: Speaker;
+    cloudViseme: Viseme | null;
+    cloudMouth: number | null;
   }>({
     sentenceIndex: 0,
     charInSentence: 0,
     hasBoundaryEvents: false,
     inBreathPause: false,
+    activeSpeaker: 'Deniz',
+    cloudViseme: null,
+    cloudMouth: null,
   });
 
   const currentScene: StudioScene = scenes[activeSceneIndex] || scenes[0];
 
-  // Tüm ders boyunca birikmiş tüm terimler (arama yapılabilir sözlük için)
+  // Stüdyo Akustik Ambiyans Yaşam Döngüsü
+  useEffect(() => {
+    if (!ambienceRef.current) {
+      ambienceRef.current = new StudioAmbienceEngine();
+    }
+    if (isPlaying && studioAmbienceOn && !isMuted && volume > 0.01) {
+      ambienceRef.current.start(volume);
+    } else {
+      ambienceRef.current.stop();
+    }
+  }, [isPlaying, studioAmbienceOn, isMuted, volume]);
+
+  useEffect(() => {
+    return () => {
+      ambienceRef.current?.stop();
+    };
+  }, []);
+
+  // Tüm ders boyunca birikmiş tüm terimler
   const allTerms = useMemo(() => {
     const map = new Map<string, { term: string; definition: string; sceneIdx: number }>();
     scenes.forEach((sc, idx) => {
@@ -196,7 +241,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     return Array.from(map.values());
   }, [scenes]);
 
-  // Arka plan sayfa kaydırmasını kilitle (tam ekran temiz görünüm)
+  // Arka plan sayfa kaydırmasını kilitle
   useEffect(() => {
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -205,7 +250,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     };
   }, []);
 
-  // Türkçe doğal/bulut seslerini keşfet (asenkron voiceschanged dahil)
+  // Türkçe doğal/bulut seslerini keşfet
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     const refresh = () => {
@@ -234,9 +279,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       stopSpeechFnRef.current = null;
     }
     speechSyncRef.current.inBreathPause = false;
+    speechSyncRef.current.cloudMouth = null;
+    speechSyncRef.current.cloudViseme = null;
   }, []);
 
-  // Sahne seslendirmesini başlat
+  // Sahne seslendirmesini başlat (Dr. Deniz <-> Barış karşılıklı konuşma geçişli)
   const startSceneSpeech = useCallback(
     (sceneIdx: number, fromTimeSec = 0) => {
       stopSpeech();
@@ -249,41 +296,56 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         charInSentence: startPos.charInSentence,
         hasBoundaryEvents: false,
         inBreathPause: false,
+        activeSpeaker: startPos.activeSpeaker,
+        cloudViseme: null,
+        cloudMouth: null,
       };
+      setLiveSpeaker(startPos.activeSpeaker);
 
       if (isMuted || volume <= 0.01) return;
 
+      if (studioAmbienceOn && fromTimeSec < 0.2) {
+        ambienceRef.current?.playChapterChime(volume);
+      }
+
       const cancel = playSceneConversationally({
         scene: targetScene,
-        assignment: speakerVoices[targetScene.speaker],
+        assignments: speakerVoices,
         playbackSpeed,
         volume,
         muted: isMuted,
+        preferCloudNeural,
         startSentenceIndex: startPos.sentenceIndex,
+        onSpeakerChange: spk => {
+          speechSyncRef.current.activeSpeaker = spk;
+          setLiveSpeaker(spk);
+        },
         onBoundaryProgress: (sIdx, charIdx, boundaryHit) => {
           speechSyncRef.current.sentenceIndex = sIdx;
           speechSyncRef.current.charInSentence = charIdx;
+          const spk = targetScene.sentenceSpeakers?.[sIdx] || targetScene.speaker;
+          speechSyncRef.current.activeSpeaker = spk;
           if (boundaryHit) {
             speechSyncRef.current.hasBoundaryEvents = true;
-            // Sahne zamanını konuşulan gerçek karaktere hizala
             const globalChar = (targetScene.sentenceOffsets[sIdx] || 0) + charIdx;
             const syncedRatio = Math.min(1, globalChar / Math.max(1, targetScene.totalChars));
             setElapsedSceneTime(syncedRatio * targetScene.durationSec);
           }
         },
+        onAudioEnergy: (mouthOpen, viseme) => {
+          speechSyncRef.current.cloudMouth = mouthOpen;
+          speechSyncRef.current.cloudViseme = viseme;
+        },
         onBreathPause: paused => {
           speechSyncRef.current.inBreathPause = paused;
+          if (paused) {
+            speechSyncRef.current.cloudMouth = null;
+          }
         },
         onComplete: () => {
           if (sceneIdx + 1 < scenes.length) {
             setActiveSceneIndex(sceneIdx + 1);
             setElapsedSceneTime(0);
-            speechSyncRef.current = {
-              sentenceIndex: 0,
-              charInSentence: 0,
-              hasBoundaryEvents: false,
-              inBreathPause: false,
-            };
           } else {
             setIsPlaying(false);
             setElapsedSceneTime(targetScene.durationSec);
@@ -294,19 +356,21 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       stopSpeechFnRef.current = cancel;
     },
-    [scenes, speakerVoices, playbackSpeed, volume, isMuted, stopSpeech],
+    [scenes, speakerVoices, playbackSpeed, volume, isMuted, preferCloudNeural, studioAmbienceOn, stopSpeech],
   );
 
-  // Sahne değiştiğinde veya ses/hız ayarları güncellendiğinde konuşmayı senkron tut
   useEffect(() => {
     if (isPlaying) {
       startSceneSpeech(activeSceneIndex, elapsedSceneTime);
+    } else {
+      const pos = positionFromElapsed(currentScene, elapsedSceneTime);
+      setLiveSpeaker(pos.activeSpeaker);
     }
     return () => {
       stopSpeech();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSceneIndex, isPlaying, isMuted, playbackSpeed, speakerVoices]);
+  }, [activeSceneIndex, isPlaying, isMuted, playbackSpeed, speakerVoices, preferCloudNeural]);
 
   const togglePlay = useCallback(() => {
     setHasStartedOnce(true);
@@ -314,7 +378,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       setIsPlaying(false);
       stopSpeech();
     } else {
-      // Ders sonundaysa başa sar
       if (
         activeSceneIndex === scenes.length - 1 &&
         elapsedSceneTime >= currentScene.durationSec - 0.3
@@ -339,7 +402,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         charInSentence: pos.charInSentence,
         hasBoundaryEvents: false,
         inBreathPause: false,
+        activeSpeaker: pos.activeSpeaker,
+        cloudViseme: null,
+        cloudMouth: null,
       };
+      setLiveSpeaker(pos.activeSpeaker);
       if (isPlaying && nextIdx === activeSceneIndex) {
         startSceneSpeech(nextIdx, seekSec);
       }
@@ -355,6 +422,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       const pos = positionFromElapsed(currentScene, targetTime);
       speechSyncRef.current.sentenceIndex = pos.sentenceIndex;
       speechSyncRef.current.charInSentence = pos.charInSentence;
+      speechSyncRef.current.activeSpeaker = pos.activeSpeaker;
+      setLiveSpeaker(pos.activeSpeaker);
       if (isPlaying) {
         startSceneSpeech(activeSceneIndex, targetTime);
       }
@@ -362,7 +431,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     [currentScene, elapsedSceneTime, isPlaying, startSceneSpeech, activeSceneIndex],
   );
 
-  // Tarayıcı tam ekran kontrolü
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
@@ -378,7 +446,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
-  // Klavye kısayolları
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -406,7 +473,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [togglePlay, seekRelative, toggleFullscreen, onClose]);
 
-  // 60 FPS Full HD Sahne ve Dudak Senkronu Döngüsü
+  // 60 FPS Sahne ve Dudak Senkronu Döngüsü
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -420,7 +487,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       lastTickRef.current = perfNow;
 
       if (isPlaying) {
-        // Sınır olayı vermeyen bulut seslerinde (ör. Google Türkçe) veya sessiz modda akıcı ilerlet
         if (!speechSyncRef.current.inBreathPause) {
           setElapsedSceneTime(prev => {
             const rateFactor = speechSyncRef.current.hasBoundaryEvents ? 0.35 : 1.0;
@@ -436,38 +502,37 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             return Math.min(currentScene.durationSec, next);
           });
 
-          if (!speechSyncRef.current.hasBoundaryEvents) {
-            const curSentence = currentScene.sentences[speechSyncRef.current.sentenceIndex] || '';
-            speechSyncRef.current.charInSentence = Math.min(
-              curSentence.length,
-              speechSyncRef.current.charInSentence + dt * CHARS_PER_SEC * playbackSpeed,
-            );
-          } else {
-            const curSentence = currentScene.sentences[speechSyncRef.current.sentenceIndex] || '';
-            speechSyncRef.current.charInSentence = Math.min(
-              curSentence.length,
-              speechSyncRef.current.charInSentence + dt * CHARS_PER_SEC * playbackSpeed * 0.65,
-            );
-          }
+          const curSentence = currentScene.sentences[speechSyncRef.current.sentenceIndex] || '';
+          const charSpeed = speechSyncRef.current.hasBoundaryEvents ? 0.65 : 1.0;
+          speechSyncRef.current.charInSentence = Math.min(
+            curSentence.length,
+            speechSyncRef.current.charInSentence + dt * CHARS_PER_SEC * playbackSpeed * charSpeed,
+          );
         }
       }
 
       const fallbackPos = positionFromElapsed(currentScene, elapsedSceneTime);
       const sIdx = isPlaying ? speechSyncRef.current.sentenceIndex : fallbackPos.sentenceIndex;
       const cIdx = isPlaying ? Math.floor(speechSyncRef.current.charInSentence) : Math.floor(fallbackPos.charInSentence);
+      const activeSpk = isPlaying
+        ? speechSyncRef.current.activeSpeaker
+        : fallbackPos.activeSpeaker;
       const activeSentence = currentScene.sentences[sIdx] || currentScene.narration;
 
-      // Aktif Türkçe harften viseme ve yumuşatılmış ağız açıklığı hesapla
       let targetViseme: Viseme = 'rest';
       let targetOpen = 0;
 
       if (isPlaying && !speechSyncRef.current.inBreathPause) {
-        const ch = activeSentence.charAt(Math.max(0, Math.min(activeSentence.length - 1, cIdx)));
-        const vInfo = visemeFromTurkishChar(ch);
-        targetViseme = vInfo.viseme;
-        // Doğal hece ritmi modülasyonu
-        const syllableWave = 0.72 + Math.sin(perfNow / 68) * 0.28;
-        targetOpen = vInfo.open * syllableWave;
+        if (speechSyncRef.current.cloudMouth !== null && speechSyncRef.current.cloudViseme) {
+          targetViseme = speechSyncRef.current.cloudViseme;
+          targetOpen = speechSyncRef.current.cloudMouth * (0.76 + Math.sin(perfNow / 64) * 0.24);
+        } else {
+          const ch = activeSentence.charAt(Math.max(0, Math.min(activeSentence.length - 1, cIdx)));
+          const vInfo = visemeFromTurkishChar(ch);
+          targetViseme = vInfo.viseme;
+          const syllableWave = 0.72 + Math.sin(perfNow / 68) * 0.28;
+          targetOpen = vInfo.open * syllableWave;
+        }
       }
 
       smoothMouthRef.current += (targetOpen - smoothMouthRef.current) * Math.min(1, dt * 22);
@@ -484,6 +549,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         sceneTime: elapsedSceneTime,
         sentenceIndex: sIdx,
         charInSentence: cIdx,
+        activeSpeaker: activeSpk,
         playing: isPlaying,
         poster: !hasStartedOnce,
         now: Date.now(),
@@ -515,7 +581,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     totalDurationSec,
   ]);
 
-  // Yardımcı eylemler
   const copyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -550,7 +615,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     setPersonalNotes(prev => prev.filter(n => n.id !== id));
   };
 
-  // Tüm ders notlarını ve kişisel notları temiz Markdown dosyası olarak indir
   const handleDownloadStudySheet = () => {
     const lines: string[] = [
       `# ${studio.title}`,
@@ -561,8 +625,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     ];
 
     scenes.forEach((sc, i) => {
-      lines.push(`\n### ${i + 1}. ${sc.title} (${sc.speaker})`);
-      lines.push(sc.narration);
+      lines.push(`\n### ${i + 1}. ${sc.title} (${DIAGRAM_BADGE_TR[sc.diagram.type]})`);
+      sc.sentences.forEach((sent, si) => {
+        const spk = sc.sentenceSpeakers?.[si] || sc.speaker;
+        lines.push(`- **${spk === 'Deniz' ? 'Dr. Deniz' : 'Barış'}:** ${sent}`);
+      });
       if (sc.keyTakeaways.length) {
         lines.push(`\n**Önemli Noktalar:**`);
         sc.keyTakeaways.forEach(tk => lines.push(`- ${tk}`));
@@ -601,7 +668,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     toast.success('Ders özeti ve notlarınız indirildi');
   };
 
-  // Gerçek study-coach Edge Function çağrısı
   const sendCoachQuestion = async (preset?: string) => {
     const text = (preset ?? coachInput).trim();
     if (!text || coachLoading) return;
@@ -615,6 +681,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     try {
       const { data, error } = await supabase.functions.invoke('study-coach', {
         body: {
+          mode: 'chat',
           materialTitle: material.title,
           materialType: 'video',
           course: material.course || undefined,
@@ -634,11 +701,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
   };
 
-  // 1080p Full HD MP4 Dışa Aktarma Motoru (yumuşak stüdyo ambiyans sesiyle, rahatsız edici bip sesi olmadan)
+  // Yüksek Kaliteli MP4 Video Dersi Dışa Aktarma Motoru
   const handleExportMP4 = async () => {
+    exportCancelRef.current = false;
     setIsExporting(true);
     setExportProgress(0);
-    setExportStatusText('1080p Full HD sahne motoru hazırlanıyor...');
+    setExportStatusText('Stüdyo sahne motoru hazırlanıyor...');
 
     if (isPlaying) {
       setIsPlaying(false);
@@ -656,17 +724,21 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       const audioCtx = new AudioContextClass();
       const audioDest = audioCtx.createMediaStreamDestination();
 
-      // Yumuşak stüdyo ambiyans akoru (rahatsız edici tekil sinüs sinyali yerine çok hafif sıcak pad)
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(250, audioCtx.currentTime);
+
       const masterGain = audioCtx.createGain();
-      masterGain.gain.setValueAtTime(0.018, audioCtx.currentTime);
+      masterGain.gain.setValueAtTime(0.015, audioCtx.currentTime);
+      filter.connect(masterGain);
       masterGain.connect(audioDest);
 
-      const freqs = [261.63, 329.63, 392.0];
-      const oscs = freqs.map(freq => {
+      const freqs = [146.83, 220.0, 277.18, 329.63];
+      const oscs = freqs.map((freq, idx) => {
         const o = audioCtx.createOscillator();
-        o.type = 'sine';
+        o.type = idx % 2 === 0 ? 'sine' : 'triangle';
         o.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        o.connect(masterGain);
+        o.connect(filter);
         o.start();
         return o;
       });
@@ -695,15 +767,17 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       const totalScenes = scenes.length;
       for (let sIdx = 0; sIdx < totalScenes; sIdx++) {
+        if (exportCancelRef.current) break;
         const scene = scenes[sIdx];
-        const sceneDuration = Math.min(scene.durationSec, 9);
+        const sceneDuration = Math.min(scene.durationSec, 10);
         const fps = 30;
         const totalFrames = Math.round(sceneDuration * fps);
 
         setExportStatusText(`Bölüm ${sIdx + 1}/${totalScenes}: ${scene.title}`);
 
         for (let f = 0; f < totalFrames; f++) {
-          const timeSecs = f / fps;
+          if (exportCancelRef.current) break;
+          const timeSecs = (f / totalFrames) * scene.durationSec;
           const pos = positionFromElapsed(scene, timeSecs);
           const sent = scene.sentences[pos.sentenceIndex] || '';
           const ch = sent.charAt(Math.floor(pos.charInSentence));
@@ -715,9 +789,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             sceneCount: totalScenes,
             progress: pos.progress,
             overall: (sIdx + pos.progress) / totalScenes,
-            sceneTime: timeSecs,
+            sceneTime: f / fps,
             sentenceIndex: pos.sentenceIndex,
             charInSentence: Math.floor(pos.charInSentence),
+            activeSpeaker: pos.activeSpeaker,
             playing: true,
             poster: false,
             now: Date.now() + f * 33,
@@ -733,14 +808,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           const pct = Math.round(((sIdx + f / totalFrames) / totalScenes) * 96);
           setExportProgress(pct);
 
-          if (f % 10 === 0) {
+          if (f % 8 === 0) {
             await new Promise(r => setTimeout(r, 16));
           }
         }
       }
-
-      setExportProgress(98);
-      setExportStatusText('1080p video dosyası paketleniyor...');
 
       await new Promise<void>(resolve => {
         mediaRecorder.onstop = () => resolve();
@@ -748,6 +820,15 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         oscs.forEach(o => o.stop());
         audioCtx.close();
       });
+
+      if (exportCancelRef.current) {
+        setIsExporting(false);
+        toast.info('MP4 hazırlama işlemi iptal edildi');
+        return;
+      }
+
+      setExportProgress(98);
+      setExportStatusText('Video dosyası paketleniyor...');
 
       const ext = mimeType.includes('mp4') || !mimeType ? 'mp4' : 'webm';
       const videoBlob = new Blob(recordedChunks, { type: mimeType || 'video/mp4' });
@@ -761,7 +842,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `${safeTitle}-1080p.${ext}`;
+      a.download = `${safeTitle}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -769,15 +850,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       setExportProgress(100);
       setExportStatusText('İndirme tamamlandı!');
-      toast.success('1080p HD ders videosu indirildi');
-      setTimeout(() => setIsExporting(false), 1200);
+      toast.success('Ders videosu indirildi');
+      setTimeout(() => setIsExporting(false), 1100);
     } catch (err: any) {
       toast.error('Video dışa aktarılamadı: ' + (err?.message || 'Bilinmeyen hata'));
       setIsExporting(false);
     }
   };
 
-  // Toplam geçen süre
   const elapsedBeforeCurrent = scenes.slice(0, activeSceneIndex).reduce((a, s) => a + s.durationSec, 0);
   const totalElapsedSec = elapsedBeforeCurrent + elapsedSceneTime;
 
@@ -791,63 +871,67 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     );
   }, [allTerms, termQuery]);
 
-  const activeVoiceQuality = speakerVoices[currentScene.speaker]?.quality;
+  const activeVoiceQuality = speakerVoices[liveSpeaker]?.quality;
 
   const studioElement = (
     <div
       ref={containerRef}
       className="fixed inset-0 z-[200] flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#050811] text-slate-100 select-none font-sans"
     >
-      {/* 1. MODERN SİNEMATİK ÜST ÇUBUK */}
-      <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] bg-[#070b16]/90 px-3 sm:px-5 backdrop-blur-xl">
-        {/* Sol: Geri + Başlık + Ders bilgisi */}
+      {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
+      <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-[#070b16]/95 px-3 sm:px-5 backdrop-blur-xl">
+        {/* Sol: Beyaz EconNotes Logosu + Çıkış + Başlık */}
         <div className="flex min-w-0 items-center gap-3">
+          <div className="flex items-center px-1" title="EconNotes Çalışma Stüdyosu">
+            <EconLogo allWhite className="h-6 sm:h-7 w-auto" />
+          </div>
+
+          <div className="h-5 w-px bg-white/[0.12] hidden sm:block" />
+
           {onClose && (
             <button
               onClick={onClose}
-              className="group flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
+              className="group flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.09] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
               title="Stüdyodan Çık (Esc)"
             >
               <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-              <span className="hidden sm:inline">Stüdyodan Çık</span>
+              <span className="hidden md:inline">Stüdyodan Çık</span>
             </button>
           )}
 
-          <div className="h-5 w-px bg-white/[0.08] hidden sm:block" />
-
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-cyan-300 ring-1 ring-inset ring-cyan-400/25">
-                <span className={`h-1.5 w-1.5 rounded-full ${isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
-                1080p STÜDYO DERSİ
-              </span>
               {material.course && (
-                <span className="truncate text-[11px] font-medium text-slate-400 hidden md:inline">
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/12 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-cyan-300 ring-1 ring-inset ring-cyan-400/25">
+                  <span className={`h-1.5 w-1.5 rounded-full ${isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
                   {material.course}
                 </span>
               )}
+              <span className="hidden lg:inline text-[11px] text-slate-400">
+                {DIAGRAM_BADGE_TR[currentScene.diagram.type]}
+              </span>
             </div>
-            <h1 className="truncate text-sm font-semibold tracking-tight text-slate-100 sm:text-[15px]">
+            <h1 className="truncate text-sm font-semibold tracking-tight text-white sm:text-[15px]">
               {studio.title}
             </h1>
           </div>
         </div>
 
-        {/* Sağ: Gerçek Akademik Araçlar (Sıfır sahte emoji sayacı!) */}
+        {/* Sağ: Gerçek Akademik Araçlar */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {/* Doğal Ses Motoru Seçici */}
+          {/* Gelişmiş Stüdyo Ses Ayarları */}
           <div className="relative">
             <button
               onClick={() => setVoiceMenuOpen(o => !o)}
               className="flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs text-slate-300 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
-              title="Anlatıcı Ses Ayarları"
+              title="Anlatıcı Ses ve Stüdyo Akustiği Ayarları"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-400" />
               <span className="hidden xl:inline">
-                {activeVoiceQuality === 'neural'
-                  ? 'Doğal Neural Ses'
-                  : activeVoiceQuality === 'cloud'
-                  ? 'Bulut HD Ses'
+                {preferCloudNeural
+                  ? 'Stüdyo Ses'
+                  : activeVoiceQuality === 'neural'
+                  ? 'Doğal Ses'
                   : 'Ses Ayarları'}
               </span>
             </button>
@@ -855,7 +939,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             {voiceMenuOpen && (
               <div className="absolute right-0 top-10 z-50 w-80 rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white">Doğal Ses Stüdyosu</span>
+                  <span className="font-semibold text-white">Stüdyo Ses ve Akustik</span>
                   <button
                     onClick={() => setVoiceMenuOpen(false)}
                     className="text-slate-400 hover:text-white"
@@ -864,11 +948,35 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </button>
                 </div>
 
-                <p className="text-[11px] leading-relaxed text-slate-400">
-                  Tarayıcınızdaki en doğal Türkçe sesler otomatik seçilir. Dilerseniz anlatıcı seslerini değiştirebilirsiniz.
-                </p>
+                {/* Bulut AI Stüdyo Sesi Anahtarı */}
+                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                  <div>
+                    <div className="font-medium text-slate-100">Yapay Zekâ Stüdyo Sesi</div>
+                    <div className="text-[10px] text-slate-400">Doğal tonlamalı bulut ses motoru</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={preferCloudNeural}
+                    onChange={e => setPreferCloudNeural(e.target.checked)}
+                    className="h-4 w-4 accent-cyan-400"
+                  />
+                </label>
 
-                <div className="space-y-2">
+                {/* Stüdyo Akustik Ambiyansı */}
+                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                  <div>
+                    <div className="font-medium text-slate-100">Stüdyo Akustik Ambiyansı</div>
+                    <div className="text-[10px] text-slate-400">Hafif yayın odası sıcaklığı ve geçiş tınısı</div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={studioAmbienceOn}
+                    onChange={e => setStudioAmbienceOn(e.target.checked)}
+                    className="h-4 w-4 accent-cyan-400"
+                  />
+                </label>
+
+                <div className="space-y-2 pt-1">
                   <div>
                     <label className="block text-[11px] font-medium text-cyan-300 mb-1">
                       Dr. Deniz (Akademik Anlatıcı)
@@ -881,7 +989,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       <option value="">Otomatik ({speakerVoices.Deniz.label})</option>
                       {voices.map(v => (
                         <option key={v.id} value={v.id}>
-                          {v.cleanName} {v.quality === 'neural' ? '★ HD' : v.quality === 'cloud' ? '· Bulut' : ''}
+                          {v.cleanName} {v.quality === 'neural' ? '★ Doğal' : v.quality === 'cloud' ? '· Bulut' : ''}
                         </option>
                       ))}
                     </select>
@@ -899,7 +1007,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       <option value="">Otomatik ({speakerVoices.Barış.label})</option>
                       {voices.map(v => (
                         <option key={v.id} value={v.id}>
-                          {v.cleanName} {v.quality === 'neural' ? '★ HD' : v.quality === 'cloud' ? '· Bulut' : ''}
+                          {v.cleanName} {v.quality === 'neural' ? '★ Doğal' : v.quality === 'cloud' ? '· Bulut' : ''}
                         </option>
                       ))}
                     </select>
@@ -949,7 +1057,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             <span className="hidden xl:inline">Notları İndir</span>
           </button>
 
-          {/* 1080p MP4 İndir */}
+          {/* MP4 İndir (Sıfır 1080p ibaresi) */}
           <Button
             size="sm"
             onClick={handleExportMP4}
@@ -957,7 +1065,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             className="h-8 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-3 text-xs font-semibold text-white shadow-lg shadow-cyan-500/20 hover:from-cyan-400 hover:to-blue-500 gap-1.5"
           >
             {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">1080p MP4</span>
+            <span className="hidden sm:inline">MP4 İndir</span>
           </Button>
 
           {/* Yan Panel Aç/Kapat */}
@@ -994,7 +1102,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             </button>
           )}
 
-          {/* Kapat (Mobil için kompakt X) */}
           {onClose && (
             <button
               onClick={onClose}
@@ -1040,15 +1147,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       {/* 2. ANA ÇALIŞMA ALANI: SİNEMA SAHNESİ + YAN DERS NOTLARI PANELİ */}
       <div className="relative flex flex-1 min-h-0 overflow-hidden">
-        {/* SOL/MERKEZ: 1080p SİNEMA SAHNESİ VE KONTROL PANELİ */}
+        {/* SOL/MERKEZ: SİNEMA SAHNESİ VE KONTROL PANELİ */}
         <div className="relative flex flex-1 min-w-0 flex-col bg-[#050811]">
-          {/* Arka plan yumuşak ambiyans ışığı */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-40"
+            className="pointer-events-none absolute inset-0 opacity-40 transition-all duration-700"
             style={{
               background:
-                currentScene.speaker === 'Deniz'
+                liveSpeaker === 'Deniz'
                   ? 'radial-gradient(circle at 30% 45%, rgba(34,211,238,0.12), transparent 65%)'
                   : 'radial-gradient(circle at 70% 45%, rgba(168,85,247,0.12), transparent 65%)',
             }}
@@ -1076,11 +1182,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </div>
                   <div className="mt-4 text-center px-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
-                      Dr. Deniz & Barış ile İnteraktif Ders
+                      Dr. Deniz & Barış ile Kapsamlı Video Dersi
                     </p>
                     <h2 className="mt-1 text-lg sm:text-xl font-bold text-white">
-                      Video Dersini Başlat ({scenes.length} Bölüm · {formatTime(totalDurationSec)})
+                      Dersi Başlat ({scenes.length} Bölüm · {formatTime(totalDurationSec)})
                     </h2>
+                    <p className="mt-1 text-xs text-slate-300">
+                      Görseller · Şekiller · Tablolar · Grafikler · Örnek Senaryolar
+                    </p>
                   </div>
                 </div>
               )}
@@ -1089,17 +1198,15 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
           {/* ALT KONTROL DOCK & BÖLÜMLÜ ZAMAN ÇİZELGESİ */}
           <div className="relative z-20 shrink-0 border-t border-white/[0.07] bg-[#070b16]/95 px-4 py-2.5 backdrop-blur-xl">
-            {/* Hover Bölüm Önizleme Etiketi */}
             {hoveredChapter !== null && scenes[hoveredChapter] && (
               <div className="mb-1.5 flex items-center justify-between text-[11px] text-cyan-300">
                 <span className="truncate font-medium">
-                  Bölüm {hoveredChapter + 1}: {scenes[hoveredChapter].title} ({scenes[hoveredChapter].speaker})
+                  Bölüm {hoveredChapter + 1}: {scenes[hoveredChapter].title} · {DIAGRAM_BADGE_TR[scenes[hoveredChapter].diagram.type]}
                 </span>
                 <span className="font-mono text-slate-400">{formatTime(scenes[hoveredChapter].durationSec)}</span>
               </div>
             )}
 
-            {/* Çok Bölümlü (Segmented) İlerleme Çubuğu */}
             <div className="flex items-center gap-3">
               <span className="w-11 text-right font-mono text-[11px] text-slate-400">
                 {formatTime(totalElapsedSec)}
@@ -1141,7 +1248,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               </span>
             </div>
 
-            {/* Alt Buton Satırı */}
             <div className="mt-1.5 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
@@ -1211,23 +1317,21 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </button>
               </div>
 
-              {/* Orta: Aktif Bölüm ve Konuşmacı Özeti */}
               <div className="hidden lg:flex min-w-0 items-center gap-2 text-xs">
                 <span
                   className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                    currentScene.speaker === 'Deniz'
+                    liveSpeaker === 'Deniz'
                       ? 'bg-cyan-500/15 text-cyan-300'
                       : 'bg-purple-500/15 text-purple-300'
                   }`}
                 >
-                  {currentScene.speaker === 'Deniz' ? 'Dr. Deniz' : 'Barış'}
+                  {liveSpeaker === 'Deniz' ? 'Dr. Deniz' : 'Barış'}
                 </span>
                 <span className="truncate max-w-md font-medium text-slate-200">
                   {activeSceneIndex + 1}/{scenes.length} · {currentScene.title}
                 </span>
               </div>
 
-              {/* Sağ: Hız Seçici */}
               <div className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.02] p-0.5">
                 {[0.85, 1.0, 1.15, 1.3].map(spd => (
                   <button
@@ -1247,10 +1351,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           </div>
         </div>
 
-        {/* SAĞ ÇALIŞMA PANELİ: DERS NOTLARI, KAVRAMLAR, HAP BİLGİLER & AKIL HOCASI */}
+        {/* SAĞ ÇALIŞMA PANELİ */}
         {sidebarOpen && (
           <aside className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[400px] lg:static lg:w-[410px] xl:w-[430px] shrink-0 flex-col border-l border-white/[0.08] bg-[#080d1a]/98 backdrop-blur-2xl shadow-2xl lg:shadow-none">
-            {/* Sekme Başlıkları */}
             <div className="grid grid-cols-5 gap-1 border-b border-white/[0.07] bg-[#060a14] p-2">
               {[
                 { id: 'notes', label: 'Notlar', icon: BookOpen },
@@ -1278,27 +1381,23 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               })}
             </div>
 
-            {/* Sekme İçerikleri */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* 1. ÖNEMLİ DERS NOTLARI */}
               {activeTab === 'notes' && (
                 <div className="space-y-4">
-                  {/* Aktif Bölüm Kartı */}
                   <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3.5">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-semibold uppercase tracking-wider text-cyan-400">
                         Bölüm {activeSceneIndex + 1} / {scenes.length}
                       </span>
-                      <span className="text-slate-400">
-                        {currentScene.speaker === 'Deniz' ? 'Dr. Deniz' : 'Barış'}
+                      <span className="rounded bg-white/[0.06] px-2 py-0.5 text-[10px] text-slate-300">
+                        {DIAGRAM_BADGE_TR[currentScene.diagram.type]}
                       </span>
                     </div>
-                    <h3 className="mt-1 text-sm font-bold text-white leading-snug">
+                    <h3 className="mt-1.5 text-sm font-bold text-white leading-snug">
                       {currentScene.title}
                     </h3>
                   </div>
 
-                  {/* Sınav İpucu Vurgusu */}
                   {currentScene.examTip && (
                     <div className="rounded-2xl border border-amber-400/25 bg-gradient-to-br from-amber-500/12 to-orange-500/5 p-3.5 space-y-1.5">
                       <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-300">
@@ -1311,7 +1410,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     </div>
                   )}
 
-                  {/* Bu Bölümden Önemli Çıkarımlar */}
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -1347,7 +1445,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     ))}
                   </div>
 
-                  {/* Öğrencinin Kendi Zaman Damgalı Notları */}
+                  {/* Kişisel Zaman Damgalı Notlar */}
                   <div className="space-y-2 pt-2 border-t border-white/[0.07]">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
@@ -1394,30 +1492,38 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     )}
                   </div>
 
-                  {/* Bölüm Konuşma Dökümü (Canlı Cümle Vurgulu) */}
+                  {/* Karşılıklı Diyalog Dökümü */}
                   <div className="space-y-2 pt-2 border-t border-white/[0.07]">
                     <h4 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                      Bölüm Anlatım Metni
+                      Stüdyo Diyalog Dökümü
                     </h4>
-                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-1.5 text-xs leading-relaxed">
+                    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2 text-xs leading-relaxed">
                       {currentScene.sentences.map((sent, sIdx) => {
                         const isCur = sIdx === speechSyncRef.current.sentenceIndex && hasStartedOnce;
+                        const spk = currentScene.sentenceSpeakers?.[sIdx] || currentScene.speaker;
                         return (
-                          <p
+                          <div
                             key={sIdx}
                             onClick={() => {
                               const charOffset = currentScene.sentenceOffsets[sIdx] || 0;
                               const ratio = charOffset / Math.max(1, currentScene.totalChars);
                               goToScene(activeSceneIndex, ratio * currentScene.durationSec);
                             }}
-                            className={`cursor-pointer rounded-lg px-2 py-1 transition ${
+                            className={`cursor-pointer rounded-xl px-2.5 py-1.5 transition ${
                               isCur
-                                ? 'bg-cyan-500/15 text-white font-medium'
+                                ? 'bg-cyan-500/15 text-white font-medium ring-1 ring-cyan-400/30'
                                 : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
                             }`}
                           >
-                            {sent}
-                          </p>
+                            <span
+                              className={`mr-1.5 text-[10px] font-bold uppercase ${
+                                spk === 'Deniz' ? 'text-cyan-300' : 'text-purple-300'
+                              }`}
+                            >
+                              {spk === 'Deniz' ? 'Dr. Deniz:' : 'Barış:'}
+                            </span>
+                            <span>{sent}</span>
+                          </div>
                         );
                       })}
                     </div>
@@ -1425,7 +1531,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </div>
               )}
 
-              {/* 2. KAVRAM SÖZLÜĞÜ */}
               {activeTab === 'terms' && (
                 <div className="space-y-3">
                   <Input
@@ -1462,7 +1567,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </div>
               )}
 
-              {/* 3. SINAV HAP BİLGİLERİ */}
               {activeTab === 'facts' && (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-purple-400/25 bg-purple-500/10 p-3.5">
@@ -1512,17 +1616,15 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </div>
               )}
 
-              {/* 4. DERS BÖLÜMLERİ (AKIŞ) */}
               {activeTab === 'playlist' && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1">
                     <span>Toplam {scenes.length} Bölüm</span>
-                    <span className="font-mono">{formatTime(totalDurationSec)}</span>
+                    <span className="font-mono font-semibold text-cyan-300">{formatTime(totalDurationSec)}</span>
                   </div>
 
                   {scenes.map((sc, idx) => {
                     const isAct = idx === activeSceneIndex;
-                    const isDeniz = sc.speaker === 'Deniz';
                     return (
                       <button
                         key={sc.id}
@@ -1544,18 +1646,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <span
-                              className={`text-[10px] font-semibold ${
-                                isDeniz ? 'text-cyan-300' : 'text-purple-300'
-                              }`}
-                            >
-                              {isDeniz ? 'Dr. Deniz' : 'Barış'}
+                            <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-cyan-300">
+                              {DIAGRAM_BADGE_TR[sc.diagram.type]}
                             </span>
                             <span className="font-mono text-[10px] text-slate-400">
                               {formatTime(sc.durationSec)}
                             </span>
                           </div>
-                          <p className="mt-0.5 text-xs font-semibold text-slate-100 leading-snug">
+                          <p className="mt-1 text-xs font-semibold text-slate-100 leading-snug">
                             {sc.title}
                           </p>
                           <p className="mt-1 line-clamp-2 text-[11px] text-slate-400 leading-relaxed">
@@ -1568,7 +1666,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </div>
               )}
 
-              {/* 5. ENTEGRE YAPAY ZEKÂ AKIL HOCASI */}
               {activeTab === 'coach' && (
                 <div className="flex h-[calc(100dvh-165px)] flex-col">
                   <div className="flex-1 space-y-3 overflow-y-auto pr-1">
@@ -1607,7 +1704,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                   <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/[0.07] pt-2.5">
                     {[
-                      'Bu bölümü daha sade anlat',
+                      'Bu bölümü örnek senaryoyla anlat',
                       'Sınavda nasıl sorulur?',
                       '3 kısa test sorusu sor',
                     ].map(prompt => (
@@ -1652,20 +1749,30 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         )}
       </div>
 
-      {/* 3. 1080p MP4 DIŞA AKTARMA MODALI (Portal içinde çalıştığı için Tam Ekranda da görünür) */}
+      {/* 3. MP4 DIŞA AKTARMA MODALI */}
       {isExporting && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b1120] p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
-                <Loader2 className="h-5 w-5 animate-spin" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Video Dersi Hazırlanıyor</h3>
+                  <p className="text-xs text-slate-400">
+                    Tüm sahneler, tablolar, grafikler ve senaryolar işleniyor.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-white">1080p Full HD Video Hazırlanıyor</h3>
-                <p className="text-xs text-slate-400">
-                  Sahneler ve akıllı tahta şemaları yüksek çözünürlükte işleniyor.
-                </p>
-              </div>
+              <button
+                onClick={() => {
+                  exportCancelRef.current = true;
+                }}
+                className="rounded-lg border border-white/10 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10 hover:text-white"
+              >
+                İptal
+              </button>
             </div>
 
             <div className="space-y-2">
@@ -1682,7 +1789,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             </div>
 
             <p className="text-[11px] text-slate-500 text-center">
-              İşlem tamamlandığında video otomatik olarak cihazınıza indirilecektir.
+              İşlem tamamlandığında MP4 dosyası otomatik olarak cihazınıza indirilecektir.
             </p>
           </div>
         </div>

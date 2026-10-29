@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildStudioContent, shortLabel } from './sceneModel';
+import { buildStudioContent, MIN_LESSON_DURATION_SEC, shortLabel } from './sceneModel';
 import { normalizeForTurkishSpeech, visemeFromTurkishChar } from './speechEngine';
 
 describe('video studio sceneModel & speechEngine', () => {
@@ -8,9 +8,9 @@ describe('video studio sceneModel & speechEngine', () => {
     expect(shortLabel('Bizans rejimine karşılık Selçuklu düzeni', 3, 32)).toBe('Bizans rejimine');
   });
 
-  it('builds clean non-redundant diagram nodes for legacy note materials', () => {
+  it('builds clean non-redundant diagram nodes and guarantees >= 5 min multi-modal curriculum', () => {
     const legacyContent = {
-      outline: 'Selçuklu mali yapısı incelenir.',
+      outline: 'Büyük Selçuklu ve Anadolu Selçuklu iktisadi yapısının mali sacayakları incelenir.',
       scenes: [
         {
           speaker: 'Deniz',
@@ -21,23 +21,39 @@ describe('video studio sceneModel & speechEngine', () => {
             'Miri arazi rejimi: Toprağın çıplak mülkiyeti devlete, kullanım hakkı köylüye aittir.',
             'Ermeni ve Süryani gibi yerli halkların fethi kolayca kabullenmesinin temelinde adil mülkiyet düzeni yatar.',
           ],
+          examTip: 'Anadolu Selçuklu küçük ikta sistemi merkezi otoriteyi güçlendirmiştir.',
         },
       ],
     };
 
-    const studio = buildStudioContent(
+    const rawOnly = buildStudioContent(
+      legacyContent,
+      'Video Özeti: Osmanlı İktisat Tarihi - 3. Hafta',
+      'Osmanlı İktisat Tarihi',
+      { disableCurriculumExpansion: true },
+    );
+    expect(rawOnly.title).toBe('Osmanlı İktisat Tarihi - 3. Hafta');
+    expect(rawOnly.scenes[0].diagram.nodes[0].label).toBe('Miri arazi rejimi');
+    expect(rawOnly.scenes[0].diagram.nodes[0].subtext.toLowerCase()).not.toContain('miri arazi rejimi:');
+    expect(rawOnly.scenes[0].diagram.nodes[1].label.toLowerCase()).not.toMatch(/\bgibi$/);
+    // Sahne içinde hem Deniz hem Barış karşılıklı konuşur
+    expect(new Set(rawOnly.scenes[0].sentenceSpeakers).size).toBe(2);
+
+    // Tam müfredat genişletmesi: en az 5+ dakika ve zengin görsel tiplerin tamamı mevcut
+    const fullStudio = buildStudioContent(
       legacyContent,
       'Video Özeti: Osmanlı İktisat Tarihi - 3. Hafta',
       'Osmanlı İktisat Tarihi',
     );
+    expect(fullStudio.totalDurationSec).toBeGreaterThanOrEqual(MIN_LESSON_DURATION_SEC);
+    expect(fullStudio.totalDurationSec).toBeGreaterThanOrEqual(300);
 
-    expect(studio.title).toBe('Osmanlı İktisat Tarihi - 3. Hafta');
-    expect(studio.scenes).toHaveLength(1);
-    const nodes = studio.scenes[0].diagram.nodes;
-    expect(nodes.length).toBeGreaterThanOrEqual(2);
-    expect(nodes[0].label).toBe('Miri arazi rejimi');
-    expect(nodes[0].subtext.toLowerCase()).not.toContain('miri arazi rejimi:');
-    expect(nodes[1].label.toLowerCase()).not.toMatch(/\bgibi$/);
+    const diagramTypes = new Set(fullStudio.scenes.map(s => s.diagram.type));
+    expect(diagramTypes.has('visual')).toBe(true);
+    expect(diagramTypes.has('shapes')).toBe(true);
+    expect(diagramTypes.has('table')).toBe(true);
+    expect(diagramTypes.has('chart')).toBe(true);
+    expect(diagramTypes.has('scenario')).toBe(true);
   });
 
   it('normalizes Turkish academic abbreviations, centuries and Roman numerals for natural speech', () => {
