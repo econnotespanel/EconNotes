@@ -923,7 +923,7 @@ const ReportDialog = ({ open, onOpenChange, materialId, user }: { open: boolean;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md z-[260]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Bug className="h-4 w-4 text-destructive" /> Platforma bildir</DialogTitle>
           <DialogDescription>Çalışma stüdyosunda bir bilgi hatası, yanlış cevap veya hata fark ettiysen yöneticilere ilet.</DialogDescription>

@@ -267,28 +267,27 @@ examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı 
 Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
       break;
     case 'video':
-      task = `Kullanıcının yüklediği ders notunu temel alarak EconNotes İnteraktif Video Stüdyosu için animasyonlu, yüksek kaliteli İKİLİ VİDEO DERSİ üret.
+      task = `Kullanıcının yüklediği ders notunu temel alarak EconNotes Stüdyosu için Full HD kalitede, gerçek bir yayın stüdyosu doğallığında İKİLİ VİDEO DERSİ üret.
 KATI KURALLAR:
-1. KONU VE KAPSAM: YALNIZCA ve DOĞRUDAN kullanıcının verdiği ders notundaki konuyu, dersi, tarihleri, kurumları, şahısları, terimleri ve olayları ele al.
-   - ÖRNEĞİN; not Osmanlı İktisat Tarihi veya Selçuklu ise; Selçuklu maliyesi, İkta sistemi, Miri arazi rejimi, Vakıflar, Moğol istilası, Kösedağ, kervansaraylar, liman fetihleri vb. nottaki gerçek tarihi kurumları konuş. ASLA alakasız mikroiktisat veya genel ezber kalıplar KULLANMA.
-2. ANLATIMCILAR:
-   - Deniz: Akademik, analitik anlatıcı (nottaki kavramların nedenlerini, kurumsal arka planını açıklar).
-   - Barış: Meraklı, sorgulayıcı anlatıcı (öğrencinin aklına gelecek soruları sorar, örnekler ister, sınavda nasıl çıkacağını sorgular).
-3. DİYALOG: En az 6-8 kapsamlı sahne üret. Her sahne notun belirli bir alt başlığını adım adım işlesin. Doğal, samimi, akıcı ve tamamen nota sadık diyaloglar olsun.
-4. diagramData: Her sahne için akıllı tahtada çizilecek konuya özel görsel model üret:
-   - diagramType: Konu tarih/kurum ise 'timeline', 'network' veya 'structure'; iktisadi eğri veya piyasa ise 'curve'; veri/kıyaslama ise 'comparison'.
-   - mainTitle: O anki konunun tahta başlığı.
-   - nodes: Nottaki spesifik kavramlardan ve kurumlardan oluşan 4-6 somut düğüm (label: max 3-4 kelime, subtext: kısa açıklama).
-   - highlightMetric: Sınav için akılda kalması gereken en kritik hap bilgi veya tarih/sayı.
-   - Düğümleri anlatım sırasına göre diz: anlatıcı konuştukça tahtada sırayla açılacaklar.
-5. keyTakeaways: Her sahne için 3-4 adet, öğrencinin not defterine yazacağı kısa ve somut not (tarih, isim, kurum, tanım, neden-sonuç). Genel laf değil, nottan gelen bilgi.
-6. keyTerms: Her sahnede geçen 2-4 kritik terim ve nottaki anlamına sadık kısa tanımı.
-7. examTip: Her sahne için "sınavda böyle sorulabilir / şuna dikkat" tarzında tek cümlelik somut ipucu.
-8. narration: Her sahnede 4-7 cümle; cümleler kısa ve seslendirmeye uygun olsun (uzun parantez, madde işareti, emoji yok).
-9. keyFacts: Tüm nottan sınav için ezberlenmesi gereken 5-8 kritik bilgi (tarih, sayı, isim, kurum).
-10. outline: Notun özetini ve ana temasını anlatan 2-3 cümle.
-11. suggestedSearches: Konuyu pekiştirecek 3-5 YouTube/Google arama sorgusu.
-Kaynakta bulunmayan bilgi uydurma. Kaynak kısa ise sahne sayısını azalt ama içerik dışına çıkma.`;
+1. KONU VE KAPSAM: YALNIZCA ve DOĞRUDAN kullanıcının verdiği ders notundaki konuyu, dersi, tarihleri, kurumları, şahısları, terimleri ve olayları ele al. ASLA notta bulunmayan genel kalıplar veya alakasız ders terimleri kullanma.
+2. İNSAN DOĞALLIĞINDA KONUŞMA DİLİ (ROBOTİK KİTAP DİLİ YASAK):
+   - Deniz (Dr. Deniz): Konuya hâkim, sıcak, berrak ve analitik anlatıcı. Neden-sonuç ilişkilerini somutlaştırır.
+   - Barış: Zeki, meraklı araştırmacı. Deniz'in sözünü doğal biçimde devralır, öğrencinin tam o an aklına takılacak kritik soruyu sorar ("Peki Deniz, burada şu ayrımı nasıl yapıyoruz?", "Dur bir saniye, yani köylü toprağın mülkiyetine sahip değil ama kullanım hakkı onda, doğru mu?"), bağlantıları yakalar.
+   - Metinler sesli okunacağı için ASLA parantez içi liste, kısaltma ("vb.", "yy.", "örn."), madde işareti veya ansiklopedi cümlesi kurma. Doğal konuşma ritminde, akıcı, kısa-orta uzunlukta cümleler kur; sayıları ve yüzyılları okunaklı yaz.
+3. SAHNE KURGUSU: 6-9 sahne üret. Deniz ve Barış sırayla birbirine pas atarak ilerlesin; her sahne notun belirgin bir alt başlığını derinlemesine işlesin.
+4. diagramData (AKILLI TAHTA — TEKRARSIZ VE ÇEŞİTLİ):
+   - Ardışık sahnelerde tek tip şema kullanma; içeriğe göre 'timeline' (tarihsel süreç/aşamalar), 'structure' (kurumsal yapı/unsurlar), 'comparison' (iki dönem/kavram/rejim kıyaslaması), 'network' (kavram ilişkileri) ve yalnızca gerçekten grafiksel eğri varsa 'curve' arasında çeşitlilik sağla.
+   - mainTitle: Sahnenin net tahta başlığı (en fazla 6-7 kelime).
+   - nodes: 3-5 somut düğüm. label alanı SADECE 2-4 kelimelik net kavram adı olsun (yarım cümle YASAK). subtext alanı ise label'ı tekrar etmeyen, doğrudan açıklayıcı 1 net cümle olsun.
+   - highlightMetric: Sınav için akılda kalması gereken en çarpıcı tek cümlelik bilgi.
+   - Düğümleri konuşma akış sırasına göre diz.
+5. keyTakeaways: Her sahne için 3-4 adet, öğrencinin defterine yazacağı somut ders notu.
+6. keyTerms: Her sahnede geçen 2-4 kritik terim ve nottaki anlamına sadık net tanımı.
+7. examTip: Her sahne için sınavda nasıl sorulabileceğine dair tek cümlelik somut uyarı.
+8. keyFacts: Tüm nottan sınav öncesi ezberlenmesi gereken 6-8 kritik hap bilgi.
+9. outline: Notun ana çerçevesini özetleyen 2-3 cümle.
+10. suggestedSearches: Konuyu pekiştirecek 3-5 akademik arama sorgusu.
+Kaynakta bulunmayan bilgi uydurma.`;
       break;
   }
 
