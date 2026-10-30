@@ -127,7 +127,7 @@ const buildHtml = (report: LectureSummaryReport) => {
         </ul>
       </div>` : ''}
     ${report.transcript ? `<div class="transcript"><div class="label">Ders dökümü</div><p>${markdownToHtml(report.transcript)}</p></div>` : ''}
-    <div class="footer">Bu özet EconNotes tarafından yapay zeka destekli olarak oluşturulmuştur.</div>
+    <div class="footer">Bu özet EconNotes Akademik Çalışma Stüdyosu tarafından oluşturulmuştur.</div>
   </body>
 </html>`;
 };

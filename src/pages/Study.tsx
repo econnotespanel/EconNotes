@@ -133,6 +133,15 @@ const Study = () => {
   const [progressLabel, setProgressLabel] = useState('');
   const progressTimer = useRef<number | null>(null);
 
+  const uploadCenterRef = useRef<HTMLElement>(null);
+  const scrollToUploadCenter = (targetType?: MaterialType) => {
+    if (targetType) {
+      setQuickType(targetType);
+      setMaterialType(targetType);
+    }
+    uploadCenterRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
@@ -140,12 +149,15 @@ const Study = () => {
     const noteIdParam = searchParams.get('noteId');
     const sourceModeParam = searchParams.get('sourceMode') as SourceMode;
     if (createParam === 'video' || noteIdParam) {
-      if (createParam === 'video') setMaterialType('video');
+      if (createParam === 'video') {
+        setQuickType('video');
+        setMaterialType('video');
+      }
       if (noteIdParam) setSelectedNoteId(noteIdParam);
       if (sourceModeParam && ['own', 'platform', 'upload'].includes(sourceModeParam)) {
         setSourceMode(sourceModeParam);
       }
-      setCreateOpen(true);
+      setTimeout(() => scrollToUploadCenter(createParam === 'video' ? 'video' : undefined), 120);
       const nextParams = new URLSearchParams(searchParams);
       nextParams.delete('create');
       nextParams.delete('noteId');
@@ -379,7 +391,7 @@ const Study = () => {
         });
       }, 400);
     } else {
-      rampProgressTo(95, 'Yapay zeka materyali üretiyor...');
+      rampProgressTo(95, 'Materyal hazırlanıyor...');
     }
 
     try {
@@ -506,7 +518,7 @@ const Study = () => {
               <Button variant="outline" onClick={() => setReportOpen(true)} className="w-full gap-2 rounded-xl border-border/80 bg-background/30 shadow-sm backdrop-blur sm:w-auto">
                 <Bug className="h-4 w-4" /> Platforma Bildir
               </Button>
-              <Button onClick={() => setCreateOpen(true)} className="w-full gap-2 rounded-xl border-0 bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_100%] text-primary-foreground shadow-lg shadow-primary/20 transition-[background-position,transform] duration-500 hover:-translate-y-0.5 hover:bg-[position:100%_0] sm:w-auto">
+              <Button onClick={() => scrollToUploadCenter()} className="w-full gap-2 rounded-xl border-0 bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_100%] text-primary-foreground shadow-lg shadow-primary/20 transition-[background-position,transform] duration-500 hover:-translate-y-0.5 hover:bg-[position:100%_0] sm:w-auto">
                 <Plus className="h-4 w-4" /> Yeni Materyal
               </Button>
             </div>
@@ -601,13 +613,13 @@ const Study = () => {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" className="rounded-xl" onClick={() => { setMaterialType('flashcards'); setCreateOpen(true); }}>
+                <Button variant="outline" className="rounded-xl" onClick={() => scrollToUploadCenter('flashcards')}>
                   <Layers className="mr-2 h-4 w-4" /> Kart hazırla
                 </Button>
-                <Button variant="outline" className="rounded-xl border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400" onClick={() => { setMaterialType('video'); setCreateOpen(true); }}>
+                <Button variant="outline" className="rounded-xl border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400" onClick={() => scrollToUploadCenter('video')}>
                   <VideoIcon className="mr-2 h-4 w-4" /> Video dersi
                 </Button>
-                <Button className="rounded-xl" onClick={() => { setMaterialType('quiz'); setCreateOpen(true); }}>
+                <Button className="rounded-xl" onClick={() => scrollToUploadCenter('quiz')}>
                   <ClipboardList className="mr-2 h-4 w-4" /> Kısa sınav hazırla
                 </Button>
               </div>
@@ -615,8 +627,12 @@ const Study = () => {
           </Card>
         </section>
 
-        {/* HIZLI SLAYT & DERS NOTU ÖZETLEME İSTASYONU */}
-        <section className="relative overflow-hidden rounded-3xl border border-primary/25 bg-gradient-to-br from-card/95 via-card/85 to-primary/5 p-5 md:p-7 shadow-xl shadow-primary/5 backdrop-blur-xl">
+        {/* SLAYT, NOT YÜKLEME MERKEZİ (YENİ İÇERİK MATERYALİ İLE BİRLEŞTİRİLMİŞ HUB) */}
+        <section
+          ref={uploadCenterRef}
+          id="upload-center"
+          className="relative overflow-hidden rounded-3xl border border-primary/25 bg-gradient-to-br from-card/95 via-card/85 to-primary/5 p-5 md:p-7 shadow-xl shadow-primary/5 backdrop-blur-xl transition-all"
+        >
           <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-cyan-500/10 blur-3xl" />
 
@@ -625,177 +641,325 @@ const Study = () => {
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
-                    <Presentation className="h-3.5 w-3.5" /> HIZLI SLAYT &amp; NOT İSTASYONU
+                    <Presentation className="h-3.5 w-3.5" /> Slayt, Not Yükleme Merkezi
                   </span>
                   <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-mono">PPTX Slayt</Badge>
                   <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-mono">PDF</Badge>
                   <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-mono">DOCX</Badge>
                 </div>
                 <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground font-display">
-                  Slaytlarını veya Ders Notunu Yükle, Anında Özet Çıkart
+                  Slaytlarınızı veya Ders Notlarınızı Yükleyin, Hemen Çalışmaya Başlayın
                 </h2>
                 <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
-                  PowerPoint sunumunu veya PDF ders notunu sürükle-bırak. Yapay zekâ slayt slayt tarayıp sınav odaklı derinlikli özet, hap bilgiler, formüller ve hoca vurguları hazırlasın.
+                  PowerPoint sunumları (.pptx), PDF veya Word notları; slayt slayt taranarak konu özeti, interaktif ikili video dersi, kısa sınav veya bilgi kartlarına dönüştürülür.
                 </p>
               </div>
             </div>
 
-            {/* Drag and Drop Zone */}
-            <div
-              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={e => {
-                e.preventDefault();
-                setIsDragging(false);
-                const f = e.dataTransfer.files?.[0];
-                if (f) handleQuickFileSelect(f);
-              }}
-              className={`relative rounded-2xl border-2 border-dashed p-4 sm:p-6 transition-all text-center flex flex-col items-center justify-center gap-3 ${
-                isDragging
-                  ? 'border-primary bg-primary/10 scale-[1.01]'
-                  : quickFile
-                  ? 'border-primary/40 bg-primary/5'
-                  : 'border-border/80 bg-background/40 hover:border-primary/40 hover:bg-background/60'
-              }`}
-            >
-              <input
-                type="file"
-                id="quick-slide-file-input"
-                className="hidden"
-                accept=".pdf,.pptx,.docx,.txt,.md,image/*,audio/*,text/*"
-                onChange={e => {
-                  const f = e.target.files?.[0];
-                  if (f) handleQuickFileSelect(f);
-                }}
-              />
+            {/* Kaynak Seçim Sekmeleri */}
+            <div className="flex border-b border-border/60 pb-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSourceMode('upload')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                    sourceMode === 'upload'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  <Upload className="h-3.5 w-3.5" /> Slayt / Dosya Yükle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSourceMode('own')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                    sourceMode === 'own'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  <BookOpen className="h-3.5 w-3.5" /> Notlarımdan Seç ({ownNotes.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSourceMode('platform')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                    sourceMode === 'platform'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
+                  }`}
+                >
+                  <Layers className="h-3.5 w-3.5" /> Platform Notları ({platformNotes.length})
+                </button>
+              </div>
+            </div>
 
-              {quickFile ? (
-                <div className="w-full max-w-xl space-y-3.5">
-                  <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-card p-3 shadow-sm">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                        {quickFile.name.endsWith('.pptx') ? (
-                          <Presentation className="h-5 w-5" />
-                        ) : quickFile.name.endsWith('.docx') ? (
-                          <FileTextIcon className="h-5 w-5" />
-                        ) : (
-                          <FileSpreadsheet className="h-5 w-5" />
-                        )}
-                      </div>
-                      <div className="text-left min-w-0">
-                        <p className="text-xs sm:text-sm font-semibold truncate text-foreground">{quickFile.name}</p>
-                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                          <span>{(quickFile.size / 1024 / 1024).toFixed(1)} MB</span>
-                          {quickPageCount && (
-                            <span className="text-primary font-semibold">· {quickPageCount} Slayt/Sayfa Tespit Edildi</span>
+            {sourceMode === 'upload' ? (
+              /* DOSYA / SLAYT YÜKLEME ALANI */
+              <div
+                onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={e => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) void handleQuickFileSelect(f);
+                }}
+                className={`relative rounded-2xl border-2 border-dashed p-4 sm:p-6 transition-all text-center flex flex-col items-center justify-center gap-3 ${
+                  isDragging
+                    ? 'border-primary bg-primary/10 scale-[1.01]'
+                    : quickFile
+                    ? 'border-primary/40 bg-primary/5'
+                    : 'border-border/80 bg-background/40 hover:border-primary/40 hover:bg-background/60'
+                }`}
+              >
+                <input
+                  type="file"
+                  id="quick-slide-file-input"
+                  className="hidden"
+                  accept=".pdf,.pptx,.docx,.txt,.md,image/*,audio/*,text/*"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleQuickFileSelect(f);
+                  }}
+                />
+
+                {quickFile ? (
+                  <div className="w-full max-w-xl space-y-3.5">
+                    <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-card p-3 shadow-sm">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                          {quickFile.name.endsWith('.pptx') ? (
+                            <Presentation className="h-5 w-5" />
+                          ) : quickFile.name.endsWith('.docx') ? (
+                            <FileTextIcon className="h-5 w-5" />
+                          ) : (
+                            <FileSpreadsheet className="h-5 w-5" />
                           )}
                         </div>
+                        <div className="text-left min-w-0">
+                          <p className="text-xs sm:text-sm font-semibold truncate text-foreground">{quickFile.name}</p>
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                            <span>{(quickFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                            {quickPageCount && (
+                              <span className="text-primary font-semibold">· {quickPageCount} Slayt/Sayfa Tespit Edildi</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setQuickFile(null); setQuickPageCount(null); }}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                        aria-label="Dosyayı kaldır"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                      <div>
+                        <Label className="text-[11px] text-muted-foreground">Materyal Başlığı</Label>
+                        <Input
+                          value={quickTitle}
+                          onChange={e => setQuickTitle(e.target.value)}
+                          placeholder="Örn: Mikro İktisat 1. Vize Slaytları"
+                          className="h-9 text-xs mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-[11px] text-muted-foreground">Ders Adı (İsteğe Bağlı)</Label>
+                        <Input
+                          value={quickCourse}
+                          onChange={e => setQuickCourse(e.target.value)}
+                          placeholder="Örn: Mikro İktisat"
+                          className="h-9 text-xs mt-1"
+                        />
                       </div>
                     </div>
+
+                    {/* Mode Pill Selector */}
+                    <div className="space-y-1.5 text-left">
+                      <Label className="text-[11px] text-muted-foreground">Üretilecek Çıktı Türü</Label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { type: 'summary', label: 'Konu & Slayt Özeti', icon: FileTextIcon, badge: 'ÖNERİLEN' },
+                          { type: 'video', label: 'İnteraktif Video Dersi', icon: VideoIcon, badge: 'İKİLİ ANLATIM' },
+                          { type: 'quiz', label: 'Kısa Sınav', icon: ClipboardList, badge: 'TEST' },
+                          { type: 'flashcards', label: 'Bilgi Kartları', icon: Layers, badge: 'TEKRAR' },
+                        ].map(opt => (
+                          <button
+                            key={opt.type}
+                            type="button"
+                            onClick={() => setQuickType(opt.type as MaterialType)}
+                            className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-start gap-1 transition text-left ${
+                              quickType === opt.type
+                                ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                                : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <opt.icon className="h-3.5 w-3.5" />
+                              <span className="text-[9px] px-1 rounded bg-muted font-mono">{opt.badge}</span>
+                            </div>
+                            <span className="text-foreground text-[11px] mt-0.5">{opt.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => { setQuickFile(null); setQuickPageCount(null); }}
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                      aria-label="Dosyayı kaldır"
+                      size="lg"
+                      onClick={() => void handleQuickStart()}
+                      disabled={generating}
+                      className="w-full gap-2 rounded-xl bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-white font-semibold shadow-lg shadow-primary/20 hover:bg-[position:100%_0] transition-all"
                     >
-                      <X className="h-4 w-4" />
+                      {generating ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> {progressLabel || 'Çözümleniyor...'}</>
+                      ) : (
+                        <><Zap className="h-4 w-4" /> {quickType === 'summary' ? 'Slaytların Özetini Çıkar' : quickType === 'video' ? 'Video Dersini Başlat' : quickType === 'quiz' ? 'Kısa Sınavı Başlat' : 'Kart Setini Başlat'}</>
+                      )}
                     </Button>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Materyal Başlığı</Label>
-                      <Input
-                        value={quickTitle}
-                        onChange={e => setQuickTitle(e.target.value)}
-                        placeholder="Örn: Osmanlı İktisat Tarihi Slaytları"
-                        className="h-9 text-xs mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[11px] text-muted-foreground">Ders Adı (İsteğe Bağlı)</Label>
-                      <Input
-                        value={quickCourse}
-                        onChange={e => setQuickCourse(e.target.value)}
-                        placeholder="Örn: İktisat Tarihi"
-                        className="h-9 text-xs mt-1"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Mode Pill Selector */}
-                  <div className="space-y-1.5 text-left">
-                    <Label className="text-[11px] text-muted-foreground">Üretilecek Çıktı Türü</Label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { type: 'summary', label: 'Konu & Slayt Özeti', icon: FileTextIcon, badge: 'ÖNERİLEN' },
-                        { type: 'video', label: 'İnteraktif Video Dersi', icon: VideoIcon, badge: 'İKİLİ ANLATIM' },
-                        { type: 'quiz', label: 'Kısa Sınav', icon: ClipboardList, badge: 'TEST' },
-                        { type: 'flashcards', label: 'Bilgi Kartları', icon: Layers, badge: 'TEKRAR' },
-                      ].map(opt => (
-                        <button
-                          key={opt.type}
-                          type="button"
-                          onClick={() => setQuickType(opt.type as MaterialType)}
-                          className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-start gap-1 transition text-left ${
-                            quickType === opt.type
-                              ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                              : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <opt.icon className="h-3.5 w-3.5" />
-                            <span className="text-[9px] px-1 rounded bg-muted font-mono">{opt.badge}</span>
-                          </div>
-                          <span className="text-foreground text-[11px] mt-0.5">{opt.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Button
-                    size="lg"
-                    onClick={handleQuickStart}
-                    disabled={generating}
-                    className="w-full gap-2 rounded-xl bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-white font-semibold shadow-lg shadow-primary/20 hover:bg-[position:100%_0] transition-all"
+                ) : (
+                  <label
+                    htmlFor="quick-slide-file-input"
+                    className="cursor-pointer flex flex-col items-center gap-2.5 py-4 w-full"
                   >
-                    {generating ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" /> {progressLabel || 'Çözümleniyor...'}</>
-                    ) : (
-                      <><Zap className="h-4 w-4" /> {quickType === 'summary' ? 'Slaytların Özetini Çıkar' : quickType === 'video' ? 'Video Dersini Başlat' : 'Materyali Üret'}</>
-                    )}
-                  </Button>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner transition-transform hover:scale-105">
+                      <Upload className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        PowerPoint slaytlarını (.pptx), PDF veya Word notlarını buraya bırakın
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        veya dosya seçmek için tıklayın (otomatik slayt ve sayfa tespiti yapılır)
+                      </p>
+                    </div>
+                  </label>
+                )}
+              </div>
+            ) : (
+              /* NOTLARIMDAN VEYA PLATFORMDAN SEÇİM ALANI */
+              <div className="rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 space-y-3.5">
+                <div className="space-y-1 text-left">
+                  <Label className="text-xs font-semibold text-foreground">
+                    {sourceMode === 'own' ? 'Çalışmak İstediğin Notunu Seç' : 'Platform Notları Havuzundan Seç'}
+                  </Label>
+                  <Select
+                    value={selectedNoteId}
+                    onValueChange={id => {
+                      setSelectedNoteId(id);
+                      const list = sourceMode === 'own' ? ownNotes : platformNotes;
+                      const n = list.find(item => item.id === id);
+                      if (n) {
+                        setQuickTitle(n.title);
+                        setQuickCourse(n.course || '');
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-10 text-xs">
+                      <SelectValue placeholder={sourceMode === 'own' ? 'Kendi notunu seç...' : 'Onaylı platform notu seç...'} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {(sourceMode === 'own' ? ownNotes : platformNotes).map(n => (
+                        <SelectItem key={n.id} value={n.id}>
+                          <span className="font-medium">{n.title}</span>
+                          <span className="text-muted-foreground ml-2 text-xs">· {n.course}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                <label
-                  htmlFor="quick-slide-file-input"
-                  className="cursor-pointer flex flex-col items-center gap-2.5 py-4 w-full"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner transition-transform hover:scale-105">
-                    <Upload className="h-6 w-6" />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Materyal Başlığı</Label>
+                    <Input
+                      value={quickTitle}
+                      onChange={e => setQuickTitle(e.target.value)}
+                      placeholder="Örn: Ders Notu Başlığı"
+                      className="h-9 text-xs mt-1"
+                    />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      PowerPoint slaytlarını (.pptx), PDF veya Word notlarını buraya bırakın
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      veya dosya seçmek için tıklayın (otomatik slayt ve sayfa tespiti yapılır)
-                    </p>
+                    <Label className="text-[11px] text-muted-foreground">Ders Adı (İsteğe Bağlı)</Label>
+                    <Input
+                      value={quickCourse}
+                      onChange={e => setQuickCourse(e.target.value)}
+                      placeholder="Örn: İktisat Tarihi"
+                      className="h-9 text-xs mt-1"
+                    />
                   </div>
-                </label>
-              )}
-
-              {generating && (
-                <div className="w-full max-w-xl space-y-2 pt-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-primary">{progressLabel}</span>
-                    <span className="font-mono font-bold text-foreground">%{progress}</span>
-                  </div>
-                  <Progress value={progress} className="h-2 rounded-full" />
                 </div>
-              )}
-            </div>
+
+                {/* Mode Pill Selector */}
+                <div className="space-y-1.5 text-left">
+                  <Label className="text-[11px] text-muted-foreground">Üretilecek Çıktı Türü</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {[
+                      { type: 'summary', label: 'Konu & Slayt Özeti', icon: FileTextIcon, badge: 'ÖNERİLEN' },
+                      { type: 'video', label: 'İnteraktif Video Dersi', icon: VideoIcon, badge: 'İKİLİ ANLATIM' },
+                      { type: 'quiz', label: 'Kısa Sınav', icon: ClipboardList, badge: 'TEST' },
+                      { type: 'flashcards', label: 'Bilgi Kartları', icon: Layers, badge: 'TEKRAR' },
+                    ].map(opt => (
+                      <button
+                        key={opt.type}
+                        type="button"
+                        onClick={() => setQuickType(opt.type as MaterialType)}
+                        className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-start gap-1 transition text-left ${
+                          quickType === opt.type
+                            ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                            : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <opt.icon className="h-3.5 w-3.5" />
+                          <span className="text-[9px] px-1 rounded bg-muted font-mono">{opt.badge}</span>
+                        </div>
+                        <span className="text-foreground text-[11px] mt-0.5">{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Button
+                  size="lg"
+                  onClick={() => {
+                    if (!selectedNoteId) {
+                      toast.error('Lütfen bir not seçin.');
+                      return;
+                    }
+                    void handleGenerate({
+                      title: quickTitle,
+                      course: quickCourse,
+                      type: quickType,
+                    });
+                  }}
+                  disabled={generating}
+                  className="w-full gap-2 rounded-xl bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-white font-semibold shadow-lg shadow-primary/20 hover:bg-[position:100%_0] transition-all"
+                >
+                  {generating ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> {progressLabel || 'Çözümleniyor...'}</>
+                  ) : (
+                    <><Zap className="h-4 w-4" /> {quickType === 'summary' ? 'Ders Özetini Çıkar' : quickType === 'video' ? 'Video Dersini Başlat' : quickType === 'quiz' ? 'Kısa Sınavı Başlat' : 'Kart Setini Başlat'}</>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            {generating && (
+              <div className="w-full space-y-2 pt-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-primary">{progressLabel}</span>
+                  <span className="font-mono font-bold text-foreground">%{progress}</span>
+                </div>
+                <Progress value={progress} className="h-2 rounded-full" />
+              </div>
+            )}
           </div>
         </section>
 
@@ -807,7 +971,7 @@ const Study = () => {
             return (
               <button
                 key={t}
-                onClick={() => { setMaterialType(t); setCreateOpen(true); }}
+                onClick={() => scrollToUploadCenter(t)}
                 className="hud-panel group p-4 text-left sm:p-5"
               >
                 <div className="hud-scanline" />
@@ -873,7 +1037,7 @@ const Study = () => {
             <CardContent className="py-12 text-center">
               <GraduationCap className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
               <p className="text-muted-foreground">Henüz materyal yok. İlk çalışma setini üret.</p>
-              <Button onClick={() => setCreateOpen(true)} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Başla</Button>
+              <Button onClick={() => scrollToUploadCenter()} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Başla</Button>
             </CardContent>
           </Card>
         ) : (
@@ -967,7 +1131,7 @@ const Study = () => {
         <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto rounded-2xl p-3 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> Yeni Çalışma Materyali</DialogTitle>
-            <DialogDescription>Kaynağını seç, sınav profilini doldur. Yapay zeka sana özel materyali hazırlasın.</DialogDescription>
+            <DialogDescription>Kaynağını seç, sınav profilini doldur. Sana özel kapsamlı çalışma materyali hazırlansın.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -1130,7 +1294,7 @@ const Study = () => {
             )}
 
             <Button onClick={() => void handleGenerate()} disabled={generating} className="w-full gap-2" size="lg">
-              {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Hazırlanıyor...</> : <><Sparkles className="h-4 w-4" /> Yapay zekâyla hazırla</>}
+              {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Hazırlanıyor...</> : <><Sparkles className="h-4 w-4" /> Materyali Hazırla</>}
             </Button>
           </div>
         </DialogContent>
@@ -1317,10 +1481,10 @@ const MaterialViewer = ({
             <Button
               size="sm"
               onClick={() => setCoachOpen(true)}
-              aria-label="Yapay Zekâ Akıl Hocası"
+              aria-label="Akademik Akıl Hocası"
               className="min-w-0 gap-1 bg-gradient-to-r from-primary to-fuchsia-500 text-primary-foreground hover:opacity-90"
             >
-              <Wand2 className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Yapay Zekâ Akıl Hocası</span>
+              <Wand2 className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">Akademik Akıl Hocası</span>
             </Button>
             <Button size="sm" variant="ghost" onClick={onReport} className="gap-1 px-2">
               <Bug className="h-3.5 w-3.5 shrink-0" /> <span>Bildir</span>
@@ -1395,7 +1559,7 @@ const StudyCoachPanel = ({ material, open, onClose }: { material: StudyMaterial;
             <Wand2 className="h-3.5 w-3.5 text-primary-foreground" />
           </div>
           <div>
-            <p className="text-sm font-semibold leading-none">Yapay Zekâ Akıl Hocası</p>
+            <p className="text-sm font-semibold leading-none">Akademik Akıl Hocası</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Bu materyale özel yardımcın</p>
           </div>
         </div>

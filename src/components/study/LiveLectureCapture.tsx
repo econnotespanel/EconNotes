@@ -250,7 +250,7 @@ ${cleanedTranscript}`,
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (!isSummaryContent(data?.content)) {
-        throw new Error('Yapay zeka geçerli bir ders özeti döndürmedi.');
+        throw new Error('Geçerli bir ders özeti oluşturulamadı.');
       }
 
       const { data: savedMaterial, error: saveError } = await supabase
@@ -352,7 +352,7 @@ ${cleanedTranscript}`,
             className="max-h-80 min-h-36 resize-y leading-relaxed"
           />
           <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <span>Özet yalnızca siz düğmeye bastığınızda yapay zekaya gönderilir.</span>
+            <span>Özet yalnızca siz düğmeye bastığınızda stüdyo servisine gönderilir.</span>
             <span>{transcript.length.toLocaleString('tr-TR')} / {MAX_TRANSCRIPT_LENGTH.toLocaleString('tr-TR')}</span>
           </div>
         </div>
@@ -363,11 +363,11 @@ ${cleanedTranscript}`,
           className="w-full gap-2 sm:w-auto"
         >
           {isSummarizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-          {isSummarizing ? 'Ders özeti hazırlanıyor…' : 'Yapay zeka ile ders özeti oluştur'}
+          {isSummarizing ? 'Ders özeti hazırlanıyor…' : 'Ders Özeti Oluştur'}
         </Button>
 
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Mikrofon izni gereklidir. Konuşma tanıma tarayıcı hizmetiyle yapılır; oluşturduğunuz döküm ve ders bilgisi özeti hazırlamak için EconNotes yapay zeka servisine gönderilir.
+          Mikrofon izni gereklidir. Konuşma tanıma tarayıcı hizmetiyle yapılır; oluşturduğunuz döküm ve ders bilgisi özeti hazırlamak için EconNotes stüdyo servisine gönderilir.
         </p>
       </CardContent>
     </Card>

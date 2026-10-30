@@ -214,7 +214,7 @@ const Dashboard = () => {
               </DialogTitle>
               
               <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
-                Ders çalışma ve sınavlara hazırlanma deneyiminizi üst seviyeye taşıyan yapay zekâ destekli video stüdyosu ve interaktif özellikler yayında:
+                Ders çalışma ve sınavlara hazırlanma deneyiminizi üst seviyeye taşıyan video stüdyosu ve interaktif çalışma özellikleri yayında:
               </DialogDescription>
             </DialogHeader>
 
@@ -224,7 +224,7 @@ const Dashboard = () => {
                   <Video className="h-4 w-4" />
                 </div>
                 <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-sm">Yapay Zekâ İnteraktif Video Dersi</p>
+                  <p className="font-semibold text-foreground text-sm">İnteraktif İkili Video Dersi</p>
                   <p className="text-muted-foreground">Dr. Deniz ve Barış eşliğinde ezber kalıplardan uzak, soru-cevaplı derin akademik konu anlatımı.</p>
                 </div>
               </div>
