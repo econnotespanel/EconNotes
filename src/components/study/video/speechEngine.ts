@@ -141,6 +141,26 @@ export function normalizeForTurkishSpeech(raw: string): string {
     .replace(/\b(\d{4})\s*['’`]\s*(?:ten|tan|den|dan)\b/gi, '$1 yılından')
     .replace(/\b(\d{4})\s*['’`]\s*(?:e|a|ye|ya)\b/gi, '$1 yılına');
 
+  // EconNotes marka adını ve çekim eklerini doğal Türkçe diksiyonla ("Ekon Nots") okunacak şekilde fonetikleştir
+  t = t
+    .replace(/\beconnotes['’`]?a\b/gi, 'Ekon Notsa')
+    .replace(/\beconnotes['’`]?e\b/gi, 'Ekon Notse')
+    .replace(/\beconnotes['’`]?u[n]?\b/gi, 'Ekon Notsun')
+    .replace(/\beconnotes['’`]?i[n]?\b/gi, 'Ekon Notsun')
+    .replace(/\beconnotes['’`]?u\b/gi, 'Ekon Notsu')
+    .replace(/\beconnotes['’`]?ü\b/gi, 'Ekon Notsu')
+    .replace(/\beconnotes['’`]?ı\b/gi, 'Ekon Notsu')
+    .replace(/\beconnotes['’`]?i\b/gi, 'Ekon Notsu')
+    .replace(/\beconnotes['’`]?ta\b/gi, 'Ekon Notsta')
+    .replace(/\beconnotes['’`]?te\b/gi, 'Ekon Notste')
+    .replace(/\beconnotes['’`]?da\b/gi, 'Ekon Notsta')
+    .replace(/\beconnotes['’`]?de\b/gi, 'Ekon Notste')
+    .replace(/\beconnotes['’`]?tan\b/gi, 'Ekon Notstan')
+    .replace(/\beconnotes['’`]?ten\b/gi, 'Ekon Notsten')
+    .replace(/\beconnotes['’`]?dan\b/gi, 'Ekon Notstan')
+    .replace(/\beconnotes['’`]?den\b/gi, 'Ekon Notsten')
+    .replace(/\beconnotes\b/gi, 'Ekon Nots');
+
   // Özel isim çekim eklerindeki kesme işaretlerini birleştir (Bizans'ın -> Bizansın, Anadolu’daki -> Anadoludaki)
   // Böylece hiçbir TTS motoru ekten önce yapay duraksama yapmaz.
   t = t.replace(/([A-Za-zÇĞİÖŞÜçğıöşüâîûÂÎÛ])['’`]([a-zçğıöşüâîû])/g, '$1$2');

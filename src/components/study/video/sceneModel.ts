@@ -249,6 +249,7 @@ export function isValidConceptTerm(term: string): boolean {
   if (!t || t.length < 3 || t.length > 52) return false;
   if (t.includes('…') || t.includes('...')) return false;
   if (GENERIC_NODE_LABEL_RE.test(t)) return false;
+  if (/\b(?:deniz|barış|hocam|stüdyo|öğrenci|arkadaşlar)\b/i.test(t)) return false;
   const words = t.split(' ').filter(Boolean);
   if (words.length === 0 || words.length > 6) return false;
   if (FINITE_VERB_RE.test(t)) return false;
@@ -408,11 +409,10 @@ export function splitSentences(text: string): string[] {
   return result;
 }
 
-function normalizeSpeaker(raw: unknown, idx: number): Speaker {
+function normalizeSpeaker(raw: unknown, _idx?: number): Speaker {
   const s = cleanText(raw).toLocaleLowerCase('tr-TR');
   if (s.includes('bar')) return 'Barış';
-  if (s.includes('den')) return 'Deniz';
-  return idx % 2 === 0 ? 'Deniz' : 'Barış';
+  return 'Deniz';
 }
 
 export function inferVisualTheme(text: string): VisualTheme {
@@ -650,19 +650,10 @@ function buildConversationalSentences(
         !joinedLower.includes(kt.definition.slice(0, 20).toLocaleLowerCase('tr-TR')),
     );
     if (extraTerm) {
-      const lastSpk = speakers[speakers.length - 1] || 'Deniz';
-      const askSpk: Speaker = lastSpk === 'Deniz' ? 'Barış' : 'Deniz';
-      if (askSpk === 'Barış') {
-        sentences.push(`Deniz hocam, tam bu noktada ${extraTerm.term} kavramının mantığını ve işlevini de netleştirelim mi?`);
-        speakers.push('Barış');
-        sentences.push(`Çok iyi bir noktaya değindin Barış; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
-        speakers.push('Deniz');
-      } else {
-        sentences.push(`Barış, bu tablonun eksik kalmaması için ${extraTerm.term} boyutunu da hemen ekleyelim.`);
-        speakers.push('Deniz');
-        sentences.push(`Harika olur Deniz; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
-        speakers.push('Barış');
-      }
+      sentences.push(`Deniz hocam, tam bu noktada ${extraTerm.term} kavramının mantığını ve işlevini de netleştirelim mi?`);
+      speakers.push('Barış');
+      sentences.push(`Çok iyi bir noktaya değindin Barış; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
+      speakers.push('Deniz');
     }
 
     return {
@@ -672,48 +663,68 @@ function buildConversationalSentences(
     };
   }
 
-  // Tek paragraflık materyali NotebookLM tarzında karşılıklı derin analiz diyaloğuna yükselt
+  // Tek paragraflık materyali NotebookLM tarzında karşılıklı derin analiz diyaloğuna yükselt:
+  // - Dr. Deniz (Kıdemli Akademik Hoca): Konunun kurucu ilkelerini, mekanizmalarını ve sınav tüyolarını anlatır.
+  // - Barış (Meraklı Öğrenci / Araştırmacı): "Deniz hocam" hitabıyla sorular sorar, kilit halkaları birbirine bağlar.
   const baseSentences = splitSentences(narration);
   const sentences: string[] = [];
   const speakers: Speaker[] = [];
-  const coHost: Speaker = leadSpeaker === 'Deniz' ? 'Barış' : 'Deniz';
+
+  const probingQuestionBank = [
+    `Dur bir saniye Deniz hocam, burası konunun kilit noktası; peki bu ilke sahaya ve sınav sorularına tam olarak nasıl yansıyor?`,
+    `Bekle bir dakika hocam, ilk bakışta karmaşık gelebilir ama arkasındaki mekanizma aslında çok zarif değil mi?`,
+    `Harika bir giriş Deniz hocam! Peki bu kurucu zemin devreye girdiğinde ardışık halkalar nasıl tetikleniyor?`,
+    `Çok çarpıcı bir tespit hocam; öğrencilerin bu kavramı sınavda hiç unutmaması için en temel püf noktası nedir?`,
+  ];
+
+  const instructorAckBank = [
+    `Aynen öyle Barış!`,
+    `Kesinlikle Barış!`,
+    `Tam 12'den vurdun Barış!`,
+    `Harika bir noktayı yakaladın Barış!`,
+  ];
 
   if (baseSentences.length === 1) {
     sentences.push(baseSentences[0]);
-    speakers.push(leadSpeaker);
-    sentences.push(`Dur bir saniye Deniz hocam, burası konunun kilit noktası; peki bu ilke sahaya ve sınav sorularına nasıl yansıyor?`);
-    speakers.push(coHost);
+    speakers.push('Deniz');
+    sentences.push(probingQuestionBank[sceneIdx % probingQuestionBank.length]);
+    speakers.push('Barış');
+    if (takeaways.length > 0) {
+      sentences.push(`${instructorAckBank[sceneIdx % instructorAckBank.length]} İşin kalbi şurada: ${ensureSentenceEnd(lowerFirstIfNotProper(takeaways[0]))}`);
+      speakers.push('Deniz');
+    }
   } else if (baseSentences.length === 2) {
     sentences.push(baseSentences[0]);
-    speakers.push(leadSpeaker);
-    sentences.push(`Bekle bir dakika hocam, yani burada en temel kurucu dinamik tam olarak bu mu?`);
-    speakers.push(coHost);
-    sentences.push(`Aynen öyle Barış! ${ensureSentenceEnd(lowerFirstIfNotProper(baseSentences[1]))}`);
-    speakers.push(leadSpeaker);
+    speakers.push('Deniz');
+    sentences.push(probingQuestionBank[sceneIdx % probingQuestionBank.length]);
+    speakers.push('Barış');
+    sentences.push(`${instructorAckBank[sceneIdx % instructorAckBank.length]} ${ensureSentenceEnd(lowerFirstIfNotProper(baseSentences[1]))}`);
+    speakers.push('Deniz');
   } else if (baseSentences.length >= 3) {
     sentences.push(baseSentences[0]);
-    speakers.push(leadSpeaker);
-    sentences.push(`Dur bir saniye Deniz hocam, burası ilk bakışta karmaşık gelebilir ama aslında çok zarif bir mantığı var değil mi?`);
-    speakers.push(coHost);
-    sentences.push(`Kesinlikle Barış! ${ensureSentenceEnd(lowerFirstIfNotProper(baseSentences[1]))}`);
-    speakers.push(leadSpeaker);
-    sentences.push(`Harika! Peki bu mekanizmanın devamında olaylar sahaya nasıl yansıyor?`);
-    speakers.push(coHost);
+    speakers.push('Deniz');
+    sentences.push(probingQuestionBank[sceneIdx % probingQuestionBank.length]);
+    speakers.push('Barış');
+    sentences.push(`${instructorAckBank[sceneIdx % instructorAckBank.length]} ${ensureSentenceEnd(lowerFirstIfNotProper(baseSentences[1]))}`);
+    speakers.push('Deniz');
+    sentences.push(`Harika! Peki bu mekanizmanın devamında olaylar sahaya ve kurumlara nasıl yansıyor hocam?`);
+    speakers.push('Barış');
     baseSentences.slice(2).forEach(s => {
       sentences.push(s);
-      speakers.push(leadSpeaker);
+      speakers.push('Deniz');
     });
   } else {
     baseSentences.forEach(s => {
       sentences.push(s);
-      speakers.push(leadSpeaker);
+      speakers.push('Deniz');
     });
   }
 
   const coveredSigs = new Set(sentences.map(textSignature));
   const lowerAll = sentences.join(' ').toLocaleLowerCase('tr-TR');
 
-  // Henüz açılmamış terimleri (en fazla 2 adet) NotebookLM soru-cevap derinliğiyle işle
+  // Henüz açılmamış terimleri (en fazla 2 adet) NotebookLM soru-cevap derinliğiyle işle:
+  // Barış merakla "Deniz hocam..." diye sorar, Dr. Deniz kavramsal ayrımı ve formülü açıklar.
   const unusedTerms = terms.filter(
     kt =>
       kt.term &&
@@ -724,7 +735,7 @@ function buildConversationalSentences(
 
   const termQuestionTemplates = [
     (term: string) => `Deniz hocam, araya girip özellikle şunu sormak istiyorum: Notlardaki ${term} kavramını aklımızda nasıl kodlamalıyız?`,
-    (term: string) => `Bekle bir saniye, tam bu noktada öğrencilerin en çok karıştırdığı bir terim var: ${term}. Bunun ayırıcı püf noktası nedir?`,
+    (term: string) => `Bekle bir saniye hocam, tam bu noktada öğrencilerin en çok karıştırdığı bir terim var: ${term}. Bunun ayırıcı püf noktası nedir?`,
     (term: string) => `Hocam, hocaların sınavda soru hazırlarken en sevdiği kavram ${term} olabilir mi? Öğrenci nereye odaklanmalı?`,
   ];
   const termAnswerOpeners = [
@@ -734,27 +745,17 @@ function buildConversationalSentences(
   ];
 
   unusedTerms.slice(0, 2).forEach((kt, tIdx) => {
-    const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
-    const questioner: Speaker = lastSpk === 'Deniz' ? 'Barış' : 'Deniz';
-    const responder: Speaker = questioner === 'Deniz' ? 'Barış' : 'Deniz';
-
-    if (questioner === 'Barış') {
-      sentences.push(termQuestionTemplates[(sceneIdx + tIdx) % termQuestionTemplates.length](kt.term));
-      speakers.push('Barış');
-      sentences.push(
-        `${termAnswerOpeners[(sceneIdx + tIdx) % termAnswerOpeners.length]} ${ensureSentenceEnd(lowerFirstIfNotProper(kt.definition))}`,
-      );
-      speakers.push('Deniz');
-    } else {
-      sentences.push(`Barış, ${sceneTitle} başlığında ${kt.term} boyutunu da analize dahil edelim.`);
-      speakers.push('Deniz');
-      sentences.push(`Memnuniyetle Deniz; ${ensureSentenceEnd(lowerFirstIfNotProper(kt.definition))}`);
-      speakers.push(responder);
-    }
+    sentences.push(termQuestionTemplates[(sceneIdx + tIdx) % termQuestionTemplates.length](kt.term));
+    speakers.push('Barış');
+    sentences.push(
+      `${termAnswerOpeners[(sceneIdx + tIdx) % termAnswerOpeners.length]} ${ensureSentenceEnd(lowerFirstIfNotProper(kt.definition))}`,
+    );
+    speakers.push('Deniz');
     coveredSigs.add(textSignature(kt.definition));
   });
 
-  // Henüz konuşulmamış önemli çıkarımları analitik derinlikle ekle
+  // Henüz konuşulmamış önemli çıkarımları analitik derinlikle ekle:
+  // Barış büyük resmi toparlar, Dr. Deniz teyit edip sınav boyutunu ekler.
   const unusedTakeaways = takeaways.filter(
     tk =>
       tk &&
@@ -764,44 +765,33 @@ function buildConversationalSentences(
 
   if (unusedTakeaways.length > 0) {
     const tk = unusedTakeaways[0];
-    const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
-    if (lastSpk === 'Deniz') {
-      sentences.push(`O hâlde Deniz hocam, buradaki büyük resmi tek bir cümleyle özetlersek: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
-      speakers.push('Barış');
-      if (unusedTakeaways[1]) {
-        sentences.push(`Aynen öyle Barış! Üstelik buna paralel olarak ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
-        speakers.push('Deniz');
-      } else {
-        sentences.push(`Tam 12'den vurdun Barış! Konunun omurgası işte tam bu neden-sonuç bağına dayanıyor.`);
-        speakers.push('Deniz');
-      }
+    sentences.push(`O hâlde Deniz hocam, buradaki büyük resmi tek bir cümleyle özetlersek: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
+    speakers.push('Barış');
+    if (unusedTakeaways[1]) {
+      sentences.push(`Aynen öyle Barış! Üstelik buna paralel olarak ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
+      speakers.push('Deniz');
     } else {
-      sentences.push(`Bu konudan çıkaracağımız en temel dersi de netleştirelim: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
+      sentences.push(`Tam 12'den vurdun Barış! Konunun omurgası işte tam bu neden-sonuç bağına dayanıyor.`);
       speakers.push('Deniz');
     }
   }
 
-  // Sınav perspektifi ve kavramsal ayrım uyarısı
+  // Sınav perspektifi ve kavramsal ayrım uyarısı:
+  // Barış öğrenci tüyo sorusu sorar, Dr. Deniz hoca gözüyle kritik anahtarı verir.
   if (
     examTip &&
     !coveredSigs.has(textSignature(examTip)) &&
     !lowerAll.includes(examTip.slice(0, 20).toLocaleLowerCase('tr-TR'))
   ) {
-    const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
-    if (lastSpk === 'Deniz') {
-      sentences.push(`Peki Deniz hocam, öğrencilerin sınav kağıdında tam puanı kapması için en kritik tüyo nedir?`);
-      speakers.push('Barış');
-      sentences.push(`İşte vize ve final sınavlarının en can alıcı püf noktası burası Barış! Hocaların en çok baktığı anahtar kriter şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
-      speakers.push('Deniz');
-    } else {
-      sentences.push(`Bunu sınav için mutlaka bir kenara not edelim arkadaşlar; hocaların en sevdiği soru noktası burasıdır: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
-      speakers.push('Deniz');
-    }
+    sentences.push(`Peki Deniz hocam, öğrencilerin sınav kağıdında tam puanı kapması için en kritik tüyo nedir?`);
+    speakers.push('Barış');
+    sentences.push(`İşte vize ve final sınavlarının en can alıcı püf noktası burası Barış! Hocaların en çok baktığı anahtar kriter şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
+    speakers.push('Deniz');
   }
 
   if (sentences.length === 0) {
     sentences.push(ensureSentenceEnd(sceneTitle));
-    speakers.push(leadSpeaker);
+    speakers.push('Deniz');
   }
 
   return {
@@ -831,7 +821,7 @@ function finalizeSceneObject(params: {
     acc += s.length + 1;
   });
   const totalChars = Math.max(1, acc);
-  const lead = speakers[0] || (index % 2 === 0 ? 'Deniz' : 'Barış');
+  const lead = speakers[0] || 'Deniz';
 
   return {
     id,
@@ -1037,7 +1027,7 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `EconNotes stüdyosuna hepiniz hoş geldiniz arkadaşlar! Bugün ${coursePrefix}${title} konusunu ezber kalıplardan çıkarıp, arkasındaki ${domainNoun} mantık, karşılaştırma tabloları, grafikler ve sınav odaklı püf noktalarıyla çok keyifli bir şekilde ele alacağız. ${framingText}`,
+        text: `EconNotes akademik stüdyosuna hepiniz hoş geldiniz arkadaşlar! Bugün ${coursePrefix}${title} konusunu ezber kalıplardan çıkarıp, arkasındaki ${domainNoun} mantık, karşılaştırma tabloları, grafikler ve sınav odaklı püf noktalarıyla çok keyifli bir şekilde ele alacağız. ${framingText}`,
       },
       {
         speaker: 'Barış',
@@ -1089,8 +1079,12 @@ function ensureRichFiveMinuteCurriculum(
 
     const { sentences, speakers } = turnsToDialogueArrays([
       {
+        speaker: 'Deniz',
+        text: `Şimdi akıllı tahtamızda sistematik bir karşılaştırma tablosu açıyoruz arkadaşlar; çünkü sınavlarda en çok puan kaybettiren tuzak birbirine benzeyen kavramları karıştırmaktır.`,
+      },
+      {
         speaker: 'Barış',
-        text: `Deniz hocam, konunun temel yapıtaşlarını inceledik; ancak sınavlarda öğrencileri en çok terleten şey birbirine benzeyen yakın kavramları karıştırmak! Akıllı tahtadaki karşılaştırma tablosunda ${lbl0} ile ${lbl1} arasındaki o ince çizgiyi nasıl okumalıyız?`,
+        text: `Harika bir tablo Deniz hocam! Özellikle ${lbl0} ile ${lbl1} arasındaki o ince çizgiyi ve ayırt edici farkı nasıl okumalıyız?`,
       },
       {
         speaker: 'Deniz',
@@ -1194,8 +1188,12 @@ function ensureRichFiveMinuteCurriculum(
 
     const { sentences, speakers } = turnsToDialogueArrays([
       {
+        speaker: 'Deniz',
+        text: `Konuyu ezberden kurtarmanın en etkili yolu faktörlerin göreli ağırlığını ve etki hiyerarşisini görmektir arkadaşlar.`,
+      },
+      {
         speaker: 'Barış',
-        text: `Deniz hocam, bir konuyu gerçekten kavramanın yolu her faktörü eşit sanmamak ve hangisinin asıl belirleyici olduğunu bilmekten geçiyor. Tahtadaki analitik grafikte sütunlar ve eğilim çizgisi bize ne anlatıyor?`,
+        text: `Çok haklısınız Deniz hocam; tahtadaki analitik grafikte sütunlar ve eğilim çizgisi bize hangi faktörün birincil olduğunu gösteriyor?`,
       },
       {
         speaker: 'Deniz',
@@ -1249,12 +1247,16 @@ function ensureRichFiveMinuteCurriculum(
 
     const { sentences, speakers } = turnsToDialogueArrays([
       {
+        speaker: 'Deniz',
+        text: `Şimdi tüm bu teorik mekanizmayı zihnimizde somutlaştırmak için dört aşamalı bir süreç simülasyonu yapalım arkadaşlar.`,
+      },
+      {
         speaker: 'Barış',
-        text: `Hocam tüm bu teorik bilgileri gerçek bir hayat kesitinde canlandıralım mı? Karşımızda ${title} sürecinin yaşandığı gerçek bir vaka senaryosu olsa, dört adımda olaylar sahada nasıl gelişir?`,
+        text: `Harika bir pratik olur Deniz hocam! Karşımızda ${title} sürecinin yaşandığı gerçek bir vaka senaryosu olsa, dört adımda olaylar sahada nasıl gelişir?`,
       },
       {
         speaker: 'Deniz',
-        text: `Harika fikir Barış, adım adım bir süreç simülasyonu yapalım! Birinci adımda başlangıç koşulumuz oluşuyor: ${stl0} çerçevesinde ${ensureSentenceEnd(lowerFirstIfNotProper(st0.subtext))} Bu zeminin üzerine ikinci aşamada kurumsal mekanizma devreye giriyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(st1.subtext))}`,
+        text: `Birinci adımda başlangıç koşulumuz oluşuyor: ${stl0} çerçevesinde ${ensureSentenceEnd(lowerFirstIfNotProper(st0.subtext))} Bu zeminin üzerine ikinci aşamada kurumsal mekanizma devreye giriyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(st1.subtext))}`,
       },
       {
         speaker: 'Barış',
@@ -1314,8 +1316,12 @@ function ensureRichFiveMinuteCurriculum(
 
       const turns: DialogueTurn[] = [
         {
+          speaker: 'Deniz',
+          text: `Şimdi dersimizin en can alıcı bölümüne geldik arkadaşlar: Bu konudan sınavda hocalar nasıl soru sorar, öğrenci kağıda ne yazarsa tam puanı kapar?`,
+        },
+        {
           speaker: 'Barış',
-          text: `Deniz hocam, şimdi geldik öğrencilerin en çok beklediği bölüme: Hoca bu konudan sınavda nasıl soru sorar, öğrenci kağıda ne yazarsa tam puanı kapar?`,
+          text: `Öğrencilerin en çok merak ettiği kısım tam olarak bu Deniz hocam! İlk olarak klasik sınavlarda karşımıza ne çıkar?`,
         },
         {
           speaker: 'Deniz',
@@ -1391,7 +1397,7 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Barış',
-        text: `Benim sentez listemin en başında şu ilke yer alıyor Deniz: ${ensureSentenceEnd(lowerFirstIfNotProper(fact0))} Bununla birlikte ikinci temel dayanak olarak da ${ensureSentenceEnd(lowerFirstIfNotProper(fact1))}`,
+        text: `Benim sentez listemin en başında şu ilke yer alıyor Deniz hocam: ${ensureSentenceEnd(lowerFirstIfNotProper(fact0))} Bununla birlikte ikinci temel dayanak olarak da ${ensureSentenceEnd(lowerFirstIfNotProper(fact1))}`,
       },
       {
         speaker: 'Deniz',
@@ -1516,7 +1522,7 @@ export function buildStudioContent(
       examTip,
     );
 
-    const diagram = buildDiagram(s, idx, courseLabel, sceneTitle, conv.fullNarration, takeaways, terms);
+    const diagram = buildDiagram(s, idx, courseLabel, sceneTitle, rawNarration, takeaways, terms);
 
     if (prevType && diagram.type === prevType) {
       const cycle: DiagramType[] = ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison'];

@@ -81,9 +81,9 @@ describe('video studio sceneModel & speechEngine', () => {
     });
   });
 
-  it('normalizes Turkish academic abbreviations, year suffixes, apostrophes and Roman numerals for fluid speech', () => {
+  it('normalizes Turkish academic abbreviations, year suffixes, apostrophes, Roman numerals and EconNotes phonetic pronunciation', () => {
     const spoken = normalizeForTurkishSpeech(
-      "II. Kılıçarslan ve XVI. yüzyılda (örn. merkez maliyesi, GSYH %12 artışı) 1243'te Bizans'ın kervansaraylar vb. kurumları etkilendi.",
+      "II. Kılıçarslan ve XVI. yüzyılda (örn. merkez maliyesi, GSYH %12 artışı) 1243'te Bizans'ın kervansaraylar vb. kurumları etkilendi. EconNotes'u başta econnotes diye değil EconNotes'un stüdyosunda dinliyoruz.",
     );
     expect(spoken).toContain('İkinci Kılıçarslan');
     expect(spoken).toContain('on altıncı yüzyılda');
@@ -93,7 +93,48 @@ describe('video studio sceneModel & speechEngine', () => {
     expect(spoken).toContain('1243 yılında');
     expect(spoken).toContain('Bizansın');
     expect(spoken).toContain('ve benzeri');
+    expect(spoken).toContain('Ekon Notsu');
+    expect(spoken).toContain('Ekon Notsun');
     expect(spoken).not.toContain('(');
+  });
+
+  it('guarantees Dr. Deniz is lead instructor and Barış is respectful student across all dialogue scenes', () => {
+    const multiSceneContent = {
+      outline: 'İktisadi düşünceler tarihi ve maliye sacayakları.',
+      scenes: [
+        { title: 'Bölüm 1: Giriş', narration: 'Klasik iktisat piyasaların kendi dengesini bulacağını savunur.' },
+        { title: 'Bölüm 2: Kurumsal Yapı', narration: 'Kurumsal iktisat mülkiyet haklarının ve hukuk kurallarının iktisadi büyümeyi belirlediğini kanıtlar.' },
+        { title: 'Bölüm 3: Makro Denge', narration: 'Keynesyen model toplam talebin yetersiz kaldığı kriz dönemlerinde maliye politikasının müdahalesini zorunlu görür.' },
+      ],
+    };
+
+    const studio = buildStudioContent(multiSceneContent, 'İktisat Tarihi', 'İktisat');
+    expect(studio.scenes.length).toBeGreaterThanOrEqual(3);
+
+    studio.scenes.forEach(scene => {
+      // Deniz her zaman anlatıcıdır
+      expect(scene.speaker).toBe('Deniz');
+      expect(scene.speakerRole).toBe('Akademik Anlatıcı');
+
+      // Her sahnede Dr. Deniz ve Barış konuşur
+      expect(scene.sentenceSpeakers).toBeDefined();
+      expect(scene.sentenceSpeakers[0]).toBe('Deniz');
+
+      scene.sentences.forEach((sent, sIdx) => {
+        const spk = scene.sentenceSpeakers[sIdx];
+        if (spk === 'Deniz') {
+          // Dr. Deniz asla kendine "Deniz hocam" demez
+          expect(sent).not.toContain('Deniz hocam');
+        }
+        if (spk === 'Barış') {
+          // Barış asla kendine "Barış" demez ("Aynen öyle Barış" dememeli)
+          expect(sent).not.toContain('Aynen öyle Barış');
+          expect(sent).not.toContain('Kesinlikle Barış');
+          // Barış Deniz'e kaba şekilde sadece "Deniz" diyerek hitap etmemeli (Deniz hocam demeli)
+          expect(sent).not.toMatch(/\byer alıyor Deniz(?!\s*hocam)\b/);
+        }
+      });
+    });
   });
 
   it('assigns distinct 22.05kHz VITS Turkish neural voices (Eren & Fahrettin) and never defaults to Google Türkçe', () => {
