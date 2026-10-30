@@ -672,27 +672,34 @@ function buildConversationalSentences(
     };
   }
 
-  // Tek paragraflık materyali entelektüel karşılıklı üniversite semineri diyaloğuna yükselt
+  // Tek paragraflık materyali NotebookLM tarzında karşılıklı derin analiz diyaloğuna yükselt
   const baseSentences = splitSentences(narration);
   const sentences: string[] = [];
   const speakers: Speaker[] = [];
   const coHost: Speaker = leadSpeaker === 'Deniz' ? 'Barış' : 'Deniz';
 
-  // Uzun monologları ortadan bölüp yardımcı sunucunun analitik köprü kurmasını sağla
-  if (baseSentences.length >= 4) {
-    const mid = Math.ceil(baseSentences.length / 2);
-    baseSentences.slice(0, mid).forEach(s => {
-      sentences.push(s);
-      speakers.push(leadSpeaker);
-    });
-    const bridgePrompts = [
-      `Burada kurulan mekanizma gerçekten çok mantıklı; peki Deniz hocam, sürecin devamında bu durum sahaya nasıl yansıyor?`,
-      `Çok kritik bir tespit; peki bu çerçevenin kurumsal ve pratik sonuçları nasıl şekilleniyor?`,
-      `İşte işin düğüm noktası tam burası; sürecin ikinci perdesinde hangi kilit dinamik devreye giriyor?`,
-    ];
-    sentences.push(bridgePrompts[sceneIdx % bridgePrompts.length]);
+  if (baseSentences.length === 1) {
+    sentences.push(baseSentences[0]);
+    speakers.push(leadSpeaker);
+    sentences.push(`Dur bir saniye Deniz hocam, burası konunun kilit noktası; peki bu ilke sahaya ve sınav sorularına nasıl yansıyor?`);
     speakers.push(coHost);
-    baseSentences.slice(mid).forEach(s => {
+  } else if (baseSentences.length === 2) {
+    sentences.push(baseSentences[0]);
+    speakers.push(leadSpeaker);
+    sentences.push(`Bekle bir dakika hocam, yani burada en temel kurucu dinamik tam olarak bu mu?`);
+    speakers.push(coHost);
+    sentences.push(`Aynen öyle Barış! ${ensureSentenceEnd(lowerFirstIfNotProper(baseSentences[1]))}`);
+    speakers.push(leadSpeaker);
+  } else if (baseSentences.length >= 3) {
+    sentences.push(baseSentences[0]);
+    speakers.push(leadSpeaker);
+    sentences.push(`Dur bir saniye Deniz hocam, burası ilk bakışta karmaşık gelebilir ama aslında çok zarif bir mantığı var değil mi?`);
+    speakers.push(coHost);
+    sentences.push(`Kesinlikle Barış! ${ensureSentenceEnd(lowerFirstIfNotProper(baseSentences[1]))}`);
+    speakers.push(leadSpeaker);
+    sentences.push(`Harika! Peki bu mekanizmanın devamında olaylar sahaya nasıl yansıyor?`);
+    speakers.push(coHost);
+    baseSentences.slice(2).forEach(s => {
       sentences.push(s);
       speakers.push(leadSpeaker);
     });
@@ -706,7 +713,7 @@ function buildConversationalSentences(
   const coveredSigs = new Set(sentences.map(textSignature));
   const lowerAll = sentences.join(' ').toLocaleLowerCase('tr-TR');
 
-  // Henüz açılmamış terimleri (en fazla 2 adet) sahneye özgü akademik soru-cevap kalıplarıyla işle
+  // Henüz açılmamış terimleri (en fazla 2 adet) NotebookLM soru-cevap derinliğiyle işle
   const unusedTerms = terms.filter(
     kt =>
       kt.term &&
@@ -716,14 +723,14 @@ function buildConversationalSentences(
   );
 
   const termQuestionTemplates = [
-    (term: string) => `Peki Deniz hocam, öğrencilerin sınavlarda en çok karşılaştığı ${term} kavramını kafamızda nasıl kodlamalıyız?`,
-    (term: string) => `Deniz, tam bu noktada kilit bir kavram karşımıza çıkıyor: ${term}. Bunun sınavda fark yaratan ayırt edici niteliği nedir?`,
-    (term: string) => `Bu aşamada ${term} teriminin altını çizelim; hocanın sorabileceği temel işlev nedir?`,
+    (term: string) => `Deniz hocam, araya girip özellikle şunu sormak istiyorum: Notlardaki ${term} kavramını aklımızda nasıl kodlamalıyız?`,
+    (term: string) => `Bekle bir saniye, tam bu noktada öğrencilerin en çok karıştırdığı bir terim var: ${term}. Bunun ayırıcı püf noktası nedir?`,
+    (term: string) => `Hocam, hocaların sınavda soru hazırlarken en sevdiği kavram ${term} olabilir mi? Öğrenci nereye odaklanmalı?`,
   ];
   const termAnswerOpeners = [
-    'Harika bir soru Barış; hemen netleştirelim:',
-    'İşin can alıcı noktası burası Barış; bunu şöyle kafamızda canlandıralım:',
-    'Çok yerinde bir tespit Barış; formülümüz çok basit:',
+    'Hah! Harika bir noktaya parmak bastın Barış; hemen netleştirelim:',
+    'İşin kalbi tam burası Barış; bunu şöyle kafamızda canlandıralım:',
+    'Aynen öyle Barış! Sınavda çeldiriciye düşmemek için formülümüz çok basit:',
   ];
 
   unusedTerms.slice(0, 2).forEach((kt, tIdx) => {
@@ -759,13 +766,13 @@ function buildConversationalSentences(
     const tk = unusedTakeaways[0];
     const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
     if (lastSpk === 'Deniz') {
-      sentences.push(`O hâlde Deniz hocam, buradaki kilit çıkarımı şöyle özetleyebiliriz: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
+      sentences.push(`O hâlde Deniz hocam, buradaki büyük resmi tek bir cümleyle özetlersek: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
       speakers.push('Barış');
       if (unusedTakeaways[1]) {
         sentences.push(`Aynen öyle Barış! Üstelik buna paralel olarak ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
         speakers.push('Deniz');
       } else {
-        sentences.push(`Tam 12'den vurdun Barış! ${sceneTitle} konusunun kuramsal omurgasını işte bu neden-sonuç bağı oluşturuyor.`);
+        sentences.push(`Tam 12'den vurdun Barış! Konunun omurgası işte tam bu neden-sonuç bağına dayanıyor.`);
         speakers.push('Deniz');
       }
     } else {
@@ -782,9 +789,9 @@ function buildConversationalSentences(
   ) {
     const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
     if (lastSpk === 'Deniz') {
-      sentences.push(`Peki Deniz hocam, hoca bu başlığı sınavda nasıl sorar, öğrenci nereye dikkat etmeli?`);
+      sentences.push(`Peki Deniz hocam, öğrencilerin sınav kağıdında tam puanı kapması için en kritik tüyo nedir?`);
       speakers.push('Barış');
-      sentences.push(`Hocaların en çok üstünde durduğu püf noktası şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
+      sentences.push(`İşte vize ve final sınavlarının en can alıcı püf noktası burası Barış! Hocaların en çok baktığı anahtar kriter şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
       speakers.push('Deniz');
     } else {
       sentences.push(`Bunu sınav için mutlaka bir kenara not edelim arkadaşlar; hocaların en sevdiği soru noktası burasıdır: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);

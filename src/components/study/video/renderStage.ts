@@ -2,7 +2,6 @@
 // Görseller (İllüstrasyonlar), Şekiller, Tablolar, Grafikler, Senaryolar, Zaman Akışı ve Kıyaslama
 // şemalarını tam ekran interaktif stüdyo sahnesinde 60 FPS yüksek netlikte üretir.
 
-import lightLogoUrl from '@/assets/econnotes-brand-light.png';
 import type { StudioScene, DiagramNode, Speaker, VisualTheme } from './sceneModel';
 import type { Viseme } from './speechEngine';
 import { drawStudioPresentersAndDesk } from './drawPresenters';
@@ -83,42 +82,6 @@ function rr(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: n
 
 function font(weight: number, size: number) {
   return `${weight} ${size}px ${FONT}`;
-}
-
-// ---------------------------------------------------------------- Saf Beyaz EconNotes Logo Önbelleği
-let whiteLogoCanvas: HTMLCanvasElement | null = null;
-let logoLoadStarted = false;
-
-function ensureWhiteEconLogo(): HTMLCanvasElement | null {
-  if (whiteLogoCanvas) return whiteLogoCanvas;
-  if (typeof document === 'undefined' || typeof Image === 'undefined') return null;
-
-  if (!logoLoadStarted) {
-    logoLoadStarted = true;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const w = img.naturalWidth || 420;
-        const h = img.naturalHeight || 96;
-        const off = document.createElement('canvas');
-        off.width = w;
-        off.height = h;
-        const octx = off.getContext('2d');
-        if (!octx) return;
-        octx.drawImage(img, 0, 0, w, h);
-        octx.globalCompositeOperation = 'source-in';
-        octx.fillStyle = '#ffffff';
-        octx.fillRect(0, 0, w, h);
-        whiteLogoCanvas = off;
-      } catch {
-        // ignore
-      }
-    };
-    img.src = lightLogoUrl;
-  }
-
-  return whiteLogoCanvas;
 }
 
 export function wrapText(
@@ -214,7 +177,7 @@ function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: numbe
   ctx.fillRect(0, 816, STAGE_W, 1.5);
 }
 
-// ---------------------------------------------------------------- Üst Yayın Bilgisi (Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı)
+// ---------------------------------------------------------------- Üst Yayın Bilgisi (Sade ve Sinematik HUD)
 function drawBroadcastHud(ctx: CanvasRenderingContext2D, f: StageFrame) {
   // Üst ince ilerleme şeridi
   ctx.fillStyle = 'rgba(148, 163, 184, 0.12)';
@@ -226,51 +189,7 @@ function drawBroadcastHud(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.fillStyle = pg;
   ctx.fillRect(0, 0, STAGE_W * clamp(f.overall), 4);
 
-  // Sol üst: Saf Beyaz EconNotes Marka Logosu (yüksek görünürlüklü koyu cam zemin üzerinde)
-  const logoImg = ensureWhiteEconLogo();
-  const pillX = 32;
-  const pillY = 18;
-  const pillH = 44;
-  const pillW = 204;
-
-  rr(ctx, pillX, pillY, pillW, pillH, 22);
-  ctx.fillStyle = 'rgba(6, 10, 22, 0.84)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  if (logoImg && logoImg.width > 0 && logoImg.height > 0) {
-    const targetH = 27;
-    const ratio = logoImg.width / logoImg.height;
-    const targetW = Math.min(pillW - 34, targetH * ratio);
-    const drawH = targetW / ratio;
-    const lx = pillX + (pillW - targetW) / 2;
-    const ly = pillY + (pillH - drawH) / 2;
-    ctx.save();
-    ctx.shadowColor = 'rgba(255, 255, 255, 0.18)';
-    ctx.shadowBlur = 8;
-    ctx.drawImage(logoImg, lx, ly, targetW, drawH);
-    ctx.restore();
-  } else {
-    // İlk milisaniye vektörel saf beyaz EconNotes yedek çizimi
-    ctx.save();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = font(900, 20);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('E', pillX + 24, pillY + pillH / 2 + 1);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.arc(pillX + 41, pillY + 13, 5, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.font = font(800, 17.5);
-    ctx.fillText('EconNotes', pillX + 54, pillY + pillH / 2 + 1);
-    ctx.restore();
-  }
-
-  // Sağ üst bölüm göstergesi
+  // Sağ üst bölüm göstergesi (Sol üstte sayfa başlığında zaten logo olduğu için canvas sol üstü sade bırakılır)
   const chLabel = `BÖLÜM ${String(f.sceneIndex + 1).padStart(2, '0')} / ${String(f.sceneCount).padStart(2, '0')}`;
   ctx.font = font(700, 13.5);
   const cw = ctx.measureText(chLabel).width + 38;

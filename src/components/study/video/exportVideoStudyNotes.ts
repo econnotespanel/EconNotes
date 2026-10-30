@@ -44,7 +44,7 @@ function formatDurationTr(totalSec: number): string {
 
 /** Sohbet geçiş ve podcast diyalog cümlelerini ayıklayıp yalnızca saf akademik bilgi cümlelerini bırakır. */
 const CONVERSATIONAL_FILLER_RE =
-  /^(?:EconNotes (?:akademik )?stüdyosuna hoş geldiniz|Çok (?:kritik|yerinde|doğru|isabetli|güzel)|Tam (?:burada|isabet|12'den)|Peki (?:Deniz|bu ilk ivme|bu ilk hareket|hocam)|Deniz,\s*(?:öğrencilerin|konunun|bir konuyu|tam burada)|Şimdi (?:tüm bu|bu büyük resmi|bu kavramların|ders sonundaki|ezber tanımlardan)|Adım adım ilerleyelim|İşte (?:konuyu bu dört adımlı|işin can alıcı|domino etkisi)|Görsel mimariden karşılaştırma|Kesinlikle[.;\s]|Elbette Barış|Memnuniyetle Deniz|Hemen netleştirelim|Harika bir (?:soru|noktaya|ders|özetledin|fikir)|Birlikte bir dedektif|İlk ve en garanti)/i;
+  /^(?:EconNotes (?:akademik )?stüdyosuna hoş geldiniz|Çok (?:kritik|yerinde|doğru|isabetli|güzel|haklısın)|Tam (?:burada|isabet|12'den)|Peki (?:Deniz|bu ilk ivme|bu ilk hareket|hocam)|Deniz,\s*(?:öğrencilerin|konunun|bir konuyu|tam burada)|Şimdi (?:tüm bu|bu büyük resmi|bu kavramların|ders sonundaki|ezber tanımlardan)|Adım adım ilerleyelim|İşte (?:konuyu bu dört adımlı|işin can alıcı|işin kalbi|domino etkisi)|Görsel mimariden karşılaştırma|Kesinlikle[.;\s]|Elbette Barış|Memnuniyetle Deniz|Hemen netleştirelim|Harika bir (?:soru|noktaya|ders|özetledin|fikir|başlangıç)|Birlikte bir dedektif|İlk ve en garanti|Bekle bir saniye|Dur bir (?:saniye|dakika)|Vay canına|Hah[!,\s]|Aynen öyle|O hâlde Deniz hocam)/i;
 
 function extractCleanSceneSummary(scene: StudioScene): string[] {
   const bullets: string[] = [];
