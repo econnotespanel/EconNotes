@@ -98,7 +98,6 @@ const Study = () => {
   const [ownNotes, setOwnNotes] = useState<Note[]>([]);
   const [platformNotes, setPlatformNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
-  const [createOpen, setCreateOpen] = useState(false);
   const [activeMaterial, setActiveMaterial] = useState<StudyMaterial | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [breakOpen, setBreakOpen] = useState(false);
@@ -255,11 +254,8 @@ const Study = () => {
     });
   };
 
-  const convertMaterialTo = (source: StudyMaterial, targetType: MaterialType) => {
-    setMaterialType(targetType);
+  const convertMaterialTo = async (source: StudyMaterial, targetType: MaterialType) => {
     const cleanTitle = source.title.replace(/^[^:]+:\s*/, '');
-    setUploadTitle(cleanTitle);
-    setUploadCourse(source.course || '');
     const c = source.content || {};
     let contextText = `${cleanTitle}\nDers: ${source.course || '-'}\n\n`;
     if (c.overview) contextText += `GENEL BAKIŞ:\n${c.overview}\n\n`;
@@ -267,10 +263,46 @@ const Study = () => {
     if (c.sections?.length) {
       contextText += c.sections.map((s: any) => `--- ${s.heading} ---\n${s.content}\nÇıkarım: ${s.takeaway || '-'}`).join('\n\n');
     }
-    setUploadDescription(contextText.slice(0, 15000));
-    setSourceMode('upload');
     setActiveMaterial(null);
-    setCreateOpen(true);
+    setGenerating(true);
+    startProgress(targetType === 'video' ? 'Video dersi hazırlanıyor...' : 'Kısa sınav hazırlanıyor...');
+    try {
+      const payload: any = {
+        materialType: targetType,
+        difficulty: 'medium',
+        count: 10,
+        examProfile: { examType: 'test', totalQuestions: 10, examDate: '', focus: '', level: 'medium' },
+        noteTitle: cleanTitle,
+        course: source.course || '-',
+        noteContext: `--- ÖZET KAYNAKLI METİN ---\n${contextText.slice(0, 15000)}`,
+      };
+      const res = await supabase.functions.invoke('generate-study-material', { body: payload });
+      if (res.error) throw res.error;
+      if (res.data?.error) throw new Error(res.data.error);
+
+      const { data: inserted, error } = await supabase.from('study_materials').insert({
+        user_id: user!.id,
+        source_type: 'own',
+        source_note_id: source.source_note_id || null,
+        material_type: targetType,
+        title: `${TYPE_META[targetType].label}: ${cleanTitle}`,
+        course: source.course,
+        content: res.data.content,
+        model: res.data.model,
+        exam_profile: payload.examProfile,
+      }).select().single();
+      if (error) throw error;
+
+      stopProgress(true);
+      toast.success(targetType === 'video' ? 'Video dersi hazırlandı.' : 'Kısa sınav hazırlandı.');
+      setActiveMaterial(inserted as StudyMaterial);
+      void load();
+    } catch (e: any) {
+      stopProgress(false);
+      toast.error(e.message || 'Dönüştürme işlemi başarısız oldu.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleGenerate = async (overrides?: {
@@ -415,7 +447,6 @@ const Study = () => {
 
       stopProgress(true);
       toast.success(activeType === 'video' ? 'Video dersi hazır.' : 'Materyal hazır.');
-      setCreateOpen(false);
       setActiveMaterial(inserted as StudyMaterial);
       if (overrides?.file) {
         setQuickFile(null);
@@ -490,70 +521,71 @@ const Study = () => {
   return (
     <Layout>
       <div className="mx-auto w-full max-w-7xl space-y-5 animate-fade-in sm:space-y-6">
-        {/* HUD command band */}
-        <div className="hud-panel group/command relative overflow-hidden p-5 md:p-7">
-          <div className="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(hsl(var(--neon-cyan))_1px,transparent_1px),linear-gradient(90deg,hsl(var(--neon-cyan))_1px,transparent_1px)] [background-size:32px_32px]" />
-          <div className="pointer-events-none absolute -top-24 -right-16 h-56 w-56 rounded-full bg-primary/20 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-24 left-1/4 h-56 w-56 rounded-full bg-accent/20 blur-3xl" />
-          <div className="pointer-events-none absolute -right-24 top-10 h-64 w-64 rounded-full border border-primary/10 opacity-70 transition-transform duration-700 group-hover/command:scale-110" />
-          <div className="pointer-events-none absolute -right-16 top-18 h-48 w-48 rounded-full border border-secondary/10 opacity-70" />
+        {/* Modern Studio Hero Header */}
+        <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-card via-card/85 to-primary/5 p-6 md:p-8 shadow-sm">
+          <div className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 left-1/4 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
 
-          <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="hud-bar mt-1 h-14 w-1.5 shrink-0" aria-hidden="true" />
-              <div>
-                <h1 className="flex flex-wrap items-center gap-2 font-display text-2xl font-bold tracking-tight md:text-4xl">
-                  <span className="rounded-xl border border-primary/20 bg-primary/10 p-2 text-primary shadow-[0_0_24px_hsl(var(--primary)/0.16)]">
-                    <GraduationCap className="h-6 w-6 md:h-7 md:w-7" />
-                  </span>
-                  <span className="holo-text">Çalışma Stüdyosu</span>
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                  Notlarını, PDF dosyalarını ve ses kayıtlarını yükle. Sınav türünü ve hedefini seç; sana özel bilgi kartları, kısa sınavlar, derinlikli konu özetleri ve Dr. Deniz ile Barış eşliğinde akıcı Türkçe seslendirmeli interaktif video dersleri hazırlansın.
-                </p>
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                <GraduationCap className="h-4 w-4" />
+                <span>Akademik Çalışma ve Öğrenme Merkezi</span>
               </div>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-4xl font-display">
+                Çalışma Stüdyosu
+              </h1>
+              <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                Ders slaytlarınızı, PDF notlarınızı ve ses kayıtlarınızı yükleyin; konu özetleri, çözümlü kısa sınavlar, bilgi kartları ve Dr. Deniz ile Barış'ın anlatımıyla zenginleşen interaktif video dersleri anında hazırlansın.
+              </p>
             </div>
 
-            <div className="relative flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-              <Button variant="outline" onClick={() => setReportOpen(true)} className="w-full gap-2 rounded-xl border-border/80 bg-background/30 shadow-sm backdrop-blur sm:w-auto">
+            <div className="flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:items-center shrink-0">
+              <Button
+                variant="outline"
+                onClick={() => setReportOpen(true)}
+                className="w-full gap-2 rounded-xl border-border/80 bg-background/50 hover:bg-background/80 shadow-sm sm:w-auto text-xs"
+              >
                 <Bug className="h-4 w-4" /> Platforma Bildir
               </Button>
-              <Button onClick={() => scrollToUploadCenter()} className="w-full gap-2 rounded-xl border-0 bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_100%] text-primary-foreground shadow-lg shadow-primary/20 transition-[background-position,transform] duration-500 hover:-translate-y-0.5 hover:bg-[position:100%_0] sm:w-auto">
-                <Plus className="h-4 w-4" /> Yeni Materyal
+              <Button
+                onClick={() => scrollToUploadCenter()}
+                className="w-full gap-2 rounded-xl border-0 bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-primary-foreground shadow-md shadow-primary/20 transition-all hover:bg-[position:100%_0] sm:w-auto text-xs font-semibold"
+              >
+                <Plus className="h-4 w-4" /> Yeni Materyal Yükle
               </Button>
             </div>
           </div>
 
-          {/* Signal readouts */}
-          <div className="relative mt-5 grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-5">
+          {/* Quick Metrics Strip */}
+          <div className="relative mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6 border-t border-border/50 pt-5">
             {[
-              { label: 'Toplam', value: stats.total, icon: BookOpen, tone: 'text-primary', code: 'TOP' },
-              { label: 'Kart', value: stats.flashcards, icon: Layers, tone: 'text-primary', code: 'KRT' },
-              { label: 'Sınav', value: stats.quiz, icon: ClipboardList, tone: 'text-accent', code: 'SNV' },
-              { label: 'Özet', value: stats.summary, icon: FileTextIcon, tone: 'text-success', code: 'ÖZT' },
-              { label: 'Video', value: stats.video, icon: VideoIcon, tone: 'text-warning', code: 'VİD' },
-            ].map((s, i) => {
-              const pct = stats.total ? Math.round((s.value / stats.total) * 100) : 0;
-              const ratio = s.label === 'Toplam' ? 100 : pct;
-              return (
-                <div key={i} className={`group relative overflow-hidden rounded-2xl border border-border/70 bg-card/70 p-3 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg ${s.label === 'Toplam' ? 'ring-1 ring-primary/15' : ''}`}>
-                  <div className="hud-scanline" />
-                  <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                    <span>{s.code}</span>
-                    <span className={`rounded-lg border border-current/15 bg-background/40 p-1.5 ${s.tone}`}>
-                      <s.icon className="h-3.5 w-3.5" />
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-end gap-1.5">
-                    <span className="font-display text-2xl font-bold leading-none">{s.value}</span>
-                    <span className="text-[11px] text-muted-foreground">{s.label}</span>
-                  </div>
-                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
-                    <div className={`h-full rounded-full bg-current ${s.tone} transition-all duration-700`} style={{ width: `${ratio}%` }} />
-                  </div>
+              { label: 'Tüm Materyaller', value: stats.total, icon: BookOpen, tone: 'text-primary', tint: 'bg-primary/10 border-primary/20' },
+              { label: 'Konu Özetleri', value: stats.summary, icon: FileTextIcon, tone: 'text-emerald-500', tint: 'bg-emerald-500/10 border-emerald-500/20' },
+              { label: 'Video Dersleri', value: stats.video, icon: VideoIcon, tone: 'text-cyan-500', tint: 'bg-cyan-500/10 border-cyan-500/20' },
+              { label: 'Kısa Sınavlar', value: stats.quiz, icon: ClipboardList, tone: 'text-amber-500', tint: 'bg-amber-500/10 border-amber-500/20' },
+              { label: 'Bilgi Kartları', value: stats.flashcards, icon: Layers, tone: 'text-purple-500', tint: 'bg-purple-500/10 border-purple-500/20' },
+              {
+                label: 'Sınav Başarısı',
+                value: averageQuizScore === null ? '—' : `%${averageQuizScore}`,
+                icon: Trophy,
+                tone: 'text-blue-500',
+                tint: 'bg-blue-500/10 border-blue-500/20',
+              },
+            ].map((s, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/50 p-3 transition-colors hover:border-primary/30 hover:bg-background/80"
+              >
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${s.tint} ${s.tone}`}>
+                  <s.icon className="h-4 w-4" />
                 </div>
-              );
-            })}
+                <div className="min-w-0">
+                  <div className="text-base font-bold leading-tight tracking-tight text-foreground">{s.value}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">{s.label}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -564,68 +596,35 @@ const Study = () => {
           />
         )}
 
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
-          <Card className="overflow-hidden rounded-2xl border-border/70 bg-card/80 shadow-sm">
-            <CardContent className="p-5 sm:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Trophy className="h-4 w-4 text-primary" />
-                    Öğrenme performansın
+        {quizAttempts.length > 0 && (
+          <Card className="rounded-2xl border-border/70 bg-card/60 backdrop-blur shadow-sm">
+            <CardContent className="p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                    <Trophy className="h-4 w-4" />
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">Son 7 gündeki kısa sınav çalışmaların</p>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-semibold text-foreground">Haftalık Sınav Performansınız</h3>
+                    <p className="text-[11px] text-muted-foreground">Son 7 günde tamamlanan {weeklyAttempts} sınav · Ortalama Başarı: %{averageQuizScore}</p>
+                  </div>
                 </div>
-                <Badge variant="outline" className="rounded-full">{weeklyAttempts} tamamlanan sınav</Badge>
-              </div>
-              <div className="mt-5 grid grid-cols-[auto_1fr] items-end gap-5">
-                <div>
-                  <p className="text-3xl font-bold tracking-tight">{averageQuizScore === null ? '—' : `${averageQuizScore}%`}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Sınav ortalaman</p>
-                </div>
-                <div className="flex h-16 items-end justify-between gap-2" role="img" aria-label="Son yedi gündeki kısa sınav tamamlama grafiği">
+                <div className="flex h-10 items-end gap-2" role="img" aria-label="Son yedi gündeki kısa sınav tamamlama grafiği">
                   {weeklyStudy.map((day, index) => (
-                    <div key={`${day.label}-${index}`} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-                      <span className="text-[10px] text-muted-foreground">{day.attempts || ''}</span>
+                    <div key={`${day.label}-${index}`} className="flex flex-col items-center gap-1">
                       <div
-                        className={`w-full max-w-8 rounded-t-md transition-all ${day.attempts ? 'bg-primary/80' : 'bg-muted'}`}
-                        style={{ height: `${Math.max(5, (day.attempts / weeklyMax) * 38)}px` }}
+                        className={`w-5 sm:w-6 rounded-t transition-all ${day.attempts ? 'bg-primary' : 'bg-muted'}`}
+                        style={{ height: `${Math.max(4, (day.attempts / weeklyMax) * 24)}px` }}
                         title={`${day.label}: ${day.attempts} kısa sınav`}
                       />
-                      <span className="text-[10px] capitalize text-muted-foreground">{day.label}</span>
+                      <span className="text-[9px] uppercase font-mono text-muted-foreground">{day.label}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              {quizAttempts.length === 0 && (
-                <p className="mt-4 rounded-lg bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                  İlk kısa sınavını tamamladığında ilerlemeni buradan takip edebilirsin.
-                </p>
-              )}
             </CardContent>
           </Card>
-          <Card className="rounded-2xl border-primary/15 bg-gradient-to-br from-primary/10 via-card to-secondary/10 shadow-sm">
-            <CardContent className="flex h-full flex-col justify-between gap-4 p-5 sm:p-6">
-              <div>
-                <Badge variant="secondary" className="rounded-full">Bugünün çalışma hedefi</Badge>
-                <h2 className="mt-3 text-lg font-semibold">Kısa tekrar, kalıcı öğrenme.</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Bir kart setini gözden geçir veya sınavına uygun yeni bir kısa sınav hazırla.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" className="rounded-xl" onClick={() => scrollToUploadCenter('flashcards')}>
-                  <Layers className="mr-2 h-4 w-4" /> Kart hazırla
-                </Button>
-                <Button variant="outline" className="rounded-xl border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400" onClick={() => scrollToUploadCenter('video')}>
-                  <VideoIcon className="mr-2 h-4 w-4" /> Video dersi
-                </Button>
-                <Button className="rounded-xl" onClick={() => scrollToUploadCenter('quiz')}>
-                  <ClipboardList className="mr-2 h-4 w-4" /> Kısa sınav hazırla
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+        )}
 
         {/* SLAYT, NOT YÜKLEME MERKEZİ (YENİ İÇERİK MATERYALİ İLE BİRLEŞTİRİLMİŞ HUB) */}
         <section
@@ -963,81 +962,78 @@ const Study = () => {
           </div>
         </section>
 
-        {/* Generator modules */}
-        <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-4">
-          {(Object.keys(TYPE_META) as MaterialType[]).map(t => {
-            const meta = TYPE_META[t];
-            const Icon = meta.icon;
-            return (
-              <button
-                key={t}
-                onClick={() => scrollToUploadCenter(t)}
-                className="hud-panel group p-4 text-left sm:p-5"
-              >
-                <div className="hud-scanline" />
-                <div className="relative">
-                  <div className="flex items-center justify-between text-[10px] tracking-widest text-muted-foreground">
-                    <span>{meta.code}</span>
-                    <span className={`h-1.5 w-1.5 rounded-full bg-current ${meta.tone}`} />
-                  </div>
-                  <div className={`mt-3 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 ${meta.tint} ${meta.tone} transition-transform duration-300 group-hover:scale-110`}>
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="mt-3 font-display font-semibold transition-colors group-hover:text-primary">{meta.label}</h3>
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{meta.desc}</p>
-                  <div className="mt-3 flex items-center gap-1 text-[11px] font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                    Üret <ChevronRight className="h-3 w-3" />
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        {/* Materyallerim Header & Filters */}
+        <div className="space-y-4 pt-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <BookOpen className="h-4 w-4" />
+              </div>
+              <h2 className="text-lg font-bold tracking-tight text-foreground font-display">
+                Kayıtlı Çalışma Materyalleriniz
+              </h2>
+              <Badge variant="secondary" className="rounded-full text-xs font-semibold px-2.5">
+                {filtered.length}
+              </Badge>
+            </div>
+          </div>
 
-        {/* Console filters */}
-        <div className="hud-panel p-4">
-          <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Materyal ara..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-            </div>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Materyal türü filtresi">
-              {([['all', 'Tümü'], ...(Object.keys(TYPE_META) as MaterialType[]).map(t => [t, TYPE_META[t].label] as const)] as [string, string][]).map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setTypeFilter(val as 'all' | MaterialType)}
-                  aria-pressed={typeFilter === val}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${typeFilter === val ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'}`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Zaman filtresi">
-              {([['all', 'Tüm zamanlar'], ['today', 'Bugün'], ['week', 'Son 7 gün']] as const).map(([val, label]) => (
-                <button
-                  key={val}
-                  onClick={() => setTimeFilter(val)}
-                  aria-pressed={timeFilter === val}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${timeFilter === val ? 'border-accent bg-accent text-accent-foreground' : 'border-border text-muted-foreground hover:border-accent/50 hover:text-foreground'}`}
-                >
-                  {label}
-                </button>
-              ))}
+          <div className="rounded-2xl border border-border/70 bg-card/70 p-3 sm:p-4 backdrop-blur shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Materyallerinizde arayın (örn. İktisat, Vize, Sınav)..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-9 h-9 text-xs rounded-xl"
+                />
+              </div>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Materyal türü filtresi">
+                {([['all', 'Tümü'], ...(Object.keys(TYPE_META) as MaterialType[]).map(t => [t, TYPE_META[t].label] as const)] as [string, string][]).map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setTypeFilter(val as 'all' | MaterialType)}
+                    aria-pressed={typeFilter === val}
+                    className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-all ${
+                      typeFilter === val
+                        ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                        : 'border-border/70 bg-card/60 text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Zaman filtresi">
+                {([['all', 'Tüm Zamanlar'], ['today', 'Bugün'], ['week', 'Son 7 Gün']] as const).map(([val, label]) => (
+                  <button
+                    key={val}
+                    onClick={() => setTimeFilter(val)}
+                    aria-pressed={timeFilter === val}
+                    className={`rounded-xl border px-2.5 py-1.5 text-xs font-medium transition-all ${
+                      timeFilter === val
+                        ? 'border-secondary bg-secondary text-secondary-foreground shadow-sm'
+                        : 'border-border/70 bg-card/60 text-muted-foreground hover:border-secondary/40 hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-
 
         {/* List */}
         {loading ? (
           <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
         ) : filtered.length === 0 ? (
-          <Card className="border-dashed">
+          <Card className="border-dashed rounded-2xl">
             <CardContent className="py-12 text-center">
               <GraduationCap className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground">Henüz materyal yok. İlk çalışma setini üret.</p>
-              <Button onClick={() => scrollToUploadCenter()} className="mt-4 gap-2"><Plus className="h-4 w-4" /> Başla</Button>
+              <p className="text-muted-foreground">Henüz materyal bulunmuyor. İlk çalışma setinizi hemen oluşturun.</p>
+              <Button onClick={() => scrollToUploadCenter()} className="mt-4 gap-2 rounded-xl"><Plus className="h-4 w-4" /> Materyal Oluştur</Button>
             </CardContent>
           </Card>
         ) : (
@@ -1062,32 +1058,40 @@ const Study = () => {
               return (
                 <div
                   key={m.id}
-                  className={`hud-panel group flex flex-col p-4 sm:p-5 transition-all duration-300 hover:-translate-y-0.5 ${
+                  className={`group relative flex flex-col rounded-2xl border p-4 sm:p-5 transition-all duration-300 hover:-translate-y-1 bg-card/80 shadow-sm backdrop-blur ${
                     m.material_type === 'video'
-                      ? 'border-cyan-500/25 hover:border-cyan-500/50 hover:shadow-[0_12px_36px_rgba(6,182,212,0.12)]'
-                      : 'hover:border-primary/40 hover:shadow-lg'
+                      ? 'border-cyan-500/30 hover:border-cyan-500/60 hover:shadow-[0_12px_36px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/10'
+                      : 'border-border/70 hover:border-primary/40 hover:shadow-lg'
                   }`}
                 >
-                  <div className="hud-scanline" />
                   <div className="relative flex items-start justify-between gap-2">
-                    <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 ${meta.tint} ${meta.tone}`}>
-                      <Icon className="h-4.5 w-4.5" />
+                    <div className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 ${meta.tint} ${meta.tone} shadow-sm`}>
+                      <Icon className="h-5 w-5" />
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {createdLabel && (
-                        <span className="text-[10px] font-medium text-muted-foreground/80">{createdLabel}</span>
+                        <span className="text-[11px] font-medium text-muted-foreground">{createdLabel}</span>
                       )}
-                      <span className="rounded-md border border-border/60 bg-background/50 px-1.5 py-0.5 font-mono text-[10px] tracking-widest text-muted-foreground">
-                        {meta.code}
-                      </span>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 transition-opacity sm:opacity-0 sm:group-hover:opacity-100" onClick={() => handleDelete(m.id)} aria-label="Materyali sil">
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+                        onClick={() => handleDelete(m.id)}
+                        aria-label="Materyali sil"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
-                  <h3 className="relative mt-3 line-clamp-2 font-display text-base font-semibold leading-snug">{m.title}</h3>
+
+                  <h3 className="relative mt-3 line-clamp-2 font-display text-base font-semibold leading-snug text-foreground">
+                    {m.title}
+                  </h3>
+
                   <div className="relative mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="text-[10px]">{meta.label}</Badge>
+                    <Badge variant="outline" className="text-[10px] font-medium border-border/80">
+                      {meta.label}
+                    </Badge>
                     {m.course && (
                       <span className="truncate max-w-[180px] rounded-md bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground/80">
                         {m.course}
@@ -1099,18 +1103,20 @@ const Study = () => {
                       </Badge>
                     )}
                   </div>
+
                   {detailPill && (
                     <p className="relative mt-2.5 text-[11px] font-medium text-muted-foreground">
                       {detailPill}
                     </p>
                   )}
+
                   <div className="relative mt-auto pt-4">
                     <Button
                       variant={m.material_type === 'video' ? 'default' : 'secondary'}
-                      className={`w-full gap-2 rounded-xl ${
+                      className={`w-full gap-2 rounded-xl text-xs font-semibold ${
                         m.material_type === 'video'
                           ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-md shadow-cyan-500/20'
-                          : ''
+                          : 'hover:bg-primary hover:text-primary-foreground'
                       }`}
                       onClick={() => setActiveMaterial(m)}
                     >
@@ -1122,183 +1128,8 @@ const Study = () => {
               );
             })}
           </div>
-
         )}
       </div>
-
-      {/* Create dialog */}
-      <Dialog open={createOpen} onOpenChange={(o) => { if (!generating) setCreateOpen(o); }}>
-        <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-2xl overflow-y-auto rounded-2xl p-3 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-primary" /> Yeni Çalışma Materyali</DialogTitle>
-            <DialogDescription>Kaynağını seç, sınav profilini doldur. Sana özel kapsamlı çalışma materyali hazırlansın.</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Materyal türü */}
-            <div>
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Materyal türü</Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
-                {(Object.keys(TYPE_META) as MaterialType[]).map(t => {
-                  const Icon = TYPE_META[t].icon;
-                  return (
-                    <button key={t} type="button" onClick={() => setMaterialType(t)} className={`p-3 rounded-lg border text-xs font-medium flex flex-col items-center gap-1.5 transition ${materialType === t ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-accent'}`}>
-                      <Icon className="h-4 w-4" />
-                      {TYPE_META[t].label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {materialType === 'video' && (
-              <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-transparent p-4 flex items-start gap-3.5 shadow-sm">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25">
-                  <VideoIcon className="h-5 w-5" />
-                </div>
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm text-foreground">İnteraktif Video Dersi</span>
-                    <Badge className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30 text-[10px] font-semibold">SINAV ODAKLI</Badge>
-                    <Badge className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 text-[10px] font-bold">EŞLEŞTİRME & SORU</Badge>
-                  </div>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Ders notunuz öğrencilerin kolayca anlayabileceği bir dille, <strong>hocanın sınavda sorabileceği noktalar</strong> vurgulanarak anlatılır; ders sonunda kavram eşleştirme ve çözümlü sınav soruları açılır.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Kaynak */}
-            <div>
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Kaynak</Label>
-              <Tabs value={sourceMode} onValueChange={(v: any) => { setSourceMode(v); setSelectedNoteId(''); }} className="mt-2">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="own">Notlarım ({ownNotes.length})</TabsTrigger>
-                  <TabsTrigger value="platform">Platform ({platformNotes.length})</TabsTrigger>
-                  <TabsTrigger value="upload" className="gap-1"><Upload className="h-3 w-3" /> Yükle</TabsTrigger>
-                </TabsList>
-                <TabsContent value="own" className="mt-2">
-                  <Select value={selectedNoteId} onValueChange={setSelectedNoteId}>
-                    <SelectTrigger><SelectValue placeholder="Notunu seç (yayınlanmamış olanlar dahil)..." /></SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {ownNotes.length === 0 ? (
-                        <div className="p-3 text-sm text-muted-foreground">Henüz notun yok.</div>
-                      ) : ownNotes.map(n => (
-                        <SelectItem key={n.id} value={n.id}>
-                          <span className="font-medium">{n.title}</span>
-                          <span className="text-muted-foreground ml-2 text-xs">· {n.course} · {n.status}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-muted-foreground mt-1">Onay beklenen veya reddedilmiş notların bile burada çalışılabilir.</p>
-                </TabsContent>
-                <TabsContent value="platform" className="mt-2">
-                  <Select value={selectedNoteId} onValueChange={setSelectedNoteId}>
-                    <SelectTrigger><SelectValue placeholder="Onaylı not seç..." /></SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {platformNotes.map(n => (
-                        <SelectItem key={n.id} value={n.id}>
-                          <span className="font-medium">{n.title}</span>
-                          <span className="text-muted-foreground ml-2 text-xs">· {n.course}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </TabsContent>
-                <TabsContent value="upload" className="mt-2 space-y-2">
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <Input placeholder="Başlık (örn. Mikro 1. Vize)" value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} />
-                    <Input placeholder="Ders (opsiyonel)" value={uploadCourse} onChange={e => setUploadCourse(e.target.value)} />
-                  </div>
-                  <Textarea placeholder="Kısa açıklama (opsiyonel)" rows={2} value={uploadDescription} onChange={e => setUploadDescription(e.target.value)} />
-                  <label className="flex items-center gap-3 px-3 py-3 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition">
-                    <FileUp className="h-5 w-5 text-primary" />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{uploadFile ? uploadFile.name : 'Dosya seç (PowerPoint, PDF, Word, görsel, ses)'}</p>
-                      <p className="text-[11px] text-muted-foreground">PowerPoint (.pptx), PDF slaytları, Word (.docx), PNG, JPG, MP3, WAV, TXT — maks 25MB</p>
-                    </div>
-                    {uploadFile?.type.startsWith('audio/') && <Mic className="h-4 w-4 text-fuchsia-500" />}
-                    <input type="file" className="hidden" accept=".pdf,.pptx,.docx,.txt,.md,image/*,audio/*,text/*" onChange={e => setUploadFile(e.target.files?.[0] || null)} />
-                  </label>
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            {/* Sınav profili */}
-            <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
-              <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-primary" />
-                <span className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Sınav profili</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-xs">Sınav türü</Label>
-                  <Select value={examType} onValueChange={(v: any) => setExamType(v)}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="test">Test (çoktan seçmeli)</SelectItem>
-                      <SelectItem value="classic">Klasik (açık uçlu)</SelectItem>
-                      <SelectItem value="mixed">Karma</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {(materialType === 'flashcards' || materialType === 'quiz') && (
-                  <div>
-                    <Label className="text-xs">{materialType === 'flashcards' ? 'Kart sayısı' : 'Soru sayısı'}</Label>
-                    <Input
-                      type="number"
-                      className="h-9"
-                      min={3}
-                      max={30}
-                      value={count}
-                      onChange={e => {
-                        const parsed = parseInt(e.target.value, 10);
-                        setCount(Number.isFinite(parsed) ? Math.max(3, Math.min(30, parsed)) : 10);
-                      }}
-                    />
-                  </div>
-                )}
-                <div>
-                  <Label className="text-xs">Zorluk</Label>
-                  <Select value={difficulty} onValueChange={(v: any) => setDifficulty(v)}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="easy">Kolay</SelectItem>
-                      <SelectItem value="medium">Orta</SelectItem>
-                      <SelectItem value="hard">Zor</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-xs">Sınav tarihi (isteğe bağlı)</Label>
-                  <Input type="date" className="h-9" value={examDate} onChange={e => setExamDate(e.target.value)} />
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs">Odaklanmak istediğin konu (isteğe bağlı)</Label>
-                <Input className="h-9" placeholder="örn. Talep esnekliği, integral uygulamaları..." value={focus} onChange={e => setFocus(e.target.value)} />
-              </div>
-            </div>
-
-            {/* Progress */}
-            {generating && (
-              <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-primary">{progressLabel}</span>
-                  <span className="tabular-nums">%{progress}</span>
-                </div>
-                <Progress value={progress} className="h-2" />
-              </div>
-            )}
-
-            <Button onClick={() => void handleGenerate()} disabled={generating} className="w-full gap-2" size="lg">
-              {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Hazırlanıyor...</> : <><Sparkles className="h-4 w-4" /> Materyali Hazırla</>}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Interactive Video Studio - True Full Screen Cinema Overlay */}
       {activeMaterial && activeMaterial.material_type === 'video' && (
@@ -1325,8 +1156,8 @@ const Study = () => {
               onClose={() => setActiveMaterial(null)}
               onReport={() => setReportOpen(true)}
               onProgressSaved={() => void load()}
-              onConvertToVideo={() => convertMaterialTo(activeMaterial, 'video')}
-              onConvertToQuiz={() => convertMaterialTo(activeMaterial, 'quiz')}
+              onConvertToVideo={() => void convertMaterialTo(activeMaterial, 'video')}
+              onConvertToQuiz={() => void convertMaterialTo(activeMaterial, 'quiz')}
             />
           )}
         </DialogContent>
