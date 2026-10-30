@@ -695,7 +695,7 @@ const Study = () => {
                       onClick={() => setActiveMaterial(m)}
                     >
                       <Play className="h-3.5 w-3.5" />
-                      {m.material_type === 'video' ? 'Stüdyoyu Başlat (Tam Ekran)' : 'Çalışmaya Başla'}
+                      {m.material_type === 'video' ? 'Stüdyoyu Başlat' : 'Çalışmaya Başla'}
                     </Button>
                   </div>
                 </div>

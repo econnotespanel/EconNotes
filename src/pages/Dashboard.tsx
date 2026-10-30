@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare } from 'lucide-react';
+import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,6 +12,8 @@ import { Progress } from '@/components/ui/progress';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import LeaderboardCard from '@/components/LeaderboardCard';
 import DailyMissions from '@/components/DailyMissions';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { APP_VERSION } from '@/lib/version';
 
 
 const BannerContent = ({ content }: { content: string }) => {
@@ -42,6 +44,7 @@ const Dashboard = () => {
   const [showAllAnnouncements, setShowAllAnnouncements] = useState(false);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showStudioUpdateModal, setShowStudioUpdateModal] = useState(false);
   const [sessionWarning, setSessionWarning] = useState(false);
   const [banners, setBanners] = useState<any[]>([]);
   const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(new Set());
@@ -87,9 +90,19 @@ const Dashboard = () => {
       }
     };
 
+    const checkStudioUpdateAnnouncement = () => {
+      if (user) {
+        const updateKey = 'econnotes_studio_showcase_' + APP_VERSION + '_' + user.id;
+        if (!localStorage.getItem(updateKey)) {
+          setShowStudioUpdateModal(true);
+        }
+      }
+    };
+
     fetchData();
     checkUnreadAnnouncements();
     checkFirstLogin();
+    checkStudioUpdateAnnouncement();
 
     const sessionStart = Date.now();
     const interval = setInterval(() => {
@@ -100,6 +113,17 @@ const Dashboard = () => {
     }, 60000);
     return () => clearInterval(interval);
   }, [user]);
+
+  const handleDismissStudioUpdate = (redirect = false) => {
+    if (user) {
+      const updateKey = 'econnotes_studio_showcase_' + APP_VERSION + '_' + user.id;
+      localStorage.setItem(updateKey, '1');
+    }
+    setShowStudioUpdateModal(false);
+    if (redirect) {
+      navigate('/study');
+    }
+  };
 
   const formatDateTime = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -172,6 +196,111 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* 1 Defaya Mahsus Çalışma Stüdyosu Güncelleme Modal & Yönlendirmesi */}
+        <Dialog open={showStudioUpdateModal} onOpenChange={(open) => {
+          if (!open) handleDismissStudioUpdate(false);
+        }}>
+          <DialogContent className="max-w-lg rounded-2xl p-5 sm:p-7 border border-primary/20 bg-gradient-to-b from-card via-card to-primary/5 shadow-2xl backdrop-blur-xl">
+            <DialogHeader className="space-y-3 text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-cyan-500/15 via-blue-500/15 to-purple-500/15 text-primary border border-primary/25 w-fit">
+                <Sparkles className="h-3.5 w-3.5 animate-pulse text-cyan-400" />
+                <span>Yeni Büyük Güncelleme</span>
+                <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{APP_VERSION}</span>
+              </div>
+              
+              <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                Çalışma Stüdyosu Baştan Aşağı Yenilendi! 🚀
+              </DialogTitle>
+              
+              <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+                Ders çalışma ve sınavlara hazırlanma deneyiminizi üst seviyeye taşıyan yapay zekâ destekli video stüdyosu ve interaktif özellikler yayında:
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2.5 py-2">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-accent/40 border border-border/50">
+                <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500 shrink-0">
+                  <Video className="h-4 w-4" />
+                </div>
+                <div className="text-xs space-y-0.5">
+                  <p className="font-semibold text-foreground text-sm">NotebookLM Tarzı İkili Video Dersi</p>
+                  <p className="text-muted-foreground">Dr. Deniz ve Barış eşliğinde ezber kalıplardan uzak, soru-cevaplı derin akademik anlatım.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-accent/40 border border-border/50">
+                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 shrink-0">
+                  <Headphones className="h-4 w-4" />
+                </div>
+                <div className="text-xs space-y-0.5">
+                  <p className="font-semibold text-foreground text-sm">22.05 kHz Neural HD Türkçe Ses</p>
+                  <p className="text-muted-foreground">Robotik olmayan, pürüzsüz diksiyon ve akıcı üniversite semineri doğallığında seslendirme.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-accent/40 border border-border/50">
+                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500 shrink-0">
+                  <Target className="h-4 w-4" />
+                </div>
+                <div className="text-xs space-y-0.5">
+                  <p className="font-semibold text-foreground text-sm">Akıllı Tahta, Sınav Tüyoları & Eşleştirme</p>
+                  <p className="text-muted-foreground">Karşılaştırma tabloları, analitik grafikler, hocanın sorabileceği sorular ve interaktif kartlar.</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-accent/40 border border-border/50">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div className="text-xs space-y-0.5">
+                  <p className="font-semibold text-foreground text-sm">Yapılandırılmış PDF & HTML Not İndirme</p>
+                  <p className="text-muted-foreground">Video dersindeki tüm kavram ve özetleri tek tıkla şık akademik formatta bilgisayara kaydetme.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto text-xs"
+                onClick={() => handleDismissStudioUpdate(false)}
+              >
+                Daha Sonra İncele
+              </Button>
+              <Button
+                className="w-full sm:flex-1 gap-2 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-cyan-500/20"
+                onClick={() => handleDismissStudioUpdate(true)}
+              >
+                <span>Çalışma Stüdyosuna Git</span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Çalışma Stüdyosu Hızlı Erişim & Yenilik Banner'ı */}
+        <Card className="glass-card border-primary/30 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-primary/10 to-transparent pointer-events-none" />
+          <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20 shrink-0">
+                <Brain className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold text-foreground">Çalışma Stüdyosu Güncellendi!</p>
+                  <span className="text-[10px] bg-primary/20 text-primary font-semibold px-2 py-0.5 rounded-full border border-primary/20">YENİ</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">NotebookLM tarzı ikili video dersleri, akıllı tahta şemaları ve sınav sorularıyla çalışmaya başlayın.</p>
+              </div>
+            </div>
+            <Button size="sm" className="gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shrink-0 w-full sm:w-auto shadow-sm" onClick={() => navigate('/study')}>
+              <span>Stüdyoyu İncele</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </CardContent>
+        </Card>
 
         <div className="flex flex-col items-start justify-between gap-4 pt-2 sm:flex-row sm:items-center">
           <div>
