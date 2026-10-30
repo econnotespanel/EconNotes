@@ -60,6 +60,25 @@ describe('video studio sceneModel & speechEngine', () => {
     expect(diagramTypes.has('chart')).toBe(true);
     expect(diagramTypes.has('scenario')).toBe(true);
     expect(diagramTypes.has('comparison')).toBe(true);
+
+    expect(fullStudio.scenes.some(s => s.title.includes('Hocanın Sorabileceği'))).toBe(true);
+    expect(fullStudio.matchingPairs.length).toBeGreaterThanOrEqual(3);
+    fullStudio.matchingPairs.forEach(pair => {
+      expect(pair.term.length).toBeGreaterThan(1);
+      expect(pair.definition.length).toBeGreaterThan(4);
+      expect(pair.sceneIndex).toBeGreaterThanOrEqual(0);
+      expect(pair.sceneIndex).toBeLessThan(fullStudio.scenes.length);
+    });
+
+    expect(fullStudio.examQuestions.length).toBeGreaterThanOrEqual(3);
+    fullStudio.examQuestions.forEach(q => {
+      expect(q.options.length).toBe(4);
+      expect(q.correctIndex).toBeGreaterThanOrEqual(0);
+      expect(q.correctIndex).toBeLessThan(4);
+      expect(q.explanation.length).toBeGreaterThan(5);
+      expect(q.sceneIndex).toBeGreaterThanOrEqual(0);
+      expect(q.sceneIndex).toBeLessThan(fullStudio.scenes.length);
+    });
   });
 
   it('normalizes Turkish academic abbreviations, year suffixes, apostrophes and Roman numerals for fluid speech', () => {
@@ -81,11 +100,14 @@ describe('video studio sceneModel & speechEngine', () => {
     const baseVoices = discoverTurkishVoices();
     const fakeGoogleTurkish: VoiceOption = {
       id: 'Google Türkçe|tr-TR',
-      voice: { name: 'Google Türkçe', lang: 'tr-TR' } as any,
+      name: 'Google Türkçe',
       cleanName: 'Google Türkçe · tr-TR',
+      lang: 'tr-TR',
+      gender: 'female',
       quality: 'cloud',
-      genderGuess: 'female',
+      engine: 'browser',
       score: 64,
+      voice: { name: 'Google Türkçe', lang: 'tr-TR' } as any,
     };
     const voices = [...baseVoices, fakeGoogleTurkish];
     expect(voices.some(v => v.vitsVoiceId === 'tr_TR-eren-fluid')).toBe(true);
@@ -122,6 +144,7 @@ describe('video studio sceneModel & speechEngine', () => {
     );
     const turns = buildSceneSpeakerTurns(fullStudio.scenes[0], 0);
     expect(turns.length).toBeGreaterThanOrEqual(1);
+    expect(turns[0].spokenSentences.length).toBe(1);
     const totalSentencesInTurns = turns.reduce((acc, t) => acc + t.spokenSentences.length, 0);
     expect(totalSentencesInTurns).toBe(fullStudio.scenes[0].sentences.length);
   });

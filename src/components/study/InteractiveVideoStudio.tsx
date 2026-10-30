@@ -36,11 +36,13 @@ import {
   ArrowLeft,
   GraduationCap,
   Headphones,
+  Trophy,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import ReactMarkdown from 'react-markdown';
 import EconLogo from '@/components/EconLogo';
+import LessonWrapUp from './video/LessonWrapUp';
 import {
   buildStudioContent,
   positionFromElapsed,
@@ -56,9 +58,12 @@ import {
   discoverTurkishVoices,
   selectVoicesForSpeakers,
   preloadAssignedNeuralVoices,
+  prewarmSceneAudio,
   prepareSceneFirstTurn,
   previewSpeakerVoice,
   playSceneConversationally,
+  setStudioMasterVolume,
+  unlockStudioAudio,
   visemeFromTurkishChar,
   VoiceOption,
   Viseme,
@@ -117,20 +122,22 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     return buildStudioContent(material.content, material.title, material.course || '');
   }, [material.content, material.title, material.course]);
 
-  const { scenes, totalDurationSec, keyFacts, searches } = studio;
+  const { scenes, totalDurationSec, keyFacts, searches, examQuestions, matchingPairs } = studio;
 
   // 2. Oynatıcı durumları
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1.0);
+  const volumeRef = useRef(1.0);
+  volumeRef.current = volume;
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [elapsedSceneTime, setElapsedSceneTime] = useState(0);
   const [showSubtitles, setShowSubtitles] = useState(true);
   const [hasStartedOnce, setHasStartedOnce] = useState(false);
   const [liveSpeaker, setLiveSpeaker] = useState<Speaker>('Deniz');
 
-  // 3. Stüdyo HD Türkçe Neural ses durumları (arka plan uğultusu tamamen kaldırıldı)
+  // 3. Stüdyo ses durumları
   const [voices, setVoices] = useState<VoiceOption[]>(() => discoverTurkishVoices());
   const [preferredDenizVoice, setPreferredDenizVoice] = useState<string>('');
   const [preferredBarisVoice, setPreferredBarisVoice] = useState<string>('');
@@ -142,8 +149,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     activeLabel: '',
   });
 
-  // 4. Arayüz ve çalışma paneli durumları
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // 4. Arayüz ve çalışma paneli durumları (küçük ekranlarda sahneyi kapatmaması için duyarlı başlangıç)
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
+  );
   const [activeTab, setActiveTab] = useState<'notes' | 'terms' | 'facts' | 'playlist' | 'coach'>('notes');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -173,8 +182,13 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
   // 6. Akıcı Türkçe Neural Ses Ön-Hazırlık (Buffer) ve Önizleme durumları
   const [isPreparingAudio, setIsPreparingAudio] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [previewingSpeaker, setPreviewingSpeaker] = useState<Speaker | null>(null);
   const prepareTokenRef = useRef<number>(0);
+  const bufferingTimerRef = useRef<number | null>(null);
+
+  // Ders sonu değerlendirme (eşleştirme + hocanın soruları)
+  const [wrapUpOpen, setWrapUpOpen] = useState(false);
 
   // 7. Entegre Yapay Zekâ Akıl Hocası
   const [coachMessages, setCoachMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
@@ -193,12 +207,19 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const stopSpeechFnRef = useRef<(() => void) | null>(null);
   const lastTickRef = useRef<number>(performance.now());
   const smoothMouthRef = useRef<number>(0);
+  /** Sahne saatinin tek doğruluk kaynağı (60 FPS); React durumu yalnızca arayüz için seyrek güncellenir */
+  const clockRef = useRef<number>(0);
+  const lastUiSyncRef = useRef<number>(0);
+  const lastSpeechActivityRef = useRef<number>(performance.now());
+  const finishLessonRef = useRef<() => void>(() => {});
+  const advanceLockRef = useRef<number>(-1);
 
   const speechSyncRef = useRef<{
     sentenceIndex: number;
     charInSentence: number;
     hasBoundaryEvents: boolean;
     inBreathPause: boolean;
+    buffering: boolean;
     activeSpeaker: Speaker;
     cloudViseme: Viseme | null;
     cloudMouth: number | null;
@@ -207,10 +228,17 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     charInSentence: 0,
     hasBoundaryEvents: false,
     inBreathPause: false,
+    buffering: false,
     activeSpeaker: 'Deniz',
     cloudViseme: null,
     cloudMouth: null,
   });
+
+  const setClock = useCallback((t: number) => {
+    clockRef.current = t;
+    lastUiSyncRef.current = performance.now();
+    setElapsedSceneTime(t);
+  }, []);
 
   const currentScene: StudioScene = scenes[activeSceneIndex] || scenes[0];
 
@@ -242,12 +270,16 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     };
   }, []);
 
-  // Türkçe doğal/bulut seslerini keşfet
+  // Türkçe doğal/bulut seslerini keşfet (liste gerçekten değişmedikçe yeniden atama yapma → konuşma kesilmez)
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     const refresh = () => {
       const found = discoverTurkishVoices();
-      setVoices(found);
+      setVoices(prev => {
+        const prevKey = prev.map(v => v.id).join('|');
+        const nextKey = found.map(v => v.id).join('|');
+        return prevKey === nextKey ? prev : found;
+      });
     };
     refresh();
     window.speechSynthesis.addEventListener?.('voiceschanged', refresh);
@@ -265,10 +297,16 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     [voices, preferredDenizVoice, preferredBarisVoice],
   );
 
-  // Seçili 22.05 kHz VITS Neural Türkçe ses modellerini arka planda (OPFS + WASM) önceden hazırla
+  // Seçili Türkçe ses modellerini ve ilk sahnenin açılış cümlesini arka plan worker'ında şimdiden hazırla
   useEffect(() => {
     preloadAssignedNeuralVoices(speakerVoices);
-  }, [speakerVoices]);
+    prewarmSceneAudio(scenes[0], speakerVoices, preferCloudNeural);
+  }, [speakerVoices, scenes, preferCloudNeural]);
+
+  // Ses seviyesi değiştiğinde konuşmayı kesmeden anında uygula
+  useEffect(() => {
+    setStudioMasterVolume(volume, isMuted);
+  }, [volume, isMuted]);
 
   const stopSpeech = useCallback(() => {
     if (stopSpeechFnRef.current) {
@@ -276,9 +314,24 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       stopSpeechFnRef.current = null;
     }
     speechSyncRef.current.inBreathPause = false;
+    speechSyncRef.current.buffering = false;
     speechSyncRef.current.cloudMouth = null;
     speechSyncRef.current.cloudViseme = null;
+    if (bufferingTimerRef.current !== null) {
+      window.clearTimeout(bufferingTimerRef.current);
+      bufferingTimerRef.current = null;
+    }
+    setIsBuffering(false);
   }, []);
+
+  // Ders tamamlandığında: oynatmayı durdur ve ders sonu değerlendirmesini aç
+  finishLessonRef.current = () => {
+    stopSpeech();
+    setIsPlaying(false);
+    const last = scenes[scenes.length - 1];
+    if (last) setClock(last.durationSec);
+    setWrapUpOpen(true);
+  };
 
   // Sahne seslendirmesini başlat (Dr. Deniz <-> Barış karşılıklı konuşma geçişli)
   const startSceneSpeech = useCallback(
@@ -293,27 +346,35 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         charInSentence: startPos.charInSentence,
         hasBoundaryEvents: false,
         inBreathPause: false,
+        buffering: false,
         activeSpeaker: startPos.activeSpeaker,
         cloudViseme: null,
         cloudMouth: null,
       };
+      lastSpeechActivityRef.current = performance.now();
       setLiveSpeaker(startPos.activeSpeaker);
 
-      if (isMuted || volume <= 0.01) return;
+      if (isMuted || volumeRef.current <= 0.01) return;
+
+      const touch = () => {
+        lastSpeechActivityRef.current = performance.now();
+      };
 
       const cancel = playSceneConversationally({
         scene: targetScene,
         assignments: speakerVoices,
         playbackSpeed,
-        volume,
+        volume: volumeRef.current,
         muted: isMuted,
         preferCloudNeural,
         startSentenceIndex: startPos.sentenceIndex,
         onSpeakerChange: spk => {
+          touch();
           speechSyncRef.current.activeSpeaker = spk;
           setLiveSpeaker(spk);
         },
         onBoundaryProgress: (sIdx, charIdx, boundaryHit) => {
+          touch();
           speechSyncRef.current.sentenceIndex = sIdx;
           speechSyncRef.current.charInSentence = charIdx;
           const spk = targetScene.sentenceSpeakers?.[sIdx] || targetScene.speaker;
@@ -322,41 +383,58 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             speechSyncRef.current.hasBoundaryEvents = true;
             const globalChar = (targetScene.sentenceOffsets[sIdx] || 0) + charIdx;
             const syncedRatio = Math.min(1, globalChar / Math.max(1, targetScene.totalChars));
-            setElapsedSceneTime(syncedRatio * targetScene.durationSec);
+            // Yalnızca ref güncellenir; React durumu render döngüsünde seyrek eşitlenir
+            clockRef.current = syncedRatio * targetScene.durationSec;
           }
         },
         onAudioEnergy: (mouthOpen, viseme) => {
+          touch();
           speechSyncRef.current.cloudMouth = mouthOpen;
           speechSyncRef.current.cloudViseme = viseme;
         },
         onBreathPause: paused => {
+          touch();
           speechSyncRef.current.inBreathPause = paused;
           if (paused) {
             speechSyncRef.current.cloudMouth = null;
           }
         },
+        onBuffering: buffering => {
+          touch();
+          speechSyncRef.current.buffering = buffering;
+          if (bufferingTimerRef.current !== null) {
+            window.clearTimeout(bufferingTimerRef.current);
+            bufferingTimerRef.current = null;
+          }
+          if (buffering) {
+            // Kısa hazırlıklarda göz kırpan bir uyarı göstermemek için gecikmeli
+            bufferingTimerRef.current = window.setTimeout(() => setIsBuffering(true), 650);
+          } else {
+            setIsBuffering(false);
+          }
+        },
         onComplete: () => {
           if (sceneIdx + 1 < scenes.length) {
+            advanceLockRef.current = sceneIdx + 1;
             setActiveSceneIndex(sceneIdx + 1);
-            setElapsedSceneTime(0);
+            setClock(0);
           } else {
-            setIsPlaying(false);
-            setElapsedSceneTime(targetScene.durationSec);
-            toast.success('Ders tamamlandı! Önemli notları sağ panelden indirebilirsiniz.');
+            finishLessonRef.current();
           }
         },
       });
 
       stopSpeechFnRef.current = cancel;
     },
-    [scenes, speakerVoices, playbackSpeed, volume, isMuted, preferCloudNeural, stopSpeech],
+    [scenes, speakerVoices, playbackSpeed, isMuted, preferCloudNeural, stopSpeech, setClock],
   );
 
   useEffect(() => {
     if (isPlaying) {
-      startSceneSpeech(activeSceneIndex, elapsedSceneTime);
+      startSceneSpeech(activeSceneIndex, clockRef.current);
     } else {
-      const pos = positionFromElapsed(currentScene, elapsedSceneTime);
+      setElapsedSceneTime(clockRef.current);
+      const pos = positionFromElapsed(currentScene, clockRef.current);
       setLiveSpeaker(pos.activeSpeaker);
     }
     return () => {
@@ -378,16 +456,20 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       return;
     }
 
+    // Tıklama anında ses kanalının kilidini aç (hazırlık uzun sürse bile otomatik oynatma engeli oluşmaz)
+    unlockStudioAudio();
+    setWrapUpOpen(false);
+
     let targetSceneIdx = activeSceneIndex;
-    let targetElapsed = elapsedSceneTime;
+    let targetElapsed = clockRef.current;
     if (
       activeSceneIndex === scenes.length - 1 &&
-      elapsedSceneTime >= currentScene.durationSec - 0.3
+      clockRef.current >= currentScene.durationSec - 0.3
     ) {
       targetSceneIdx = 0;
       targetElapsed = 0;
       setActiveSceneIndex(0);
-      setElapsedSceneTime(0);
+      setClock(0);
     }
 
     const targetScene = scenes[targetSceneIdx] || currentScene;
@@ -396,12 +478,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       setIsPreparingAudio(true);
       try {
         const startPos = positionFromElapsed(targetScene, targetElapsed);
-        await prepareSceneFirstTurn(
-          targetScene,
-          speakerVoices,
-          preferCloudNeural,
-          startPos.sentenceIndex,
-        );
+        await Promise.race([
+          prepareSceneFirstTurn(targetScene, speakerVoices, preferCloudNeural, startPos.sentenceIndex),
+          new Promise<void>(resolve => window.setTimeout(resolve, 10000)),
+        ]);
       } catch {
         // Sentez hatası olursa normal akış devam eder
       }
@@ -417,44 +497,50 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     stopSpeech,
     activeSceneIndex,
     scenes,
-    elapsedSceneTime,
     currentScene,
     isMuted,
     volume,
     speakerVoices,
     preferCloudNeural,
+    setClock,
   ]);
 
   const goToScene = useCallback(
     (index: number, seekSec = 0) => {
       const nextIdx = Math.max(0, Math.min(scenes.length - 1, index));
+      prepareTokenRef.current += 1;
+      setIsPreparingAudio(false);
       stopSpeech();
       setHasStartedOnce(true);
+      setWrapUpOpen(false);
+      advanceLockRef.current = nextIdx;
       setActiveSceneIndex(nextIdx);
-      setElapsedSceneTime(seekSec);
+      setClock(seekSec);
       const pos = positionFromElapsed(scenes[nextIdx], seekSec);
       speechSyncRef.current = {
         sentenceIndex: pos.sentenceIndex,
         charInSentence: pos.charInSentence,
         hasBoundaryEvents: false,
         inBreathPause: false,
+        buffering: false,
         activeSpeaker: pos.activeSpeaker,
         cloudViseme: null,
         cloudMouth: null,
       };
+      setIsBuffering(false);
       setLiveSpeaker(pos.activeSpeaker);
       if (isPlaying && nextIdx === activeSceneIndex) {
         startSceneSpeech(nextIdx, seekSec);
       }
     },
-    [scenes, stopSpeech, isPlaying, activeSceneIndex, startSceneSpeech],
+    [scenes, stopSpeech, isPlaying, activeSceneIndex, startSceneSpeech, setClock],
   );
 
   const seekRelative = useCallback(
     (deltaSec: number) => {
       setHasStartedOnce(true);
-      const targetTime = Math.max(0, Math.min(currentScene.durationSec - 0.1, elapsedSceneTime + deltaSec));
-      setElapsedSceneTime(targetTime);
+      const targetTime = Math.max(0, Math.min(currentScene.durationSec - 0.1, clockRef.current + deltaSec));
+      setClock(targetTime);
       const pos = positionFromElapsed(currentScene, targetTime);
       speechSyncRef.current.sentenceIndex = pos.sentenceIndex;
       speechSyncRef.current.charInSentence = pos.charInSentence;
@@ -464,7 +550,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         startSceneSpeech(activeSceneIndex, targetTime);
       }
     },
-    [currentScene, elapsedSceneTime, isPlaying, startSceneSpeech, activeSceneIndex],
+    [currentScene, isPlaying, startSceneSpeech, activeSceneIndex, setClock],
   );
 
   const toggleFullscreen = useCallback(() => {
@@ -484,9 +570,39 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.code === 'Escape') {
+        if (voiceMenuOpen) {
+          setVoiceMenuOpen(false);
+          return;
+        }
+        if (wrapUpOpen) {
+          setWrapUpOpen(false);
+          return;
+        }
+        if (!document.fullscreenElement) {
+          if (document.querySelector('[role="dialog"]')) return;
+          onClose?.();
+        }
+        return;
+      }
+
+      // Ders sonu değerlendirmesi açıkken oynatıcı kısayolları devre dışı
+      if (wrapUpOpen) return;
+
       if (e.code === 'Space') {
+        // Odaklı bir düğme varken boşluk tuşunun hem tıklama hem kısayol olarak iki kez tetiklenmesini engelle
         e.preventDefault();
+        if (target instanceof HTMLButtonElement) target.blur();
         togglePlay();
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
@@ -500,16 +616,65 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         toggleFullscreen();
       } else if (e.code === 'KeyC') {
         setShowSubtitles(s => !s);
-      } else if (e.code === 'Escape' && !document.fullscreenElement) {
-        if (document.querySelector('[role="dialog"]')) return;
-        onClose?.();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, seekRelative, toggleFullscreen, onClose]);
+  }, [togglePlay, seekRelative, toggleFullscreen, onClose, voiceMenuOpen, wrapUpOpen]);
 
-  // 60 FPS Sahne ve Dudak Senkronu Döngüsü
+  // Ses menüsü dışına tıklanınca kapat
+  const voiceMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!voiceMenuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (voiceMenuRef.current && !voiceMenuRef.current.contains(e.target as Node)) {
+        setVoiceMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [voiceMenuOpen]);
+
+  // Render döngüsünün her karede yeniden kurulmaması için tüm canlı değerler tek bir ref üzerinden okunur
+  const sceneStarts = useMemo(() => {
+    const starts: number[] = [];
+    let acc = 0;
+    scenes.forEach(s => {
+      starts.push(acc);
+      acc += s.durationSec;
+    });
+    return starts;
+  }, [scenes]);
+
+  const liveRef = useRef({
+    currentScene,
+    activeSceneIndex,
+    scenes,
+    sceneStarts,
+    isPlaying,
+    hasStartedOnce,
+    playbackSpeed,
+    silent: isMuted || volume <= 0.01,
+    showSubtitles,
+    course: material.course || '',
+    totalDurationSec,
+  });
+  liveRef.current = {
+    currentScene,
+    activeSceneIndex,
+    scenes,
+    sceneStarts,
+    isPlaying,
+    hasStartedOnce,
+    playbackSpeed,
+    silent: isMuted || volume <= 0.01,
+    showSubtitles,
+    course: material.course || '',
+    totalDurationSec,
+  };
+  const lastLiveSpeakerRef = useRef<Speaker>('Deniz');
+
+  // 60 FPS Sahne ve Dudak Senkronu Döngüsü (tek sefer kurulur, React yeniden çizimlerinden bağımsız)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -518,50 +683,86 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
     let animId: number;
 
+    const advanceScene = () => {
+      const L = liveRef.current;
+      lastSpeechActivityRef.current = performance.now();
+      if (L.activeSceneIndex + 1 < L.scenes.length) {
+        const nextIdx = L.activeSceneIndex + 1;
+        clockRef.current = 0;
+        speechSyncRef.current.sentenceIndex = 0;
+        speechSyncRef.current.charInSentence = 0;
+        speechSyncRef.current.hasBoundaryEvents = false;
+        liveRef.current = { ...L, activeSceneIndex: nextIdx, currentScene: L.scenes[nextIdx] };
+        setActiveSceneIndex(nextIdx);
+        setElapsedSceneTime(0);
+      } else {
+        liveRef.current = { ...L, isPlaying: false };
+        finishLessonRef.current();
+      }
+    };
+
     const tick = (perfNow: number) => {
       const dt = Math.min(0.1, Math.max(0, (perfNow - lastTickRef.current) / 1000));
       lastTickRef.current = perfNow;
 
-      if (isPlaying) {
-        if (!speechSyncRef.current.inBreathPause) {
-          setElapsedSceneTime(prev => {
-            const rateFactor = speechSyncRef.current.hasBoundaryEvents ? 0.35 : 1.0;
-            const next = prev + dt * playbackSpeed * rateFactor;
-            if ((isMuted || !('speechSynthesis' in window)) && next >= currentScene.durationSec) {
-              if (activeSceneIndex + 1 < scenes.length) {
-                setActiveSceneIndex(activeSceneIndex + 1);
-                return 0;
-              }
-              setIsPlaying(false);
-              return currentScene.durationSec;
-            }
-            return Math.min(currentScene.durationSec, next);
-          });
+      const L = liveRef.current;
+      const scene = L.currentScene;
+      const sync = speechSyncRef.current;
 
-          const curSentence = currentScene.sentences[speechSyncRef.current.sentenceIndex] || '';
-          const charSpeed = speechSyncRef.current.hasBoundaryEvents ? 0.65 : 1.0;
-          speechSyncRef.current.charInSentence = Math.min(
-            curSentence.length,
-            speechSyncRef.current.charInSentence + dt * CHARS_PER_SEC * playbackSpeed * charSpeed,
-          );
+      if (L.isPlaying) {
+        const frozen = sync.inBreathPause || sync.buffering;
+        if (!frozen) {
+          const rateFactor = sync.hasBoundaryEvents ? 0.35 : 1.0;
+          clockRef.current = Math.min(scene.durationSec, clockRef.current + dt * L.playbackSpeed * rateFactor);
+
+          if (!sync.hasBoundaryEvents) {
+            // Ses senkron olayları yokken (sessiz mod / hazırlık) konum doğrudan sahne saatinden türetilir
+            const pos = positionFromElapsed(scene, clockRef.current);
+            sync.sentenceIndex = pos.sentenceIndex;
+            sync.charInSentence = pos.charInSentence;
+            if (L.silent) sync.activeSpeaker = pos.activeSpeaker;
+          } else {
+            const curSentence = scene.sentences[sync.sentenceIndex] || '';
+            sync.charInSentence = Math.min(
+              curSentence.length,
+              sync.charInSentence + dt * CHARS_PER_SEC * L.playbackSpeed * 0.65,
+            );
+          }
+        }
+
+        // Sahne sonu: sessiz modda anında, sesli modda konuşma motoru takılırsa (6 sn sessizlik) güvenli geçiş
+        if (clockRef.current >= scene.durationSec - 0.001) {
+          const stalled =
+            !L.silent && !sync.buffering && perfNow - lastSpeechActivityRef.current > 6000;
+          if (L.silent || stalled) advanceScene();
+        }
+
+        // Arayüz (zaman çizelgesi, sayaç) için seyrek React güncellemesi
+        if (perfNow - lastUiSyncRef.current > 120) {
+          lastUiSyncRef.current = perfNow;
+          setElapsedSceneTime(clockRef.current);
+          if (sync.activeSpeaker !== lastLiveSpeakerRef.current) {
+            lastLiveSpeakerRef.current = sync.activeSpeaker;
+            setLiveSpeaker(sync.activeSpeaker);
+          }
         }
       }
 
-      const fallbackPos = positionFromElapsed(currentScene, elapsedSceneTime);
-      const sIdx = isPlaying ? speechSyncRef.current.sentenceIndex : fallbackPos.sentenceIndex;
-      const cIdx = isPlaying ? Math.floor(speechSyncRef.current.charInSentence) : Math.floor(fallbackPos.charInSentence);
-      const activeSpk = isPlaying
-        ? speechSyncRef.current.activeSpeaker
-        : fallbackPos.activeSpeaker;
-      const activeSentence = currentScene.sentences[sIdx] || currentScene.narration;
+      const live = liveRef.current;
+      const frameScene = live.currentScene;
+      const fallbackPos = positionFromElapsed(frameScene, clockRef.current);
+      const sIdx = live.isPlaying ? sync.sentenceIndex : fallbackPos.sentenceIndex;
+      const cIdx = live.isPlaying ? Math.floor(sync.charInSentence) : Math.floor(fallbackPos.charInSentence);
+      const activeSpk = live.isPlaying ? sync.activeSpeaker : fallbackPos.activeSpeaker;
+      const activeSentence = frameScene.sentences[sIdx] || frameScene.narration;
 
       let targetViseme: Viseme = 'rest';
       let targetOpen = 0;
 
-      if (isPlaying && !speechSyncRef.current.inBreathPause) {
-        if (speechSyncRef.current.cloudMouth !== null && speechSyncRef.current.cloudViseme) {
-          targetViseme = speechSyncRef.current.cloudViseme;
-          targetOpen = speechSyncRef.current.cloudMouth;
+      if (live.isPlaying && !sync.inBreathPause && !sync.buffering) {
+        if (sync.cloudMouth !== null && sync.cloudViseme) {
+          targetViseme = sync.cloudViseme;
+          targetOpen = sync.cloudMouth;
         } else {
           const ch = activeSentence.charAt(Math.max(0, Math.min(activeSentence.length - 1, cIdx)));
           const vInfo = visemeFromTurkishChar(ch);
@@ -573,49 +774,41 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
       smoothMouthRef.current += (targetOpen - smoothMouthRef.current) * Math.min(1, dt * 22);
 
-      const elapsedBefore = scenes.slice(0, activeSceneIndex).reduce((acc, s) => acc + s.durationSec, 0);
-      const overall = totalDurationSec > 0 ? (elapsedBefore + elapsedSceneTime) / totalDurationSec : 0;
+      const elapsedBefore = live.sceneStarts[live.activeSceneIndex] || 0;
+      const overall = live.totalDurationSec > 0 ? (elapsedBefore + clockRef.current) / live.totalDurationSec : 0;
 
       const frame: StageFrame = {
-        scene: currentScene,
-        sceneIndex: activeSceneIndex,
-        sceneCount: scenes.length,
+        scene: frameScene,
+        sceneIndex: live.activeSceneIndex,
+        sceneCount: live.scenes.length,
         progress: fallbackPos.progress,
         overall,
-        sceneTime: elapsedSceneTime,
+        sceneTime: clockRef.current,
         sentenceIndex: sIdx,
         charInSentence: cIdx,
         activeSpeaker: activeSpk,
-        playing: isPlaying,
-        poster: !hasStartedOnce,
+        playing: live.isPlaying,
+        poster: !live.hasStartedOnce,
         now: Date.now(),
-        courseLabel: material.course || '',
-        showSubtitles,
+        courseLabel: live.course,
+        showSubtitles: live.showSubtitles,
         viseme: targetViseme,
         mouthOpen: smoothMouthRef.current,
-        inBreathPause: speechSyncRef.current.inBreathPause,
+        inBreathPause: sync.inBreathPause || sync.buffering,
       };
 
-      renderStage(ctx, frame);
+      try {
+        renderStage(ctx, frame);
+      } catch {
+        // Tek bir karedeki çizim hatası tüm oynatıcıyı durdurmasın
+      }
       animId = requestAnimationFrame(tick);
     };
 
     lastTickRef.current = performance.now();
     animId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(animId);
-  }, [
-    currentScene,
-    activeSceneIndex,
-    scenes,
-    elapsedSceneTime,
-    isPlaying,
-    hasStartedOnce,
-    playbackSpeed,
-    isMuted,
-    showSubtitles,
-    material.course,
-    totalDurationSec,
-  ]);
+  }, []);
 
   const copyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -683,6 +876,23 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     if (keyFacts.length > 0) {
       lines.push(`\n---\n## Sınav Öncesi Hap Bilgiler`);
       keyFacts.forEach((f, idx) => lines.push(`${idx + 1}. ${f}`));
+    }
+
+    if (matchingPairs.length > 0) {
+      lines.push(`\n---\n## Kavram Eşleştirme Tablosu`);
+      matchingPairs.forEach(p => lines.push(`- **${p.term}** ↔ ${p.definition}`));
+    }
+
+    if (examQuestions.length > 0) {
+      lines.push(`\n---\n## Hocanın Sorabileceği Sorular`);
+      examQuestions.forEach((q, idx) => {
+        lines.push(`\n**Soru ${idx + 1}:** ${q.question}`);
+        q.options.forEach((opt, oi) => {
+          const mark = oi === q.correctIndex ? '✓' : ' ';
+          lines.push(`- [${mark}] ${opt}`);
+        });
+        lines.push(`> **Çözüm & Hoca Notu:** ${q.explanation}`);
+      });
     }
 
     if (personalNotes.length > 0) {
@@ -767,12 +977,19 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     );
   }, [allTerms, termQuery]);
 
-  const activeVoiceQuality = speakerVoices[liveSpeaker]?.quality;
+  const openPracticeWrapUp = () => {
+    if (isPlaying) {
+      setIsPlaying(false);
+      stopSpeech();
+    }
+    setVoiceMenuOpen(false);
+    setWrapUpOpen(true);
+  };
 
   const studioElement = (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[200] flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#050811] text-slate-100 select-none font-sans"
+      className="pointer-events-auto fixed inset-0 z-[200] flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#050811] text-slate-100 select-none font-sans"
     >
       {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
       <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-[#070b16]/95 px-3 sm:px-5 backdrop-blur-xl">
@@ -813,36 +1030,48 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           </div>
         </div>
 
-        {/* Sağ: Gerçek Akademik Araçlar */}
+        {/* Sağ: Akademik Araçlar */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {/* Gelişmiş HD Türkçe Neural Stüdyo Ses Ayarları */}
-          <div className="relative">
+          {/* Ders Sonu Eşleştirme & Sınav Soruları */}
+          <button
+            onClick={openPracticeWrapUp}
+            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition ${
+              wrapUpOpen
+                ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
+                : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:border-cyan-400/50 hover:bg-cyan-500/20'
+            }`}
+            title="Kavram Eşleştirme ve Hocanın Sorabileceği Sorular"
+          >
+            <Trophy className="h-3.5 w-3.5 text-amber-400" />
+            <span className="hidden md:inline">Eşleştirme & Sınav</span>
+          </button>
+
+          {/* Ses Ayarları Menüsü */}
+          <div ref={voiceMenuRef} className="relative">
             <button
               onClick={() => setVoiceMenuOpen(o => !o)}
-              className="flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs text-slate-300 transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
-              title="HD Türkçe Neural Anlatıcı Ses Ayarları"
+              className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs transition ${
+                voiceMenuOpen
+                  ? 'border-white/25 bg-white/[0.09] text-white'
+                  : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white'
+              }`}
+              title="Ses Ayarları"
             >
               {vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling' ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
               ) : (
                 <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-400" />
               )}
-              <span className="hidden xl:inline">
-                {vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling'
-                  ? `Neural Ses %${vitsStatus.progressPct}`
-                  : activeVoiceQuality === 'neural' || preferCloudNeural
-                  ? 'HD Neural Türkçe Ses'
-                  : 'Ses Ayarları'}
-              </span>
+              <span className="hidden xl:inline">Ses Ayarları</span>
             </button>
 
             {voiceMenuOpen && (
-              <div className="absolute right-0 top-10 z-50 w-80 sm:w-[348px] rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
+              <div className="absolute right-0 top-10 z-50 w-80 sm:w-[340px] rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="font-semibold text-white">Akıcı Türkçe Neural Stüdyo Sesi</span>
+                    <span className="font-semibold text-white">Ses Ayarları</span>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      22kHz Derin Sinir Ağı · Doğal nefes ve akıcı cümle geçişi
+                      Dr. Deniz ve Barış anlatıcı sesleri
                     </p>
                   </div>
                   <button
@@ -853,11 +1082,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </button>
                 </div>
 
-                {/* Neural Model Hazırlık Durumu */}
                 {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
                   <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 space-y-1.5">
                     <div className="flex items-center justify-between text-[11px] text-cyan-200">
-                      <span>{vitsStatus.activeLabel || 'Akıcı Türkçe Neural Ses Hazırlanıyor'}</span>
+                      <span>Ses paketi yükleniyor...</span>
                       <span className="font-mono">%{vitsStatus.progressPct}</span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-900">
@@ -866,17 +1094,13 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                         style={{ width: `${vitsStatus.progressPct}%` }}
                       />
                     </div>
-                    <p className="text-[10px] text-slate-300">
-                      İlk kullanımda tarayıcı önbelleğine kaydedilir; sonraki derslerde anında başlar.
-                    </p>
                   </div>
                 )}
 
-                {/* Bulut AI Stüdyo Sesi Anahtarı */}
                 <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
                   <div>
-                    <div className="font-medium text-slate-100">Bulut & Neural Stüdyo Önceliği</div>
-                    <div className="text-[10px] text-slate-400">Saf stüdyo sessizliği, sıfır arka plan uğultusu</div>
+                    <div className="font-medium text-slate-100">Yüksek Kalite Stüdyo Sesi</div>
+                    <div className="text-[10px] text-slate-400">Temiz ve akıcı Türkçe seslendirme</div>
                   </div>
                   <input
                     type="checkbox"
@@ -890,7 +1114,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-[11px] font-medium text-cyan-300">
-                        Dr. Deniz (Kürsü Profesörü)
+                        Dr. Deniz (Anlatıcı)
                       </label>
                       <button
                         type="button"
@@ -911,10 +1135,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       onChange={e => setPreferredDenizVoice(e.target.value)}
                       className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
                     >
-                      <option value="">Önerilen ({speakerVoices.Deniz.label})</option>
+                      <option value="">Varsayılan ({speakerVoices.Deniz.label})</option>
                       {voices.map(v => (
                         <option key={v.id} value={v.id}>
-                          {v.cleanName} {v.quality === 'neural' ? '★ Neural HD' : v.quality === 'cloud' ? '· Bulut HD' : ''}
+                          {v.cleanName}
                         </option>
                       ))}
                     </select>
@@ -923,7 +1147,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-[11px] font-medium text-purple-300">
-                        Barış (Araştırmacı & Soru Soran)
+                        Barış (Soru Soran)
                       </label>
                       <button
                         type="button"
@@ -944,10 +1168,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       onChange={e => setPreferredBarisVoice(e.target.value)}
                       className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-purple-500 focus:outline-none"
                     >
-                      <option value="">Önerilen ({speakerVoices.Barış.label})</option>
+                      <option value="">Varsayılan ({speakerVoices.Barış.label})</option>
                       {voices.map(v => (
                         <option key={v.id} value={v.id}>
-                          {v.cleanName} {v.quality === 'neural' ? '★ Neural HD' : v.quality === 'cloud' ? '· Bulut HD' : ''}
+                          {v.cleanName}
                         </option>
                       ))}
                     </select>
@@ -991,7 +1215,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           <button
             onClick={handleDownloadStudySheet}
             className="hidden md:flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
-            title="Tüm ders notlarını ve sözlüğü indir (.md)"
+            title="Tüm ders notlarını ve soruları indir (.md)"
           >
             <FileDown className="h-3.5 w-3.5 text-emerald-400" />
             <span className="hidden xl:inline">Notları İndir</span>
@@ -1103,53 +1327,41 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 className="block h-full w-full cursor-pointer object-contain"
               />
 
-              {/* Akıcı Türkçe Neural Ses Ön-Hazırlık Katmanı */}
-              {isPreparingAudio && (
+              {/* Sade Video Yükleme Katmanı */}
+              {(isPreparingAudio || isBuffering) && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#040710]/82 backdrop-blur-md px-6 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15 text-cyan-300 shadow-[0_0_40px_rgba(34,211,238,0.28)]">
-                    <Loader2 className="h-7 w-7 animate-spin" />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15 text-cyan-300 shadow-[0_0_36px_rgba(34,211,238,0.24)]">
+                    <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
-                  <h3 className="mt-4 text-base sm:text-lg font-bold text-white">
-                    Akıcı Türkçe Stüdyo Sesi Hazırlanıyor...
-                  </h3>
-                  <p className="mt-1 max-w-md text-xs text-slate-300">
-                    Dr. Deniz ve Barış için 22kHz Neural Türkçe ses motoru pürüzsüz cümle akışıyla sentezleniyor.
+                  <p className="mt-4 text-sm sm:text-base font-semibold tracking-tight text-white">
+                    Video yükleniyor lütfen bekleyiniz
                   </p>
                   {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
-                    <div className="mt-3 w-full max-w-xs space-y-1">
-                      <div className="flex justify-between text-[11px] text-cyan-200 font-mono">
-                        <span>Stüdyo Ses Motoru</span>
-                        <span>%{vitsStatus.progressPct}</span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-200"
-                          style={{ width: `${Math.max(8, vitsStatus.progressPct)}%` }}
-                        />
-                      </div>
+                    <div className="mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-200"
+                        style={{ width: `${Math.max(10, vitsStatus.progressPct)}%` }}
+                      />
                     </div>
                   )}
                 </div>
               )}
 
-              {/* İlk Başlangıç Sinematik Kapak Katmanı */}
+              {/* İlk Başlangıç Kapak Katmanı */}
               {!hasStartedOnce && !isPreparingAudio && (
                 <div
                   onClick={togglePlay}
-                  className="group absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-gradient-to-t from-[#040710]/90 via-[#040710]/45 to-transparent backdrop-blur-[2px] transition-all"
+                  className="group absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-gradient-to-t from-[#040710]/85 via-[#040710]/40 to-transparent backdrop-blur-[1.5px] transition-all"
                 >
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-[0_0_50px_rgba(34,211,238,0.5)] transition-transform duration-300 group-hover:scale-110">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-[0_0_50px_rgba(34,211,238,0.45)] transition-transform duration-300 group-hover:scale-110">
                     <Play className="ml-1 h-8 w-8 fill-slate-950" />
                   </div>
                   <div className="mt-4 text-center px-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
-                      Dr. Deniz & Barış · Akıcı Türkçe Neural Stüdyo
-                    </p>
-                    <h2 className="mt-1 text-lg sm:text-xl font-bold text-white">
-                      Dersi Başlat ({scenes.length} Bölüm · {formatTime(totalDurationSec)})
+                    <h2 className="text-base sm:text-lg font-bold text-white">
+                      Dersi Başlat
                     </h2>
-                    <p className="mt-1 text-xs text-slate-300">
-                      Görseller · Şekiller · Tablolar · Analitik Grafikler · Vaka Senaryoları
+                    <p className="mt-0.5 text-xs text-slate-300">
+                      {scenes.length} Bölüm · {formatTime(totalDurationSec)}
                     </p>
                   </div>
                 </div>
@@ -1160,9 +1372,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           {/* ALT KONTROL DOCK & BÖLÜMLÜ ZAMAN ÇİZELGESİ */}
           <div className="relative z-20 shrink-0 border-t border-white/[0.07] bg-[#070b16]/95 px-4 py-2.5 backdrop-blur-xl">
             {hoveredChapter !== null && scenes[hoveredChapter] && (
-              <div className="mb-1.5 flex items-center justify-between text-[11px] text-cyan-300">
+              <div className="mb-1 flex items-center justify-between text-[11px] text-cyan-300">
                 <span className="truncate font-medium">
-                  Bölüm {hoveredChapter + 1}: {scenes[hoveredChapter].title} · {DIAGRAM_BADGE_TR[scenes[hoveredChapter].diagram.type]}
+                  Bölüm {hoveredChapter + 1}: {scenes[hoveredChapter].title}
                 </span>
                 <span className="font-mono text-slate-400">{formatTime(scenes[hoveredChapter].durationSec)}</span>
               </div>
@@ -1173,7 +1385,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 {formatTime(totalElapsedSec)}
               </span>
 
-              <div className="flex flex-1 items-center gap-1 py-1">
+              <div className="flex flex-1 items-center gap-1">
                 {scenes.map((sc, idx) => {
                   const weight = sc.durationSec / Math.max(1, totalDurationSec);
                   let fillPct = 0;
@@ -1182,23 +1394,35 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     fillPct = Math.min(100, (elapsedSceneTime / Math.max(0.1, sc.durationSec)) * 100);
                   }
 
+                  const scrubChapter = (clientX: number, el: HTMLDivElement) => {
+                    const rect = el.getBoundingClientRect();
+                    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)));
+                    goToScene(idx, ratio * sc.durationSec);
+                  };
+
                   return (
                     <div
                       key={sc.id}
                       style={{ flexGrow: weight, flexBasis: 0 }}
                       onMouseEnter={() => setHoveredChapter(idx)}
                       onMouseLeave={() => setHoveredChapter(null)}
-                      onClick={e => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                        goToScene(idx, ratio * sc.durationSec);
+                      onPointerDown={e => {
+                        e.currentTarget.setPointerCapture?.(e.pointerId);
+                        scrubChapter(e.clientX, e.currentTarget);
                       }}
-                      className="group relative h-2 cursor-pointer overflow-hidden rounded-full bg-white/[0.12] transition-all hover:h-2.5"
+                      onPointerMove={e => {
+                        if (e.buttons === 1) {
+                          scrubChapter(e.clientX, e.currentTarget);
+                        }
+                      }}
+                      className="group relative cursor-pointer py-2 touch-none"
                     >
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-[width] duration-75"
-                        style={{ width: `${fillPct}%` }}
-                      />
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.12] transition-all group-hover:h-2.5">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-[width] duration-75"
+                          style={{ width: `${fillPct}%` }}
+                        />
+                      </div>
                     </div>
                   );
                 })}
@@ -1209,7 +1433,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               </span>
             </div>
 
-            <div className="mt-1.5 flex items-center justify-between gap-2">
+            <div className="mt-1 flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
                   onClick={() => goToScene(activeSceneIndex - 1)}
@@ -1240,7 +1464,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   ) : (
                     <Play className="h-3.5 w-3.5 fill-slate-950 ml-0.5" />
                   )}
-                  <span>{isPreparingAudio ? 'Hazırlanıyor' : isPlaying ? 'Duraklat' : 'Oynat'}</span>
+                  <span>{isPreparingAudio ? 'Yükleniyor' : isPlaying ? 'Duraklat' : 'Oynat'}</span>
                 </button>
 
                 <button
@@ -1315,9 +1539,27 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           </div>
         </div>
 
+        {/* Mobil/Tablet Yan Panel Arka Plan Örtüsü */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-20 bg-black/60 backdrop-blur-[1px] lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* SAĞ ÇALIŞMA PANELİ */}
         {sidebarOpen && (
           <aside className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[400px] lg:static lg:w-[410px] xl:w-[430px] shrink-0 flex-col border-l border-white/[0.08] bg-[#080d1a]/98 backdrop-blur-2xl shadow-2xl lg:shadow-none">
+            <div className="flex items-center justify-between border-b border-white/[0.07] bg-[#060a14] px-3.5 py-2 lg:hidden">
+              <span className="text-xs font-semibold text-slate-200">Ders Notları ve Pekiştirme</span>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-white/[0.08] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
             <div className="grid grid-cols-5 gap-1 border-b border-white/[0.07] bg-[#060a14] p-2">
               {[
                 { id: 'notes', label: 'Notlar', icon: BookOpen },
@@ -1343,6 +1585,28 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="border-b border-white/[0.07] bg-[#070c18] px-3.5 py-2.5">
+              <button
+                onClick={openPracticeWrapUp}
+                className="flex w-full items-center justify-between gap-2 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-purple-500/10 px-3 py-2 text-left transition hover:border-cyan-400/50 hover:from-cyan-500/20"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
+                    <Trophy className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-white">
+                      Kavram Eşleştirme & Sınav Soruları
+                    </p>
+                    <p className="truncate text-[10px] text-slate-300">
+                      {matchingPairs.length} eşleştirme · {examQuestions.length} hocanın sorabileceği soru
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-cyan-300" />
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -1631,7 +1895,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               )}
 
               {activeTab === 'coach' && (
-                <div className="flex h-[calc(100dvh-165px)] flex-col">
+                <div className="flex h-[calc(100dvh-230px)] min-h-[340px] flex-col">
                   <div className="flex-1 space-y-3 overflow-y-auto pr-1">
                     {coachMessages.map((m, i) => (
                       <div
@@ -1710,6 +1974,31 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               )}
             </div>
           </aside>
+        )}
+
+        {wrapUpOpen && (
+          <LessonWrapUp
+            title={studio.title}
+            courseLabel={material.course || undefined}
+            scenes={scenes}
+            matchingPairs={matchingPairs}
+            examQuestions={examQuestions}
+            keyFacts={keyFacts}
+            onClose={() => setWrapUpOpen(false)}
+            onDownloadNotes={handleDownloadStudySheet}
+            onJumpToScene={idx => {
+              setWrapUpOpen(false);
+              unlockStudioAudio();
+              goToScene(idx, 0);
+              setIsPlaying(true);
+            }}
+            onReplayLesson={() => {
+              setWrapUpOpen(false);
+              unlockStudioAudio();
+              goToScene(0, 0);
+              setIsPlaying(true);
+            }}
+          />
         )}
       </div>
     </div>

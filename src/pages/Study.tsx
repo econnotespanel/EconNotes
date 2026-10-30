@@ -70,7 +70,7 @@ const TYPE_META: Record<MaterialType, { label: string; icon: any; color: string;
   flashcards: { label: 'Bilgi Kartları', icon: Layers, color: 'from-primary to-secondary', desc: 'Aktif hatırlama için çift yüzlü akademik bilgi kartları', tone: 'text-primary', tint: 'bg-primary/10', code: 'KRT' },
   quiz: { label: 'Kısa Sınav', icon: ClipboardList, color: 'from-accent to-secondary', desc: 'Çözümlü test, klasik veya karma sınav simülasyonu', tone: 'text-accent', tint: 'bg-accent/10', code: 'SNV' },
   summary: { label: 'Konu Özeti', icon: FileTextIcon, color: 'from-success to-primary', desc: 'Yapılandırılmış özet, kilit kavramlar ve infografik notlar', tone: 'text-success', tint: 'bg-success/10', code: 'ÖZT' },
-  video: { label: 'Video Dersi', icon: VideoIcon, color: 'from-cyan-500 to-blue-600', desc: 'Dr. Deniz & Barış ile akıcı Türkçe sesli, tablo, grafik ve senaryolu ders', tone: 'text-cyan-500', tint: 'bg-cyan-500/10', code: 'VİD' },
+  video: { label: 'Video Dersi', icon: VideoIcon, color: 'from-cyan-500 to-blue-600', desc: 'Anlaşılır konu anlatımı, hocanın sorabileceği noktalar ve eşleştirme sistemi', tone: 'text-cyan-500', tint: 'bg-cyan-500/10', code: 'VİD' },
 };
 
 
@@ -124,7 +124,7 @@ const Study = () => {
   const [progressLabel, setProgressLabel] = useState('');
   const progressTimer = useRef<number | null>(null);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     const createParam = searchParams.get('create');
@@ -137,8 +137,13 @@ const Study = () => {
         setSourceMode(sourceModeParam);
       }
       setCreateOpen(true);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('create');
+      nextParams.delete('noteId');
+      nextParams.delete('sourceMode');
+      setSearchParams(nextParams, { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, setSearchParams]);
 
   // 1 saat mola sayacı
   const studyStartRef = useRef<number>(Date.now());
@@ -202,7 +207,13 @@ const Study = () => {
   };
 
   const handleGenerate = async () => {
-    let payload: any = { materialType, difficulty, count, examProfile: { examType, totalQuestions: count, examDate, focus, level: difficulty } };
+    const safeCount = Math.max(3, Math.min(30, Number.isFinite(count) ? count : 10));
+    let payload: any = {
+      materialType,
+      difficulty,
+      count: safeCount,
+      examProfile: { examType, totalQuestions: safeCount, examDate, focus, level: difficulty },
+    };
     let titleForMaterial = '';
     let courseForMaterial: string | null = null;
     let sourceNoteId: string | null = null;
@@ -279,11 +290,10 @@ const Study = () => {
 
     if (materialType === 'video') {
       const videoStages = [
-        { cap: 22, label: 'Ders notundaki akademik terimler, veriler ve tarihsel bağlam analiz ediliyor...' },
-        { cap: 48, label: 'Dr. Deniz ve Barış için akıcı Türkçe akademik diyalog kurgulanıyor...' },
-        { cap: 72, label: 'Görseller, şekiller, tablolar, analitik grafikler ve vaka senaryoları üretiliyor...' },
-        { cap: 88, label: 'Gerçekçi karakter mimikleri, dudak senkronu ve 22kHz Neural ses hazırlanıyor...' },
-        { cap: 95, label: 'Tam ekran sinematik çalışma stüdyosu derleniyor...' },
+        { cap: 28, label: 'Ders notundaki temel kavramlar ve konular analiz ediliyor...' },
+        { cap: 58, label: 'Hocanın sorabileceği noktalar ve örnek sorular hazırlanıyor...' },
+        { cap: 85, label: 'Görsel şemalar ve kavram eşleştirme kartları oluşturuluyor...' },
+        { cap: 95, label: 'Video yükleniyor lütfen bekleyiniz...' },
       ];
       let currentStageIdx = 0;
       setProgressLabel(videoStages[0].label);
@@ -311,12 +321,7 @@ const Study = () => {
       if (res.error) throw res.error;
       if (res.data?.error) throw new Error(res.data.error);
 
-      if (materialType === 'video') {
-        setProgressNow(98, 'Stüdyo sahneleri tamamlanıyor...');
-        await new Promise(r => setTimeout(r, 600));
-      }
-
-      setProgressNow(100, 'Kaydediliyor ve stüdyo açılıyor...');
+      setProgressNow(100, 'Kaydediliyor...');
       const { data: inserted, error } = await supabase.from('study_materials').insert({
         user_id: user!.id,
         source_type: sourceMode === 'platform' ? 'platform' : 'own',
@@ -331,7 +336,7 @@ const Study = () => {
       if (error) throw error;
 
       stopProgress(true);
-      toast.success(materialType === 'video' ? '🎬 Canlı video dersi stüdyosu hazır!' : 'Materyal hazır.');
+      toast.success(materialType === 'video' ? 'Video dersi hazır.' : 'Materyal hazır.');
       setCreateOpen(false);
       setActiveMaterial(inserted as StudyMaterial);
       setUploadFile(null); setUploadTitle(''); setUploadCourse(''); setUploadDescription('');
@@ -625,7 +630,7 @@ const Study = () => {
                 : '';
               const detailPill =
                 m.material_type === 'video'
-                  ? `${Math.max(6, Array.isArray(m.content?.scenes) ? m.content.scenes.length : 6)} Bölüm · Akıcı Türkçe Stüdyo`
+                  ? `${Math.max(6, Array.isArray(m.content?.scenes) ? m.content.scenes.length : 6)} Bölüm · Eşleştirme & Sınav Odaklı`
                   : m.material_type === 'flashcards' && Array.isArray(m.content?.cards)
                   ? `${m.content.cards.length} Bilgi Kartı`
                   : m.material_type === 'quiz' && Array.isArray(m.content?.questions)
@@ -731,14 +736,14 @@ const Study = () => {
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25">
                   <VideoIcon className="h-5 w-5" />
                 </div>
-                <div className="space-y-2 text-xs">
+                <div className="space-y-1.5 text-xs">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-sm text-foreground">Sinematik İnteraktif Video Dersi Stüdyosu</span>
-                    <Badge className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30 text-[10px] font-semibold">AKICI TÜRKÇE NEURAL SES</Badge>
-                    <Badge className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 text-[10px] font-bold">5+ DK KAPSAMLI DERS</Badge>
+                    <span className="font-bold text-sm text-foreground">İnteraktif Video Dersi</span>
+                    <Badge className="bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30 text-[10px] font-semibold">SINAV ODAKLI</Badge>
+                    <Badge className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-0 text-[10px] font-bold">EŞLEŞTİRME & SORU</Badge>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    Seçtiğiniz ders notu iki gerçekçi anlatıcı (<strong>Dr. Deniz</strong> & <strong>Barış</strong>) ve 22kHz akıcı Türkçe Neural ses sentezi ile kapsamlı bir tam ekran video dersine dönüşür. Ders boyunca görseller, şekiller, karşılaştırma tabloları, analitik grafikler, vaka senaryoları ve zaman damgalı çalışma notları eşzamanlı akar.
+                    Ders notunuz öğrencilerin kolayca anlayabileceği bir dille, <strong>hocanın sınavda sorabileceği noktalar</strong> vurgulanarak anlatılır; ders sonunda kavram eşleştirme ve çözümlü sınav soruları açılır.
                   </p>
                 </div>
               </div>
@@ -819,10 +824,22 @@ const Study = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-xs">{materialType === 'flashcards' ? 'Kart sayısı' : 'Soru sayısı'}</Label>
-                  <Input type="number" className="h-9" min={3} max={30} value={count} onChange={e => setCount(parseInt(e.target.value) || 10)} />
-                </div>
+                {(materialType === 'flashcards' || materialType === 'quiz') && (
+                  <div>
+                    <Label className="text-xs">{materialType === 'flashcards' ? 'Kart sayısı' : 'Soru sayısı'}</Label>
+                    <Input
+                      type="number"
+                      className="h-9"
+                      min={3}
+                      max={30}
+                      value={count}
+                      onChange={e => {
+                        const parsed = parseInt(e.target.value, 10);
+                        setCount(Number.isFinite(parsed) ? Math.max(3, Math.min(30, parsed)) : 10);
+                      }}
+                    />
+                  </div>
+                )}
                 <div>
                   <Label className="text-xs">Zorluk</Label>
                   <Select value={difficulty} onValueChange={(v: any) => setDifficulty(v)}>
@@ -866,6 +883,7 @@ const Study = () => {
       {/* Interactive Video Studio - True Full Screen Cinema Overlay */}
       {activeMaterial && activeMaterial.material_type === 'video' && (
         <InteractiveVideoStudio
+          key={activeMaterial.id}
           material={activeMaterial}
           onClose={() => setActiveMaterial(null)}
           onReport={() => setReportOpen(true)}

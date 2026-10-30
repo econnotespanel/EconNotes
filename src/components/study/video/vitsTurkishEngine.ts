@@ -35,7 +35,7 @@ export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
   {
     voiceId: 'tr_TR-eren-fluid',
     optionId: 'vits:tr_TR-eren-fluid',
-    cleanName: 'Eren · Akıcı Akademik Neural HD',
+    cleanName: 'Eren · Akademik Anlatıcı',
     roleHint: 'Sıcak, akıcı kıdemli akademisyen tonu',
     gender: 'male',
     score: 102,
@@ -49,7 +49,7 @@ export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
   {
     voiceId: 'tr_TR-fahrettin-medium',
     optionId: 'vits:tr_TR-fahrettin-medium',
-    cleanName: 'Fahrettin · Akıcı Stüdyo Neural HD',
+    cleanName: 'Fahrettin · Stüdyo Anlatıcı',
     roleHint: 'Dinamik, berrak araştırmacı tonu',
     gender: 'male',
     score: 101,
@@ -62,7 +62,7 @@ export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
   {
     voiceId: 'tr_TR-dfki-medium',
     optionId: 'vits:tr_TR-dfki-medium',
-    cleanName: 'Obadiah · Berrak Kürsü Neural HD',
+    cleanName: 'Obadiah · Kürsü Anlatıcı',
     roleHint: 'Duru, tane tane kürsü anlatımı',
     gender: 'male',
     score: 99,
@@ -75,7 +75,7 @@ export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
   {
     voiceId: 'tr_TR-fettah-medium',
     optionId: 'vits:tr_TR-fettah-medium',
-    cleanName: 'Fettah · Belgesel Anlatıcı Neural HD',
+    cleanName: 'Fettah · Belgesel Anlatıcı',
     roleHint: 'Tok, sakin belgesel anlatımı',
     gender: 'male',
     score: 98,
@@ -104,7 +104,9 @@ export interface SynthesizedSpeechClip {
 
 interface CompiledVitsModel {
   descriptor: VitsVoiceDescriptor;
-  session: ort.InferenceSession;
+  /** Worker kullanılamadığında yedek ana iş parçacığı oturumu */
+  session: ort.InferenceSession | null;
+  useWorker: boolean;
   config: {
     audio: { sample_rate: number };
     espeak: { voice: string };
@@ -112,6 +114,65 @@ interface CompiledVitsModel {
     phoneme_id_map?: Record<string, number[]>;
     speaker_id_map?: Record<string, number>;
   };
+}
+
+// Arka Plan Ses Çıkarım Worker Yöneticisi (Ana arayüzü hiçbir zaman dondurmaz)
+let synthWorker: Worker | null = null;
+let synthWorkerFailed = false;
+let workerMsgSeq = 0;
+const workerPending = new Map<
+  number,
+  { resolve: (data: any) => void; reject: (err: Error) => void }
+>();
+
+function getSynthWorker(): Worker | null {
+  if (synthWorkerFailed || typeof window === 'undefined' || typeof Worker === 'undefined') {
+    return null;
+  }
+  if (synthWorker) return synthWorker;
+  try {
+    const w = new Worker(new URL('./vitsSynthesis.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    w.onmessage = (ev: MessageEvent) => {
+      const data = ev.data;
+      if (!data || typeof data.id !== 'number') return;
+      const entry = workerPending.get(data.id);
+      if (!entry) return;
+      workerPending.delete(data.id);
+      if (data.ok) entry.resolve(data);
+      else entry.reject(new Error(data.error || 'Worker hatası'));
+    };
+    w.onerror = () => {
+      synthWorkerFailed = true;
+      synthWorker = null;
+      workerPending.forEach(({ reject }) => reject(new Error('Ses worker kesildi')));
+      workerPending.clear();
+    };
+    synthWorker = w;
+    return w;
+  } catch {
+    synthWorkerFailed = true;
+    return null;
+  }
+}
+
+function callSynthWorker(
+  payload: Record<string, any>,
+  transfer: Transferable[] = [],
+): Promise<any> {
+  const w = getSynthWorker();
+  if (!w) return Promise.reject(new Error('Worker desteklenmiyor'));
+  const id = ++workerMsgSeq;
+  return new Promise((resolve, reject) => {
+    workerPending.set(id, { resolve, reject });
+    try {
+      w.postMessage({ ...payload, id }, transfer);
+    } catch (e: any) {
+      workerPending.delete(id);
+      reject(e instanceof Error ? e : new Error(String(e)));
+    }
+  });
 }
 
 let ortConfigured = false;
@@ -551,17 +612,40 @@ function getCompiledModel(voiceId: VitsTurkishVoiceId): Promise<CompiledVitsMode
     const configText = new TextDecoder('utf-8').decode(jsonBuf);
     const config = JSON.parse(configText);
 
-    const session = await ort.InferenceSession.create(onnxBuf, {
-      executionProviders: ['wasm'],
-      graphOptimizationLevel: 'all',
-    });
-
-    if (typeof navigator !== 'undefined' && navigator.storage?.getDirectory) {
+    const hasOpfs = typeof navigator !== 'undefined' && Boolean(navigator.storage?.getDirectory);
+    if (hasOpfs) {
       memoryModelBytes.delete(`${descriptor.voiceId}.onnx`);
     }
 
+    let session: ort.InferenceSession | null = null;
+    let useWorker = false;
+    const worker = getSynthWorker();
+    if (worker) {
+      try {
+        // OPFS önbelleği varsa belleği sıfır kopyayla (Transferable) doğrudan worker'a aktar
+        const bufForWorker = hasOpfs ? onnxBuf : onnxBuf.slice(0);
+        await callSynthWorker(
+          { type: 'compile', voiceId: descriptor.voiceId, onnxBuffer: bufForWorker },
+          [bufForWorker],
+        );
+        useWorker = true;
+      } catch {
+        useWorker = false;
+      }
+    }
+
+    if (!useWorker) {
+      const freshOnnx = onnxBuf.byteLength > 0
+        ? onnxBuf
+        : await getOrDownloadAsset(`${descriptor.voiceId}.onnx`, descriptor.onnxUrl);
+      session = await ort.InferenceSession.create(freshOnnx, {
+        executionProviders: ['wasm'],
+        graphOptimizationLevel: 'all',
+      });
+    }
+
     updateStatus({ state: 'ready', progressPct: 100, activeLabel: label });
-    return { descriptor, session, config } as CompiledVitsModel;
+    return { descriptor, session, useWorker, config } as CompiledVitsModel;
   })().catch(err => {
     compiledModelCache.delete(voiceId);
     updateStatus({ state: 'error', progressPct: 0, activeLabel: label });
@@ -631,27 +715,57 @@ export async function synthesizeVitsTurkishTurn(
         Object.keys(model.config.speaker_id_map || {}).length > 0;
 
       const pcmSegments: Float32Array[] = [];
-      for (let i = 0; i < allPhonemeArrays.length; i++) {
-        const phonemeIds = allPhonemeArrays[i];
-        if (!phonemeIds || phonemeIds.length < 3) {
-          pcmSegments.push(new Float32Array(Math.floor(sampleRate * 0.08)));
-          continue;
-        }
-        const inputIds = BigInt64Array.from(phonemeIds, id => BigInt(id));
-        const inputLengths = BigInt64Array.from([BigInt(phonemeIds.length)]);
-        const feeds: Record<string, ort.Tensor> = {
-          input: new ort.Tensor('int64', inputIds, [1, inputIds.length]),
-          input_lengths: new ort.Tensor('int64', inputLengths, [1]),
-          scales: new ort.Tensor('float32', new Float32Array([noiseScale, baseLen, noiseW]), [3]),
-        };
-        if (hasSid) {
-          feeds.sid = new ort.Tensor('int64', BigInt64Array.from([0n]), [1]);
-        }
+      let ranInWorker = false;
 
-        const results = await model.session.run(feeds);
-        const outputTensor = results.output || Object.values(results)[0];
-        if (outputTensor?.data) {
-          pcmSegments.push(trimAndSmoothClausePcm(outputTensor.data as Float32Array, sampleRate));
+      if (model.useWorker) {
+        try {
+          const res = await callSynthWorker({
+            type: 'infer',
+            voiceId: descriptor.voiceId,
+            phonemeArrays: allPhonemeArrays,
+            sampleRate,
+            noiseScale,
+            baseLen,
+            noiseW,
+            hasSid,
+          });
+          if (Array.isArray(res?.pcmBuffers)) {
+            for (const buf of res.pcmBuffers) {
+              pcmSegments.push(new Float32Array(buf));
+            }
+            ranInWorker = true;
+          }
+        } catch {
+          ranInWorker = false;
+        }
+      }
+
+      if (!ranInWorker && model.session) {
+        for (let i = 0; i < allPhonemeArrays.length; i++) {
+          if (i > 0) {
+            await new Promise(r => setTimeout(r, 0));
+          }
+          const phonemeIds = allPhonemeArrays[i];
+          if (!phonemeIds || phonemeIds.length < 3) {
+            pcmSegments.push(new Float32Array(Math.floor(sampleRate * 0.08)));
+            continue;
+          }
+          const inputIds = BigInt64Array.from(phonemeIds, id => BigInt(id));
+          const inputLengths = BigInt64Array.from([BigInt(phonemeIds.length)]);
+          const feeds: Record<string, ort.Tensor> = {
+            input: new ort.Tensor('int64', inputIds, [1, inputIds.length]),
+            input_lengths: new ort.Tensor('int64', inputLengths, [1]),
+            scales: new ort.Tensor('float32', new Float32Array([noiseScale, baseLen, noiseW]), [3]),
+          };
+          if (hasSid) {
+            feeds.sid = new ort.Tensor('int64', BigInt64Array.from([0n]), [1]);
+          }
+
+          const results = await model.session.run(feeds);
+          const outputTensor = results.output || Object.values(results)[0];
+          if (outputTensor?.data) {
+            pcmSegments.push(trimAndSmoothClausePcm(outputTensor.data as Float32Array, sampleRate));
+          }
         }
       }
 

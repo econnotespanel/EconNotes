@@ -233,8 +233,34 @@ const schemas: Record<string, any> = {
         type: 'array',
         items: { type: 'string' },
       },
+      examQuestions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' } },
+            correctIndex: { type: 'integer' },
+            explanation: { type: 'string' },
+          },
+          required: ['question', 'options', 'correctIndex', 'explanation'],
+          additionalProperties: false,
+        },
+      },
+      matchingPairs: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            term: { type: 'string' },
+            definition: { type: 'string' },
+          },
+          required: ['term', 'definition'],
+          additionalProperties: false,
+        },
+      },
     },
-    required: ['outline', 'podcastTitle', 'scenes', 'keyFacts', 'suggestedSearches'],
+    required: ['outline', 'podcastTitle', 'scenes', 'keyFacts', 'suggestedSearches', 'examQuestions', 'matchingPairs'],
     additionalProperties: false,
   },
 };
@@ -308,7 +334,14 @@ KATI AKADEMİK VE DİKSİYON KURALLARI:
    - label: 2-4 kelimelik tam, anlamlı akademik başlık (bağlaç/edat ile biten yarım başlık YASAK).
    - subtext: label'ı tekrar etmeyen, doğrudan mekanizmayı veya sonucu açıklayan zengin, net 1 cümle (15-28 kelime).
    - highlightMetric: Sahnenin alt bandında yer alacak en çarpıcı akademik/sınav çıkarımı.
-   - keyTakeaways (sahne başına 3-4 zengin madde), keyTerms (sahne başına 3-4 terim ve eksiksiz tanımı), examTip (somut sınav çeldirici uyarısı), keyFacts (tüm dersten 8-10 üst düzey hap bilgi), outline (3 cümlelik kapsamlı akademik çerçeve), suggestedSearches (5 ileri okuma başlığı).`;
+   - keyTakeaways (sahne başına 3-4 zengin madde), keyTerms (sahne başına 3-4 terim ve eksiksiz tanımı), examTip (somut sınav çeldirici uyarısı), keyFacts (tüm dersten 8-10 üst düzey hap bilgi), outline (3 cümlelik kapsamlı akademik çerçeve), suggestedSearches (5 ileri okuma başlığı).
+5. ÖĞRENCİ ANLAŞILIRLIĞI VE HOCANIN SORABİLECEĞİ NOKTALAR:
+   - Her sahnede önce kavramı sade ve anlaşılır bir dille açıkla, sonra akademik derinliğe in; öğrenci konuyu ilk dinleyişte kavrayabilmeli.
+   - Her sahnede Barış en az bir kez "Hoca bunu sınavda nasıl sorar?" bakışıyla soru sorsun, Deniz doğru cevabın nasıl kurulacağını açıklasın.
+   - Son bölümlerden biri tamamen "Hocanın Sorabileceği Sorular" olsun: tanım, ayırt etme ve neden-sonuç soru tiplerini cevaplarıyla işle.
+6. DERS SONU DEĞERLENDİRME:
+   - examQuestions: Nottaki en kritik noktalardan, hocanın sınavda sorabileceği 6 adet çoktan seçmeli soru (4 şık, tek doğru cevap correctIndex 0-3, şıklar birbirine yakın ve öğretici çeldiricili, explanation 1-2 cümle). Soru metni kısaltma içermesin.
+   - matchingPairs: Eşleştirme oyunu için nottan 6 adet kavram ve kısa, net tanım çifti (tanım 8-18 kelime, kavram adını içermesin).`;
       break;
   }
 

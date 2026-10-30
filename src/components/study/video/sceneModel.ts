@@ -75,6 +75,25 @@ export interface StudioContent {
   keyFacts: string[];
   searches: string[];
   totalDurationSec: number;
+  /** Ders sonu: Hocanın sorabileceği çoktan seçmeli sorular */
+  examQuestions: ExamQuestion[];
+  /** Ders sonu: Kavram ↔ Tanım eşleştirme kartları */
+  matchingPairs: MatchPair[];
+}
+
+export interface ExamQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  /** Konunun anlatıldığı bölüm (tekrar izle bağlantısı için) */
+  sceneIndex: number;
+}
+
+export interface MatchPair {
+  term: string;
+  definition: string;
+  sceneIndex: number;
 }
 
 /** Doğal Türkçe stüdyo konuşma hızı (1x, nefes ve söz değişim esleri hariç) */
@@ -615,12 +634,12 @@ function buildConversationalSentences(
   ) {
     const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
     if (lastSpk === 'Deniz') {
-      sentences.push(`Sınavda bu başlık karşımıza analitik bir soru olarak geldiğinde hangi ayrım belirleyici olur?`);
+      sentences.push(`Peki Deniz, hoca bu başlığı sınavda nasıl sorar, öğrenci nereye dikkat etmeli?`);
       speakers.push('Barış');
-      sentences.push(`Özellikle şu kritik noktayı gözden kaçırmayalım: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
+      sentences.push(`Hocaların en sık sorduğu nokta şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
       speakers.push('Deniz');
     } else {
-      sentences.push(`Akademik sınavlarda belirleyici olan şu ince ayrımı da not düşelim: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
+      sentences.push(`Bunu sınav açısından not edelim, hocaların en sevdiği soru noktası burası: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
       speakers.push('Deniz');
     }
   }
@@ -803,7 +822,7 @@ function ensureRichFiveMinuteCurriculum(
     return picked;
   };
 
-  const extraScenes: { slot: 'opening' | 'mid1' | 'mid2' | 'late1' | 'late2' | 'closing'; scene: StudioScene }[] = [];
+  const extraScenes: { slot: 'opening' | 'mid1' | 'mid2' | 'late1' | 'late2' | 'exam' | 'closing'; scene: StudioScene }[] = [];
   const totalSecWithExtras = () =>
     coreScenes.reduce((a, s) => a + s.durationSec, 0) +
     extraScenes.reduce((a, e) => a + e.scene.durationSec, 0);
@@ -1067,7 +1086,91 @@ function ensureRichFiveMinuteCurriculum(
     });
   }
 
-  // 6) KAPANIŞ: Akademik Sentez, Çeldirici Analizi ve Sınav Stratejisi ('comparison')
+  // 6) HOCANIN SORABİLECEĞİ SORULAR: Öğrencinin sınavda karşılaşacağı soru kalıpları ('table')
+  {
+    const examPool: KeyTerm[] = [];
+    const seenExam = new Set<string>();
+    const pushExam = (t: KeyTerm) => {
+      const k = t.term.toLocaleLowerCase('tr-TR');
+      if (!t.term || !t.definition || t.definition.length < 12 || seenExam.has(k)) return;
+      seenExam.add(k);
+      examPool.push(t);
+    };
+    allTerms.forEach(pushExam);
+    allNodes.forEach(n => pushExam({ term: n.label, definition: n.subtext }));
+
+    if (examPool.length >= 2) {
+      const q0 = examPool[0];
+      const q1 = examPool[1];
+      const q2 = examPool[2] || examPool[0];
+      const criticalFact = allFacts.find(f => !f.toLocaleLowerCase('tr-TR').includes(q0.term.toLocaleLowerCase('tr-TR'))) || allFacts[0];
+
+      const turns: DialogueTurn[] = [
+        {
+          speaker: 'Barış',
+          text: `Deniz, öğrencilerin en çok merak ettiği kısma geldik. Hoca bu konuyu sınavda nasıl sorar, hangi noktalar mutlaka bilinmeli?`,
+        },
+        {
+          speaker: 'Deniz',
+          text: `İlk ve en klasik soru tanım sorusudur: ${q0.term} nedir? Doğru cevap şöyle kurulur: ${ensureSentenceEnd(lowerFirstIfNotProper(q0.definition))} Tanımı kendi cümlelerinizle, işleviyle birlikte yazarsanız tam puan alırsınız.`,
+        },
+        {
+          speaker: 'Barış',
+          text: `İkinci soru tipi ise ayırt etme sorusu: ${q1.term} ile ${q2.term === q1.term ? q0.term : q2.term} arasındaki fark nedir? Çeldiriciler genelde tam bu iki kavramı karıştırır.`,
+        },
+        {
+          speaker: 'Deniz',
+          text: `Çok doğru. ${q1.term} kısaca şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(q1.definition))} Diğer kavram ise ${ensureSentenceEnd(lowerFirstIfNotProper((q2.term === q1.term ? q0 : q2).definition))} Farkı tek bir cümleyle net yazabilen öğrenci bu soruyu kaçırmaz.`,
+        },
+      ];
+      if (criticalFact) {
+        turns.push({
+          speaker: 'Barış',
+          text: `Son olarak şu bilgi neredeyse her sınavda bir şekilde karşımıza çıkıyor: ${ensureSentenceEnd(lowerFirstIfNotProper(criticalFact))}`,
+        });
+        turns.push({
+          speaker: 'Deniz',
+          text: `Kesinlikle. Bunu ezberlemek yerine nedeniyle birlikte öğrenin; ders sonundaki eşleştirme ve soru bölümünde bu noktaları birlikte pekiştireceğiz.`,
+        });
+      }
+
+      const { sentences, speakers } = turnsToDialogueArrays(turns);
+      const qNodes: DiagramNode[] = [q0, q1, q2, examPool[3]]
+        .filter((t, i, arr): t is KeyTerm => Boolean(t) && arr.findIndex(x => x?.term === t?.term) === i)
+        .slice(0, 4)
+        .map((t, i) => ({
+          label: shortLabel(t.term, 4, 30),
+          subtext: t.definition,
+          badge: `Olası Soru ${i + 1}`,
+          value: deterministicValue(t.term, i),
+        }));
+
+      extraScenes.push({
+        slot: 'exam',
+        scene: finalizeSceneObject({
+          id: 'scene-exam-questions',
+          index: 0,
+          title: 'Hocanın Sorabileceği Sorular',
+          sentences,
+          speakers,
+          keyTakeaways: qNodes.map(n => `${n.label}: ${n.subtext}`),
+          keyTerms: [q0, q1, q2].filter((t, i, arr) => arr.findIndex(x => x.term === t.term) === i),
+          examTip: criticalFact || `${q0.term} tanımı ve ${q1.term} ile farkı sınavda en sık sorulan noktadır.`,
+          visualCue: 'Sınavda çıkabilecek soru kalıpları ve doğru cevap anahtarları',
+          diagram: {
+            type: 'table',
+            visualTheme,
+            title: 'Hocanın Sorabileceği Sorular',
+            rootBadge,
+            nodes: qNodes,
+            metric: criticalFact || q0.definition,
+          },
+        }),
+      });
+    }
+  }
+
+  // 7) KAPANIŞ: Akademik Sentez, Çeldirici Analizi ve Sınav Stratejisi ('comparison')
   if (totalSecWithExtras() < MIN_LESSON_DURATION_SEC || !hasTypeAnywhere('comparison')) {
     const fNodes = pickDistinctNodes(5, 4, ['Temel İlke', 'Kritik Ayrım', 'Çeldirici Tuzağı', 'Bütünsel Sentez']);
     const fact0 = allFacts[0] || fNodes[0]?.subtext || title;
@@ -1089,7 +1192,7 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Barış',
-        text: `Görsel mimariden karşılaştırma tablosuna, döngüsel mekanizmadan analitik grafiğe ve vaka simülasyonuna kadar çok zengin bir ders oldu. Sağ paneldeki kavram sözlüğünü ve ders notlarını indirerek tekrar yapabilirsiniz; hepinize başarılar diliyoruz!`,
+        text: `Görsel mimariden karşılaştırma tablosuna, döngüsel mekanizmadan analitik grafiğe ve vaka simülasyonuna kadar çok zengin bir ders oldu. Şimdi ders sonundaki eşleştirme ve sınav sorularıyla öğrendiklerinizi hemen pekiştirin; hepinize başarılar diliyoruz!`,
       },
     ]);
 
@@ -1145,8 +1248,10 @@ function ensureRichFiveMinuteCurriculum(
   }
 
   extraScenes
-    .filter(e => e.slot === 'late1' || e.slot === 'late2' || e.slot === 'closing')
+    .filter(e => e.slot === 'late1' || e.slot === 'late2')
     .forEach(e => ordered.push(e.scene));
+  extraScenes.filter(e => e.slot === 'exam').forEach(e => ordered.push(e.scene));
+  extraScenes.filter(e => e.slot === 'closing').forEach(e => ordered.push(e.scene));
 
   return ordered.map((sc, i) => ({
     ...sc,
@@ -1263,6 +1368,9 @@ export function buildStudioContent(
     .filter(Boolean)
     .slice(0, 6);
 
+  const matchingPairs = buildMatchingPairs(finalScenes, c.matchingPairs);
+  const examQuestions = buildExamQuestions(finalScenes, c.examQuestions);
+
   return {
     title,
     outline,
@@ -1270,7 +1378,152 @@ export function buildStudioContent(
     keyFacts: mergedFacts,
     searches,
     totalDurationSec: finalScenes.reduce((a, s) => a + s.durationSec, 0),
+    examQuestions,
+    matchingPairs,
   };
+}
+
+/** Uzun tanımları kart/şık içinde okunaklı kalacak biçimde ilk cümle sınırında kısaltır. */
+function compactDefinition(text: string, max = 150): string {
+  const t = cleanText(text);
+  if (t.length <= max) return t;
+  const firstSentence = t.split(/(?<=[.!?])\s+/)[0];
+  if (firstSentence.length <= max) return firstSentence;
+  const cut = t.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${cut.slice(0, lastSpace > 60 ? lastSpace : max).replace(/[,;:\s]+$/, '')}…`;
+}
+
+function seededShuffle<T>(arr: T[], seed: string): T[] {
+  const out = [...arr];
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  for (let i = out.length - 1; i > 0; i--) {
+    h = (Math.imul(h, 1103515245) + 12345) >>> 0;
+    const j = h % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function sceneIndexForText(scenes: StudioScene[], text: string): number {
+  const needle = cleanText(text).toLocaleLowerCase('tr-TR');
+  if (!needle) return 0;
+  const byTerm = scenes.findIndex(s =>
+    s.keyTerms.some(t => t.term.toLocaleLowerCase('tr-TR') === needle),
+  );
+  if (byTerm >= 0) return byTerm;
+  const probe = needle.slice(0, 22);
+  const byNarration = scenes.findIndex(s => s.narration.toLocaleLowerCase('tr-TR').includes(probe));
+  return byNarration >= 0 ? byNarration : 0;
+}
+
+/** Tüm dersteki benzersiz kavram-tanım çiftlerini (önce gerçek terimler, sonra şema düğümleri) toplar. */
+function collectStudyTerms(scenes: StudioScene[]): Array<KeyTerm & { sceneIndex: number }> {
+  const out: Array<KeyTerm & { sceneIndex: number }> = [];
+  const seenTerm = new Set<string>();
+  const seenDef = new Set<string>();
+  const push = (term: string, definition: string, sceneIndex: number) => {
+    const t = cleanLabel(term);
+    const d = cleanText(definition);
+    if (!t || !d || d.length < 14) return;
+    const tk = t.toLocaleLowerCase('tr-TR');
+    const dk = textSignature(d);
+    if (seenTerm.has(tk) || seenDef.has(dk)) return;
+    if (d.toLocaleLowerCase('tr-TR') === tk) return;
+    seenTerm.add(tk);
+    seenDef.add(dk);
+    out.push({ term: t, definition: d, sceneIndex });
+  };
+  scenes.forEach((s, i) => s.keyTerms.forEach(kt => push(kt.term, kt.definition, i)));
+  scenes.forEach((s, i) => s.diagram.nodes.forEach(n => push(n.label, n.subtext, i)));
+  return out;
+}
+
+export function buildMatchingPairs(scenes: StudioScene[], raw?: unknown): MatchPair[] {
+  const fromModel: MatchPair[] = (Array.isArray(raw) ? raw : [])
+    .map((p: any) => ({
+      term: cleanLabel(p?.term ?? p?.left),
+      definition: compactDefinition(p?.definition ?? p?.right ?? '', 130),
+      sceneIndex: 0,
+    }))
+    .filter(p => p.term && p.definition.length > 8);
+
+  if (fromModel.length >= 3) {
+    return fromModel.slice(0, 6).map(p => ({ ...p, sceneIndex: sceneIndexForText(scenes, p.term) }));
+  }
+
+  return collectStudyTerms(scenes)
+    .slice(0, 6)
+    .map(t => ({ term: t.term, definition: compactDefinition(t.definition, 130), sceneIndex: t.sceneIndex }));
+}
+
+export function buildExamQuestions(scenes: StudioScene[], raw?: unknown): ExamQuestion[] {
+  const fromModel: ExamQuestion[] = (Array.isArray(raw) ? raw : [])
+    .map((q: any) => {
+      const options: string[] = (Array.isArray(q?.options) ? q.options : []).map(cleanText).filter(Boolean);
+      const correctIndex = Number.isInteger(q?.correctIndex) ? q.correctIndex : -1;
+      return {
+        question: cleanText(q?.question),
+        options,
+        correctIndex,
+        explanation: cleanText(q?.explanation),
+        sceneIndex: 0,
+      };
+    })
+    .filter(q => q.question && q.options.length >= 2 && q.correctIndex >= 0 && q.correctIndex < q.options.length);
+
+  if (fromModel.length >= 3) {
+    return fromModel.slice(0, 8).map(q => ({ ...q, sceneIndex: sceneIndexForText(scenes, q.question) }));
+  }
+
+  const pool = collectStudyTerms(scenes);
+  if (pool.length < 2) return [];
+
+  const templatesDef = [
+    (t: string) => `Hoca sınavda "${t}" kavramını sorarsa doğru tanım hangisidir?`,
+    (t: string) => `"${t}" aşağıdakilerden hangisiyle doğru biçimde açıklanır?`,
+    (t: string) => `"${t}" için verilebilecek en doğru cevap hangisidir?`,
+  ];
+
+  const questions: ExamQuestion[] = [];
+  const optionCount = Math.min(4, pool.length);
+
+  pool.slice(0, 8).forEach((item, idx) => {
+    const distractors = seededShuffle(
+      pool.filter(p => p.term !== item.term),
+      `${item.term}-${idx}`,
+    ).slice(0, optionCount - 1);
+
+    // Çift indekslerde tanım soran, tek indekslerde kavramı bulduran soru üret
+    if (idx % 2 === 0 || optionCount < 3) {
+      const options = seededShuffle(
+        [item, ...distractors].map(p => compactDefinition(p.definition, 140)),
+        `opt-${item.term}`,
+      );
+      questions.push({
+        question: templatesDef[idx % templatesDef.length](item.term),
+        options,
+        correctIndex: options.indexOf(compactDefinition(item.definition, 140)),
+        explanation: `${item.term}: ${compactDefinition(item.definition, 220)}`,
+        sceneIndex: item.sceneIndex,
+      });
+    } else {
+      const options = seededShuffle([item, ...distractors].map(p => p.term), `term-${item.term}`);
+      questions.push({
+        question: `"${compactDefinition(item.definition, 150)}" ifadesi hangi kavramı tanımlar?`,
+        options,
+        correctIndex: options.indexOf(item.term),
+        explanation: `Doğru cevap ${item.term}. ${compactDefinition(item.definition, 200)}`,
+        sceneIndex: item.sceneIndex,
+      });
+    }
+  });
+
+  return questions.filter(q => q.correctIndex >= 0).slice(0, 6);
 }
 
 /** Zaman (saniye) bilgisini sahne içi cümle, konuşmacı ve karakter konumuna çevirir. */

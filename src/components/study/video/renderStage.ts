@@ -416,20 +416,20 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
     focusPoint = drawVisualShowcase(ctx, contentArea, nodes, d.visualTheme, reveal, f.now);
   }
 
-  // Alt sınav vurgu bandı
-  const bottomNote = d.metric || f.scene.examTip;
+  // Alt sınav vurgu bandı — hocanın sorabileceği noktaları öne çıkarır
+  const bottomNote = f.scene.examTip || d.metric;
   if (bottomNote) {
     const my = y + h - 56;
     rr(ctx, x + 34, my, w - 68, 40, 12);
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.10)';
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.30)';
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.34)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
     ctx.fillStyle = '#fbbf24';
     ctx.font = font(700, 13.5);
-    const prefix = 'ÖNEMLİ NOT:';
+    const prefix = 'SINAV NOTU:';
     ctx.fillText(prefix, x + 50, my + 25);
     const pw = ctx.measureText(prefix).width;
 

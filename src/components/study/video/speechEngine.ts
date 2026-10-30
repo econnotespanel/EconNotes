@@ -365,7 +365,7 @@ export function selectVoicesForSpeakers(
         lengthScale: 0.87,
         pitch: 1.0,
         baseRate: 1.0,
-        label: 'Eren · Akıcı Akademik Neural HD',
+        label: 'Eren · Akademik Anlatıcı',
         quality: 'neural',
       };
 
@@ -378,7 +378,7 @@ export function selectVoicesForSpeakers(
         lengthScale: 0.96,
         pitch: 1.0,
         baseRate: 1.0,
-        label: 'Fahrettin · Akıcı Stüdyo Neural HD',
+        label: 'Fahrettin · Stüdyo Anlatıcı',
         quality: 'neural',
       };
 
@@ -433,11 +433,14 @@ export function buildSceneSpeakerTurns(
       ? prev.spokenSentences.reduce((sum, s) => sum + s.length, 0)
       : 0;
 
+    // İlk konuşma bloğunu (Turn 0) tek cümlede tutarak oynatmanın çok hızlı başlamasını sağla;
+    // sonraki bloklarda en fazla 2 cümleyi (~280 karakter) akıcı biçimde birleştir.
+    const maxSentencesInPrev = turns.length === 1 ? 1 : 2;
     if (
       prev &&
       prev.speaker === spk &&
-      prev.sentenceIndices.length < 3 &&
-      currentTurnChars + spoken.length <= 440
+      prev.sentenceIndices.length < maxSentencesInPrev &&
+      currentTurnChars + spoken.length <= 280
     ) {
       prev.sentenceIndices.push(i);
       prev.displaySentences.push(raw);
@@ -566,10 +569,32 @@ export async function prepareSceneFirstTurn(
     return;
   }
 
-  await synthesizeTurnAudio(turns[0], assignments, preferCloudNeural);
+  await withTimeout(synthesizeTurnAudio(turns[0], assignments, preferCloudNeural), 9500);
   // İkinci konuşmacı bloğunu da beklemeden arka planda ısıt
   if (turns[1]) {
     synthesizeTurnAudio(turns[1], assignments, preferCloudNeural).catch(() => {});
+  }
+}
+
+/**
+ * Stüdyo açılır açılmaz ilk sahnenin ilk konuşma bloğunu arka plan worker'ında sessizce hazırlar;
+ * kullanıcı Oynat düğmesine bastığında video beklemeden anında başlar.
+ */
+export function prewarmSceneAudio(
+  scene: StudioScene | undefined,
+  assignments: Record<Speaker, SpeakerVoiceAssignment>,
+  preferCloudNeural = true,
+): void {
+  if (typeof window === 'undefined' || !scene) return;
+  const turns = buildSceneSpeakerTurns(scene, 0);
+  if (turns[0]) {
+    synthesizeTurnAudio(turns[0], assignments, preferCloudNeural)
+      .then(() => {
+        if (turns[1]) {
+          return synthesizeTurnAudio(turns[1], assignments, preferCloudNeural);
+        }
+      })
+      .catch(() => {});
   }
 }
 
@@ -637,7 +662,98 @@ export interface PlaySceneSpeechOptions {
   onBoundaryProgress: (sentenceIndex: number, charInSentence: number, boundaryHit: boolean) => void;
   onAudioEnergy?: (mouthOpen: number, viseme: Viseme) => void;
   onBreathPause: (paused: boolean) => void;
+  /** Sıradaki konuşma bloğu sentezlenirken true; ses hazır olunca false (sahne saati bekletilir). */
+  onBuffering?: (buffering: boolean) => void;
   onComplete: () => void;
+}
+
+/** Ses sentezi ağ/WASM nedeniyle takılırsa oynatıcının sonsuza dek beklememesi için üst sınır. */
+const TURN_SYNTH_TIMEOUT_MS = 45000;
+
+/**
+ * Tüm ders boyunca tek bir paylaşımlı <audio> öğesi kullanılır. Oynat tıklamasında
+ * kilidi açıldığı için (Safari/iOS dahil) ses hazırlığı uzun sürse bile otomatik oynatma engeline takılmaz.
+ */
+const SILENT_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+let sharedStudioAudio: HTMLAudioElement | null = null;
+
+function getStudioAudio(): HTMLAudioElement {
+  if (!sharedStudioAudio) {
+    sharedStudioAudio = new Audio();
+    sharedStudioAudio.preload = 'auto';
+  }
+  return sharedStudioAudio;
+}
+
+function detachStudioAudio(audio: HTMLAudioElement) {
+  audio.onplay = null;
+  audio.onended = null;
+  audio.onerror = null;
+  try {
+    audio.pause();
+  } catch {
+    // ignore
+  }
+}
+
+export function setStudioMasterVolume(volume: number, muted: boolean): void {
+  if (typeof window === 'undefined') return;
+  if (sharedStudioAudio) {
+    sharedStudioAudio.volume = muted ? 0 : Math.max(0, Math.min(1, volume));
+  }
+}
+
+export function unlockStudioAudio(): void {
+  if (typeof window === 'undefined') return;
+  const audio = getStudioAudio();
+  if (audio.src && audio.src !== SILENT_WAV && !audio.paused) return;
+  try {
+    detachStudioAudio(audio);
+    audio.muted = true;
+    audio.src = SILENT_WAV;
+    const p = audio.play();
+    const restore = () => {
+      if (audio.src === SILENT_WAV) {
+        try {
+          audio.pause();
+        } catch {
+          // ignore
+        }
+      }
+      audio.muted = false;
+    };
+    if (p && typeof p.then === 'function') p.then(restore).catch(restore);
+    else restore();
+  } catch {
+    audio.muted = false;
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise(resolve => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    }, ms);
+    promise
+      .then(v => {
+        if (!settled) {
+          settled = true;
+          window.clearTimeout(timer);
+          resolve(v);
+        }
+      })
+      .catch(() => {
+        if (!settled) {
+          settled = true;
+          window.clearTimeout(timer);
+          resolve(null);
+        }
+      });
+  });
 }
 
 /**
@@ -657,6 +773,7 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     onBoundaryProgress,
     onAudioEnergy,
     onBreathPause,
+    onBuffering,
     onComplete,
   } = opts;
 
@@ -729,7 +846,10 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     tIdx: number,
   ): Promise<boolean> => {
     if (cancelled) return true;
-    const audio = new Audio(clip.blobUrl);
+    const audio = getStudioAudio();
+    detachStudioAudio(audio);
+    audio.muted = false;
+    audio.src = clip.blobUrl;
     activeAudio = audio;
     audio.playbackRate = Math.max(0.7, Math.min(1.75, playbackSpeed));
     audio.volume = Math.max(0, Math.min(1, volume));
@@ -905,8 +1025,13 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     prefetchTurn(tIdx + 1);
     prefetchTurn(tIdx + 2);
 
-    const clip = await synthesizeTurnAudio(turn, assignments, preferCloudNeural);
+    onBuffering?.(true);
+    const clip = await withTimeout(
+      synthesizeTurnAudio(turn, assignments, preferCloudNeural),
+      TURN_SYNTH_TIMEOUT_MS,
+    );
     if (cancelled) return;
+    onBuffering?.(false);
 
     if (clip) {
       const ok = await playTurnClipWithSync(clip, turn, tIdx);
@@ -926,8 +1051,7 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     if (rafEnergyId !== null) cancelAnimationFrame(rafEnergyId);
     if (activeAudio) {
       try {
-        activeAudio.pause();
-        activeAudio.src = '';
+        detachStudioAudio(activeAudio);
       } catch {
         // ignore
       }
