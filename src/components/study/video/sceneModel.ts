@@ -653,14 +653,14 @@ function buildConversationalSentences(
       const lastSpk = speakers[speakers.length - 1] || 'Deniz';
       const askSpk: Speaker = lastSpk === 'Deniz' ? 'Barış' : 'Deniz';
       if (askSpk === 'Barış') {
-        sentences.push(`Bu analizde ${extraTerm.term} kavramının özgül yerini de netleştirebilir miyiz Deniz?`);
+        sentences.push(`Deniz hocam, tam bu noktada ${extraTerm.term} kavramının mantığını ve işlevini de netleştirelim mi?`);
         speakers.push('Barış');
-        sentences.push(`Elbette Barış; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
+        sentences.push(`Çok iyi bir noktaya değindin Barış; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
         speakers.push('Deniz');
       } else {
-        sentences.push(`Barış, tam bu bağlamda ${extraTerm.term} kavramının işlevini de parantez açmadan vurgulayalım.`);
+        sentences.push(`Barış, bu tablonun eksik kalmaması için ${extraTerm.term} boyutunu da hemen ekleyelim.`);
         speakers.push('Deniz');
-        sentences.push(`Doğru noktaya değindin Deniz; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
+        sentences.push(`Harika olur Deniz; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
         speakers.push('Barış');
       }
     }
@@ -686,9 +686,9 @@ function buildConversationalSentences(
       speakers.push(leadSpeaker);
     });
     const bridgePrompts = [
-      `Burada kurulan yapısal denge gerçekten dikkat çekici; peki mekanizmanın devamında bu durum sahaya nasıl yansıyor?`,
-      `Çok kritik bir tespit; peki bu çerçevenin toplumsal ve kurumsal sonuçları nasıl şekilleniyor?`,
-      `İşte konunun düğüm noktası tam burası; sürecin ikinci boyutunda hangi dinamik devreye giriyor?`,
+      `Burada kurulan mekanizma gerçekten çok mantıklı; peki Deniz hocam, sürecin devamında bu durum sahaya nasıl yansıyor?`,
+      `Çok kritik bir tespit; peki bu çerçevenin kurumsal ve pratik sonuçları nasıl şekilleniyor?`,
+      `İşte işin düğüm noktası tam burası; sürecin ikinci perdesinde hangi kilit dinamik devreye giriyor?`,
     ];
     sentences.push(bridgePrompts[sceneIdx % bridgePrompts.length]);
     speakers.push(coHost);
@@ -716,14 +716,14 @@ function buildConversationalSentences(
   );
 
   const termQuestionTemplates = [
-    (term: string) => `Peki Deniz, literatürde ve sınavlarda sıkça karşılaştığımız ${term} kavramını bu yapı içinde nasıl tanımlamalıyız?`,
-    (term: string) => `Deniz, tam burada kavramsal netlik açısından soruyorum: ${term} tam olarak hangi mekanizmayı ifade ediyor?`,
-    (term: string) => `Bu noktada ${term} teriminin altını çizmekte fayda var; bu kavramın ayırt edici niteliği nedir?`,
+    (term: string) => `Peki Deniz hocam, öğrencilerin sınavlarda en çok karşılaştığı ${term} kavramını kafamızda nasıl kodlamalıyız?`,
+    (term: string) => `Deniz, tam bu noktada kilit bir kavram karşımıza çıkıyor: ${term}. Bunun sınavda fark yaratan ayırt edici niteliği nedir?`,
+    (term: string) => `Bu aşamada ${term} teriminin altını çizelim; hocanın sorabileceği temel işlev nedir?`,
   ];
   const termAnswerOpeners = [
-    'Çok yerinde bir kavramsal soru Barış;',
-    'Akademik çerçevede bunu şöyle somutlaştıralım Barış:',
-    'Hemen netleştirelim;',
+    'Harika bir soru Barış; hemen netleştirelim:',
+    'İşin can alıcı noktası burası Barış; bunu şöyle kafamızda canlandıralım:',
+    'Çok yerinde bir tespit Barış; formülümüz çok basit:',
   ];
 
   unusedTerms.slice(0, 2).forEach((kt, tIdx) => {
@@ -759,17 +759,17 @@ function buildConversationalSentences(
     const tk = unusedTakeaways[0];
     const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
     if (lastSpk === 'Deniz') {
-      sentences.push(`O hâlde buradaki analitik çıkarımı şöyle özetleyebiliriz: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
+      sentences.push(`O hâlde Deniz hocam, buradaki kilit çıkarımı şöyle özetleyebiliriz: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
       speakers.push('Barış');
       if (unusedTakeaways[1]) {
-        sentences.push(`Kesinlikle Barış; üstelik buna paralel olarak ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
+        sentences.push(`Aynen öyle Barış! Üstelik buna paralel olarak ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
         speakers.push('Deniz');
       } else {
-        sentences.push(`Tam isabet Barış; ${sceneTitle} tartışmasının kuramsal omurgasını bu neden-sonuç bağı oluşturuyor.`);
+        sentences.push(`Tam 12'den vurdun Barış! ${sceneTitle} konusunun kuramsal omurgasını işte bu neden-sonuç bağı oluşturuyor.`);
         speakers.push('Deniz');
       }
     } else {
-      sentences.push(`Bu tartışmadan çıkardığımız kuramsal ilkeyi de vurgulayalım: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
+      sentences.push(`Bu konudan çıkaracağımız en temel dersi de netleştirelim: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
       speakers.push('Deniz');
     }
   }
@@ -782,12 +782,12 @@ function buildConversationalSentences(
   ) {
     const lastSpk = speakers[speakers.length - 1] || leadSpeaker;
     if (lastSpk === 'Deniz') {
-      sentences.push(`Peki Deniz, hoca bu başlığı sınavda nasıl sorar, öğrenci nereye dikkat etmeli?`);
+      sentences.push(`Peki Deniz hocam, hoca bu başlığı sınavda nasıl sorar, öğrenci nereye dikkat etmeli?`);
       speakers.push('Barış');
-      sentences.push(`Hocaların en sık sorduğu nokta şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
+      sentences.push(`Hocaların en çok üstünde durduğu püf noktası şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
       speakers.push('Deniz');
     } else {
-      sentences.push(`Bunu sınav açısından not edelim, hocaların en sevdiği soru noktası burası: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
+      sentences.push(`Bunu sınav için mutlaka bir kenara not edelim arkadaşlar; hocaların en sevdiği soru noktası burasıdır: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
       speakers.push('Deniz');
     }
   }
@@ -1016,10 +1016,13 @@ function ensureRichFiveMinuteCurriculum(
   // 1) AÇILIŞ: Bütünsel Kavramsal Mimari ve Görsel Çerçeve ('visual')
   if (!hasTypeAnywhere('visual') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC) {
     const vNodes = pickDistinctNodes(0, 4, ['Kurucu Tez', 'Yapısal Bağlam', 'İç İşleyiş', 'Makro Sonuç']);
+    const courseOverlap = courseLabel && title.toLocaleLowerCase('tr-TR').includes(courseLabel.toLocaleLowerCase('tr-TR').slice(0, 10));
+    const coursePrefix = courseLabel && !courseOverlap ? `${courseLabel} dersi kapsamında ` : '';
+
     const roadmapStr =
       chapterTitles.length >= 2
-        ? `${chapterTitles.slice(0, 3).join(', ')} eksenlerini`
-        : `${vNodes.map(n => spokenNodeName(n, title)).slice(0, 3).join(' ve ')} boyutlarını`;
+        ? `farklı bölümler arasındaki`
+        : `tüm kavramlar arasındaki`;
     const framingText = outline
       ? ensureSentenceEnd(outline)
       : `${title} konusu, tekil tanımların ötesinde çok katmanlı bir ${domainNoun} bütünlük taşır.`;
@@ -1027,15 +1030,15 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `EconNotes akademik stüdyosuna hoş geldiniz. Bugün ${courseLabel ? `${courseLabel} kapsamında ` : ''}${title} konusunu yalnızca yüzeysel kavramlarla değil, arka planındaki ${domainNoun} dinamikler, karşılaştırmalı tablolar, analitik grafikler ve somut vaka senaryolarıyla derinlemesine inceleyeceğiz. ${framingText}`,
+        text: `EconNotes stüdyosuna hepiniz hoş geldiniz arkadaşlar! Bugün ${coursePrefix}${title} konusunu ezber kalıplardan çıkarıp, arkasındaki ${domainNoun} mantık, karşılaştırma tabloları, grafikler ve sınav odaklı püf noktalarıyla çok keyifli bir şekilde ele alacağız. ${framingText}`,
       },
       {
         speaker: 'Barış',
-        text: `Özellikle bu konuyu çalışırken bilgileri kopuk maddeler hâlinde ezberlemek yerine, ${roadmapStr} birbirine bağlayan ana omurgayı görmek büyük fark yaratıyor. Akıllı tahtadaki görsel mimaride ilk dikkatimizi çekmesi gereken kurucu ilke nedir Deniz?`,
+        text: `Harika bir ders bizi bekliyor Deniz hocam! Sınav döneminde öğrencilerin en çok zorlandığı nokta bilgileri parça parça ezberlemeye çalışmak. Oysa ${roadmapStr} o kurucu bağı yakalayınca konu resmen akıp gidiyor. Akıllı tahtadaki kavramsal şemada ilk odaklanmamız gereken kilit zemin nedir?`,
       },
       {
         speaker: 'Deniz',
-        text: `Merkezde ${spokenNodeName(vNodes[0], title)} yer alıyor Barış. Zira ${lowerFirstIfNotProper(stripTrailingPeriod(vNodes[0]?.subtext || framingText))}; bu temel kurulduğunda ${spokenNodeName(vNodes[1], 'diğer kurumsal halkalar')} da kendi işlevini kazanıyor. Şimdi bu büyük resmi bölüm bölüm analitik olarak açalım.`,
+        text: `Tam kalbinde ${spokenNodeName(vNodes[0], title)} yer alıyor Barış. Çünkü işin sırrı şurada: ${lowerFirstIfNotProper(stripTrailingPeriod(vNodes[0]?.subtext || framingText))}. Bu temel taş yerine oturduğunda, ${spokenNodeName(vNodes[1], 'diğer kurumsal halkalar')} da kendiliğinden anlam kazanıyor. Şimdi bu büyük resmi adım adım, en can alıcı ayrıntılarıyla açalım!`,
       },
     ]);
 
@@ -1080,15 +1083,15 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Barış',
-        text: `Deniz, konunun temel yapıtaşlarını inceledik; ancak sınavlarda ve akademik analizlerde en çok yapılan hata yakın kavramları birbirinin yerine kullanmak oluyor. Akıllı tahtadaki sistematik karşılaştırma tablosunda ${lbl0} ile ${lbl1} arasındaki sınır çizgisini nasıl okuyoruz?`,
+        text: `Deniz hocam, konunun temel yapıtaşlarını inceledik; ancak sınavlarda öğrencileri en çok terleten şey birbirine benzeyen yakın kavramları karıştırmak! Akıllı tahtadaki karşılaştırma tablosunda ${lbl0} ile ${lbl1} arasındaki o ince çizgiyi nasıl okumalıyız?`,
       },
       {
         speaker: 'Deniz',
-        text: `Çok kritik bir noktaya parmak bastın Barış. Tablomuzun ilk satırındaki ${lbl0}, sistemin tanımlayıcı temelini kurar ve ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ikinci satırdaki ${lbl1}, bu yapının sahadaki kurumsal işleyişini üstlenir; yani ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))}`,
+        text: `Tam 12'den vurdun Barış! Sınavlarda en çok puan kaybettiren tuzak işte tam bu ikilemdir. Tablomuzun ilk satırındaki ${lbl0}, ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ${lbl1} ise doğrudan ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))} Bu işlevsel farkı yakalayan öğrenci çeldiricilere asla takılmaz!`,
       },
       {
         speaker: 'Barış',
-        text: `Tablonun alt satırlarına indiğimizde ise tamamlayıcı boyutları görüyoruz: ${lbl2} ekseninde ${lowerFirstIfNotProper(stripTrailingPeriod(n2.subtext))}${n3 && n3.label !== n2.label ? `, ${lbl3} boyutunda ise ${lowerFirstIfNotProper(stripTrailingPeriod(n3.subtext))}` : ''}. Kavramları bu dört sütunlu matriste yan yana görmek tüm muğlaklığı ortadan kaldırıyor.`,
+        text: `Çok net bir ayrım oldu hocam! Tablonun devamında ${lbl2} boyutunda ${lowerFirstIfNotProper(stripTrailingPeriod(n2.subtext))}${n3 && n3.label !== n2.label ? `, ${lbl3} ekseninde ise ${lowerFirstIfNotProper(stripTrailingPeriod(n3.subtext))}` : ''}. Kavramları böyle yan yana, matris halinde görmek tüm kafa karışıklığını siliyor!`,
       },
     ]);
 
@@ -1129,15 +1132,15 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `Şimdi bu kavramların durağan tanımlarından çıkıp dinamik nedensellik mekanizmasına bakalım. Tahtadaki geometrik döngü şeması bize çok net bir ilke söylüyor: hiçbir ${domainNoun} sonuç tek başına ortaya çıkmaz. İlk halkada ${sl0} tetikleyici işlev görür; ${ensureSentenceEnd(lowerFirstIfNotProper(s0.subtext))}`,
+        text: `Şimdi durağan tanımların ötesine geçip işin mutfağına, yani neden-sonuç mekanizmasına bakalım arkadaşlar. Akıllı tahtadaki geometrik döngü bize çok önemli bir kuralı hatırlatıyor: hiçbir ${domainNoun} sonuç tesadüfen doğmaz! İlk kıvılcımı ${sl0} çakıyor; ${ensureSentenceEnd(lowerFirstIfNotProper(s0.subtext))}`,
       },
       {
         speaker: 'Barış',
-        text: `Peki bu ilk ivme sistemin diğer halkalarına nasıl aktarılıyor? Özellikle ${sl1} aşamasında nasıl bir dönüşüm yaşanıyor?`,
+        text: `Peki hocam, bu ilk ivme sistemi nasıl dalga dalga etkiliyor? Özellikle ${sl1} aşamasına geçtiğimizde sahada nasıl bir dönüşüm görüyoruz?`,
       },
       {
         speaker: 'Deniz',
-        text: `Tam burada aktarım mekanizması devreye giriyor Barış: ${sl0} sağlam işlediğinde doğrudan ${sl1} kapasitesini besliyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(s1.subtext))} Ardından üçüncü halkada ${sl2} ile sistem dengeye oturuyor; tersine halkalardan biri aşındığında ise zincirleme bir çözülme başlıyor.`,
+        text: `İşte domino etkisi tam burada devreye giriyor Barış! ${sl0} sağlam adımlarla ilerlediğinde doğrudan ${sl1} kanalını besliyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(s1.subtext))} Ardından ${sl2} ile sistem tam bir kurumsal dengeye kavuşuyor. Halkalardan biri zayıflarsa bütün çarklar yavaşlar!`,
       },
     ]);
 
@@ -1185,15 +1188,15 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Barış',
-        text: `Deniz, bir konuyu derinlemesine kavramanın bir diğer yolu da tüm faktörleri eşit ağırlıkta sanmamak ve hangisinin ana belirleyici olduğunu görmek. Tahtadaki analitik ağırlık ve eğilim grafiğimizi nasıl yorumlamalıyız?`,
+        text: `Deniz hocam, bir konuyu gerçekten kavramanın yolu her faktörü eşit sanmamak ve hangisinin asıl belirleyici olduğunu bilmekten geçiyor. Tahtadaki analitik grafikte sütunlar ve eğilim çizgisi bize ne anlatıyor?`,
       },
       {
         speaker: 'Deniz',
-        text: `Grafikteki en yüksek sütun ve eğri tepe noktası açık biçimde ${cl0} unsuruna işaret ediyor Barış. Çünkü ${lowerFirstIfNotProper(stripTrailingPeriod(c0.subtext))}; dolayısıyla sistemin yönünü tayin eden birincil kaldıraç burasıdır.`,
+        text: `Grafiğin zirvesindeki tepe noktası bize yolu açıkça gösteriyor Barış. En yüksek etki açık ara ${cl0} unsurunda toplanmış durumda! Çünkü ${lowerFirstIfNotProper(stripTrailingPeriod(c0.subtext))}. Sistemin ana lokomotifi işte tam burasıdır.`,
       },
       {
         speaker: 'Barış',
-        text: `Hemen arkasından gelen ${cl1} ve ${cl2} sütunları da bu ana ekseni tahkim ediyor; özellikle ${lowerFirstIfNotProper(stripTrailingPeriod(c1.subtext))}. Böylece birincil neden ile destekleyici koşullar arasındaki hiyerarşi net biçimde ortaya çıkıyor.`,
+        text: `Hemen ardından gelen ${cl1} ve ${cl2} unsurları da bu ana ekseni güçlendiren destek kolonları gibi. Ana etken ile yan etkenleri böyle ayırt etmek sınavlarda doğrudan net kazandırır!`,
       },
     ]);
 
@@ -1240,19 +1243,19 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Barış',
-        text: `Şimdi tüm bu kuramsal çerçeveyi somut bir vaka senaryosu üzerinde test edelim Deniz. Diyelim ki karşımızda ${title} dinamiklerinin birebir yaşandığı gerçek bir tarihsel veya uygulamalı kesit var; bu dört aşamalı senaryo sahada nasıl işliyor?`,
+        text: `Hocam tüm bu teorik bilgileri gerçek bir hayat kesitinde canlandıralım mı? Karşımızda ${title} sürecinin yaşandığı gerçek bir vaka senaryosu olsa, dört adımda olaylar sahada nasıl gelişir?`,
       },
       {
         speaker: 'Deniz',
-        text: `Adım adım ilerleyelim Barış. Birinci aşamada başlangıç koşulumuz şekilleniyor: ${stl0} çerçevesinde ${ensureSentenceEnd(lowerFirstIfNotProper(st0.subtext))} Bu zeminin üzerine ikinci aşamada kurumsal düzenleme devreye giriyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(st1.subtext))}`,
+        text: `Harika fikir Barış, adım adım bir süreç simülasyonu yapalım! Birinci adımda başlangıç koşulumuz oluşuyor: ${stl0} çerçevesinde ${ensureSentenceEnd(lowerFirstIfNotProper(st0.subtext))} Bu zeminin üzerine ikinci aşamada kurumsal mekanizma devreye giriyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(st1.subtext))}`,
       },
       {
         speaker: 'Barış',
-        text: `Üçüncü aşamaya geldiğimizde ise mekanizmanın sahadaki somut karşılığını izliyoruz: ${ensureSentenceEnd(lowerFirstIfNotProper(st2.subtext))} Dördüncü ve son aşamada ise bütün bu sürecin doğal çıktısı olarak ${ensureSentenceEnd(lowerFirstIfNotProper(st3.subtext))}`,
+        text: `Üçüncü aşamaya geldiğimizde ise sahadaki somut karşılığı canlı bir şekilde görüyoruz: ${ensureSentenceEnd(lowerFirstIfNotProper(st2.subtext))} Ve nihai dördüncü adımda tüm sürecin doğal çıktısı olarak ${ensureSentenceEnd(lowerFirstIfNotProper(st3.subtext))}`,
       },
       {
         speaker: 'Deniz',
-        text: `İşte konuyu bu dört adımlı vaka kurgusuyla zihnimizde canlandırdığımızda, soyut görünen her ilke somut ve unutulmaz bir nedensellik öyküsüne dönüşüyor.`,
+        text: `İşte konuyu böyle yaşayan bir hikaye ve vaka kurgusuyla zihnimizde canlandırdığımızda, soyut ilkeler kalıcı birer bilgiye dönüşüyor!`,
       },
     ]);
 
@@ -1305,29 +1308,29 @@ function ensureRichFiveMinuteCurriculum(
       const turns: DialogueTurn[] = [
         {
           speaker: 'Barış',
-          text: `Deniz, öğrencilerin en çok merak ettiği kısma geldik. Hoca bu konuyu sınavda nasıl sorar, hangi noktalar mutlaka bilinmeli?`,
+          text: `Deniz hocam, şimdi geldik öğrencilerin en çok beklediği bölüme: Hoca bu konudan sınavda nasıl soru sorar, öğrenci kağıda ne yazarsa tam puanı kapar?`,
         },
         {
           speaker: 'Deniz',
-          text: `İlk ve en klasik soru tanım sorusudur: ${q0.term} nedir? Doğru cevap şöyle kurulur: ${ensureSentenceEnd(lowerFirstIfNotProper(q0.definition))} Tanımı kendi cümlelerinizle, işleviyle birlikte yazarsanız tam puan alırsınız.`,
+          text: `İlk ve en garanti soru klasik kavram sorusudur: ${q0.term} nedir? Burada hocanın aradığı altın cümle şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(q0.definition))} Tanımı kuru bir ezber olarak değil, arkasındaki mantığı ve işleviyle yazan öğrenci doğrudan tam puan alır.`,
         },
         {
           speaker: 'Barış',
-          text: `İkinci soru tipi ise ayırt etme sorusu: ${q1.term} ile ${q2.term === q1.term ? q0.term : q2.term} arasındaki fark nedir? Çeldiriciler genelde tam bu iki kavramı karıştırır.`,
+          text: `İkinci favori soru tipi ise 'Ayırt Etme ve Kıyaslama' sorusu: ${q1.term} ile ${q2.term === q1.term ? q0.term : q2.term} arasındaki temel fark nedir? Test sınavlarında da çeldirici tam buradan kurulur değil mi hocam?`,
         },
         {
           speaker: 'Deniz',
-          text: `Çok doğru. ${q1.term} kısaca şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(q1.definition))} Diğer kavram ise ${ensureSentenceEnd(lowerFirstIfNotProper((q2.term === q1.term ? q0 : q2).definition))} Farkı tek bir cümleyle net yazabilen öğrenci bu soruyu kaçırmaz.`,
+          text: `Kesinlikle Barış! Hoca tam bu iki kavramı birbirine dolayarak şıkları hazırlar. Formülümüz şu: ${q1.term} dediğimizde ${ensureSentenceEnd(lowerFirstIfNotProper(q1.definition))} Buna karşılık ${q2.term === q1.term ? q0.term : q2.term} ise ${ensureSentenceEnd(lowerFirstIfNotProper((q2.term === q1.term ? q0 : q2).definition))} Bu iki farkı net koyan öğrenci sınavdan gülerek çıkar!`,
         },
       ];
       if (criticalFact) {
         turns.push({
           speaker: 'Barış',
-          text: `Son olarak şu bilgi neredeyse her sınavda bir şekilde karşımıza çıkıyor: ${ensureSentenceEnd(lowerFirstIfNotProper(criticalFact))}`,
+          text: `Son olarak sınav kağıdında hayat kurtaracak şu kritik bilgiyi de aklımıza kazıyalım: ${ensureSentenceEnd(lowerFirstIfNotProper(criticalFact))}`,
         });
         turns.push({
           speaker: 'Deniz',
-          text: `Kesinlikle. Bunu ezberlemek yerine nedeniyle birlikte öğrenin; ders sonundaki eşleştirme ve soru bölümünde bu noktaları birlikte pekiştireceğiz.`,
+          text: `Tam isabet Barış! Şimdi video sonundaki interaktif eşleştirme kartları ve mini testle bu noktaları hep birlikte mükemmel şekilde pekiştirelim!`,
         });
       }
 

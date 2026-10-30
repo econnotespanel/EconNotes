@@ -1332,7 +1332,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     <Loader2 className="h-6 w-6 animate-spin" />
                   </div>
                   <p className="mt-4 text-sm sm:text-base font-semibold tracking-tight text-white">
-                    Video yükleniyor lütfen bekleyiniz
+                    Video yükleniyor, lütfen bekleyiniz.
                   </p>
                   {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
                     <div className="mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-white/10">

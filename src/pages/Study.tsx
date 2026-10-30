@@ -293,7 +293,7 @@ const Study = () => {
         { cap: 28, label: 'Ders notundaki temel kavramlar ve konular analiz ediliyor...' },
         { cap: 58, label: 'Hocanın sorabileceği noktalar ve örnek sorular hazırlanıyor...' },
         { cap: 85, label: 'Görsel şemalar ve kavram eşleştirme kartları oluşturuluyor...' },
-        { cap: 95, label: 'Video yükleniyor lütfen bekleyiniz...' },
+        { cap: 95, label: 'Video yükleniyor, lütfen bekleyiniz.' },
       ];
       let currentStageIdx = 0;
       setProgressLabel(videoStages[0].label);

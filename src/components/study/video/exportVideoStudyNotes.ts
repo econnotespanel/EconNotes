@@ -1,5 +1,6 @@
 import { APP_VERSION_LABEL } from '@/lib/version';
 import type { DiagramType, StudioContent, StudioScene } from './sceneModel';
+import { ECONNOTES_LOGO_DARK_URI, ECONNOTES_LOGO_LIGHT_URI } from './econnotesBrandLogo';
 
 const DIAGRAM_TYPE_LABELS: Record<DiagramType, string> = {
   visual: 'Görsel & İllüstrasyon',
@@ -41,9 +42,9 @@ function formatDurationTr(totalSec: number): string {
   return `${mins} dk Akademik Video Ders`;
 }
 
-/** Sohbet geçiş cümlelerini ayıklayıp yalnızca saf akademik bilgi cümlelerini bırakır. */
+/** Sohbet geçiş ve podcast diyalog cümlelerini ayıklayıp yalnızca saf akademik bilgi cümlelerini bırakır. */
 const CONVERSATIONAL_FILLER_RE =
-  /^(?:EconNotes akademik stüdyosuna hoş geldiniz|Çok (?:kritik|yerinde|doğru|isabetli)|Tam (?:burada|isabet)|Peki (?:Deniz|bu ilk ivme)|Deniz,\s*(?:öğrencilerin|konunun|bir konuyu|tam burada)|Şimdi (?:tüm bu|bu büyük resmi|bu kavramların|ders sonundaki)|Adım adım ilerleyelim|İşte konuyu bu dört adımlı|Görsel mimariden karşılaştırma|Kesinlikle[.;\s]|Elbette Barış|Memnuniyetle Deniz|Hemen netleştirelim)/i;
+  /^(?:EconNotes (?:akademik )?stüdyosuna hoş geldiniz|Çok (?:kritik|yerinde|doğru|isabetli|güzel)|Tam (?:burada|isabet|12'den)|Peki (?:Deniz|bu ilk ivme|bu ilk hareket|hocam)|Deniz,\s*(?:öğrencilerin|konunun|bir konuyu|tam burada)|Şimdi (?:tüm bu|bu büyük resmi|bu kavramların|ders sonundaki|ezber tanımlardan)|Adım adım ilerleyelim|İşte (?:konuyu bu dört adımlı|işin can alıcı|domino etkisi)|Görsel mimariden karşılaştırma|Kesinlikle[.;\s]|Elbette Barış|Memnuniyetle Deniz|Hemen netleştirelim|Harika bir (?:soru|noktaya|ders|özetledin|fikir)|Birlikte bir dedektif|İlk ve en garanti)/i;
 
 function extractCleanSceneSummary(scene: StudioScene): string[] {
   const bullets: string[] = [];
@@ -304,10 +305,21 @@ export function buildVideoStudyNotesHtml({
     .toolbar-brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 700;
-      font-size: 14px;
+      gap: 12px;
+      font-weight: 600;
+      font-size: 13.5px;
       letter-spacing: -0.01em;
+    }
+    .toolbar-logo {
+      height: 26px;
+      width: auto;
+      max-width: 140px;
+      object-fit: contain;
+      display: block;
+    }
+    .toolbar-divider {
+      color: rgba(148, 163, 184, 0.4);
+      font-weight: 300;
     }
     .toolbar-actions {
       display: flex;
@@ -359,6 +371,16 @@ export function buildVideoStudyNotesHtml({
       display: inline-flex;
       align-items: center;
       gap: 10px;
+    }
+    .hero-logo {
+      height: 38px;
+      width: auto;
+      max-width: 190px;
+      object-fit: contain;
+      display: block;
+    }
+    .hero-logo-light {
+      display: none;
     }
     .course-pill {
       display: inline-block;
@@ -728,12 +750,9 @@ export function buildVideoStudyNotesHtml({
 <body>
   <div class="toolbar">
     <div class="toolbar-brand">
-      <svg width="26" height="26" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="36" height="36" rx="9" fill="#0EA5E9"/>
-        <path d="M10 11H25V14.2H13.8V16.6H23.2V19.6H13.8V22.2H25.4V25.4H10V11Z" fill="white"/>
-        <circle cx="27.5" cy="9.5" r="2.5" fill="#FDE047"/>
-      </svg>
-      <span>EconNotes Akademik Ders Notu &amp; Sınav Rehberi</span>
+      <img class="toolbar-logo" src="${ECONNOTES_LOGO_DARK_URI}" alt="EconNotes" />
+      <span class="toolbar-divider">|</span>
+      <span>Akademik Ders Notu &amp; Sınav Rehberi</span>
     </div>
     <div class="toolbar-actions">
       <button type="button" class="btn" onclick="document.body.classList.toggle('hide-answers')">
@@ -749,12 +768,8 @@ export function buildVideoStudyNotesHtml({
     <header class="hero">
       <div class="hero-top">
         <div class="logo-lockup">
-          <svg width="32" height="32" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="36" height="36" rx="9" fill="rgba(255,255,255,0.14)"/>
-            <path d="M10 11H25V14.2H13.8V16.6H23.2V19.6H13.8V22.2H25.4V25.4H10V11Z" fill="white"/>
-            <circle cx="27.5" cy="9.5" r="2.5" fill="#38BDF8"/>
-          </svg>
-          <span style="font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: #ffffff;">EconNotes</span>
+          <img class="hero-logo hero-logo-dark" src="${ECONNOTES_LOGO_DARK_URI}" alt="EconNotes" />
+          <img class="hero-logo hero-logo-light" src="${ECONNOTES_LOGO_LIGHT_URI}" alt="EconNotes" />
         </div>
         <span class="course-pill">${escapeHtml(cleanCourse)}</span>
       </div>
