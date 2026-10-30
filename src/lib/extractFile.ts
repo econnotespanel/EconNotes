@@ -3,6 +3,7 @@
 // Images and audio are returned as base64 for multimodal AI.
 
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.js';
+import JSZip from 'jszip';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.min.js?url';
@@ -67,6 +68,80 @@ export async function extractFile(
     return { kind: 'text', text, pages: maxPages };
   }
 
+  // PowerPoint (.pptx) slayt dökümü
+  if (
+    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    name.endsWith('.pptx')
+  ) {
+    onProgress?.(10, 'Sunum slaytları taranıyor...');
+    const buf = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+
+    const slideEntries: { name: string; num: number; file: JSZip.JSZipObject }[] = [];
+    zip.forEach((path, entry) => {
+      const match = path.match(/^ppt\/slides\/slide(\d+)\.xml$/i);
+      if (match && !entry.dir) {
+        slideEntries.push({ name: path, num: parseInt(match[1], 10), file: entry });
+      }
+    });
+
+    slideEntries.sort((a, b) => a.num - b.num);
+
+    if (slideEntries.length === 0) {
+      throw new Error('PowerPoint sunumunda okunabilir slayt bulunamadı.');
+    }
+
+    const slideParts: string[] = [];
+    const maxSlides = Math.min(slideEntries.length, 120);
+
+    for (let i = 0; i < maxSlides; i++) {
+      const slideObj = slideEntries[i];
+      const xml = await slideObj.file.async('string');
+      const textMatches = Array.from(xml.matchAll(/<a:t[^>]*>([^<]+)<\/a:t>/gi)).map(m => m[1]);
+      const slideContent = textMatches.join(' ').replace(/\s+/g, ' ').trim();
+      if (slideContent) {
+        slideParts.push(`--- Slayt ${slideObj.num} ---\n${slideContent}`);
+      }
+      onProgress?.(15 + Math.round(((i + 1) / maxSlides) * 50), `Slaytlar okunuyor (${i + 1}/${maxSlides})...`);
+    }
+
+    const fullText = slideParts.join('\n\n').slice(0, 200_000);
+    if (!fullText.trim()) {
+      throw new Error('Slaytlardan metin çıkarılamadı (görsel ağırlıklı olabilir).');
+    }
+
+    onProgress?.(70, `${slideEntries.length} slayt başarıyla çözümlendi.`);
+    return { kind: 'text', text: fullText, pages: slideEntries.length };
+  }
+
+  // Word (.docx) ders notu
+  if (
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    name.endsWith('.docx')
+  ) {
+    onProgress?.(15, 'Word ders notu okunuyor...');
+    const buf = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const docEntry = zip.file('word/document.xml');
+    if (!docEntry) {
+      throw new Error('Word belgesi içeriği okunamadı.');
+    }
+    const xml = await docEntry.async('string');
+    const paragraphs = Array.from(xml.matchAll(/<w:p\b[^>]*>(.*?)<\/w:p>/gis)).map(pMatch => {
+      const pXml = pMatch[1];
+      const textMatches = Array.from(pXml.matchAll(/<w:t\b[^>]*>([^<]+)<\/w:t>/gi)).map(m => m[1]);
+      return textMatches.join('').trim();
+    }).filter(Boolean);
+
+    const fullText = paragraphs.join('\n\n').slice(0, 200_000);
+    if (!fullText.trim()) {
+      throw new Error('Word belgesinde metin bulunamadı.');
+    }
+
+    onProgress?.(65, 'Word notu hazır.');
+    return { kind: 'text', text: fullText };
+  }
+
   // Images
   if (mime.startsWith('image/')) {
     onProgress?.(30, 'Görsel hazırlanıyor...');
@@ -83,5 +158,5 @@ export async function extractFile(
     return { kind: 'audio', data, mime };
   }
 
-  throw new Error('Desteklenmeyen dosya türü. PDF, görsel, ses veya metin yükleyin.');
+  throw new Error('Desteklenmeyen dosya türü. PDF, PowerPoint (.pptx), Word (.docx), görsel, ses veya metin yükleyin.');
 }

@@ -17,7 +17,8 @@ import {
   GraduationCap, Sparkles, Layers, ClipboardList, FileText as FileTextIcon, Video as VideoIcon,
   Loader2, ChevronLeft, ChevronRight, Check, X, Trash2, Play, Search, Plus, BookOpen,
   Upload, Mic, FileUp, Bug, Coffee, Award, Flame, Brain, Trophy, RefreshCw, RotateCw, Pause, Volume2,
-  MessageCircle, Send, Wand2
+  MessageCircle, Send, Wand2, Copy, CheckCheck, FileDown, Presentation, FileSpreadsheet, ListChecks,
+  Target, AlertTriangle, ArrowRight, Zap, CheckCircle2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
@@ -119,6 +120,14 @@ const Study = () => {
   const [typeFilter, setTypeFilter] = useState<'all' | MaterialType>('all');
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week'>('all');
 
+  // Hızlı Slayt & Ders Notu İstasyonu State
+  const [quickFile, setQuickFile] = useState<File | null>(null);
+  const [quickTitle, setQuickTitle] = useState('');
+  const [quickCourse, setQuickCourse] = useState('');
+  const [quickType, setQuickType] = useState<MaterialType>('summary');
+  const [quickPageCount, setQuickPageCount] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState('');
@@ -206,10 +215,67 @@ const Study = () => {
     setTimeout(() => { setProgress(0); setProgressLabel(''); }, done ? 600 : 0);
   };
 
-  const handleGenerate = async () => {
+  const handleQuickFileSelect = async (file: File) => {
+    setQuickFile(file);
+    const cleanBase = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+    setQuickTitle(cleanBase);
+    try {
+      const res = await extractFile(file);
+      if (res.kind === 'text' && res.pages) {
+        setQuickPageCount(res.pages);
+        toast.success(`${res.pages} sayfa/slayt başarıyla tarandı.`);
+      }
+    } catch {
+      // Tam döküm başlatma esnasında yapılacak
+    }
+  };
+
+  const handleQuickStart = async () => {
+    if (!quickFile || !quickTitle.trim()) {
+      toast.error('Lütfen bir dosya ve başlık girin.');
+      return;
+    }
+    await handleGenerate({
+      file: quickFile,
+      title: quickTitle,
+      course: quickCourse,
+      type: quickType,
+    });
+  };
+
+  const convertMaterialTo = (source: StudyMaterial, targetType: MaterialType) => {
+    setMaterialType(targetType);
+    const cleanTitle = source.title.replace(/^[^:]+:\s*/, '');
+    setUploadTitle(cleanTitle);
+    setUploadCourse(source.course || '');
+    const c = source.content || {};
+    let contextText = `${cleanTitle}\nDers: ${source.course || '-'}\n\n`;
+    if (c.overview) contextText += `GENEL BAKIŞ:\n${c.overview}\n\n`;
+    if (c.keyPoints?.length) contextText += `HAP BİLGİLER:\n${c.keyPoints.join('\n')}\n\n`;
+    if (c.sections?.length) {
+      contextText += c.sections.map((s: any) => `--- ${s.heading} ---\n${s.content}\nÇıkarım: ${s.takeaway || '-'}`).join('\n\n');
+    }
+    setUploadDescription(contextText.slice(0, 15000));
+    setSourceMode('upload');
+    setActiveMaterial(null);
+    setCreateOpen(true);
+  };
+
+  const handleGenerate = async (overrides?: {
+    file?: File;
+    title?: string;
+    course?: string;
+    type?: MaterialType;
+  }) => {
+    const activeType = overrides?.type || materialType;
+    const isDirectUpload = !!overrides?.file || sourceMode === 'upload';
+    const activeFile = overrides?.file || uploadFile;
+    const activeTitle = overrides?.title || uploadTitle;
+    const activeCourse = overrides?.course || uploadCourse;
+
     const safeCount = Math.max(3, Math.min(30, Number.isFinite(count) ? count : 10));
     let payload: any = {
-      materialType,
+      materialType: activeType,
       difficulty,
       count: safeCount,
       examProfile: { examType, totalQuestions: safeCount, examDate, focus, level: difficulty },
@@ -218,31 +284,31 @@ const Study = () => {
     let courseForMaterial: string | null = null;
     let sourceNoteId: string | null = null;
 
-    if (sourceMode === 'upload') {
-      if (!uploadFile || !uploadTitle.trim()) { toast.error('Dosya ve başlık zorunlu.'); return; }
+    if (isDirectUpload) {
+      if (!activeFile || !activeTitle.trim()) { toast.error('Dosya ve başlık zorunlu.'); return; }
       const max = 25 * 1024 * 1024;
-      if (uploadFile.size > max) { toast.error('Dosya 25MB sınırını aşıyor.'); return; }
+      if (activeFile.size > max) { toast.error('Dosya 25MB sınırını aşıyor.'); return; }
 
       setGenerating(true);
       startProgress('Dosya okunuyor...');
       try {
-        const ex = await extractFile(uploadFile, (pct, label) => setProgressNow(Math.min(pct, 65), label));
-        payload.noteTitle = uploadTitle;
-        payload.course = uploadCourse || '-';
+        const ex = await extractFile(activeFile, (pct, label) => setProgressNow(Math.min(pct, 65), label));
+        payload.noteTitle = activeTitle;
+        payload.course = activeCourse || '-';
         if (ex.kind === 'text') {
           payload.noteContext =
-            `Yüklenen materyal: ${uploadFile.name}\nAçıklama: ${uploadDescription || '-'}\n` +
-            `${ex.pages ? `Sayfa sayısı: ${ex.pages}\n` : ''}` +
+            `Yüklenen materyal: ${activeFile.name}\nAçıklama: ${uploadDescription || '-'}\n` +
+            `${ex.pages ? `Sayfa/Slayt sayısı: ${ex.pages}\n` : ''}` +
             `--- METİN İÇERİĞİ ---\n${ex.text}`;
         } else if (ex.kind === 'image') {
-          payload.noteContext = `Yüklenen görsel: ${uploadFile.name}\nAçıklama: ${uploadDescription || '-'}\n(Ekteki görseli birincil kaynak olarak kullan.)`;
+          payload.noteContext = `Yüklenen görsel: ${activeFile.name}\nAçıklama: ${uploadDescription || '-'}\n(Ekteki görseli birincil kaynak olarak kullan.)`;
           payload.document = { data: ex.data, mimeType: ex.mime };
         } else {
-          payload.noteContext = `Yüklenen ses kaydı: ${uploadFile.name}\nAçıklama: ${uploadDescription || '-'}\n(Ekteki ses kaydını birincil kaynak olarak kullan, dökümden konuları çıkar.)`;
+          payload.noteContext = `Yüklenen ses kaydı: ${activeFile.name}\nAçıklama: ${uploadDescription || '-'}\n(Ekteki ses kaydını birincil kaynak olarak kullan, dökümden konuları çıkar.)`;
           payload.audio = { data: ex.data, mimeType: ex.mime };
         }
-        titleForMaterial = uploadTitle;
-        courseForMaterial = uploadCourse || null;
+        titleForMaterial = activeTitle;
+        courseForMaterial = activeCourse || null;
       } catch (e: any) {
         stopProgress(false);
         setGenerating(false);
@@ -288,7 +354,7 @@ const Study = () => {
       }
     }
 
-    if (materialType === 'video') {
+    if (activeType === 'video') {
       const videoStages = [
         { cap: 28, label: 'Ders notundaki temel kavramlar ve konular analiz ediliyor...' },
         { cap: 58, label: 'Hocanın sorabileceği noktalar ve örnek sorular hazırlanıyor...' },
@@ -324,10 +390,10 @@ const Study = () => {
       setProgressNow(100, 'Kaydediliyor...');
       const { data: inserted, error } = await supabase.from('study_materials').insert({
         user_id: user!.id,
-        source_type: sourceMode === 'platform' ? 'platform' : 'own',
+        source_type: isDirectUpload ? 'own' : (sourceMode === 'platform' ? 'platform' : 'own'),
         source_note_id: sourceNoteId,
-        material_type: materialType,
-        title: `${TYPE_META[materialType].label}: ${titleForMaterial}`,
+        material_type: activeType,
+        title: `${TYPE_META[activeType].label}: ${titleForMaterial}`,
         course: courseForMaterial,
         content: res.data.content,
         model: res.data.model,
@@ -336,9 +402,15 @@ const Study = () => {
       if (error) throw error;
 
       stopProgress(true);
-      toast.success(materialType === 'video' ? 'Video dersi hazır.' : 'Materyal hazır.');
+      toast.success(activeType === 'video' ? 'Video dersi hazır.' : 'Materyal hazır.');
       setCreateOpen(false);
       setActiveMaterial(inserted as StudyMaterial);
+      if (overrides?.file) {
+        setQuickFile(null);
+        setQuickTitle('');
+        setQuickCourse('');
+        setQuickPageCount(null);
+      }
       setUploadFile(null); setUploadTitle(''); setUploadCourse(''); setUploadDescription('');
       void load();
     } catch (e: any) {
@@ -541,6 +613,190 @@ const Study = () => {
               </div>
             </CardContent>
           </Card>
+        </section>
+
+        {/* HIZLI SLAYT & DERS NOTU ÖZETLEME İSTASYONU */}
+        <section className="relative overflow-hidden rounded-3xl border border-primary/25 bg-gradient-to-br from-card/95 via-card/85 to-primary/5 p-5 md:p-7 shadow-xl shadow-primary/5 backdrop-blur-xl">
+          <div className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-cyan-500/10 blur-3xl" />
+
+          <div className="relative space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+                    <Presentation className="h-3.5 w-3.5" /> HIZLI SLAYT &amp; NOT İSTASYONU
+                  </span>
+                  <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-mono">PPTX Slayt</Badge>
+                  <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-mono">PDF</Badge>
+                  <Badge variant="outline" className="text-[10px] border-border text-muted-foreground font-mono">DOCX</Badge>
+                </div>
+                <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground font-display">
+                  Slaytlarını veya Ders Notunu Yükle, Anında Özet Çıkart
+                </h2>
+                <p className="text-xs text-muted-foreground max-w-2xl leading-relaxed">
+                  PowerPoint sunumunu veya PDF ders notunu sürükle-bırak. Yapay zekâ slayt slayt tarayıp sınav odaklı derinlikli özet, hap bilgiler, formüller ve hoca vurguları hazırlasın.
+                </p>
+              </div>
+            </div>
+
+            {/* Drag and Drop Zone */}
+            <div
+              onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={e => {
+                e.preventDefault();
+                setIsDragging(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) handleQuickFileSelect(f);
+              }}
+              className={`relative rounded-2xl border-2 border-dashed p-4 sm:p-6 transition-all text-center flex flex-col items-center justify-center gap-3 ${
+                isDragging
+                  ? 'border-primary bg-primary/10 scale-[1.01]'
+                  : quickFile
+                  ? 'border-primary/40 bg-primary/5'
+                  : 'border-border/80 bg-background/40 hover:border-primary/40 hover:bg-background/60'
+              }`}
+            >
+              <input
+                type="file"
+                id="quick-slide-file-input"
+                className="hidden"
+                accept=".pdf,.pptx,.docx,.txt,.md,image/*,audio/*,text/*"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) handleQuickFileSelect(f);
+                }}
+              />
+
+              {quickFile ? (
+                <div className="w-full max-w-xl space-y-3.5">
+                  <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-card p-3 shadow-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                        {quickFile.name.endsWith('.pptx') ? (
+                          <Presentation className="h-5 w-5" />
+                        ) : quickFile.name.endsWith('.docx') ? (
+                          <FileTextIcon className="h-5 w-5" />
+                        ) : (
+                          <FileSpreadsheet className="h-5 w-5" />
+                        )}
+                      </div>
+                      <div className="text-left min-w-0">
+                        <p className="text-xs sm:text-sm font-semibold truncate text-foreground">{quickFile.name}</p>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+                          <span>{(quickFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                          {quickPageCount && (
+                            <span className="text-primary font-semibold">· {quickPageCount} Slayt/Sayfa Tespit Edildi</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setQuickFile(null); setQuickPageCount(null); }}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      aria-label="Dosyayı kaldır"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground">Materyal Başlığı</Label>
+                      <Input
+                        value={quickTitle}
+                        onChange={e => setQuickTitle(e.target.value)}
+                        placeholder="Örn: Osmanlı İktisat Tarihi Slaytları"
+                        className="h-9 text-xs mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground">Ders Adı (İsteğe Bağlı)</Label>
+                      <Input
+                        value={quickCourse}
+                        onChange={e => setQuickCourse(e.target.value)}
+                        placeholder="Örn: İktisat Tarihi"
+                        className="h-9 text-xs mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mode Pill Selector */}
+                  <div className="space-y-1.5 text-left">
+                    <Label className="text-[11px] text-muted-foreground">Üretilecek Çıktı Türü</Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { type: 'summary', label: 'Konu & Slayt Özeti', icon: FileTextIcon, badge: 'ÖNERİLEN' },
+                        { type: 'video', label: 'İnteraktif Video Dersi', icon: VideoIcon, badge: 'İKİLİ ANLATIM' },
+                        { type: 'quiz', label: 'Kısa Sınav', icon: ClipboardList, badge: 'TEST' },
+                        { type: 'flashcards', label: 'Bilgi Kartları', icon: Layers, badge: 'TEKRAR' },
+                      ].map(opt => (
+                        <button
+                          key={opt.type}
+                          type="button"
+                          onClick={() => setQuickType(opt.type as MaterialType)}
+                          className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-start gap-1 transition text-left ${
+                            quickType === opt.type
+                              ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                              : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <opt.icon className="h-3.5 w-3.5" />
+                            <span className="text-[9px] px-1 rounded bg-muted font-mono">{opt.badge}</span>
+                          </div>
+                          <span className="text-foreground text-[11px] mt-0.5">{opt.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    size="lg"
+                    onClick={handleQuickStart}
+                    disabled={generating}
+                    className="w-full gap-2 rounded-xl bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-white font-semibold shadow-lg shadow-primary/20 hover:bg-[position:100%_0] transition-all"
+                  >
+                    {generating ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> {progressLabel || 'Çözümleniyor...'}</>
+                    ) : (
+                      <><Zap className="h-4 w-4" /> {quickType === 'summary' ? 'Slaytların Özetini Çıkar' : quickType === 'video' ? 'Video Dersini Başlat' : 'Materyali Üret'}</>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <label
+                  htmlFor="quick-slide-file-input"
+                  className="cursor-pointer flex flex-col items-center gap-2.5 py-4 w-full"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-inner transition-transform hover:scale-105">
+                    <Upload className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      PowerPoint slaytlarını (.pptx), PDF veya Word notlarını buraya bırakın
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      veya dosya seçmek için tıklayın (otomatik slayt ve sayfa tespiti yapılır)
+                    </p>
+                  </div>
+                </label>
+              )}
+
+              {generating && (
+                <div className="w-full max-w-xl space-y-2 pt-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-primary">{progressLabel}</span>
+                    <span className="font-mono font-bold text-foreground">%{progress}</span>
+                  </div>
+                  <Progress value={progress} className="h-2 rounded-full" />
+                </div>
+              )}
+            </div>
+          </div>
         </section>
 
         {/* Generator modules */}
@@ -796,11 +1052,11 @@ const Study = () => {
                   <label className="flex items-center gap-3 px-3 py-3 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 transition">
                     <FileUp className="h-5 w-5 text-primary" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{uploadFile ? uploadFile.name : 'Dosya seç (PDF, görsel, ses, metin)'}</p>
-                      <p className="text-[11px] text-muted-foreground">PDF (tarayıcıda metin çıkarılır), PNG, JPG, MP3, WAV, M4A, TXT, MD — maks 25MB</p>
+                      <p className="text-sm font-medium">{uploadFile ? uploadFile.name : 'Dosya seç (PowerPoint, PDF, Word, görsel, ses)'}</p>
+                      <p className="text-[11px] text-muted-foreground">PowerPoint (.pptx), PDF slaytları, Word (.docx), PNG, JPG, MP3, WAV, TXT — maks 25MB</p>
                     </div>
                     {uploadFile?.type.startsWith('audio/') && <Mic className="h-4 w-4 text-fuchsia-500" />}
-                    <input type="file" className="hidden" accept=".pdf,.txt,.md,image/*,audio/*,text/*" onChange={e => setUploadFile(e.target.files?.[0] || null)} />
+                    <input type="file" className="hidden" accept=".pdf,.pptx,.docx,.txt,.md,image/*,audio/*,text/*" onChange={e => setUploadFile(e.target.files?.[0] || null)} />
                   </label>
                 </TabsContent>
               </Tabs>
@@ -873,7 +1129,7 @@ const Study = () => {
               </div>
             )}
 
-            <Button onClick={handleGenerate} disabled={generating} className="w-full gap-2" size="lg">
+            <Button onClick={() => void handleGenerate()} disabled={generating} className="w-full gap-2" size="lg">
               {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Hazırlanıyor...</> : <><Sparkles className="h-4 w-4" /> Yapay zekâyla hazırla</>}
             </Button>
           </div>
@@ -895,7 +1151,9 @@ const Study = () => {
         open={!!activeMaterial && activeMaterial.material_type !== 'video'}
         onOpenChange={(o) => !o && setActiveMaterial(null)}
       >
-        <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto rounded-2xl p-3 sm:p-6">
+        <DialogContent className={`max-h-[92dvh] w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl p-3 sm:p-6 transition-all ${
+          activeMaterial?.material_type === 'summary' ? 'max-w-4xl' : 'max-w-3xl'
+        }`}>
           {activeMaterial && activeMaterial.material_type !== 'video' && (
             <MaterialViewer
               key={activeMaterial.id}
@@ -903,6 +1161,8 @@ const Study = () => {
               onClose={() => setActiveMaterial(null)}
               onReport={() => setReportOpen(true)}
               onProgressSaved={() => void load()}
+              onConvertToVideo={() => convertMaterialTo(activeMaterial, 'video')}
+              onConvertToQuiz={() => convertMaterialTo(activeMaterial, 'quiz')}
             />
           )}
         </DialogContent>
@@ -1022,11 +1282,15 @@ const MaterialViewer = ({
   onClose,
   onReport,
   onProgressSaved,
+  onConvertToVideo,
+  onConvertToQuiz,
 }: {
   material: StudyMaterial;
   onClose?: () => void;
   onReport: () => void;
   onProgressSaved: () => void;
+  onConvertToVideo?: () => void;
+  onConvertToQuiz?: () => void;
 }) => {
   const [coachOpen, setCoachOpen] = useState(false);
 
@@ -1034,7 +1298,13 @@ const MaterialViewer = ({
     switch (material.material_type) {
       case 'flashcards': return <FlashcardViewer material={material} onProgressSaved={onProgressSaved} />;
       case 'quiz': return <QuizViewer material={material} onProgressSaved={onProgressSaved} />;
-      case 'summary': return <SummaryViewer material={material} />;
+      case 'summary': return (
+        <SummaryViewer
+          material={material}
+          onConvertToVideo={onConvertToVideo}
+          onConvertToQuiz={onConvertToQuiz}
+        />
+      );
       default: return null;
     }
   };
@@ -1436,93 +1706,456 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
   );
 };
 
-const SummaryViewer = ({ material }: { material: StudyMaterial }) => {
+const SummaryViewer = ({
+  material,
+  onConvertToVideo,
+  onConvertToQuiz,
+}: {
+  material: StudyMaterial;
+  onConvertToVideo?: () => void;
+  onConvertToQuiz?: () => void;
+}) => {
   const c = material.content || {};
+  const [activeTab, setActiveTab] = useState<'overview' | 'sections' | 'exam' | 'concepts'>('overview');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [copiedMd, setCopiedMd] = useState(false);
+  const [checklist, setChecklist] = useState<Record<number, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(`econnotes_summary_checklist_${material.id}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleChecklistItem = (idx: number) => {
+    setChecklist(prev => {
+      const next = { ...prev, [idx]: !prev[idx] };
+      try {
+        localStorage.setItem(`econnotes_summary_checklist_${material.id}`, JSON.stringify(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+
+  const handleCopyMarkdown = () => {
+    const lines: string[] = [
+      `# ${material.title}`,
+      material.course ? `**Ders:** ${material.course}` : '',
+      `**Tarih:** ${new Date(material.created_at).toLocaleDateString('tr-TR')}`,
+      '',
+      '---',
+      '## 📋 Genel Bakış',
+      c.overview || '',
+      '',
+    ];
+
+    if (c.keyPoints?.length) {
+      lines.push('## ⚡ Kritik Hap Bilgiler');
+      c.keyPoints.forEach((kp: string) => lines.push(`- ${kp}`));
+      lines.push('');
+    }
+
+    if (c.instructorEmphasis?.length) {
+      lines.push('## 🎯 Hocanın Sınav Vurguları & Çeldirici Uyarıları');
+      c.instructorEmphasis.forEach((ie: string) => lines.push(`- ⚠️ ${ie}`));
+      lines.push('');
+    }
+
+    if (c.examLikelihood?.length) {
+      lines.push('## 📊 Sınavda Çıkma Olasılığı Yüksek Konular');
+      c.examLikelihood.forEach((el: any) => {
+        lines.push(`- **${el.topic}** [${(el.likelihood || 'yüksek').toUpperCase()} OLASILIK]`);
+        lines.push(`  - Gerekçe: ${el.reason}`);
+        if (el.studyPriority) lines.push(`  - Öncelik: ${el.studyPriority}`);
+      });
+      lines.push('');
+    }
+
+    if (c.sections?.length) {
+      lines.push('## 📑 Bölüm & Slayt Çözümlemeleri');
+      c.sections.forEach((s: any, i: number) => {
+        lines.push(`### ${i + 1}. ${s.heading}`);
+        lines.push(s.content);
+        if (s.takeaway) lines.push(`> 💡 **Çıkarım:** ${s.takeaway}`);
+        lines.push('');
+      });
+    }
+
+    if (c.keyTerms?.length) {
+      lines.push('## 💡 Kritik Kavram Sözlüğü');
+      c.keyTerms.forEach((kt: any) => lines.push(`- **${kt.term}:** ${kt.definition}`));
+      lines.push('');
+    }
+
+    if (c.studyChecklist?.length) {
+      lines.push('## ✅ Sınava Hazırlık Kontrol Listesi');
+      c.studyChecklist.forEach((item: string) => lines.push(`- [ ] ${item}`));
+      lines.push('');
+    }
+
+    navigator.clipboard.writeText(lines.join('\n'));
+    setCopiedMd(true);
+    toast.success('Ders özeti Markdown formatında panoya kopyalandı! (Notion & Obsidian için hazır)');
+    setTimeout(() => setCopiedMd(false), 2500);
+  };
+
+  const filteredSections = (c.sections || []).filter((s: any) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (s.heading || '').toLowerCase().includes(q) || (s.content || '').toLowerCase().includes(q);
+  });
+
+  const checklistItems: string[] = c.studyChecklist || [];
+  const completedCount = checklistItems.filter((_, i) => checklist[i]).length;
+  const checklistProgress = checklistItems.length ? Math.round((completedCount / checklistItems.length) * 100) : 0;
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          className="gap-2"
-          onClick={() => downloadLectureSummary({
-            title: material.title,
-            course: material.course,
-            createdAt: new Date(material.created_at).toLocaleDateString('tr-TR'),
-            overview: c.overview,
-            keyPoints: c.keyPoints,
-            sections: c.sections,
-            instructorEmphasis: c.instructorEmphasis,
-            examLikelihood: c.examLikelihood,
-            transcript: c.transcript,
-          })}
-        >
-          <FileTextIcon className="h-4 w-4" /> Cihaza indir
-        </Button>
+      {/* Top action toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-border/70 bg-card/60 p-3 backdrop-blur-md">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30 font-semibold gap-1">
+            <FileTextIcon className="h-3 w-3" /> Konu &amp; Slayt Özeti
+          </Badge>
+          {material.course && (
+            <span className="text-xs text-muted-foreground font-medium">· {material.course}</span>
+          )}
+          {c.sections?.length && (
+            <span className="text-xs text-muted-foreground">· {c.sections.length} Bölüm</span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {onConvertToVideo && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 rounded-xl border-cyan-500/30 text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400 text-xs font-semibold"
+              onClick={onConvertToVideo}
+              title="Bu ders özetini Dr. Deniz ve Barış ile interaktif videolu derse dönüştür"
+            >
+              <VideoIcon className="h-3.5 w-3.5" /> Videoya Dönüştür
+            </Button>
+          )}
+          {onConvertToQuiz && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 rounded-xl border-accent/30 text-accent hover:bg-accent/10 text-xs font-semibold"
+              onClick={onConvertToQuiz}
+              title="Bu ders özetinden sınav soruları hazırla"
+            >
+              <ClipboardList className="h-3.5 w-3.5" /> Sınava Dönüştür
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 rounded-xl text-xs"
+            onClick={handleCopyMarkdown}
+            title="Notion veya Obsidian için Markdown kopyala"
+          >
+            {copiedMd ? <CheckCheck className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+            {copiedMd ? 'Kopyalandı' : 'Markdown Kopyala'}
+          </Button>
+          <Button
+            size="sm"
+            className="h-8 gap-1.5 rounded-xl bg-gradient-to-r from-primary to-blue-600 text-white text-xs font-semibold shadow-sm"
+            onClick={() => downloadLectureSummary({
+              title: material.title,
+              course: material.course,
+              createdAt: new Date(material.created_at).toLocaleDateString('tr-TR'),
+              overview: c.overview,
+              keyPoints: c.keyPoints,
+              sections: c.sections,
+              instructorEmphasis: c.instructorEmphasis,
+              examLikelihood: c.examLikelihood,
+              keyTerms: c.keyTerms,
+              studyChecklist: c.studyChecklist,
+              transcript: c.transcript,
+            })}
+          >
+            <FileDown className="h-3.5 w-3.5" /> Cihaza İndir (HTML)
+          </Button>
+        </div>
       </div>
-      <div className="rounded-xl border border-border bg-card p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Genel bakış</p>
-        <p className="text-sm leading-relaxed">{c.overview}</p>
-      </div>
-      {c.keyPoints?.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Anahtar noktalar</p>
-          <ul className="space-y-1.5">
-            {c.keyPoints.map((kp: string, i: number) => (
-              <li key={i} className="flex gap-2 text-sm"><span className="text-primary font-bold">▸</span>{kp}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {c.instructorEmphasis?.length > 0 && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-3">Hocanın özellikle vurguladıkları</p>
-          <ul className="space-y-1.5">
-            {c.instructorEmphasis.map((item: string, i: number) => (
-              <li key={i} className="flex gap-2 text-sm"><span className="text-amber-500 font-bold">!</span>{item}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {c.examLikelihood?.length > 0 && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mb-3">Sınavda çıkma olasılığı yüksek konular</p>
-          <div className="space-y-2">
-            {c.examLikelihood.map((item: any, i: number) => (
-              <div key={i} className="rounded-lg border border-border/70 bg-background/50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-semibold">{item.topic}</span>
-                  <Badge variant={item.likelihood === 'yüksek' ? 'default' : 'secondary'}>{item.likelihood} olasılık</Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>
-                {item.studyPriority && <p className="mt-1 text-xs font-medium text-primary">Çalışma önceliği: {item.studyPriority}</p>}
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-[11px] text-muted-foreground">Bu değerlendirme yalnızca ders dökümündeki vurgulara dayanır; kesin sınav garantisi değildir.</p>
-        </div>
-      )}
-      {c.infographic?.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {c.infographic.map((it: any, i: number) => (
-            <div key={i} className="rounded-xl border border-border bg-gradient-to-br from-primary/5 to-transparent p-3">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{it.label}</p>
-              <p className="text-lg font-bold mt-1">{it.value}</p>
-            </div>
+
+      {/* Navigation tabs */}
+      <div className="flex border-b border-border/60 pb-1">
+        <div className="flex gap-1 overflow-x-auto">
+          {[
+            { id: 'overview', label: 'Genel Bakış & Hap Bilgiler', count: c.keyPoints?.length },
+            { id: 'sections', label: 'Slayt & Konu Analizi', count: c.sections?.length },
+            { id: 'exam', label: 'Hoca Vurguları & Sınav Tahmini', count: (c.instructorEmphasis?.length || 0) + (c.examLikelihood?.length || 0) },
+            { id: 'concepts', label: 'Kavramlar & Kontrol Listesi', count: (c.keyTerms?.length || 0) + (c.studyChecklist?.length || 0) },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-t-lg transition border-b-2 -mb-[1px] whitespace-nowrap ${
+                activeTab === tab.id
+                  ? 'border-primary text-primary bg-primary/5'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+              }`}
+            >
+              <span>{tab.label}</span>
+              {typeof tab.count === 'number' && tab.count > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
+                  activeTab === tab.id ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
           ))}
         </div>
-      )}
-      {c.sections?.map((s: any, i: number) => (
-        <div key={i} className="rounded-xl border border-border bg-card p-4">
-          <h4 className="font-semibold mb-2">{s.heading}</h4>
-          <div className="prose prose-sm max-w-none dark:prose-invert"><ReactMarkdown>{s.content}</ReactMarkdown></div>
-          {s.takeaway && <p className="mt-2 text-xs italic text-primary">💡 {s.takeaway}</p>}
+      </div>
+
+      {/* TAB 1: OVERVIEW */}
+      {activeTab === 'overview' && (
+        <div className="space-y-4 animate-fade-in">
+          {c.overview && (
+            <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-secondary/5 p-4 sm:p-5">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" /> Kuramsal Çerçeve ve Genel Bakış
+              </p>
+              <p className="text-sm leading-relaxed text-foreground/90 font-normal">{c.overview}</p>
+            </div>
+          )}
+
+          {c.infographic?.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              {c.infographic.map((it: any, i: number) => (
+                <div key={i} className="rounded-xl border border-border/80 bg-card/80 p-3 shadow-sm hover:border-primary/40 transition">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{it.label}</p>
+                  <p className="text-base sm:text-lg font-bold font-display text-foreground mt-1 truncate">{it.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {c.keyPoints?.length > 0 && (
+            <div className="rounded-2xl border border-border/80 bg-card/80 p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 text-amber-500" /> Sınav Öncesi Kritik Hap Bilgiler
+                </p>
+                <span className="text-[11px] text-muted-foreground">{c.keyPoints.length} Madde</span>
+              </div>
+              <div className="grid gap-2">
+                {c.keyPoints.map((kp: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 transition border border-transparent hover:border-border text-xs sm:text-sm">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary text-[11px] font-bold mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="leading-relaxed text-foreground/90">{kp}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      ))}
-      {typeof c.transcript === 'string' && (
-        <details className="rounded-xl border border-border bg-card p-4">
-          <summary className="cursor-pointer text-sm font-semibold">Kaydedilen ders dökümünü göster</summary>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{c.transcript}</p>
-        </details>
+      )}
+
+      {/* TAB 2: SECTIONS */}
+      {activeTab === 'sections' && (
+        <div className="space-y-4 animate-fade-in">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Bölümlerde veya slaytlarda kavram ara..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-8 h-9 text-xs"
+              />
+            </div>
+            {searchQuery && (
+              <Button size="sm" variant="ghost" onClick={() => setSearchQuery('')} className="h-9 px-2 text-xs">
+                Temizle
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {filteredSections.map((s: any, i: number) => (
+              <div key={i} className="rounded-2xl border border-border/80 bg-card/80 p-4 sm:p-5 shadow-sm hover:border-border transition space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary font-mono text-xs font-bold">
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <h4 className="font-semibold text-sm sm:text-base text-foreground">{s.heading}</h4>
+                  </div>
+                </div>
+
+                <div className="prose prose-sm max-w-none dark:prose-invert text-xs sm:text-sm leading-relaxed text-foreground/90">
+                  <ReactMarkdown>{s.content}</ReactMarkdown>
+                </div>
+
+                {s.takeaway && (
+                  <div className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
+                    <span className="text-primary font-bold shrink-0 mt-0.5">💡 Çıkarım:</span>
+                    <span className="text-foreground/90 font-medium leading-relaxed">{s.takeaway}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+            {filteredSections.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-8">Aradığınız kriterlere uygun bölüm bulunamadı.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: EXAM */}
+      {activeTab === 'exam' && (
+        <div className="space-y-4 animate-fade-in">
+          {c.instructorEmphasis?.length > 0 && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                  Hocanın Özellikle Vurguladıkları &amp; Çeldirici Noktalar
+                </p>
+              </div>
+              <div className="space-y-2">
+                {c.instructorEmphasis.map((item: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-background/60 border border-amber-500/20 text-xs sm:text-sm leading-relaxed">
+                    <span className="text-amber-500 font-bold text-base leading-none mt-0.5">⚠️</span>
+                    <span className="text-foreground/90">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {c.examLikelihood?.length > 0 && (
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                    Sınavda Çıkma Olasılığı Yüksek Konular
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 text-[10px]">
+                  {c.examLikelihood.length} Konu Analizi
+                </Badge>
+              </div>
+
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {c.examLikelihood.map((item: any, i: number) => (
+                  <div key={i} className="rounded-xl border border-border/80 bg-card p-3.5 shadow-sm space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs sm:text-sm font-bold text-foreground truncate">{item.topic}</span>
+                      <Badge className={
+                        item.likelihood === 'yüksek'
+                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px]'
+                          : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]'
+                      }>
+                        {item.likelihood} olasılık
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{item.reason}</p>
+                    {item.studyPriority && (
+                      <p className="text-[11px] font-semibold text-primary pt-1 border-t border-border/40">
+                        Çalışma önceliği: {item.studyPriority}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground pt-1">
+                * Bu değerlendirme ders dökümü ve slaytlardaki kavram yoğunluğuna dayanmaktadır; kesin sınav garantisi niteliği taşımaz.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: CONCEPTS & CHECKLIST */}
+      {activeTab === 'concepts' && (
+        <div className="space-y-4 animate-fade-in">
+          {checklistItems.length > 0 && (
+            <div className="rounded-2xl border border-primary/20 bg-card p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ListChecks className="h-4 w-4 text-primary" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Sınava Hazırlık Kontrol Listesi
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-primary">
+                  {completedCount}/{checklistItems.length} Tamamlandı (%{checklistProgress})
+                </span>
+              </div>
+
+              <Progress value={checklistProgress} className="h-2" />
+
+              <div className="space-y-2 pt-1">
+                {checklistItems.map((item: string, idx: number) => {
+                  const done = !!checklist[idx];
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => toggleChecklistItem(idx)}
+                      className={`w-full flex items-start gap-3 p-2.5 rounded-xl border text-left transition ${
+                        done
+                          ? 'border-success/30 bg-success/5 text-foreground/80'
+                          : 'border-border/70 bg-card hover:bg-muted/40 text-foreground'
+                      }`}
+                    >
+                      <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded mt-0.5 border ${
+                        done ? 'border-success bg-success text-white' : 'border-border bg-background'
+                      }`}>
+                        {done && <Check className="h-3 w-3 stroke-[3]" />}
+                      </div>
+                      <span className={`text-xs sm:text-sm leading-relaxed ${done ? 'line-through text-muted-foreground' : ''}`}>
+                        {item}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {c.keyTerms?.length > 0 && (
+            <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5 text-primary" /> Kritik Kavram Sözlüğü
+                </p>
+                <span className="text-xs text-muted-foreground">{c.keyTerms.length} Terim</span>
+              </div>
+
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                {c.keyTerms.map((kt: any, i: number) => (
+                  <div key={i} className="rounded-xl border border-border/70 bg-muted/30 p-3 space-y-1 hover:border-primary/40 transition">
+                    <p className="text-xs font-bold text-primary font-display">{kt.term}</p>
+                    <p className="text-xs text-foreground/90 leading-relaxed">{kt.definition}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {typeof c.transcript === 'string' && (
+            <details className="rounded-xl border border-border/70 bg-card/60 p-4">
+              <summary className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
+                Ham ders dökümünü göster
+              </summary>
+              <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                {c.transcript}
+              </p>
+            </details>
+          )}
+        </div>
       )}
     </div>
   );

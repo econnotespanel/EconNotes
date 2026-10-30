@@ -23,6 +23,8 @@ export interface LectureSummaryReport {
   sections?: SummarySection[];
   instructorEmphasis?: string[];
   examLikelihood?: ExamLikelihoodItem[];
+  keyTerms?: Array<{ term: string; definition: string }>;
+  studyChecklist?: string[];
   transcript?: string;
 }
 
@@ -109,7 +111,21 @@ const buildHtml = (report: LectureSummaryReport) => {
     ${keyPoints ? `<div class="points"><h2>Anahtar noktalar</h2><ul>${keyPoints}</ul></div>` : ''}
     ${instructorEmphasis ? `<div class="category"><h2>Hocanın vurguladıkları</h2><ul>${instructorEmphasis}</ul></div>` : ''}
     ${examLikelihood ? `<div class="category"><h2>Sınav önceliği</h2><ul>${examLikelihood}</ul></div>` : ''}
+    ${report.keyTerms && report.keyTerms.length > 0 ? `
+      <div class="category">
+        <h2>Kritik Kavram Sözlüğü</h2>
+        <ul>
+          ${report.keyTerms.map(kt => `<li><strong>${escapeHtml(kt.term)}:</strong> ${markdownToHtml(kt.definition)}</li>`).join('')}
+        </ul>
+      </div>` : ''}
     ${sections}
+    ${report.studyChecklist && report.studyChecklist.length > 0 ? `
+      <div class="category">
+        <h2>Sınava Hazırlık Kontrol Listesi</h2>
+        <ul>
+          ${report.studyChecklist.map(item => `<li>☐ ${markdownToHtml(item)}</li>`).join('')}
+        </ul>
+      </div>` : ''}
     ${report.transcript ? `<div class="transcript"><div class="label">Ders dökümü</div><p>${markdownToHtml(report.transcript)}</p></div>` : ''}
     <div class="footer">Bu özet EconNotes tarafından yapay zeka destekli olarak oluşturulmuştur.</div>
   </body>

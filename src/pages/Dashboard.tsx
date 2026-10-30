@@ -224,8 +224,8 @@ const Dashboard = () => {
                   <Video className="h-4 w-4" />
                 </div>
                 <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-sm">NotebookLM Tarzı İkili Video Dersi</p>
-                  <p className="text-muted-foreground">Dr. Deniz ve Barış eşliğinde ezber kalıplardan uzak, soru-cevaplı derin akademik anlatım.</p>
+                  <p className="font-semibold text-foreground text-sm">Yapay Zekâ İnteraktif Video Dersi</p>
+                  <p className="text-muted-foreground">Dr. Deniz ve Barış eşliğinde ezber kalıplardan uzak, soru-cevaplı derin akademik konu anlatımı.</p>
                 </div>
               </div>
 
@@ -234,8 +234,8 @@ const Dashboard = () => {
                   <Headphones className="h-4 w-4" />
                 </div>
                 <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-sm">22.05 kHz Neural HD Türkçe Ses</p>
-                  <p className="text-muted-foreground">Robotik olmayan, pürüzsüz diksiyon ve akıcı üniversite semineri doğallığında seslendirme.</p>
+                  <p className="font-semibold text-foreground text-sm">Stüdyo Kalitesinde Doğal Seslendirme</p>
+                  <p className="text-muted-foreground">Robotik olmayan, pürüzsüz diksiyon ve akıcı üniversite semineri doğallığında ses akışı.</p>
                 </div>
               </div>
 
@@ -292,7 +292,7 @@ const Dashboard = () => {
                   <p className="font-semibold text-foreground">Çalışma Stüdyosu Güncellendi!</p>
                   <span className="text-[10px] bg-primary/20 text-primary font-semibold px-2 py-0.5 rounded-full border border-primary/20">YENİ</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-0.5">NotebookLM tarzı ikili video dersleri, akıllı tahta şemaları ve sınav sorularıyla çalışmaya başlayın.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">İnteraktif ikili video dersleri, akıllı tahta şemaları ve slayt özetleriyle çalışmaya başlayın.</p>
               </div>
             </div>
             <Button size="sm" className="gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shrink-0 w-full sm:w-auto shadow-sm" onClick={() => navigate('/study')}>

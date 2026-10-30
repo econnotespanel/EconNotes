@@ -128,6 +128,22 @@ const schemas: Record<string, any> = {
           additionalProperties: false,
         },
       },
+      keyTerms: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            term: { type: 'string' },
+            definition: { type: 'string' },
+          },
+          required: ['term', 'definition'],
+          additionalProperties: false,
+        },
+      },
+      studyChecklist: {
+        type: 'array',
+        items: { type: 'string' },
+      },
     },
     required: ['overview', 'keyPoints', 'sections'],
     additionalProperties: false,
@@ -299,16 +315,27 @@ GÜVENLİK:
         : `${count} adet ${difficulty} zorlukta ÇOKTAN SEÇMELİ soru üret. type:"multiple_choice", 4 şık, tek doğru cevap (correctIndex 0-3), neden doğru/yanlış olduğunu özetleyen 1-2 cümlelik explanation.`;
       break;
     case 'summary':
-      task = `Kapsamlı ve sınava hazırlanırken doğrudan kullanılabilecek bir ders özeti üret.
-3-4 cümlelik overview, 6-10 anahtar nokta ve 4-7 bölüm oluştur.
-Her bölümde konu açıklaması, kritik kavramlar, varsa formüller/tarihler/sayılar ve kaynakta geçen örnekler yer alsın; uygun olduğunda takeaway ekle.
-Sesli dökümdeki tekrarları ve konuşma dolgu kelimelerini temizle, fakat anlamı, neden-sonuç ilişkisini veya öğretmenin vurgusunu kaybetme.
-Duyulamayan ya da belirsiz kısımları uydurma; belirsiz olduğunu açıkça belirt.
-Akademik terimleri, özel adları, sayıları, tarihleri ve formülleri kaynakta geçtiği biçime mümkün olduğunca sadık kalarak koru.
-Kaynakta olmayan bilgi ekleme.
-Ayrıca instructorEmphasis alanında hocanın açıkça vurguladığı, tekrar ettiği, "önemli", "sınavda", "dikkat" gibi ifadelerle belirttiği noktaları listele.
-examLikelihood alanında döküme dayalı olarak sınavda çıkma olasılığı yüksek/orta/düşük görünen konuları topic, reason, likelihood ve studyPriority alanlarıyla sınıflandır.
-Sınav olasılığını yalnızca döküme dayalı değerlendir; kesin sınav garantisi verme ve dökümde kanıt yoksa olasılığı yüksek gösterme.`;
+      task = `Ders notları, PowerPoint slaytları veya ses dökümünü temel alarak üniversite öğrencileri için EN YÜKSEK AKADEMİK STANDARTTA, SINAV ODAKLI VE DERİNLEMESİNE BİR DERS & SLAYT ÖZETİ üret.
+KAPSAM VE YAPI:
+1. GENEL BAKIŞ (overview): Konunun kuramsal çerçevesini, tarihsel/iktisadi önemini ve vize/finaldeki ağırlığını 3-5 akıcı ve berrak cümleyle özetle.
+2. KRİTİK HAP BİLGİLER (keyPoints): Sınav öncesi mutlaka hatırlanması gereken 8-12 net, eksiksiz ve vurucu hap bilgi.
+3. SLAYT VE BÖLÜM ÇÖZÜMLEMESİ (sections):
+   - Materyaldeki tüm slayt ve alt başlıkları sistematik olarak 5-8 doyurucu bölüme ayır.
+   - Her bölüm için açık bir başlık (heading, varsa slayt aralığını belirt: örn. "Bölüm 1: Kurumsal Mimari ve Temeller (Slayt 1-6)").
+   - content alanında konunun nedensellik zincirini, kurumsal mekanizmasını, formül/denklem açıklamalarını ve vaka örneklerini zengin markdown formatında (kalın kavramlar, maddeleme, analitik açıklamalar) derinlemesine açıkla.
+   - takeaway alanına bölümün tek cümlelik en kritik sınav çıkarımını yaz.
+4. İNFOGRAFİK METRİKLER (infographic): Dersin en çarpıcı 3-5 istatistiği, kurumu, yüzyılı, dönemi veya temel parametresi ({ label, value }).
+5. HOCANIN VURGULARI VE SINAV TUZAKLARI (instructorEmphasis):
+   - Hocanın derste tekrar ettiği, "buraya dikkat", "sınavda buradan soru gelir", "öğrenciler bu iki kavramı karıştırıyor" diyebileceği 4-7 kritik uyarı ve çeldirici ayrımı.
+6. SINAVDA ÇIKMA OLASILIĞI MATRİSİ (examLikelihood):
+   - Sınavda çıkma olasılığı yüksek/orta/düşük konular ({ topic, reason, likelihood: 'yüksek'|'orta'|'düşük', studyPriority: 'öncelikli'|'normal'|'pekiştirme' }).
+7. KRİTİK KAVRAM SÖZLÜĞÜ (keyTerms):
+   - Slayt ve notlarda geçen en kritik 6-10 terim ve bunların eksiksiz akademik tanımları ({ term, definition }).
+8. SINAVA HAZIRLIK KONTROL LİSTESİ (studyChecklist):
+   - Öğrencinin "Öğrendim" diyerek kontrol edebileceği 6-10 somut kazanım cümlesi (örn. "Miri arazi rejimi ile ikta sistemi arasındaki 3 temel farkı sayabiliyorum").
+DİKSİYON VE KALİTE KURALLARI:
+- Asla yarım veya "..." ile kesilmiş ifade üretme. Bütün kavram adları ve tanımları eksiksiz olmalıdır.
+- Ezberci değil, mantığı ve nedenselliği kavratan üst düzey akademik Türkçe kullan.`;
       break;
     case 'video':
       task = `Kullanıcının yüklediği ders notunu temel alarak EconNotes Akademik Stüdyosu için EN AZ 6-8 DAKİKA SÜRECEK (toplam 950-1300 kelime konuşma metni, 10-12 derinlikli bölüm) ÜST DÜZEY, ZENGİN VE ENTELEKTÜEL BİR İKİLİ VİDEO DERSİ üret.
