@@ -149,6 +149,62 @@ describe('video studio sceneModel & speechEngine', () => {
     expect(totalSentencesInTurns).toBe(fullStudio.scenes[0].sentences.length);
   });
 
+  it('eliminates broken truncations and bogus concepts from matching and exam questions', () => {
+    const rawLesson = {
+      videoTitle: 'Osmanlı İktisat Tarihi - 3. Hafta',
+      outline:
+        'Büyük Selçuklu ve Anadolu Selçuklu iktisadi yapısının mali sacayakları (merkez maliyesi, ikta sistemi ve vakıflar) incelenmektedir. Kırsal ve kentsel iskân politikaları, ticareti geliştirme hamleleri ve Moğol istilasının mali çöküşteki etkileri ele alınır. Özellikle miri arazi rejimi ile Anadolu\'daki küçük ikta sisteminin merkeziyetçi rolü vurgulanmaktadır.',
+      scenes: [
+        {
+          title: 'Giriş ve Selçuklu Maliyesinin Üç Sacayağı',
+          narration:
+            'Selçuklu kamu maliyesi üç temel direk üzerine kurulmuştu: Merkez maliyesi, ikta sistemi ve vakıflar. Büyük Selçuklularda Abbasi gelirlerinin katbekat üzerine çıkılmış, iç gümrüklerin kaldırılmasıyla iktisadi birlik hedeflenmiştir. Modern devletin üstlendiği eğitim, sağlık, bayındırlık gibi sosyal harcamaların büyük kısmı ise özerk vakıflar aracılığıyla karşılanmıştır.',
+          keyTakeaways: [
+            'Selçuklu kamu maliyesi: Merkez maliyesi, ikta sistemi ve vakıflar.',
+            'Büyük Selçuklularda Abbasi gelirlerinin katbekat üzerine çıkılmış, iç gümrüklerin kaldırılmasıyla iktisadi birlik hedeflenmiştir.',
+            'Sosyal harcamalar: Sağlık ve bayındırlık harcamalarının büyük kısmı özerk vakıflar aracılığıyla karşılanmıştır.',
+          ],
+        },
+      ],
+    };
+
+    const result = buildStudioContent(rawLesson, 'Osmanlı İktisat Tarihi - 3. Hafta', 'Osmanlı İktisat Tarihi');
+
+    // 1. Asla "..." veya "…" ile kesilmiş soru, şık veya açıklama olmamalı
+    result.examQuestions.forEach(q => {
+      expect(q.question).not.toContain('…');
+      expect(q.question).not.toMatch(/\.\.\./);
+      q.options.forEach(opt => {
+        expect(opt).not.toContain('…');
+        expect(opt).not.toMatch(/\.\.\./);
+        expect(opt).not.toBe('Büyük Selçuklularda Abbasi');
+        expect(opt).not.toBe('Büyük Selçuklularda büyük');
+        // Yarım kalan sözde-kavram ("Modern devletin üstlendiği eğ...") olmamalı
+        expect(opt).not.toBe('Modern devletin üstlendiği eğ');
+      });
+      expect(q.explanation).not.toContain('…');
+    });
+
+    // 2. Eşleştirme kartlarında da kesik "…" olmamalı
+    result.matchingPairs.forEach(p => {
+      expect(p.term).not.toContain('…');
+      expect(p.definition).not.toContain('…');
+      expect(p.term).not.toBe('Büyük Selçuklularda Abbasi');
+      expect(p.term).not.toBe('Büyük Selçuklularda büyük');
+      expect(p.term).not.toBe('Modern devletin üstlendiği eğ');
+    });
+
+    // 3. Gerçek terimler bulunmalı
+    const allTermNames = result.matchingPairs.map(p => p.term);
+    expect(
+      allTermNames.some(t =>
+        ['Miri arazi rejimi', 'İkta sistemi', 'Kamu maliyesi', 'Merkez maliyesi', 'Özerk vakıflar', 'İktisadi birlik'].some(
+          valid => t.toLocaleLowerCase('tr-TR').includes(valid.toLocaleLowerCase('tr-TR')),
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it('maps Turkish characters to anatomical mouth visemes', () => {
     expect(visemeFromTurkishChar('m').viseme).toBe('closed');
     expect(visemeFromTurkishChar('ö').viseme).toBe('round');

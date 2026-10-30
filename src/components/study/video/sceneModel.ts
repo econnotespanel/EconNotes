@@ -131,6 +131,14 @@ function capitalizeTr(text: string): string {
   return first + text.slice(1);
 }
 
+const PROPER_PREFIXES_TR = new Set([
+  'selçuklu', 'selçuklular', 'osmanlı', 'osmanlılar', 'abbasi', 'abbasiler', 'bizans',
+  'anadolu', 'moğol', 'moğollar', 'avrupa', 'türkiye', 'türk', 'islam', 'roma',
+  'ermeni', 'süryani', 'batı', 'doğu', 'cumhuriyet', 'atatürk', 'keynes', 'smith',
+  'ricardo', 'marx', 'friedman', 'pareto', 'nash', 'solow', 'hicks', 'marshall',
+  'walras', 'schumpeter', 'malthus', 'pigou', 'coase',
+]);
+
 function lowerFirstIfNotProper(text: string): string {
   const t = cleanText(text);
   if (!t) return '';
@@ -138,83 +146,223 @@ function lowerFirstIfNotProper(text: string): string {
   if (t.length > 1 && t.charAt(1) === t.charAt(1).toLocaleUpperCase('tr-TR') && /[A-ZÇĞİÖŞÜ.]/.test(t.charAt(1))) {
     return t;
   }
+  const firstWord = t.split(/[\s,.;:!?()]+/)[0] || '';
+  if (firstWord.includes("'") || firstWord.includes('’')) return t;
+  const stemLower = firstWord.toLocaleLowerCase('tr-TR');
+  for (const proper of PROPER_PREFIXES_TR) {
+    if (stemLower === proper || stemLower.startsWith(proper)) {
+      return t;
+    }
+  }
   return t.charAt(0).toLocaleLowerCase('tr-TR') + t.slice(1);
 }
 
 function ensureSentenceEnd(text: string): string {
   const t = cleanText(text);
   if (!t) return '';
-  return /[.!?…]$/.test(t) ? t : `${t}.`;
+  return /[.!?]$/.test(t) ? t : `${t.replace(/…|\.{2,}$/g, '')}.`;
 }
 
 function stripTrailingPeriod(text: string): string {
   return cleanText(text).replace(/[.…]+$/, '').trim();
 }
 
+const GENERIC_NODE_LABEL_RE = /^(?:Temel\s+(?:Nokta|İlke)|Kavram\s+\d|Olası\s+Soru|\d{2}\s*·)/i;
+
+const DANGLING_TAIL_WORDS_TR = new Set([
+  'büyük', 'küçük', 'yeni', 'eski', 'modern', 'temel', 'önemli', 'genel', 'özel',
+  'birinci', 'ikinci', 'üçüncü', 'dördüncü', 'beşinci', 'iki', 'üç', 'dört', 'beş',
+  'hür', 'ilk', 'son', 'üstlendiği', 'olduğu', 'ettiği', 'yaptığı', 'kurduğu',
+  'sağladığı', 'verdiği', 'aldığı', 'gelen', 'giden', 'kalan', 'çıkan', 'açık', 'kapalı',
+]);
+
+const NON_MODIFIER_WORDS_TR = new Set([
+  ...STOPWORDS_TR,
+  'ise', 'gibi', 'olan', 'olarak', 'özellikle', 'örneğin', 'nitekim', 'ancak', 'fakat',
+  'kısmı', 'bölümü', 'temelinde', 'üzerine', 'karşılık', 'aracılığıyla', 'kapsamında',
+  'sonucunda', 'sayesinde', 'nedeniyle', 'birlikte', 'başta', 'genelde', 'çoğunlukla',
+  'ezen', 'kurulan', 'yapılan', 'edilen', 'verilen', 'alınan', 'bulunan', 'sağlayan',
+  'üstlenen', 'üstlendiği', 'olduğu', 'ettiği', 'yaptığı', 'istikrar',
+]);
+
+const FINITE_VERB_RE =
+  /(?:^|(?<=[\s(,;:"'«„-]))[A-ZÇĞİÖŞÜa-zçğıöşü]+(?:m[ıiuü]şt[ıiuü]r|m[ıiuü]şt[ıiuü]|maktad[ıiuü]r|mekted[ıiuü]r|[ıiuü]yor(?:du)?|acakt[ıiuü]r|ecekt[ıiuü]r|d[ıiuü]r|t[ıiuü]r|olur|yatar|gerekir|sağlar|oluşturur|karşılanmıştır|hedeflenmiştir|güçlendirmiştir)(?=\s|[.,;:!?)'"”]|$)/i;
+
+const ACADEMIC_HEAD_NOUN_RE =
+  /(?:^|(?<=[\s(,;:"'«„-]))((?:[A-ZÇĞİÖŞÜa-zçğıöşü0-9']+\s+){1,3})(sistemi|rejimi|maliyesi|politikası|politikaları|düzeni|yapısı|kurumu|kurumları|vakıfları|vakıflar|ticareti|birliği|birlik|gümrükleri|vergisi|vergileri|sigortası|fetihleri|istilası|reformu|modeli|yasası|teorisi|dengesi|kanunu|analizi|mekanizması|doktrini|yaklaşımı|esnekliği|faydası|maliyeti|arzı|talebi|enflasyonu|büyümesi|kalkınması|otoritesi|mülkiyeti|ekonomisi|piyasası|bütçesi|hukuku|ilkesi|hipotezi|eğrisi|katsayısı|endeksi|çarpanı|fonksiyonu)(?:'?(?:nin|nın|nun|nün|ni|nı|nu|nü|ne|na|nden|ndan|nde|nda|yle|yla))?(?=\s|[.,;:!?)'"”]|$)/gi;
+
 /**
- * Bir metinden anlamlı, yarım kalmamış kısa başlık üretir (bağlaç/edat ile biten başlıkları engeller).
+ * Bir metinden kelimeyi asla yarıdan kesmeyen (`eğ…` üretmeyen),
+ * bağlaç veya yarım sıfatla bitmeyen tam ve anlamlı başlık üretir.
  */
-export function shortLabel(text: string, maxWords = 4, maxChars = 32): string {
-  const clean = cleanLabel(text).split(/[:;—–]|\s-\s/)[0].trim();
+export function shortLabel(text: string, maxWords = 4, maxChars = 36): string {
+  const clean = cleanLabel(text)
+    .replace(/…|\.{2,}/g, '')
+    .split(/[:;—–]|\s-\s/)[0]
+    .trim();
   if (!clean) return '';
   const rawWords = clean.split(' ').filter(Boolean);
   const words = rawWords.slice(0, maxWords);
 
-  while (words.length > 1) {
-    const lastLower = words[words.length - 1].replace(/[.,;!?'"()]/g, '').toLocaleLowerCase('tr-TR');
-    if (STOPWORDS_TR.has(lastLower)) {
-      words.pop();
-    } else {
-      break;
+  const trimDanglingTail = (checkAdjectives: boolean) => {
+    while (words.length > 1) {
+      const lastLower = words[words.length - 1].replace(/[.,;!?'"()]/g, '').toLocaleLowerCase('tr-TR');
+      if (STOPWORDS_TR.has(lastLower) || (checkAdjectives && DANGLING_TAIL_WORDS_TR.has(lastLower))) {
+        words.pop();
+      } else {
+        break;
+      }
     }
+  };
+
+  trimDanglingTail(rawWords.length > maxWords);
+
+  while (words.length > 1 && words.join(' ').replace(/[,.;:]+$/, '').length > maxChars) {
+    words.pop();
+    trimDanglingTail(true);
   }
 
-  let joined = words.join(' ').replace(/[,.;:]+$/, '').trim();
-  if (joined.length > maxChars) {
-    joined = joined.slice(0, maxChars - 1).trimEnd() + '…';
+  let joined = words.join(' ').replace(/[,.;:…]+$/, '').trim();
+  if (joined.length > maxChars && words.length === 1) {
+    joined = words[0].replace(/[,.;:…]+$/, '');
   }
   return capitalizeTr(joined);
 }
 
-/**
- * Tam bir cümleden tekrarsız { label, subtext } çifti çıkarır.
- */
-export function extractNodeFromSentence(sentence: string, fallbackIndex: number): DiagramNode {
-  const cleaned = cleanLabel(sentence);
-  if (!cleaned) return { label: `Kavram ${fallbackIndex + 1}`, subtext: '' };
-
-  const colonMatch = cleaned.match(/^([^:–—]{3,38})\s*[:–—]\s*(.{8,})$/);
-  if (colonMatch) {
-    return {
-      label: shortLabel(colonMatch[1], 4, 32),
-      subtext: capitalizeTr(colonMatch[2].trim()),
-    };
+function isValidModifierWord(word: string): boolean {
+  const raw = word.replace(/^[('"]+|[.,;!?)'"]+$/g, '');
+  if (!raw || raw.length < 2) return false;
+  const lw = raw.toLocaleLowerCase('tr-TR');
+  if (NON_MODIFIER_WORDS_TR.has(lw)) return false;
+  if (raw.includes("'") || raw.includes('’')) return false;
+  // Zarf-fiil, ulaç veya dolaylı tümleç ekleriyle biten kelimeler kavram tamlayanı olamaz
+  if (/(?:masıyla|mesiyle|ılmasıyla|ilmesiyle|arak|erek|ğında|ğinde|dikten|duktan|madan|meden|larda|lerde|ndan|nden|dan|den|yla|yle)$/i.test(lw)) {
+    return false;
   }
+  if (FINITE_VERB_RE.test(lw)) return false;
+  return true;
+}
 
-  const commaParts = cleaned.split(/,\s+/);
-  if (commaParts.length >= 2 && commaParts[0].split(' ').length <= 4 && commaParts[0].length >= 5) {
-    const rest = commaParts.slice(1).join(', ').trim();
-    const lbl = shortLabel(commaParts[0], 4, 30);
-    if (lbl && rest.length >= 12) {
-      return { label: lbl, subtext: capitalizeTr(rest) };
+/** Bir ifadenin sınav şıkkı veya eşleştirme kartı olabilecek gerçek, tam bir kavram olup olmadığını denetler. */
+export function isValidConceptTerm(term: string): boolean {
+  const t = cleanLabel(term);
+  if (!t || t.length < 3 || t.length > 52) return false;
+  if (t.includes('…') || t.includes('...')) return false;
+  if (GENERIC_NODE_LABEL_RE.test(t)) return false;
+  const words = t.split(' ').filter(Boolean);
+  if (words.length === 0 || words.length > 6) return false;
+  if (FINITE_VERB_RE.test(t)) return false;
+  const lastLower = words[words.length - 1].replace(/[.,;!?'"()]/g, '').toLocaleLowerCase('tr-TR');
+  if (STOPWORDS_TR.has(lastLower) || DANGLING_TAIL_WORDS_TR.has(lastLower)) return false;
+  // "Büyük Selçuklularda Abbasi" gibi bulunma hâli eki + tek sıfatla yarım kalmış tamlamaları ele
+  if (
+    words.length >= 2 &&
+    /(?:larda|lerde|nda|nde|da|de)$/i.test(words[words.length - 2])
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/** Cümle içerisinden gerçek akademik kavram(lar)ı yalın hâlde çıkarır. */
+export function extractAllGenuineConcepts(sentence: string): KeyTerm[] {
+  const cleaned = cleanLabel(sentence).replace(/…|\.{2,}/g, '').trim();
+  if (!cleaned) return [];
+  const results: KeyTerm[] = [];
+  const seen = new Set<string>();
+
+  const colonMatch = cleaned.match(/^([^:–—]{3,42})\s*[:–—]\s*(.{12,})$/);
+  if (colonMatch && !FINITE_VERB_RE.test(colonMatch[1])) {
+    const lbl = shortLabel(colonMatch[1], 5, 42);
+    const def = capitalizeTr(colonMatch[2].trim());
+    if (isValidConceptTerm(lbl) && def.length >= 12) {
+      seen.add(lbl.toLocaleLowerCase('tr-TR'));
+      results.push({ term: lbl, definition: def });
     }
   }
 
-  const domainPhrase = cleaned.match(
-    /([A-ZÇĞİÖŞÜa-zçğıöşü0-9']+\s+(?:[A-ZÇĞİÖŞÜa-zçğıöşü0-9']+\s+)?(?:sistemi|rejimi|maliyesi|politikası|düzeni|yapısı|kurumu|vakıfları|ticareti|fetihleri|istilası|savaşı|dönemi|reformu|modeli|yasası|teorisi|dengesi|kanunu|analizi|mekanizması|doktrini|yaklaşımı))/i,
-  );
-  if (domainPhrase?.[1]) {
+  ACADEMIC_HEAD_NOUN_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = ACADEMIC_HEAD_NOUN_RE.exec(cleaned)) !== null) {
+    const rawMods = (m[1] || '').trim().split(/\s+/).filter(Boolean);
+    const head = (m[2] || '').trim();
+    const validMods: string[] = [];
+    for (let i = rawMods.length - 1; i >= 0 && validMods.length < 2; i--) {
+      if (isValidModifierWord(rawMods[i])) {
+        validMods.unshift(rawMods[i].replace(/^[('"]+|[.,;!?)'"]+$/g, ''));
+      } else {
+        break;
+      }
+    }
+    if (validMods.length === 0) continue;
+    // "feodal rejimi" gibi tek sıfat + iyelik ekli kelimelerde yalın tamlama kontrolü ("arazi rejimi" geçerli, "feodal rejimi" tamlanan iyeliği)
+    if (
+      validMods.length === 1 &&
+      /(?:feodal|modern|büyük|küçük|yeni|eski)$/i.test(validMods[0]) &&
+      /(?:rejimi|maliyesi|yapısı|düzeni)$/i.test(head)
+    ) {
+      continue;
+    }
+    const candidate = capitalizeTr(`${validMods.join(' ')} ${head}`.trim());
+    const key = candidate.toLocaleLowerCase('tr-TR');
+    if (isValidConceptTerm(candidate) && !seen.has(key)) {
+      seen.add(key);
+      results.push({ term: candidate, definition: cleaned });
+    }
+  }
+
+  // Çok kelimeli tam tamlamaları (örn. "Miri arazi rejimi" > "İkta sistemi") öne al
+  results.sort((a, b) => b.term.split(' ').length - a.term.split(' ').length);
+  return results;
+}
+
+/** Cümle içerisinden en güçlü gerçek akademik kavramı döner; yoksa null döner. */
+export function extractGenuineConcept(sentence: string): KeyTerm | null {
+  return extractAllGenuineConcepts(sentence)[0] ?? null;
+}
+
+function formatNodeTakeaway(n: DiagramNode): string {
+  const lbl = cleanLabel(n.label).replace(/…|\.{2,}/g, '').trim();
+  const sub = cleanText(n.subtext).replace(/…|\.{2,}/g, '').trim();
+  if (!sub) return lbl;
+  if (!lbl || GENERIC_NODE_LABEL_RE.test(lbl)) return sub;
+  if (sub.toLocaleLowerCase('tr-TR').includes(lbl.toLocaleLowerCase('tr-TR'))) return sub;
+  return `${lbl}: ${sub}`;
+}
+
+/**
+ * Tam bir cümleden tekrarsız ve kesintisiz { label, subtext } şema düğümü çıkarır.
+ * Virgülle ayrılmış örnek listelerini ("eğitim, sağlık, bayındırlık") asla kavram sanıp bölmez.
+ */
+export function extractNodeFromSentence(sentence: string, fallbackIndex: number): DiagramNode {
+  const cleaned = cleanLabel(sentence).replace(/…|\.{2,}/g, '').trim();
+  if (!cleaned) return { label: `Temel İlke ${fallbackIndex + 1}`, subtext: '' };
+
+  const genuine = extractGenuineConcept(cleaned);
+  if (genuine) {
     return {
-      label: shortLabel(domainPhrase[1], 4, 32),
-      subtext: cleaned,
+      label: genuine.term,
+      subtext: genuine.definition,
     };
   }
 
   const contentWords = cleaned
     .replace(/[.,;!?()"]/g, '')
     .split(' ')
-    .filter(w => w.length > 2 && !STOPWORDS_TR.has(w.toLocaleLowerCase('tr-TR')));
-  const derivedLabel = shortLabel(contentWords.slice(0, 3).join(' '), 3, 28) || `Temel Nokta ${fallbackIndex + 1}`;
+    .filter(w => {
+      const lw = w.toLocaleLowerCase('tr-TR');
+      return w.length > 2 && !NON_MODIFIER_WORDS_TR.has(lw) && !FINITE_VERB_RE.test(w) && isValidModifierWord(w);
+    });
+
+  let picked = contentWords.slice(0, 3);
+  while (
+    picked.length > 1 &&
+    DANGLING_TAIL_WORDS_TR.has(picked[picked.length - 1].toLocaleLowerCase('tr-TR'))
+  ) {
+    picked.pop();
+  }
+  const candidate = shortLabel(picked.join(' '), 3, 34);
+  const derivedLabel = isValidConceptTerm(candidate) ? candidate : `Temel Nokta ${fallbackIndex + 1}`;
   return {
     label: derivedLabel,
     subtext: cleaned,
@@ -747,16 +895,27 @@ function ensureRichFiveMinuteCurriculum(
     }
   });
 
-  // Materyalin tüm bilgi evrenini tekrarsız şekilde derle
+  // Materyalin tüm bilgi evrenini tekrarsız şekilde derle (yalnızca geçerli tam kavramlar)
   const allTerms: KeyTerm[] = [];
   const seenTerms = new Set<string>();
+  const pushValidTerm = (term: string, definition: string) => {
+    const cleanT = cleanLabel(term).replace(/…|\.{2,}/g, '').trim();
+    const cleanD = cleanText(definition).replace(/…|\.{2,}/g, '').trim();
+    const k = cleanT.toLocaleLowerCase('tr-TR');
+    if (!cleanT || !cleanD || cleanD.length < 12 || !isValidConceptTerm(cleanT) || seenTerms.has(k)) return;
+    seenTerms.add(k);
+    allTerms.push({ term: cleanT, definition: cleanD });
+  };
+
   coreScenes.forEach(sc => {
-    sc.keyTerms.forEach(kt => {
-      const k = kt.term.toLocaleLowerCase('tr-TR');
-      if (kt.term && kt.definition && !seenTerms.has(k)) {
-        seenTerms.add(k);
-        allTerms.push(kt);
-      }
+    sc.keyTerms.forEach(kt => pushValidTerm(kt.term, kt.definition));
+  });
+  splitSentences(outline).forEach(sent => {
+    extractAllGenuineConcepts(sent).forEach(kt => pushValidTerm(kt.term, kt.definition));
+  });
+  coreScenes.forEach(sc => {
+    sc.sentences.forEach(sent => {
+      extractAllGenuineConcepts(sent).forEach(kt => pushValidTerm(kt.term, kt.definition));
     });
   });
 
@@ -764,23 +923,34 @@ function ensureRichFiveMinuteCurriculum(
   const allExamTips = Array.from(new Set(coreScenes.map(sc => sc.examTip).filter(Boolean)));
   const allFacts = Array.from(new Set([...keyFacts, ...allExamTips, ...allTakeaways])).filter(Boolean);
   const allNodes = coreScenes.flatMap(sc => sc.diagram.nodes).filter(n => n.label && n.subtext);
-  const chapterTitles = coreScenes.map(s => shortLabel(s.title, 5, 38)).filter(Boolean);
+  const chapterTitles = coreScenes
+    .map(s => cleanLabel(s.title).replace(/…|\.{2,}/g, '').trim())
+    .filter(Boolean);
+  const displayTitle = title.length <= 54 ? title : shortLabel(title, 7, 54);
 
   // Farklı sahnelerin farklı düğüm alt kümelerini kullanması için ayrık havuz seçici
   const pickDistinctNodes = (seedOffset: number, count = 4, badges?: string[]): DiagramNode[] => {
-    const candidates: DiagramNode[] = [];
+    const genuineCandidates: DiagramNode[] = [];
+    const fallbackCandidates: DiagramNode[] = [];
     const seen = new Set<string>();
 
     const pushCandidate = (n: DiagramNode) => {
-      const k = n.label.toLocaleLowerCase('tr-TR');
-      if (!n.label || !n.subtext || seen.has(k)) return;
+      const lbl = cleanLabel(n.label).replace(/…|\.{2,}/g, '').trim();
+      const sub = cleanText(n.subtext).replace(/…|\.{2,}/g, '').trim();
+      const k = lbl.toLocaleLowerCase('tr-TR');
+      if (!lbl || !sub || seen.has(k)) return;
       seen.add(k);
-      candidates.push(n);
+      const normalized = { ...n, label: lbl, subtext: sub };
+      if (isValidConceptTerm(lbl)) {
+        genuineCandidates.push(normalized);
+      } else {
+        fallbackCandidates.push(normalized);
+      }
     };
 
     allTerms.forEach((t, i) =>
       pushCandidate({
-        label: shortLabel(t.term, 4, 30),
+        label: shortLabel(t.term, 5, 40),
         subtext: t.definition,
         badge: DEFAULT_BADGES[i % DEFAULT_BADGES.length],
         value: deterministicValue(t.term, i),
@@ -796,12 +966,17 @@ function ensureRichFiveMinuteCurriculum(
       });
     });
 
+    const candidates =
+      genuineCandidates.length >= count
+        ? genuineCandidates
+        : [...genuineCandidates, ...fallbackCandidates];
+
     if (candidates.length === 0) {
       const base = extractNodeFromSentence(outline || title, 0);
       return [
         { ...base, badge: badges?.[0] || 'Ana Eksen', value: 89 },
         {
-          label: shortLabel(title, 4, 30) || 'Kuramsal Çerçeve',
+          label: shortLabel(title, 5, 40) || 'Kuramsal Çerçeve',
           subtext: outline || title,
           badge: badges?.[1] || 'Kapsam',
           value: 78,
@@ -822,6 +997,15 @@ function ensureRichFiveMinuteCurriculum(
     return picked;
   };
 
+  const toSceneTerms = (nodes: DiagramNode[], max = 4): KeyTerm[] =>
+    nodes
+      .filter(n => isValidConceptTerm(n.label) && n.subtext && n.subtext !== n.label)
+      .slice(0, max)
+      .map(n => ({ term: n.label, definition: n.subtext }));
+
+  const spokenNodeName = (n: DiagramNode | undefined, fallback: string): string =>
+    n && isValidConceptTerm(n.label) ? n.label : fallback;
+
   const extraScenes: { slot: 'opening' | 'mid1' | 'mid2' | 'late1' | 'late2' | 'exam' | 'closing'; scene: StudioScene }[] = [];
   const totalSecWithExtras = () =>
     coreScenes.reduce((a, s) => a + s.durationSec, 0) +
@@ -835,7 +1019,7 @@ function ensureRichFiveMinuteCurriculum(
     const roadmapStr =
       chapterTitles.length >= 2
         ? `${chapterTitles.slice(0, 3).join(', ')} eksenlerini`
-        : `${vNodes.map(n => n.label).slice(0, 3).join(' ve ')} boyutlarını`;
+        : `${vNodes.map(n => spokenNodeName(n, title)).slice(0, 3).join(' ve ')} boyutlarını`;
     const framingText = outline
       ? ensureSentenceEnd(outline)
       : `${title} konusu, tekil tanımların ötesinde çok katmanlı bir ${domainNoun} bütünlük taşır.`;
@@ -851,7 +1035,7 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Deniz',
-        text: `Merkezde ${vNodes[0]?.label || title} yer alıyor Barış. Zira ${lowerFirstIfNotProper(stripTrailingPeriod(vNodes[0]?.subtext || framingText))}; bu temel kurulduğunda ${vNodes[1]?.label || 'diğer kurumsal halkalar'} da kendi işlevini kazanıyor. Şimdi bu büyük resmi bölüm bölüm analitik olarak açalım.`,
+        text: `Merkezde ${spokenNodeName(vNodes[0], title)} yer alıyor Barış. Zira ${lowerFirstIfNotProper(stripTrailingPeriod(vNodes[0]?.subtext || framingText))}; bu temel kurulduğunda ${spokenNodeName(vNodes[1], 'diğer kurumsal halkalar')} da kendi işlevini kazanıyor. Şimdi bu büyük resmi bölüm bölüm analitik olarak açalım.`,
       },
     ]);
 
@@ -860,10 +1044,10 @@ function ensureRichFiveMinuteCurriculum(
       scene: finalizeSceneObject({
         id: 'scene-visual-architecture',
         index: 0,
-        title: `${shortLabel(title, 5, 40)}: Kavramsal Mimari ve Analitik Çerçeve`,
+        title: `${displayTitle}: Kavramsal Mimari ve Analitik Çerçeve`,
         sentences,
         speakers,
-        keyTakeaways: vNodes.slice(0, 3).map(n => `${n.label}: ${n.subtext}`),
+        keyTakeaways: vNodes.slice(0, 3).map(formatNodeTakeaway),
         keyTerms: allTerms.slice(0, 3),
         examTip:
           allFacts[0] ||
@@ -872,7 +1056,7 @@ function ensureRichFiveMinuteCurriculum(
         diagram: {
           type: 'visual',
           visualTheme,
-          title: `${shortLabel(title, 5, 38)} — Bütünsel Model`,
+          title: `${displayTitle} — Bütünsel Model`,
           rootBadge,
           nodes: vNodes,
           metric: allFacts[0] || outline || title,
@@ -888,19 +1072,23 @@ function ensureRichFiveMinuteCurriculum(
     const n1 = tNodes[1] || tNodes[0];
     const n2 = tNodes[2] || tNodes[0];
     const n3 = tNodes[3] || tNodes[1] || tNodes[0];
+    const lbl0 = spokenNodeName(n0, 'birinci kurumsal eksen');
+    const lbl1 = spokenNodeName(n1, 'ikinci tamamlayıcı eksen');
+    const lbl2 = spokenNodeName(n2, 'uygulama boyutu');
+    const lbl3 = spokenNodeName(n3, 'yapısal sonuç');
 
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Barış',
-        text: `Deniz, konunun temel yapıtaşlarını inceledik; ancak sınavlarda ve akademik analizlerde en çok yapılan hata yakın kavramları birbirinin yerine kullanmak oluyor. Akıllı tahtadaki sistematik karşılaştırma tablosunda ${n0.label} ile ${n1.label} arasındaki sınır çizgisini nasıl okuyoruz?`,
+        text: `Deniz, konunun temel yapıtaşlarını inceledik; ancak sınavlarda ve akademik analizlerde en çok yapılan hata yakın kavramları birbirinin yerine kullanmak oluyor. Akıllı tahtadaki sistematik karşılaştırma tablosunda ${lbl0} ile ${lbl1} arasındaki sınır çizgisini nasıl okuyoruz?`,
       },
       {
         speaker: 'Deniz',
-        text: `Çok kritik bir noktaya parmak bastın Barış. Tablomuzun ilk satırındaki ${n0.label}, sistemin tanımlayıcı temelini kurar ve ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ikinci satırdaki ${n1.label}, bu yapının sahadaki kurumsal işleyişini üstlenir; yani ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))}`,
+        text: `Çok kritik bir noktaya parmak bastın Barış. Tablomuzun ilk satırındaki ${lbl0}, sistemin tanımlayıcı temelini kurar ve ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ikinci satırdaki ${lbl1}, bu yapının sahadaki kurumsal işleyişini üstlenir; yani ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))}`,
       },
       {
         speaker: 'Barış',
-        text: `Tablonun alt satırlarına indiğimizde ise tamamlayıcı boyutları görüyoruz: ${n2.label} ekseninde ${lowerFirstIfNotProper(stripTrailingPeriod(n2.subtext))}${n3 && n3.label !== n2.label ? `, ${n3.label} boyutunda ise ${lowerFirstIfNotProper(stripTrailingPeriod(n3.subtext))}` : ''}. Kavramları bu dört sütunlu matriste yan yana görmek tüm muğlaklığı ortadan kaldırıyor.`,
+        text: `Tablonun alt satırlarına indiğimizde ise tamamlayıcı boyutları görüyoruz: ${lbl2} ekseninde ${lowerFirstIfNotProper(stripTrailingPeriod(n2.subtext))}${n3 && n3.label !== n2.label ? `, ${lbl3} boyutunda ise ${lowerFirstIfNotProper(stripTrailingPeriod(n3.subtext))}` : ''}. Kavramları bu dört sütunlu matriste yan yana görmek tüm muğlaklığı ortadan kaldırıyor.`,
       },
     ]);
 
@@ -912,9 +1100,9 @@ function ensureRichFiveMinuteCurriculum(
         title: 'Sistematik Sınıflandırma ve Karşılaştırma Tablosu',
         sentences,
         speakers,
-        keyTakeaways: tNodes.map(n => `${n.label}: ${n.subtext}`),
-        keyTerms: tNodes.slice(0, 4).map(n => ({ term: n.label, definition: n.subtext })),
-        examTip: `Tablodaki ${n0.label} ve ${n1.label} kavramlarının işlev farkı, çoktan seçmeli ve klasik sınavlarda temel ayırt edici ölçüttür.`,
+        keyTakeaways: tNodes.map(formatNodeTakeaway),
+        keyTerms: toSceneTerms(tNodes, 4),
+        examTip: `Tablodaki ${lbl0} ve ${lbl1} kavramlarının işlev farkı, çoktan seçmeli ve klasik sınavlarda temel ayırt edici ölçüttür.`,
         visualCue: 'Çok sütunlu akademik sınıflandırma ve karşılaştırma tablosu',
         diagram: {
           type: 'table',
@@ -934,19 +1122,22 @@ function ensureRichFiveMinuteCurriculum(
     const s0 = sNodes[0];
     const s1 = sNodes[1] || sNodes[0];
     const s2 = sNodes[2] || sNodes[0];
+    const sl0 = spokenNodeName(s0, 'başlatıcı ilke');
+    const sl1 = spokenNodeName(s1, 'aktarım mekanizması');
+    const sl2 = spokenNodeName(s2, 'kurumsal denge');
 
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `Şimdi bu kavramların durağan tanımlarından çıkıp dinamik nedensellik mekanizmasına bakalım. Tahtadaki geometrik döngü şeması bize çok net bir ilke söylüyor: hiçbir ${domainNoun} sonuç tek başına ortaya çıkmaz. İlk halkada ${s0.label} tetikleyici işlev görür; ${ensureSentenceEnd(lowerFirstIfNotProper(s0.subtext))}`,
+        text: `Şimdi bu kavramların durağan tanımlarından çıkıp dinamik nedensellik mekanizmasına bakalım. Tahtadaki geometrik döngü şeması bize çok net bir ilke söylüyor: hiçbir ${domainNoun} sonuç tek başına ortaya çıkmaz. İlk halkada ${sl0} tetikleyici işlev görür; ${ensureSentenceEnd(lowerFirstIfNotProper(s0.subtext))}`,
       },
       {
         speaker: 'Barış',
-        text: `Peki bu ilk ivme sistemin diğer halkalarına nasıl aktarılıyor? Özellikle ${s1.label} aşamasında nasıl bir dönüşüm yaşanıyor?`,
+        text: `Peki bu ilk ivme sistemin diğer halkalarına nasıl aktarılıyor? Özellikle ${sl1} aşamasında nasıl bir dönüşüm yaşanıyor?`,
       },
       {
         speaker: 'Deniz',
-        text: `Tam burada aktarım mekanizması devreye giriyor Barış: ${s0.label} sağlam işlediğinde doğrudan ${s1.label} kapasitesini besliyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(s1.subtext))} Ardından üçüncü halkada ${s2.label} ile sistem dengeye oturuyor; tersine halkalardan biri aşındığında ise zincirleme bir çözülme başlıyor.`,
+        text: `Tam burada aktarım mekanizması devreye giriyor Barış: ${sl0} sağlam işlediğinde doğrudan ${sl1} kapasitesini besliyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(s1.subtext))} Ardından üçüncü halkada ${sl2} ile sistem dengeye oturuyor; tersine halkalardan biri aşındığında ise zincirleme bir çözülme başlıyor.`,
       },
     ]);
 
@@ -958,8 +1149,8 @@ function ensureRichFiveMinuteCurriculum(
         title: 'Nedensellik Zinciri ve Döngüsel Etkileşim Mekanizması',
         sentences,
         speakers,
-        keyTakeaways: sNodes.slice(0, 3).map(n => `${n.label}: ${n.subtext}`),
-        keyTerms: sNodes.slice(0, 3).map(n => ({ term: n.label, definition: n.subtext })),
+        keyTakeaways: sNodes.slice(0, 3).map(formatNodeTakeaway),
+        keyTerms: toSceneTerms(sNodes, 3),
         examTip:
           allFacts[1] ||
           'Halkalar arasındaki karşılıklı geri besleme ilişkisi, analitik yorum sorularının ana eksenini oluşturur.',
@@ -987,6 +1178,9 @@ function ensureRichFiveMinuteCurriculum(
     const c0 = cNodes[0];
     const c1 = cNodes[1] || cNodes[0];
     const c2 = cNodes[2] || cNodes[0];
+    const cl0 = spokenNodeName(c0, 'birincil belirleyici');
+    const cl1 = spokenNodeName(c1, 'yapısal kaldıraç');
+    const cl2 = spokenNodeName(c2, 'istikrar unsuru');
 
     const { sentences, speakers } = turnsToDialogueArrays([
       {
@@ -995,11 +1189,11 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Deniz',
-        text: `Grafikteki en yüksek sütun ve eğri tepe noktası açık biçimde ${c0.label} unsuruna işaret ediyor Barış. Çünkü ${lowerFirstIfNotProper(stripTrailingPeriod(c0.subtext))}; dolayısıyla sistemin yönünü tayin eden birincil kaldıraç burasıdır.`,
+        text: `Grafikteki en yüksek sütun ve eğri tepe noktası açık biçimde ${cl0} unsuruna işaret ediyor Barış. Çünkü ${lowerFirstIfNotProper(stripTrailingPeriod(c0.subtext))}; dolayısıyla sistemin yönünü tayin eden birincil kaldıraç burasıdır.`,
       },
       {
         speaker: 'Barış',
-        text: `Hemen arkasından gelen ${c1.label} ve ${c2.label} sütunları da bu ana ekseni tahkim ediyor; özellikle ${lowerFirstIfNotProper(stripTrailingPeriod(c1.subtext))}. Böylece birincil neden ile destekleyici koşullar arasındaki hiyerarşi net biçimde ortaya çıkıyor.`,
+        text: `Hemen arkasından gelen ${cl1} ve ${cl2} sütunları da bu ana ekseni tahkim ediyor; özellikle ${lowerFirstIfNotProper(stripTrailingPeriod(c1.subtext))}. Böylece birincil neden ile destekleyici koşullar arasındaki hiyerarşi net biçimde ortaya çıkıyor.`,
       },
     ]);
 
@@ -1011,11 +1205,11 @@ function ensureRichFiveMinuteCurriculum(
         title: 'Analitik Etki Hiyerarşisi ve Eğilim Grafiği',
         sentences,
         speakers,
-        keyTakeaways: cNodes.slice(0, 3).map(n => `${n.label}: ${n.subtext}`),
-        keyTerms: cNodes.slice(0, 3).map(n => ({ term: n.label, definition: n.subtext })),
+        keyTakeaways: cNodes.slice(0, 3).map(formatNodeTakeaway),
+        keyTerms: toSceneTerms(cNodes, 3),
         examTip:
           allFacts[2] ||
-          `Öncüllü sorularda "temel/birincil etken" sorulduğunda ${c0.label} eksenindeki ana belirleyiciye odaklanılmalıdır.`,
+          `Öncüllü sorularda "temel/birincil etken" sorulduğunda ${cl0} eksenindeki ana belirleyiciye odaklanılmalıdır.`,
         visualCue: 'Faktörlerin göreli ağırlığını ve eğilim eğrisini gösteren analitik grafik',
         diagram: {
           type: 'chart',
@@ -1041,6 +1235,7 @@ function ensureRichFiveMinuteCurriculum(
     const st1 = scNodes[1] || scNodes[0];
     const st2 = scNodes[2] || scNodes[0];
     const st3 = scNodes[3] || scNodes[1] || scNodes[0];
+    const stl0 = spokenNodeName(st0, 'kurucu zemin');
 
     const { sentences, speakers } = turnsToDialogueArrays([
       {
@@ -1049,7 +1244,7 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Deniz',
-        text: `Adım adım ilerleyelim Barış. Birinci aşamada başlangıç koşulumuz şekilleniyor: ${st0.label} çerçevesinde ${ensureSentenceEnd(lowerFirstIfNotProper(st0.subtext))} Bu zeminin üzerine ikinci aşamada kurumsal düzenleme devreye giriyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(st1.subtext))}`,
+        text: `Adım adım ilerleyelim Barış. Birinci aşamada başlangıç koşulumuz şekilleniyor: ${stl0} çerçevesinde ${ensureSentenceEnd(lowerFirstIfNotProper(st0.subtext))} Bu zeminin üzerine ikinci aşamada kurumsal düzenleme devreye giriyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(st1.subtext))}`,
       },
       {
         speaker: 'Barış',
@@ -1069,15 +1264,15 @@ function ensureRichFiveMinuteCurriculum(
         title: 'Uygulamalı Vaka Analizi ve Senaryo Simülasyonu',
         sentences,
         speakers,
-        keyTakeaways: scNodes.map(n => `${n.label}: ${n.subtext}`),
-        keyTerms: scNodes.slice(0, 3).map(n => ({ term: n.label, definition: n.subtext })),
+        keyTakeaways: scNodes.map(formatNodeTakeaway),
+        keyTerms: toSceneTerms(scNodes, 3),
         examTip:
           'Vaka ve paragraf temelli sorularda önce başlangıç koşulunu, ardından kurumsal aracı ve nihai sonucu eşleştirin.',
         visualCue: 'Dört aşamalı uygulamalı vaka analizi ve süreç simülasyonu',
         diagram: {
           type: 'scenario',
           visualTheme,
-          title: `${shortLabel(title, 4, 34)} — Vaka Simülasyonu`,
+          title: `${displayTitle} — Vaka Simülasyonu`,
           rootBadge,
           nodes: scNodes,
           metric: st3.subtext || allFacts[0] || title,
@@ -1091,10 +1286,12 @@ function ensureRichFiveMinuteCurriculum(
     const examPool: KeyTerm[] = [];
     const seenExam = new Set<string>();
     const pushExam = (t: KeyTerm) => {
-      const k = t.term.toLocaleLowerCase('tr-TR');
-      if (!t.term || !t.definition || t.definition.length < 12 || seenExam.has(k)) return;
+      const cleanT = cleanLabel(t.term).replace(/…|\.{2,}/g, '').trim();
+      const cleanD = cleanText(t.definition).replace(/…|\.{2,}/g, '').trim();
+      const k = cleanT.toLocaleLowerCase('tr-TR');
+      if (!cleanT || !cleanD || cleanD.length < 12 || !isValidConceptTerm(cleanT) || seenExam.has(k)) return;
       seenExam.add(k);
-      examPool.push(t);
+      examPool.push({ term: cleanT, definition: cleanD });
     };
     allTerms.forEach(pushExam);
     allNodes.forEach(n => pushExam({ term: n.label, definition: n.subtext }));
@@ -1139,7 +1336,7 @@ function ensureRichFiveMinuteCurriculum(
         .filter((t, i, arr): t is KeyTerm => Boolean(t) && arr.findIndex(x => x?.term === t?.term) === i)
         .slice(0, 4)
         .map((t, i) => ({
-          label: shortLabel(t.term, 4, 30),
+          label: shortLabel(t.term, 5, 42),
           subtext: t.definition,
           badge: `Olası Soru ${i + 1}`,
           value: deterministicValue(t.term, i),
@@ -1153,7 +1350,7 @@ function ensureRichFiveMinuteCurriculum(
           title: 'Hocanın Sorabileceği Sorular',
           sentences,
           speakers,
-          keyTakeaways: qNodes.map(n => `${n.label}: ${n.subtext}`),
+          keyTakeaways: qNodes.map(formatNodeTakeaway),
           keyTerms: [q0, q1, q2].filter((t, i, arr) => arr.findIndex(x => x.term === t.term) === i),
           examTip: criticalFact || `${q0.term} tanımı ve ${q1.term} ile farkı sınavda en sık sorulan noktadır.`,
           visualCue: 'Sınavda çıkabilecek soru kalıpları ve doğru cevap anahtarları',
@@ -1204,7 +1401,7 @@ function ensureRichFiveMinuteCurriculum(
         title: 'Akademik Sentez, Çeldirici Analizi ve Sınav Stratejisi',
         sentences,
         speakers,
-        keyTakeaways: allFacts.length >= 3 ? allFacts.slice(0, 4) : fNodes.map(n => `${n.label}: ${n.subtext}`),
+        keyTakeaways: allFacts.length >= 3 ? allFacts.slice(0, 4) : fNodes.map(formatNodeTakeaway),
         keyTerms: allTerms.slice(0, 4),
         examTip: fact0,
         visualCue: 'Kritik ayrımları ve sınav sentezini gösteren ikili karşılaştırma matrisi',
@@ -1289,8 +1486,11 @@ export function buildStudioContent(
       .filter(Boolean)
       .slice(0, 5);
     const terms: KeyTerm[] = (Array.isArray(s?.keyTerms) ? s.keyTerms : [])
-      .map((t: any) => ({ term: cleanLabel(t?.term), definition: cleanText(t?.definition) }))
-      .filter((t: KeyTerm) => t.term)
+      .map((t: any) => ({
+        term: cleanLabel(t?.term).replace(/…|\.{2,}/g, '').trim(),
+        definition: cleanText(t?.definition).replace(/…|\.{2,}/g, '').trim(),
+      }))
+      .filter((t: KeyTerm) => t.term && isValidConceptTerm(t.term))
       .slice(0, 6);
 
     const examTip = cleanText(s?.examTip);
@@ -1323,15 +1523,22 @@ export function buildStudioContent(
         : diagram.nodes
             .filter(n => n.subtext)
             .slice(0, 4)
-            .map(n => (n.subtext.includes(n.label) ? n.subtext : `${n.label}: ${n.subtext}`));
+            .map(formatNodeTakeaway);
 
-    const finalTerms =
-      terms.length > 0
-        ? terms
-        : diagram.nodes
-            .filter(n => n.subtext && n.subtext !== n.label)
-            .slice(0, 4)
-            .map(n => ({ term: n.label, definition: n.subtext }));
+    const extractedSceneTerms: KeyTerm[] = [];
+    const seenLocal = new Set<string>();
+    const addLocalTerm = (term: string, definition: string) => {
+      const k = term.toLocaleLowerCase('tr-TR');
+      if (!isValidConceptTerm(term) || !definition || definition === term || seenLocal.has(k)) return;
+      seenLocal.add(k);
+      extractedSceneTerms.push({ term, definition });
+    };
+    diagram.nodes.forEach(n => addLocalTerm(n.label, n.subtext));
+    [...takeaways, ...splitSentences(rawNarration)].forEach(sent => {
+      extractAllGenuineConcepts(sent).forEach(kt => addLocalTerm(kt.term, kt.definition));
+    });
+
+    const finalTerms = terms.length > 0 ? terms : extractedSceneTerms.slice(0, 5);
 
     return finalizeSceneObject({
       id: `scene-${idx}`,
@@ -1383,15 +1590,55 @@ export function buildStudioContent(
   };
 }
 
-/** Uzun tanımları kart/şık içinde okunaklı kalacak biçimde ilk cümle sınırında kısaltır. */
-function compactDefinition(text: string, max = 150): string {
-  const t = cleanText(text);
-  if (t.length <= max) return t;
-  const firstSentence = t.split(/(?<=[.!?])\s+/)[0];
-  if (firstSentence.length <= max) return firstSentence;
-  const cut = t.slice(0, max);
-  const lastSpace = cut.lastIndexOf(' ');
-  return `${cut.slice(0, lastSpace > 60 ? lastSpace : max).replace(/[,;:\s]+$/, '')}…`;
+/**
+ * Tanım ve açıklama metinlerini ASLA üç noktayla (`…` / `...`) yarıda kesmeden,
+ * tam ve dilbilgisel olarak bütünlüklü cümle hâlinde temizler.
+ */
+function completeCleanDefinition(text: string, stripLeadingTerm?: string, maxPreferredChars = 280): string {
+  let t = cleanText(text).replace(/…|\.{3,}/g, '').trim();
+  if (!t) return '';
+  if (stripLeadingTerm) {
+    const termClean = cleanLabel(stripLeadingTerm);
+    const tl = t.toLocaleLowerCase('tr-TR');
+    const kl = termClean.toLocaleLowerCase('tr-TR');
+    if (kl && tl.startsWith(kl)) {
+      const rest = t.slice(termClean.length).replace(/^\s*[:–—\-]\s*/, '');
+      if (rest.length >= 14 && rest.length < t.length - termClean.length) {
+        t = capitalizeTr(rest);
+      }
+    }
+  }
+  if (t.length <= maxPreferredChars) {
+    return ensureSentenceEnd(t);
+  }
+  const sentences = splitSentences(t);
+  if (sentences.length > 1) {
+    let acc = sentences[0];
+    if (acc.length < 30 && sentences[1]) {
+      acc = `${acc} ${sentences[1]}`;
+    }
+    return ensureSentenceEnd(acc.replace(/…|\.{3,}/g, '').trim());
+  }
+  return ensureSentenceEnd(t);
+}
+
+/** Soru kökünde kavram geçiyorsa kopya vermemek için kavramı `_____` ile maskeler. */
+function maskConceptInStatement(statement: string, term: string): { text: string; masked: boolean } {
+  const cleanStmt = completeCleanDefinition(statement);
+  const cleanT = cleanLabel(term);
+  if (!cleanStmt || !cleanT) return { text: cleanStmt, masked: false };
+
+  const lowerStmt = cleanStmt.toLocaleLowerCase('tr-TR');
+  const lowerTerm = cleanT.toLocaleLowerCase('tr-TR');
+  const idx = lowerStmt.indexOf(lowerTerm);
+  if (idx < 0) return { text: cleanStmt, masked: false };
+
+  let endIdx = idx + cleanT.length;
+  while (endIdx < cleanStmt.length && /[A-ZÇĞİÖŞÜa-zçğıöşü']/u.test(cleanStmt[endIdx])) {
+    endIdx++;
+  }
+  const maskedText = `${cleanStmt.slice(0, idx)}_____${cleanStmt.slice(endIdx)}`.replace(/\s+/g, ' ').trim();
+  return { text: maskedText, masked: true };
 }
 
 function seededShuffle<T>(arr: T[], seed: string): T[] {
@@ -1421,15 +1668,16 @@ function sceneIndexForText(scenes: StudioScene[], text: string): number {
   return byNarration >= 0 ? byNarration : 0;
 }
 
-/** Tüm dersteki benzersiz kavram-tanım çiftlerini (önce gerçek terimler, sonra şema düğümleri) toplar. */
+/** Tüm dersteki benzersiz, gerçek ve eksiksiz kavram-tanım çiftlerini toplar. */
 function collectStudyTerms(scenes: StudioScene[]): Array<KeyTerm & { sceneIndex: number }> {
   const out: Array<KeyTerm & { sceneIndex: number }> = [];
   const seenTerm = new Set<string>();
   const seenDef = new Set<string>();
   const push = (term: string, definition: string, sceneIndex: number) => {
-    const t = cleanLabel(term);
-    const d = cleanText(definition);
+    const t = cleanLabel(term).replace(/…|\.{2,}/g, '').trim();
+    const d = completeCleanDefinition(definition, t);
     if (!t || !d || d.length < 14) return;
+    if (!isValidConceptTerm(t)) return;
     const tk = t.toLocaleLowerCase('tr-TR');
     const dk = textSignature(d);
     if (seenTerm.has(tk) || seenDef.has(dk)) return;
@@ -1440,17 +1688,30 @@ function collectStudyTerms(scenes: StudioScene[]): Array<KeyTerm & { sceneIndex:
   };
   scenes.forEach((s, i) => s.keyTerms.forEach(kt => push(kt.term, kt.definition, i)));
   scenes.forEach((s, i) => s.diagram.nodes.forEach(n => push(n.label, n.subtext, i)));
+  scenes.forEach((s, i) => {
+    [...s.keyTakeaways, ...s.sentences].forEach(sent => {
+      extractAllGenuineConcepts(sent).forEach(kt => push(kt.term, kt.definition, i));
+    });
+  });
   return out;
 }
 
 export function buildMatchingPairs(scenes: StudioScene[], raw?: unknown): MatchPair[] {
+  const hasTruncation = (s: string) => s.includes('…') || /\.\.\./.test(s);
   const fromModel: MatchPair[] = (Array.isArray(raw) ? raw : [])
-    .map((p: any) => ({
-      term: cleanLabel(p?.term ?? p?.left),
-      definition: compactDefinition(p?.definition ?? p?.right ?? '', 130),
-      sceneIndex: 0,
-    }))
-    .filter(p => p.term && p.definition.length > 8);
+    .map((p: any) => {
+      const term = cleanLabel(p?.term ?? p?.left);
+      const rawDef = cleanText(p?.definition ?? p?.right ?? '');
+      if (hasTruncation(term) || hasTruncation(rawDef)) {
+        return { term: '', definition: '', sceneIndex: 0 };
+      }
+      return {
+        term,
+        definition: completeCleanDefinition(rawDef, term),
+        sceneIndex: 0,
+      };
+    })
+    .filter(p => p.term && isValidConceptTerm(p.term) && p.definition.length > 10);
 
   if (fromModel.length >= 3) {
     return fromModel.slice(0, 6).map(p => ({ ...p, sceneIndex: sceneIndexForText(scenes, p.term) }));
@@ -1458,23 +1719,40 @@ export function buildMatchingPairs(scenes: StudioScene[], raw?: unknown): MatchP
 
   return collectStudyTerms(scenes)
     .slice(0, 6)
-    .map(t => ({ term: t.term, definition: compactDefinition(t.definition, 130), sceneIndex: t.sceneIndex }));
+    .map(t => ({
+      term: t.term,
+      definition: completeCleanDefinition(t.definition, t.term),
+      sceneIndex: t.sceneIndex,
+    }));
 }
 
 export function buildExamQuestions(scenes: StudioScene[], raw?: unknown): ExamQuestion[] {
+  const hasTruncation = (s: string) => s.includes('…') || /\.\.\./.test(s);
   const fromModel: ExamQuestion[] = (Array.isArray(raw) ? raw : [])
     .map((q: any) => {
+      const rawQuestion = cleanText(q?.question);
       const options: string[] = (Array.isArray(q?.options) ? q.options : []).map(cleanText).filter(Boolean);
       const correctIndex = Number.isInteger(q?.correctIndex) ? q.correctIndex : -1;
+      const explanation = cleanText(q?.explanation).replace(/…|\.{3,}/g, '').trim();
+      if (hasTruncation(rawQuestion) || options.some(hasTruncation)) {
+        return { question: '', options: [], correctIndex: -1, explanation: '', sceneIndex: 0 };
+      }
       return {
-        question: cleanText(q?.question),
+        question: rawQuestion,
         options,
         correctIndex,
-        explanation: cleanText(q?.explanation),
+        explanation: explanation || `Doğru yanıt: ${options[correctIndex] || ''}`,
         sceneIndex: 0,
       };
     })
-    .filter(q => q.question && q.options.length >= 2 && q.correctIndex >= 0 && q.correctIndex < q.options.length);
+    .filter(
+      q =>
+        q.question &&
+        q.options.length >= 3 &&
+        new Set(q.options.map(o => o.toLocaleLowerCase('tr-TR'))).size === q.options.length &&
+        q.correctIndex >= 0 &&
+        q.correctIndex < q.options.length,
+    );
 
   if (fromModel.length >= 3) {
     return fromModel.slice(0, 8).map(q => ({ ...q, sceneIndex: sceneIndexForText(scenes, q.question) }));
@@ -1484,9 +1762,9 @@ export function buildExamQuestions(scenes: StudioScene[], raw?: unknown): ExamQu
   if (pool.length < 2) return [];
 
   const templatesDef = [
-    (t: string) => `Hoca sınavda "${t}" kavramını sorarsa doğru tanım hangisidir?`,
-    (t: string) => `"${t}" aşağıdakilerden hangisiyle doğru biçimde açıklanır?`,
-    (t: string) => `"${t}" için verilebilecek en doğru cevap hangisidir?`,
+    (t: string) => `Hoca sınavda "${t}" kavramını sorarsa en doğru ve eksiksiz açıklama aşağıdakilerden hangisidir?`,
+    (t: string) => `"${t}" kavramının ders kapsamındaki işlevi ve tanımı aşağıdakilerden hangisinde doğru verilmiştir?`,
+    (t: string) => `Aşağıdaki ifadelerden hangisi "${t}" kavramını doğru biçimde açıklar?`,
   ];
 
   const questions: ExamQuestion[] = [];
@@ -1494,30 +1772,39 @@ export function buildExamQuestions(scenes: StudioScene[], raw?: unknown): ExamQu
 
   pool.slice(0, 8).forEach((item, idx) => {
     const distractors = seededShuffle(
-      pool.filter(p => p.term !== item.term),
+      pool.filter(p => p.term.toLocaleLowerCase('tr-TR') !== item.term.toLocaleLowerCase('tr-TR')),
       `${item.term}-${idx}`,
     ).slice(0, optionCount - 1);
 
-    // Çift indekslerde tanım soran, tek indekslerde kavramı bulduran soru üret
+    if (distractors.length < optionCount - 1) return;
+
+    // Çift indekslerde tanım soran, tek indekslerde kavramı bulduran tam cümleli soru üret
     if (idx % 2 === 0 || optionCount < 3) {
-      const options = seededShuffle(
-        [item, ...distractors].map(p => compactDefinition(p.definition, 140)),
-        `opt-${item.term}`,
-      );
+      const targetDef = completeCleanDefinition(item.definition, item.term);
+      const optionTexts = [
+        targetDef,
+        ...distractors.map(p => completeCleanDefinition(p.definition, p.term)),
+      ];
+      if (new Set(optionTexts.map(o => o.toLocaleLowerCase('tr-TR'))).size < optionTexts.length) return;
+      const options = seededShuffle(optionTexts, `opt-${item.term}`);
       questions.push({
         question: templatesDef[idx % templatesDef.length](item.term),
         options,
-        correctIndex: options.indexOf(compactDefinition(item.definition, 140)),
-        explanation: `${item.term}: ${compactDefinition(item.definition, 220)}`,
+        correctIndex: options.indexOf(targetDef),
+        explanation: `${item.term}: ${completeCleanDefinition(item.definition, item.term, 360)}`,
         sceneIndex: item.sceneIndex,
       });
     } else {
-      const options = seededShuffle([item, ...distractors].map(p => p.term), `term-${item.term}`);
+      const { text: stmtText, masked } = maskConceptInStatement(item.definition, item.term);
+      const options = seededShuffle([item.term, ...distractors.map(p => p.term)], `term-${item.term}`);
+      const questionStem = masked
+        ? `"${stmtText}" ifadesinde boş bırakılan yere aşağıdaki kavramlardan hangisi gelmelidir?`
+        : `"${stmtText}" açıklaması aşağıdaki kavramlardan hangisini tanımlar?`;
       questions.push({
-        question: `"${compactDefinition(item.definition, 150)}" ifadesi hangi kavramı tanımlar?`,
+        question: questionStem,
         options,
         correctIndex: options.indexOf(item.term),
-        explanation: `Doğru cevap ${item.term}. ${compactDefinition(item.definition, 200)}`,
+        explanation: `Doğru cevap "${item.term}" kavramıdır. ${completeCleanDefinition(item.definition, undefined, 360)}`,
         sceneIndex: item.sceneIndex,
       });
     }

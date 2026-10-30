@@ -31,6 +31,7 @@ import {
   Subtitles,
   SlidersHorizontal,
   FileDown,
+  Printer,
   Trash2,
   ExternalLink,
   ArrowLeft,
@@ -40,9 +41,14 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import EconLogo from '@/components/EconLogo';
 import LessonWrapUp from './video/LessonWrapUp';
+import {
+  downloadVideoStudyNotes,
+  printVideoStudyNotesPdf,
+} from './video/exportVideoStudyNotes';
 import {
   buildStudioContent,
   positionFromElapsed,
@@ -117,6 +123,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   onClose,
   onReport,
 }) => {
+  const { isAdmin } = useAuth();
+
   // 1. Ders içeriği modeli (en az 5+ dakika zengin çok-modlu ders)
   const studio = useMemo<StudioContent>(() => {
     return buildStudioContent(material.content, material.title, material.course || '');
@@ -126,6 +134,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
   // 2. Oynatıcı durumları
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
+  const [completedScenes, setCompletedScenes] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(`econnotes_completed_scenes_${material.id}`);
+      return raw ? new Set(JSON.parse(raw)) : new Set<number>();
+    } catch {
+      return new Set<number>();
+    }
+  });
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1.0);
@@ -414,6 +430,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           }
         },
         onComplete: () => {
+          markSceneCompleted(sceneIdx);
           if (sceneIdx + 1 < scenes.length) {
             advanceLockRef.current = sceneIdx + 1;
             setActiveSceneIndex(sceneIdx + 1);
@@ -844,74 +861,45 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     setPersonalNotes(prev => prev.filter(n => n.id !== id));
   };
 
-  const handleDownloadStudySheet = () => {
-    const lines: string[] = [
-      `# ${studio.title}`,
-      material.course ? `**Ders:** ${material.course}` : '',
-      studio.outline ? `\n> ${studio.outline}\n` : '',
-      `---`,
-      `## Bölüm Notları ve Kritik Çıkarımlar`,
-    ];
-
-    scenes.forEach((sc, i) => {
-      lines.push(`\n### ${i + 1}. ${sc.title} (${DIAGRAM_BADGE_TR[sc.diagram.type]})`);
-      sc.sentences.forEach((sent, si) => {
-        const spk = sc.sentenceSpeakers?.[si] || sc.speaker;
-        lines.push(`- **${spk === 'Deniz' ? 'Dr. Deniz' : 'Barış'}:** ${sent}`);
-      });
-      if (sc.keyTakeaways.length) {
-        lines.push(`\n**Önemli Noktalar:**`);
-        sc.keyTakeaways.forEach(tk => lines.push(`- ${tk}`));
+  const markSceneCompleted = useCallback((idx: number) => {
+    setCompletedScenes(prev => {
+      if (prev.has(idx)) return prev;
+      const next = new Set(prev);
+      next.add(idx);
+      try {
+        localStorage.setItem(`econnotes_completed_scenes_${material.id}`, JSON.stringify(Array.from(next)));
+      } catch {
+        // ignore storage quota
       }
-      if (sc.examTip) {
-        lines.push(`\n- **Sınav İpucu:** ${sc.examTip}`);
-      }
+      return next;
     });
+  }, [material.id]);
 
-    if (allTerms.length > 0) {
-      lines.push(`\n---\n## Kavram Sözlüğü`);
-      allTerms.forEach(t => lines.push(`- **${t.term}:** ${t.definition}`));
-    }
+  const handleDownloadStudySheet = () => {
+    downloadVideoStudyNotes({
+      studio,
+      courseName: material.course || undefined,
+      userNotes: personalNotes.map(pn => ({
+        id: pn.id,
+        sceneIndex: pn.sceneIndex,
+        timeLabel: formatTime(pn.timestampSec),
+        text: pn.text,
+      })),
+    });
+    toast.success('Renkli & Baskıya Hazır Ders Notu İndirildi');
+  };
 
-    if (keyFacts.length > 0) {
-      lines.push(`\n---\n## Sınav Öncesi Hap Bilgiler`);
-      keyFacts.forEach((f, idx) => lines.push(`${idx + 1}. ${f}`));
-    }
-
-    if (matchingPairs.length > 0) {
-      lines.push(`\n---\n## Kavram Eşleştirme Tablosu`);
-      matchingPairs.forEach(p => lines.push(`- **${p.term}** ↔ ${p.definition}`));
-    }
-
-    if (examQuestions.length > 0) {
-      lines.push(`\n---\n## Hocanın Sorabileceği Sorular`);
-      examQuestions.forEach((q, idx) => {
-        lines.push(`\n**Soru ${idx + 1}:** ${q.question}`);
-        q.options.forEach((opt, oi) => {
-          const mark = oi === q.correctIndex ? '✓' : ' ';
-          lines.push(`- [${mark}] ${opt}`);
-        });
-        lines.push(`> **Çözüm & Hoca Notu:** ${q.explanation}`);
-      });
-    }
-
-    if (personalNotes.length > 0) {
-      lines.push(`\n---\n## Kişisel Zaman Damgalı Notlarım`);
-      personalNotes.forEach(pn => {
-        lines.push(`- **[Bölüm ${pn.sceneIndex + 1} · ${formatTime(pn.timestampSec)}]** ${pn.text}`);
-      });
-    }
-
-    const blob = new Blob([lines.filter(Boolean).join('\n')], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${studio.title.toLowerCase().replace(/[^a-z0-9ğüşıöç]+/gi, '-')}-ders-notlari.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success('Ders özeti ve notlarınız indirildi');
+  const handlePrintStudySheet = () => {
+    printVideoStudyNotesPdf({
+      studio,
+      courseName: material.course || undefined,
+      userNotes: personalNotes.map(pn => ({
+        id: pn.id,
+        sceneIndex: pn.sceneIndex,
+        timeLabel: formatTime(pn.timestampSec),
+        text: pn.text,
+      })),
+    });
   };
 
   const sendCoachQuestion = async (preset?: string) => {
@@ -1046,160 +1034,162 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             <span className="hidden md:inline">Eşleştirme & Sınav</span>
           </button>
 
-          {/* Ses Ayarları Menüsü */}
-          <div ref={voiceMenuRef} className="relative">
-            <button
-              onClick={() => setVoiceMenuOpen(o => !o)}
-              className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs transition ${
-                voiceMenuOpen
-                  ? 'border-white/25 bg-white/[0.09] text-white'
-                  : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white'
-              }`}
-              title="Ses Ayarları"
-            >
-              {vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling' ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
-              ) : (
-                <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-400" />
-              )}
-              <span className="hidden xl:inline">Ses Ayarları</span>
-            </button>
-
-            {voiceMenuOpen && (
-              <div className="absolute right-0 top-10 z-50 w-80 sm:w-[340px] rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-semibold text-white">Ses Ayarları</span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      Dr. Deniz ve Barış anlatıcı sesleri
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setVoiceMenuOpen(false)}
-                    className="text-slate-400 hover:text-white"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
-                  <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] text-cyan-200">
-                      <span>Ses paketi yükleniyor...</span>
-                      <span className="font-mono">%{vitsStatus.progressPct}</span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-900">
-                      <div
-                        className="h-full rounded-full bg-cyan-400 transition-all duration-200"
-                        style={{ width: `${vitsStatus.progressPct}%` }}
-                      />
-                    </div>
-                  </div>
+          {/* Ses Ayarları Menüsü — YALNIZCA YÖNETİCİLERE AÇIK */}
+          {isAdmin && (
+            <div ref={voiceMenuRef} className="relative">
+              <button
+                onClick={() => setVoiceMenuOpen(o => !o)}
+                className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs transition ${
+                  voiceMenuOpen
+                    ? 'border-white/25 bg-white/[0.09] text-white'
+                    : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white'
+                }`}
+                title="Ses Ayarları (Yönetici)"
+              >
+                {vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-cyan-400" />
+                ) : (
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-400" />
                 )}
+                <span className="hidden xl:inline">Ses Ayarları</span>
+              </button>
 
-                <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                  <div>
-                    <div className="font-medium text-slate-100">Yüksek Kalite Stüdyo Sesi</div>
-                    <div className="text-[10px] text-slate-400">Temiz ve akıcı Türkçe seslendirme</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={preferCloudNeural}
-                    onChange={e => setPreferCloudNeural(e.target.checked)}
-                    className="h-4 w-4 accent-cyan-400"
-                  />
-                </label>
-
-                <div className="space-y-2.5 pt-1">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] font-medium text-cyan-300">
-                        Dr. Deniz (Anlatıcı)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => handlePreviewVoice('Deniz')}
-                        disabled={previewingSpeaker !== null}
-                        className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-50"
-                      >
-                        {previewingSpeaker === 'Deniz' ? (
-                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                        ) : (
-                          <Headphones className="h-2.5 w-2.5" />
-                        )}
-                        <span>Dinle</span>
-                      </button>
+              {voiceMenuOpen && (
+                <div className="absolute right-0 top-10 z-50 w-80 sm:w-[340px] rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-white">Ses Ayarları (Yönetici Paneli)</span>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Dr. Deniz ve Barış anlatıcı sesleri
+                      </p>
                     </div>
-                    <select
-                      value={preferredDenizVoice}
-                      onChange={e => setPreferredDenizVoice(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
+                    <button
+                      onClick={() => setVoiceMenuOpen(false)}
+                      className="text-slate-400 hover:text-white"
                     >
-                      <option value="">Varsayılan ({speakerVoices.Deniz.label})</option>
-                      {voices.map(v => (
-                        <option key={v.id} value={v.id}>
-                          {v.cleanName}
-                        </option>
-                      ))}
-                    </select>
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] font-medium text-purple-300">
-                        Barış (Soru Soran)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => handlePreviewVoice('Barış')}
-                        disabled={previewingSpeaker !== null}
-                        className="inline-flex items-center gap-1 rounded-md border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-200 transition hover:bg-purple-500/20 disabled:opacity-50"
-                      >
-                        {previewingSpeaker === 'Barış' ? (
-                          <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                        ) : (
-                          <Headphones className="h-2.5 w-2.5" />
-                        )}
-                        <span>Dinle</span>
-                      </button>
+                  {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
+                    <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-3 py-2 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] text-cyan-200">
+                        <span>Ses paketi yükleniyor...</span>
+                        <span className="font-mono">%{vitsStatus.progressPct}</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-900">
+                        <div
+                          className="h-full rounded-full bg-cyan-400 transition-all duration-200"
+                          style={{ width: `${vitsStatus.progressPct}%` }}
+                        />
+                      </div>
                     </div>
-                    <select
-                      value={preferredBarisVoice}
-                      onChange={e => setPreferredBarisVoice(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-purple-500 focus:outline-none"
-                    >
-                      <option value="">Varsayılan ({speakerVoices.Barış.label})</option>
-                      {voices.map(v => (
-                        <option key={v.id} value={v.id}>
-                          {v.cleanName}
-                        </option>
-                      ))}
-                    </select>
+                  )}
+
+                  <label className="flex cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                    <div>
+                      <div className="font-medium text-slate-100">Yüksek Kalite Stüdyo Sesi</div>
+                      <div className="text-[10px] text-slate-400">Temiz ve akıcı Türkçe seslendirme</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={preferCloudNeural}
+                      onChange={e => setPreferCloudNeural(e.target.checked)}
+                      className="h-4 w-4 accent-cyan-400"
+                    />
+                  </label>
+
+                  <div className="space-y-2.5 pt-1">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-medium text-cyan-300">
+                          Dr. Deniz (Anlatıcı)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewVoice('Deniz')}
+                          disabled={previewingSpeaker !== null}
+                          className="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200 transition hover:bg-cyan-500/20 disabled:opacity-50"
+                        >
+                          {previewingSpeaker === 'Deniz' ? (
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                          ) : (
+                            <Headphones className="h-2.5 w-2.5" />
+                          )}
+                          <span>Dinle</span>
+                        </button>
+                      </div>
+                      <select
+                        value={preferredDenizVoice}
+                        onChange={e => setPreferredDenizVoice(e.target.value)}
+                        className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
+                      >
+                        <option value="">Varsayılan ({speakerVoices.Deniz.label})</option>
+                        {voices.map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.cleanName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-medium text-purple-300">
+                          Barış (Soru Soran)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewVoice('Barış')}
+                          disabled={previewingSpeaker !== null}
+                          className="inline-flex items-center gap-1 rounded-md border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-200 transition hover:bg-purple-500/20 disabled:opacity-50"
+                        >
+                          {previewingSpeaker === 'Barış' ? (
+                            <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                          ) : (
+                            <Headphones className="h-2.5 w-2.5" />
+                          )}
+                          <span>Dinle</span>
+                        </button>
+                      </div>
+                      <select
+                        value={preferredBarisVoice}
+                        onChange={e => setPreferredBarisVoice(e.target.value)}
+                        className="w-full rounded-lg border border-white/10 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 focus:border-purple-500 focus:outline-none"
+                      >
+                        <option value="">Varsayılan ({speakerVoices.Barış.label})</option>
+                        {voices.map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.cleanName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+                      <span>Ses Seviyesi</span>
+                      <span>%{Math.round((isMuted ? 0 : volume) * 100)}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={isMuted ? 0 : volume}
+                      onChange={e => {
+                        const v = Number(e.target.value);
+                        setVolume(v);
+                        if (v > 0 && isMuted) setIsMuted(false);
+                      }}
+                      className="w-full accent-cyan-400"
+                    />
                   </div>
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
-                    <span>Ses Seviyesi</span>
-                    <span>%{Math.round((isMuted ? 0 : volume) * 100)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    value={isMuted ? 0 : volume}
-                    onChange={e => {
-                      const v = Number(e.target.value);
-                      setVolume(v);
-                      if (v > 0 && isMuted) setIsMuted(false);
-                    }}
-                    className="w-full accent-cyan-400"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Zaman Damgalı Anlık Not Al */}
           <button
@@ -1211,14 +1201,22 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             <span className="hidden lg:inline">Not Ekle</span>
           </button>
 
-          {/* Ders Özeti (.md) İndir */}
+          {/* Ders Notu (.html / PDF) İndir & Yazdır */}
           <button
             onClick={handleDownloadStudySheet}
-            className="hidden md:flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
-            title="Tüm ders notlarını ve soruları indir (.md)"
+            className="hidden md:flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-medium text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-500/20"
+            title="Baskıya hazır renkli ders notunu indir (.html)"
           >
             <FileDown className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="hidden xl:inline">Notları İndir</span>
+            <span className="hidden xl:inline">Ders Notu İndir</span>
+          </button>
+          <button
+            onClick={handlePrintStudySheet}
+            className="hidden sm:flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
+            title="Ders notunu doğrudan PDF olarak kaydet veya yazdır"
+          >
+            <Printer className="h-3.5 w-3.5 text-cyan-400" />
+            <span className="hidden xl:inline">PDF Yazdır</span>
           </button>
 
           {/* Yan Panel Aç/Kapat */}
@@ -1486,13 +1484,29 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <div className="mx-1 h-4 w-px bg-white/[0.08]" />
 
-                <button
-                  onClick={() => setIsMuted(m => !m)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                  title={isMuted ? 'Sesi Aç (M)' : 'Sesi Kapat (M)'}
-                >
-                  {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
-                </button>
+                <div className="flex items-center gap-1.5 group/vol">
+                  <button
+                    onClick={() => setIsMuted(m => !m)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                    title={isMuted ? 'Sesi Aç (M)' : 'Sesi Kapat (M)'}
+                  >
+                    {isMuted ? <VolumeX className="h-4 w-4 text-rose-400" /> : <Volume2 className="h-4 w-4" />}
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={isMuted ? 0 : volume}
+                    onChange={e => {
+                      const v = Number(e.target.value);
+                      setVolume(v);
+                      if (v > 0 && isMuted) setIsMuted(false);
+                    }}
+                    className="hidden sm:inline-block w-14 lg:w-18 h-1 accent-cyan-400 cursor-pointer"
+                    title={`Ses Seviyesi: %${Math.round((isMuted ? 0 : volume) * 100)}`}
+                  />
+                </div>
 
                 <button
                   onClick={() => setShowSubtitles(s => !s)}
@@ -1853,6 +1867,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                   {scenes.map((sc, idx) => {
                     const isAct = idx === activeSceneIndex;
+                    const isDone = completedScenes.has(idx);
                     return (
                       <button
                         key={sc.id}
@@ -1860,6 +1875,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                         className={`w-full text-left rounded-2xl border p-3 transition flex items-start gap-3 ${
                           isAct
                             ? 'border-cyan-400/50 bg-cyan-500/12 shadow-sm'
+                            : isDone
+                            ? 'border-emerald-500/25 bg-emerald-500/[0.03] hover:border-emerald-500/40'
                             : 'border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]'
                         }`}
                       >
@@ -1867,10 +1884,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                           className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
                             isAct
                               ? 'bg-cyan-400 text-slate-950'
+                              : isDone
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
                               : 'bg-white/[0.06] text-slate-300'
                           }`}
                         >
-                          {idx + 1}
+                          {isDone && !isAct ? '✓' : idx + 1}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
@@ -1986,6 +2005,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             keyFacts={keyFacts}
             onClose={() => setWrapUpOpen(false)}
             onDownloadNotes={handleDownloadStudySheet}
+            onPrintNotes={handlePrintStudySheet}
             onJumpToScene={idx => {
               setWrapUpOpen(false);
               unlockStudioAudio();
