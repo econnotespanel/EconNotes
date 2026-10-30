@@ -1,6 +1,6 @@
 import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -781,31 +781,39 @@ const Study = () => {
 
                     {/* Mode Pill Selector */}
                     <div className="space-y-1.5 text-left">
-                      <Label className="text-[11px] text-muted-foreground">Üretilecek Çıktı Türü</Label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <Label className="text-[11px] font-semibold text-foreground/90">Üretilecek Çıktı Türü</Label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         {[
-                          { type: 'summary', label: 'Konu & Slayt Özeti', icon: FileTextIcon, badge: 'ÖNERİLEN' },
-                          { type: 'video', label: 'İnteraktif Video Dersi', icon: VideoIcon, badge: 'İKİLİ ANLATIM' },
-                          { type: 'quiz', label: 'Kısa Sınav', icon: ClipboardList, badge: 'TEST' },
-                          { type: 'flashcards', label: 'Bilgi Kartları', icon: Layers, badge: 'TEKRAR' },
-                        ].map(opt => (
-                          <button
-                            key={opt.type}
-                            type="button"
-                            onClick={() => setQuickType(opt.type as MaterialType)}
-                            className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-start gap-1 transition text-left ${
-                              quickType === opt.type
-                                ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                                : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between w-full">
-                              <opt.icon className="h-3.5 w-3.5" />
-                              <span className="text-[9px] px-1 rounded bg-muted font-mono">{opt.badge}</span>
-                            </div>
-                            <span className="text-foreground text-[11px] mt-0.5">{opt.label}</span>
-                          </button>
-                        ))}
+                          { type: 'summary', label: 'Konu & Slayt Özeti', icon: FileTextIcon, badge: 'ÖNERİLEN', desc: 'Hap bilgiler & sınav vurguları' },
+                          { type: 'video', label: 'İnteraktif Video Dersi', icon: VideoIcon, badge: 'İKİLİ ANLATIM', desc: 'Dr. Deniz & Barış ile video' },
+                          { type: 'quiz', label: 'Kısa Sınav', icon: ClipboardList, badge: 'TEST', desc: 'Çözümlü sınav simülasyonu' },
+                          { type: 'flashcards', label: 'Bilgi Kartları', icon: Layers, badge: 'TEKRAR', desc: 'Aktif hatırlama kartları' },
+                        ].map(opt => {
+                          const isSelected = quickType === opt.type;
+                          return (
+                            <button
+                              key={opt.type}
+                              type="button"
+                              onClick={() => setQuickType(opt.type as MaterialType)}
+                              className={`p-3 rounded-2xl border text-xs font-semibold flex flex-col items-start gap-1.5 transition-all text-left ${
+                                isSelected
+                                  ? 'border-primary bg-primary/10 text-primary shadow-md shadow-primary/15 ring-2 ring-primary/30 scale-[1.01]'
+                                  : 'border-border/70 bg-card hover:border-primary/40 hover:bg-muted/40 text-muted-foreground'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
+                                  <opt.icon className="h-3.5 w-3.5" />
+                                </div>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${isSelected ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                                  {opt.badge}
+                                </span>
+                              </div>
+                              <span className="text-foreground text-xs font-bold mt-0.5">{opt.label}</span>
+                              <span className="text-[10px] text-muted-foreground font-normal leading-tight line-clamp-1">{opt.desc}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -897,31 +905,39 @@ const Study = () => {
 
                 {/* Mode Pill Selector */}
                 <div className="space-y-1.5 text-left">
-                  <Label className="text-[11px] text-muted-foreground">Üretilecek Çıktı Türü</Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <Label className="text-[11px] font-semibold text-foreground/90">Üretilecek Çıktı Türü</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {[
-                      { type: 'summary', label: 'Konu & Slayt Özeti', icon: FileTextIcon, badge: 'ÖNERİLEN' },
-                      { type: 'video', label: 'İnteraktif Video Dersi', icon: VideoIcon, badge: 'İKİLİ ANLATIM' },
-                      { type: 'quiz', label: 'Kısa Sınav', icon: ClipboardList, badge: 'TEST' },
-                      { type: 'flashcards', label: 'Bilgi Kartları', icon: Layers, badge: 'TEKRAR' },
-                    ].map(opt => (
-                      <button
-                        key={opt.type}
-                        type="button"
-                        onClick={() => setQuickType(opt.type as MaterialType)}
-                        className={`p-2.5 rounded-xl border text-xs font-semibold flex flex-col items-start gap-1 transition text-left ${
-                          quickType === opt.type
-                            ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                            : 'border-border/70 bg-card hover:bg-muted/40 text-muted-foreground'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <opt.icon className="h-3.5 w-3.5" />
-                          <span className="text-[9px] px-1 rounded bg-muted font-mono">{opt.badge}</span>
-                        </div>
-                        <span className="text-foreground text-[11px] mt-0.5">{opt.label}</span>
-                      </button>
-                    ))}
+                      { type: 'summary', label: 'Konu & Slayt Özeti', icon: FileTextIcon, badge: 'ÖNERİLEN', desc: 'Hap bilgiler & sınav vurguları' },
+                      { type: 'video', label: 'İnteraktif Video Dersi', icon: VideoIcon, badge: 'İKİLİ ANLATIM', desc: 'Dr. Deniz & Barış ile video' },
+                      { type: 'quiz', label: 'Kısa Sınav', icon: ClipboardList, badge: 'TEST', desc: 'Çözümlü sınav simülasyonu' },
+                      { type: 'flashcards', label: 'Bilgi Kartları', icon: Layers, badge: 'TEKRAR', desc: 'Aktif hatırlama kartları' },
+                    ].map(opt => {
+                      const isSelected = quickType === opt.type;
+                      return (
+                        <button
+                          key={opt.type}
+                          type="button"
+                          onClick={() => setQuickType(opt.type as MaterialType)}
+                          className={`p-3 rounded-2xl border text-xs font-semibold flex flex-col items-start gap-1.5 transition-all text-left ${
+                            isSelected
+                              ? 'border-primary bg-primary/10 text-primary shadow-md shadow-primary/15 ring-2 ring-primary/30 scale-[1.01]'
+                              : 'border-border/70 bg-card hover:border-primary/40 hover:bg-muted/40 text-muted-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
+                              <opt.icon className="h-3.5 w-3.5" />
+                            </div>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${isSelected ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                              {opt.badge}
+                            </span>
+                          </div>
+                          <span className="text-foreground text-xs font-bold mt-0.5">{opt.label}</span>
+                          <span className="text-[10px] text-muted-foreground font-normal leading-tight line-clamp-1">{opt.desc}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1803,7 +1819,103 @@ const SummaryViewer = ({
     return (s.heading || '').toLowerCase().includes(q) || (s.content || '').toLowerCase().includes(q);
   });
 
-  const checklistItems: string[] = c.studyChecklist || [];
+  // 1. Hocanın Vurguları Akıllı Türetme (Eski veya eksik materyaller için asla boş kalmaz)
+  const derivedEmphasis: string[] = useMemo(() => {
+    if (Array.isArray(c.instructorEmphasis) && c.instructorEmphasis.length > 0) {
+      return c.instructorEmphasis;
+    }
+    const list: string[] = [];
+    if (Array.isArray(c.sections)) {
+      c.sections.forEach((s: any) => {
+        if (s.takeaway) list.push(`${s.heading}: ${s.takeaway}`);
+      });
+    }
+    if (list.length < 3 && Array.isArray(c.keyPoints)) {
+      c.keyPoints.slice(0, 4).forEach((kp: string) => list.push(kp));
+    }
+    return list.length > 0 ? list : [
+      'Bu konudaki temel kavram ve formül tanımlarına sınav öncesinde özellikle dikkat edin.',
+      'Benzer kavramlar arasındaki ince ayrımlar vize ve final sınavlarında çeldirici soru olarak gelebilir.',
+      'Kuramsal mekanizmanın işleyiş basamaklarını sıralı olarak ezberden yazabilmeniz beklenir.'
+    ];
+  }, [c.instructorEmphasis, c.sections, c.keyPoints]);
+
+  // 2. Sınavda Çıkma Olasılığı Matrisi Akıllı Türetme
+  const derivedExamLikelihood = useMemo(() => {
+    if (Array.isArray(c.examLikelihood) && c.examLikelihood.length > 0) {
+      return c.examLikelihood;
+    }
+    if (Array.isArray(c.sections) && c.sections.length > 0) {
+      return c.sections.map((s: any, idx: number) => ({
+        topic: s.heading || `Konu ${idx + 1}`,
+        reason: s.takeaway || (s.content ? s.content.slice(0, 140).replace(/[#*`]/g, '') + '...' : 'Sınavın ana omurgasını oluşturan temel konulardan biridir.'),
+        likelihood: idx < 2 ? 'yüksek' : 'orta',
+        studyPriority: idx === 0 ? 'öncelikli' : 'normal',
+      }));
+    }
+    return [
+      {
+        topic: material.title.replace(/^[^:]+:\s*/, ''),
+        reason: 'Dersin temel kavramsal omurgasını oluşturduğu için sınavlarda doğrudan soru değeri taşır.',
+        likelihood: 'yüksek',
+        studyPriority: 'öncelikli',
+      }
+    ];
+  }, [c.examLikelihood, c.sections, material.title]);
+
+  // 3. Kritik Kavram Sözlüğü Akıllı Türetme
+  const derivedKeyTerms = useMemo(() => {
+    if (Array.isArray(c.keyTerms) && c.keyTerms.length > 0) {
+      return c.keyTerms;
+    }
+    const terms: { term: string; definition: string }[] = [];
+    if (Array.isArray(c.sections)) {
+      c.sections.forEach((s: any) => {
+        const boldMatches = s.content ? Array.from(s.content.matchAll(/\*\*([^*]+)\*\*[:\s]+([^\n.]+)/g)) : [];
+        boldMatches.slice(0, 2).forEach((m: any) => {
+          if (m[1] && m[2] && m[1].length < 40) {
+            terms.push({ term: m[1].trim(), definition: m[2].trim() });
+          }
+        });
+        if (terms.length < 4 && s.takeaway) {
+          terms.push({ term: s.heading, definition: s.takeaway });
+        }
+      });
+    }
+    if (terms.length === 0 && Array.isArray(c.keyPoints)) {
+      c.keyPoints.slice(0, 4).forEach((kp: string, i: number) => {
+        terms.push({ term: `Kritik İlke ${i + 1}`, definition: kp });
+      });
+    }
+    return terms.length > 0 ? terms : [
+      { term: 'Kuramsal Çerçeve', definition: c.overview || 'Konunun temel akademik mantığı ve nedensellik bağı.' },
+      { term: 'Sınav Odak Noktası', definition: 'Ders slaytlarında altı çizilen kilit formül ve kavramlar.' }
+    ];
+  }, [c.keyTerms, c.sections, c.keyPoints, c.overview]);
+
+  // 4. Sınava Hazırlık Kontrol Listesi Akıllı Türetme
+  const derivedChecklist: string[] = useMemo(() => {
+    if (Array.isArray(c.studyChecklist) && c.studyChecklist.length > 0) {
+      return c.studyChecklist;
+    }
+    const items: string[] = [];
+    if (Array.isArray(c.sections)) {
+      c.sections.forEach((s: any) => {
+        items.push(`${s.heading} konusunun temel mantığını ve sınav çıkarımını açıklayabiliyorum.`);
+      });
+    }
+    if (Array.isArray(c.keyPoints)) {
+      c.keyPoints.slice(0, 3).forEach((kp: string) => {
+        items.push(`${kp.slice(0, 75)}... bilgisini sınavda uygulayabiliyorum.`);
+      });
+    }
+    return items.length > 0 ? items : [
+      'Bu konunun tüm kuramsal ilkelerini ve formüllerini eksiksiz öğrendim.',
+      'Sınavda çıkabilecek çeldirici soru tiplerine karşı hazırlıklıyım.'
+    ];
+  }, [c.studyChecklist, c.sections, c.keyPoints]);
+
+  const checklistItems = derivedChecklist;
   const completedCount = checklistItems.filter((_, i) => checklist[i]).length;
   const checklistProgress = checklistItems.length ? Math.round((completedCount / checklistItems.length) * 100) : 0;
 
@@ -1866,10 +1978,10 @@ const SummaryViewer = ({
               overview: c.overview,
               keyPoints: c.keyPoints,
               sections: c.sections,
-              instructorEmphasis: c.instructorEmphasis,
-              examLikelihood: c.examLikelihood,
-              keyTerms: c.keyTerms,
-              studyChecklist: c.studyChecklist,
+              instructorEmphasis: derivedEmphasis,
+              examLikelihood: derivedExamLikelihood,
+              keyTerms: derivedKeyTerms,
+              studyChecklist: derivedChecklist,
               transcript: c.transcript,
             })}
           >
@@ -1879,33 +1991,37 @@ const SummaryViewer = ({
       </div>
 
       {/* Navigation tabs */}
-      <div className="flex border-b border-border/60 pb-1">
-        <div className="flex gap-1 overflow-x-auto">
+      <div className="flex border-b border-border/70 pb-2">
+        <div className="flex flex-wrap gap-2">
           {[
-            { id: 'overview', label: 'Genel Bakış & Hap Bilgiler', count: c.keyPoints?.length },
-            { id: 'sections', label: 'Slayt & Konu Analizi', count: c.sections?.length },
-            { id: 'exam', label: 'Hoca Vurguları & Sınav Tahmini', count: (c.instructorEmphasis?.length || 0) + (c.examLikelihood?.length || 0) },
-            { id: 'concepts', label: 'Kavramlar & Kontrol Listesi', count: (c.keyTerms?.length || 0) + (c.studyChecklist?.length || 0) },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-t-lg transition border-b-2 -mb-[1px] whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'border-primary text-primary bg-primary/5'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
-              }`}
-            >
-              <span>{tab.label}</span>
-              {typeof tab.count === 'number' && tab.count > 0 && (
+            { id: 'overview', label: 'Genel Bakış & Hap Bilgiler', icon: Sparkles, count: c.keyPoints?.length || 0 },
+            { id: 'sections', label: 'Slayt & Konu Analizi', icon: FileTextIcon, count: c.sections?.length || 0 },
+            { id: 'exam', label: 'Hoca Vurguları & Sınav Tahmini', icon: Target, count: derivedEmphasis.length + derivedExamLikelihood.length },
+            { id: 'concepts', label: 'Kavramlar & Kontrol Listesi', icon: ListChecks, count: derivedKeyTerms.length + derivedChecklist.length },
+          ].map(tab => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition shadow-sm whitespace-nowrap ${
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 ring-2 ring-primary/30'
+                    : 'bg-card hover:bg-muted text-muted-foreground border border-border/70 hover:text-foreground'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span>{tab.label}</span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono ${
-                  activeTab === tab.id ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+                  active ? 'bg-primary-foreground/20 text-primary-foreground font-bold' : 'bg-muted text-muted-foreground'
                 }`}>
                   {tab.count}
                 </span>
-              )}
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -2009,136 +2125,174 @@ const SummaryViewer = ({
       {/* TAB 3: EXAM */}
       {activeTab === 'exam' && (
         <div className="space-y-4 animate-fade-in">
-          {c.instructorEmphasis?.length > 0 && (
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5 space-y-3">
+          {/* Hoca Vurguları */}
+          <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-background p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                  Hocanın Özellikle Vurguladıkları &amp; Çeldirici Noktalar
-                </p>
-              </div>
-              <div className="space-y-2">
-                {c.instructorEmphasis.map((item: string, i: number) => (
-                  <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-background/60 border border-amber-500/20 text-xs sm:text-sm leading-relaxed">
-                    <span className="text-amber-500 font-bold text-base leading-none mt-0.5">⚠️</span>
-                    <span className="text-foreground/90">{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {c.examLikelihood?.length > 0 && (
-            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Target className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                    Sınavda Çıkma Olasılığı Yüksek Konular
-                  </p>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
+                  <AlertTriangle className="h-4 w-4" />
                 </div>
-                <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 text-[10px]">
-                  {c.examLikelihood.length} Konu Analizi
-                </Badge>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                    Hocanın Özellikle Vurguladıkları &amp; Çeldirici Noktalar
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Sınavlarda en çok hata yapılan ve soru gelmesi muhtemel noktalar</p>
+                </div>
               </div>
-
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                {c.examLikelihood.map((item: any, i: number) => (
-                  <div key={i} className="rounded-xl border border-border/80 bg-card p-3.5 shadow-sm space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs sm:text-sm font-bold text-foreground truncate">{item.topic}</span>
-                      <Badge className={
-                        item.likelihood === 'yüksek'
-                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px]'
-                          : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]'
-                      }>
-                        {item.likelihood} olasılık
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{item.reason}</p>
-                    {item.studyPriority && (
-                      <p className="text-[11px] font-semibold text-primary pt-1 border-t border-border/40">
-                        Çalışma önceliği: {item.studyPriority}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <p className="text-[11px] text-muted-foreground pt-1">
-                * Bu değerlendirme ders dökümü ve slaytlardaki kavram yoğunluğuna dayanmaktadır; kesin sınav garantisi niteliği taşımaz.
-              </p>
+              <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-semibold">
+                {derivedEmphasis.length} Vurgu
+              </Badge>
             </div>
-          )}
+            <div className="space-y-2 pt-1">
+              {derivedEmphasis.map((item: string, i: number) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-card border border-amber-500/20 text-xs sm:text-sm leading-relaxed shadow-sm hover:border-amber-500/40 transition">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-bold mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="text-foreground/90 font-medium">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Sınavda Çıkma Olasılığı Matrisi */}
+          <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-background p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <Target className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                    Sınavda Çıkma Olasılığı Matrisi
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Konuların soru değeri ve sınav öncelik derecesi</p>
+                </div>
+              </div>
+              <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold">
+                {derivedExamLikelihood.length} Konu Analizi
+              </Badge>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 pt-1">
+              {derivedExamLikelihood.map((item: any, i: number) => (
+                <div key={i} className="rounded-xl border border-border/80 bg-card p-3.5 shadow-sm space-y-2 hover:border-emerald-500/40 transition">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs sm:text-sm font-bold text-foreground truncate">{item.topic}</span>
+                    <Badge className={
+                      item.likelihood === 'yüksek'
+                        ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px]'
+                        : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]'
+                    }>
+                      {item.likelihood} olasılık
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{item.reason}</p>
+                  {item.studyPriority && (
+                    <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border/40">
+                      <span className="text-muted-foreground">Çalışma Önceliği:</span>
+                      <span className="font-semibold text-primary capitalize">{item.studyPriority}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground pt-1">
+              * Bu değerlendirme ders slaytlarındaki kavram yoğunluğuna dayanmaktadır; sınav hazırlığınızda kilit rehber niteliğindedir.
+            </p>
+          </div>
         </div>
       )}
 
       {/* TAB 4: CONCEPTS & CHECKLIST */}
       {activeTab === 'concepts' && (
         <div className="space-y-4 animate-fade-in">
-          {checklistItems.length > 0 && (
-            <div className="rounded-2xl border border-primary/20 bg-card p-4 sm:p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ListChecks className="h-4 w-4 text-primary" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-foreground">
-                    Sınava Hazırlık Kontrol Listesi
-                  </p>
+          {/* Kontrol Listesi */}
+          <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 via-card to-background p-4 sm:p-5 shadow-sm space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                  <ListChecks className="h-4 w-4" />
                 </div>
-                <span className="text-xs font-semibold text-primary">
-                  {completedCount}/{checklistItems.length} Tamamlandı (%{checklistProgress})
-                </span>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                    Sınava Hazırlık Kontrol Listesi
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Konuları pekiştirdikçe işaretleyin, hazırlık yüzdenizi takip edin</p>
+                </div>
               </div>
-
-              <Progress value={checklistProgress} className="h-2" />
-
-              <div className="space-y-2 pt-1">
-                {checklistItems.map((item: string, idx: number) => {
-                  const done = !!checklist[idx];
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => toggleChecklistItem(idx)}
-                      className={`w-full flex items-start gap-3 p-2.5 rounded-xl border text-left transition ${
-                        done
-                          ? 'border-success/30 bg-success/5 text-foreground/80'
-                          : 'border-border/70 bg-card hover:bg-muted/40 text-foreground'
-                      }`}
-                    >
-                      <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded mt-0.5 border ${
-                        done ? 'border-success bg-success text-white' : 'border-border bg-background'
-                      }`}>
-                        {done && <Check className="h-3 w-3 stroke-[3]" />}
-                      </div>
-                      <span className={`text-xs sm:text-sm leading-relaxed ${done ? 'line-through text-muted-foreground' : ''}`}>
-                        {item}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              <span className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
+                {completedCount}/{derivedChecklist.length} (%{checklistProgress})
+              </span>
             </div>
-          )}
 
-          {c.keyTerms?.length > 0 && (
-            <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                  <BookOpen className="h-3.5 w-3.5 text-primary" /> Kritik Kavram Sözlüğü
-                </p>
-                <span className="text-xs text-muted-foreground">{c.keyTerms.length} Terim</span>
+            <Progress value={checklistProgress} className="h-2 rounded-full" />
+
+            {checklistProgress === 100 && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-success/10 border border-success/30 text-success text-xs font-semibold">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Tebrikler! Bu dersin tüm kazanımlarını tamamladınız. Sınava hazırsınız! 🔥
               </div>
+            )}
 
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                {c.keyTerms.map((kt: any, i: number) => (
-                  <div key={i} className="rounded-xl border border-border/70 bg-muted/30 p-3 space-y-1 hover:border-primary/40 transition">
+            <div className="space-y-2 pt-1">
+              {derivedChecklist.map((item: string, idx: number) => {
+                const done = !!checklist[idx];
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => toggleChecklistItem(idx)}
+                    className={`w-full flex items-start gap-3 p-3 rounded-xl border text-left transition ${
+                      done
+                        ? 'border-success/30 bg-success/5 text-foreground/80'
+                        : 'border-border/70 bg-card hover:border-primary/40 text-foreground shadow-sm'
+                    }`}
+                  >
+                    <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded mt-0.5 border ${
+                      done ? 'border-success bg-success text-white' : 'border-border bg-background'
+                    }`}>
+                      {done && <Check className="h-3 w-3 stroke-[3]" />}
+                    </div>
+                    <span className={`text-xs sm:text-sm leading-relaxed ${done ? 'line-through text-muted-foreground' : 'font-medium'}`}>
+                      {item}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Kritik Kavram Sözlüğü */}
+          <div className="rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/15 text-blue-500">
+                  <BookOpen className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                    Kritik Kavram Sözlüğü
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">Sınavda doğrudan tanımı veya farkı sorulabilecek kavramlar</p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {derivedKeyTerms.length} Terim
+              </Badge>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 pt-1">
+              {derivedKeyTerms.map((kt: any, i: number) => (
+                <div key={i} className="rounded-xl border border-border/70 bg-muted/30 p-3.5 space-y-1.5 hover:border-primary/40 hover:bg-card transition shadow-sm">
+                  <div className="flex items-center justify-between">
                     <p className="text-xs font-bold text-primary font-display">{kt.term}</p>
-                    <p className="text-xs text-foreground/90 leading-relaxed">{kt.definition}</p>
                   </div>
-                ))}
-              </div>
+                  <p className="text-xs text-foreground/90 leading-relaxed font-normal">{kt.definition}</p>
+                </div>
+              ))}
             </div>
-          )}
+          </div>
 
           {typeof c.transcript === 'string' && (
             <details className="rounded-xl border border-border/70 bg-card/60 p-4">

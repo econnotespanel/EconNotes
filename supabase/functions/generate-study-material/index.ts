@@ -145,7 +145,7 @@ const schemas: Record<string, any> = {
         items: { type: 'string' },
       },
     },
-    required: ['overview', 'keyPoints', 'sections'],
+    required: ['overview', 'keyPoints', 'sections', 'instructorEmphasis', 'examLikelihood', 'keyTerms', 'studyChecklist'],
     additionalProperties: false,
   },
   video: {
