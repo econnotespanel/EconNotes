@@ -561,11 +561,10 @@ const Study = () => {
 
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                <GraduationCap className="h-4 w-4" />
-                <span>Akademik Çalışma ve Öğrenme Merkezi</span>
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-4xl font-display">
+              <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-foreground md:text-4xl font-display">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary shadow-sm">
+                  <GraduationCap className="h-6 w-6" />
+                </span>
                 Çalışma Stüdyosu
               </h1>
               <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
