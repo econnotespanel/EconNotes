@@ -18,7 +18,7 @@ import {
   Loader2, ChevronLeft, ChevronRight, Check, X, Trash2, Play, Search, Plus, BookOpen,
   Upload, Mic, FileUp, Bug, Coffee, Award, Flame, Brain, Trophy, RefreshCw, RotateCw, Pause, Volume2,
   MessageCircle, Send, Wand2, Copy, CheckCheck, FileDown, Presentation, FileSpreadsheet, ListChecks,
-  Target, AlertTriangle, ArrowRight, Zap, CheckCircle2
+  Target, AlertTriangle, ArrowRight, Zap, CheckCircle2, SlidersHorizontal, ChevronDown, ChevronUp, History, Clock, ArrowUpDown
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { toast } from 'sonner';
@@ -91,6 +91,20 @@ const MOTIVATIONS_RIGHT = [
 
 // (file → base64 helper moved into src/lib/extractFile.ts)
 
+
+const formatRelativeTime = (isoString?: string) => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  const diffMs = Date.now() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  if (diffHours < 1) return 'Az önce';
+  if (diffHours < 24) return `${diffHours} saat önce`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Dün';
+  if (diffDays < 7) return `${diffDays} gün önce`;
+  return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+};
+
 const Study = () => {
   const { user, isAdmin } = useAuth();
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
@@ -118,6 +132,15 @@ const Study = () => {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | MaterialType>('all');
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week'>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [showGuideBanner, setShowGuideBanner] = useState(() => {
+    try {
+      return localStorage.getItem('econnotes_hide_study_guide') !== 'true';
+    } catch {
+      return true;
+    }
+  });
 
   // Hızlı Slayt & Ders Notu İstasyonu State
   const [quickFile, setQuickFile] = useState<File | null>(null);
@@ -479,12 +502,22 @@ const Study = () => {
     return now - created <= span;
   };
 
-  const filtered = materials.filter(m =>
-    (!search || m.title.toLowerCase().includes(search.toLowerCase()) ||
-      (m.course || '').toLowerCase().includes(search.toLowerCase()))
-    && (typeFilter === 'all' || m.material_type === typeFilter)
-    && timeMatches(m)
-  );
+  const filtered = useMemo(() => {
+    let list = materials.filter(m =>
+      (!search || m.title.toLowerCase().includes(search.toLowerCase()) ||
+        (m.course || '').toLowerCase().includes(search.toLowerCase()))
+      && (typeFilter === 'all' || m.material_type === typeFilter)
+      && timeMatches(m)
+    );
+    if (sortBy === 'newest') {
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (sortBy === 'oldest') {
+      list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    } else if (sortBy === 'title') {
+      list.sort((a, b) => a.title.localeCompare(b.title, 'tr'));
+    }
+    return list;
+  }, [materials, search, typeFilter, timeFilter, sortBy]);
 
 
   const stats = {
@@ -558,7 +591,7 @@ const Study = () => {
           </div>
 
           {/* Quick Metrics Strip */}
-          <div className="relative mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6 border-t border-border/50 pt-5">
+          <div className="relative mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6 border-t border-border/50 pt-5">
             {[
               { label: 'Tüm Materyaller', value: stats.total, icon: BookOpen, tone: 'text-primary', tint: 'bg-primary/10 border-primary/20' },
               { label: 'Konu Özetleri', value: stats.summary, icon: FileTextIcon, tone: 'text-emerald-500', tint: 'bg-emerald-500/10 border-emerald-500/20' },
@@ -588,6 +621,63 @@ const Study = () => {
             ))}
           </div>
         </div>
+
+        {/* 3 Adımda Hızlı Çalışma Rehberi */}
+        {showGuideBanner && (
+          <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/10 via-card to-blue-500/10 p-4 sm:p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3.5 min-w-0">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-sm mt-0.5">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div className="space-y-2 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-bold text-foreground font-display">
+                      Çalışma Stüdyosu Nasıl Kullanılır?
+                    </h3>
+                    <Badge variant="secondary" className="text-[10px] font-semibold">3 Adımda Sınav Hazırlığı</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-0.5 text-xs">
+                    <div className="flex items-start gap-2.5 p-2 rounded-xl bg-background/50 border border-border/50">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary font-mono text-[11px] font-bold">1</span>
+                      <p className="text-muted-foreground leading-relaxed">
+                        <strong className="text-foreground">Slayt veya Not Yükleyin:</strong> PowerPoint (.pptx), PDF veya Word dosyalarınızı bırakın.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2.5 p-2 rounded-xl bg-background/50 border border-border/50">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-500 font-mono text-[11px] font-bold">2</span>
+                      <p className="text-muted-foreground leading-relaxed">
+                        <strong className="text-foreground">Çalışma Modunuzu Seçin:</strong> Konu özeti, ikili video dersi, kısa sınav veya bilgi kartları.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2.5 p-2 rounded-xl bg-background/50 border border-border/50">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-500 font-mono text-[11px] font-bold">3</span>
+                      <p className="text-muted-foreground leading-relaxed">
+                        <strong className="text-foreground">Pekiştirin &amp; Başarın:</strong> Hoca vurguları, sınav tahminleri ve kavram sözlüğüyle sınavı kazanın.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowGuideBanner(false);
+                  try {
+                    localStorage.setItem('econnotes_hide_study_guide', 'true');
+                  } catch {
+                    // ignore
+                  }
+                }}
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground shrink-0"
+                aria-label="Rehberi gizle"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         {isAdmin && (
           <LiveLectureCapture
@@ -817,6 +907,76 @@ const Study = () => {
                       </div>
                     </div>
 
+                    {/* Gelişmiş Sınav Ayarları Akordeon */}
+                    <div className="rounded-xl border border-border/70 bg-card/50 overflow-hidden transition-all text-left">
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvancedSettings(prev => !prev)}
+                        className="w-full flex items-center justify-between p-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/30 transition"
+                      >
+                        <span className="flex items-center gap-2">
+                          <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+                          Sınav ve Üretim Ayarlarını Özelleştir (Opsiyonel)
+                        </span>
+                        {showAdvancedSettings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+
+                      {showAdvancedSettings && (
+                        <div className="p-3.5 border-t border-border/60 bg-background/50 space-y-3 animate-fade-in text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Zorluk Seviyesi</Label>
+                              <Select value={difficulty} onValueChange={(v: any) => setDifficulty(v)}>
+                                <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="easy">Kolay (Temel Düzey)</SelectItem>
+                                  <SelectItem value="medium">Orta (Standart Üniversite)</SelectItem>
+                                  <SelectItem value="hard">Zor (İleri / Sınav Tuzaklı)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Sınav Simülasyon Türü</Label>
+                              <Select value={examType} onValueChange={(v: any) => setExamType(v)}>
+                                <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="test">Çoktan Seçmeli Test</SelectItem>
+                                  <SelectItem value="classic">Klasik (Açık Uçlu)</SelectItem>
+                                  <SelectItem value="mixed">Karma Simülasyon</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div>
+                              <Label className="text-[11px] text-muted-foreground">Soru / Kart Sayısı ({count})</Label>
+                              <Input
+                                type="number"
+                                min={3}
+                                max={25}
+                                value={count}
+                                onChange={e => {
+                                  const p = parseInt(e.target.value, 10);
+                                  setCount(Number.isFinite(p) ? Math.max(3, Math.min(25, p)) : 10);
+                                }}
+                                className="h-8 text-xs mt-1"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label className="text-[11px] text-muted-foreground">Özellikle Odaklanılacak Konu / Ünite (İsteğe Bağlı)</Label>
+                            <Input
+                              value={focus}
+                              onChange={e => setFocus(e.target.value)}
+                              placeholder="Örn: 2. Hafta slaytları, faiz teorisi, IS-LM dengesi..."
+                              className="h-8 text-xs mt-1"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <Button
                       size="lg"
                       onClick={() => void handleQuickStart()}
@@ -1037,6 +1197,23 @@ const Study = () => {
                   </button>
                 ))}
               </div>
+
+              {/* Sıralama Seçimi */}
+              <div className="flex items-center gap-1.5 shrink-0 pl-1">
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <ArrowUpDown className="h-3 w-3" />
+                </span>
+                <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                  <SelectTrigger className="h-8 text-xs rounded-xl w-[125px] bg-background/50 border-border/70">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">En Yeni</SelectItem>
+                    <SelectItem value="oldest">En Eski</SelectItem>
+                    <SelectItem value="title">A'dan Z'ye</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         </div>
@@ -1086,7 +1263,10 @@ const Study = () => {
                     </div>
                     <div className="flex items-center gap-1.5">
                       {createdLabel && (
-                        <span className="text-[11px] font-medium text-muted-foreground">{createdLabel}</span>
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                          <Clock className="h-3 w-3" />
+                          <span>{formatRelativeTime(m.created_at)}</span>
+                        </div>
                       )}
                       <Button
                         variant="ghost"
