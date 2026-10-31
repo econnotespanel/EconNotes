@@ -241,6 +241,41 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   }, [personalNotes, notesStorageKey]);
 
   // 6. Gelişmiş Öğrenme Teknolojileri & Yeni Nesil Durumlar
+  // Yalnızca Mikroekonomi, Makroekonomi ve sayısal/analitik iktisat derslerinde laboratuvarı aktifleştir
+  const isEconomicsLabApplicable = useMemo(() => {
+    const combined = `${material.course || ''} ${material.title || ''} ${studio.title || ''}`.toLocaleLowerCase('tr-TR');
+    const matchesAnalyticalEcon = [
+      'mikro',
+      'makro',
+      'micro',
+      'macro',
+      'fiyat teorisi',
+      'tüketici teorisi',
+      'üretici teorisi',
+      'piyasa dengesi',
+      'para banka',
+      'para teorisi',
+      'enflasyon',
+      'faiz teorisi',
+      'iktisadi analiz',
+      'ekonometri',
+    ].some(term => combined.includes(term));
+
+    const isHistoryCourse = [
+      'tarih',
+      'osmanlı',
+      'selçuklu',
+      'düşünceler tarihi',
+      'iktisat tarihi',
+    ].some(term => combined.includes(term));
+
+    if (isHistoryCourse && !combined.includes('mikro') && !combined.includes('makro')) {
+      return false;
+    }
+
+    return matchesAnalyticalEcon;
+  }, [material.course, material.title, studio.title]);
+
   const [conceptMapOpen, setConceptMapOpen] = useState(false);
   const [flashcardsOpen, setFlashcardsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -1330,50 +1365,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             <Search className="h-3.5 w-3.5 text-cyan-400" />
           </button>
 
-          {/* Akıllı Kavram Haritası */}
-          <button
-            onClick={() => setConceptMapOpen(true)}
-            className="hidden lg:flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 hover:bg-white/[0.08] transition whitespace-nowrap"
-            title="Akıllı Kavram Haritası"
-          >
-            <Network className="h-3.5 w-3.5 text-cyan-400" />
-            <span className="hidden 2xl:inline">Kavram Haritası</span>
-          </button>
-
-          {/* Aralıklı Tekrar & Bilgi Kartları */}
-          <button
-            onClick={() => setFlashcardsOpen(true)}
-            className="hidden lg:flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-300 hover:border-purple-400/40 hover:text-purple-200 hover:bg-white/[0.08] transition whitespace-nowrap"
-            title="Aralıklı Tekrar & Bilgi Kartları (SM-2)"
-          >
-            <Brain className="h-3.5 w-3.5 text-purple-400" />
-            <span className="hidden 2xl:inline">Bilgi Kartları</span>
-          </button>
-
-          {/* İnteraktif Simülatör (Lab) */}
-          <button
-            onClick={() => setSimLabOpen(true)}
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-500/20 shadow-xs whitespace-nowrap"
-            title="İnteraktif Piyasa, Taylor ve Döviz Simülasyonu"
-          >
-            <Activity className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-            <span className="hidden lg:inline">Simülasyon</span>
-          </button>
-
-          {/* Ders Sonu Eşleştirme & Sınav Soruları */}
-          <button
-            onClick={openPracticeWrapUp}
-            className={`flex h-8 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition whitespace-nowrap ${
-              wrapUpOpen
-                ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
-                : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:border-cyan-400/50 hover:bg-cyan-500/20'
-            }`}
-            title="Kavram Eşleştirme ve Sınav Soruları"
-          >
-            <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <span className="hidden md:inline">Test & Sınav</span>
-          </button>
-
           {/* Erişilebilirlik ve Kişiselleştirme */}
           <button
             onClick={() => setAccessibilityOpen(true)}
@@ -1540,38 +1531,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             </div>
           )}
 
-          {/* Zaman Damgalı Anlık Not Al */}
-          <button
-            onClick={() => setNoteComposerOpen(o => !o)}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-200 transition hover:border-amber-400/40 hover:bg-amber-500/10 hover:text-amber-200"
-            title="Bu saniyeye kişisel not veya yer imi ekle"
-          >
-            <BookmarkPlus className="h-3.5 w-3.5 text-amber-400" />
-            <span className="hidden lg:inline">Not Ekle</span>
-          </button>
-
-          {/* Ders Notu (.html / PDF) İndir & Yazdır */}
-          <button
-            onClick={handleDownloadStudySheet}
-            className="hidden md:flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-medium text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-500/20"
-            title="Baskıya hazır renkli ders notunu indir (.html)"
-          >
-            <FileDown className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="hidden xl:inline">Ders Notu İndir</span>
-          </button>
-          <button
-            onClick={handlePrintStudySheet}
-            className="hidden sm:flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
-            title="Ders notunu doğrudan PDF olarak kaydet veya yazdır"
-          >
-            <Printer className="h-3.5 w-3.5 text-cyan-400" />
-            <span className="hidden xl:inline">PDF Yazdır</span>
-          </button>
-
           {/* Yan Panel Aç/Kapat */}
           <button
             onClick={() => setSidebarOpen(s => !s)}
-            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-medium transition ${
+            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition ${
               sidebarOpen
                 ? 'border-cyan-500/40 bg-cyan-500/12 text-cyan-200'
                 : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'
@@ -1581,36 +1544,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             {sidebarOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
             <span className="hidden sm:inline">Ders Notları</span>
           </button>
-
-          {/* Tam Ekran */}
-          <button
-            onClick={toggleFullscreen}
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-            title={isFullscreen ? 'Tam Ekrandan Çık (F)' : 'Tam Ekran (F)'}
-          >
-            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-          </button>
-
-          {/* Bildir */}
-          {onReport && (
-            <button
-              onClick={onReport}
-              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
-              title="Hata Bildir"
-            >
-              <Bug className="h-3.5 w-3.5" />
-            </button>
-          )}
-
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="flex sm:hidden h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-rose-500/20 hover:text-rose-300"
-              title="Kapat"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
       </header>
 
@@ -1779,9 +1712,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     Video yükleniyor, lütfen bekleyiniz.
                   </p>
                   {(vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling') && (
-                    <div className="mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-white/10">
+                    <div className="mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-slate-800">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-all duration-200"
+                        className="h-full bg-cyan-400 transition-all duration-200"
                         style={{ width: `${Math.max(10, vitsStatus.progressPct)}%` }}
                       />
                     </div>
@@ -1885,9 +1818,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       }}
                       className="group relative cursor-pointer py-2 touch-none"
                     >
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.12] transition-all group-hover:h-2.5">
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800/90 transition-all group-hover:h-2.5">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 transition-[width] duration-75"
+                          className="h-full bg-cyan-400 transition-[width] duration-75"
                           style={{ width: `${fillPct}%` }}
                         />
                       </div>
@@ -2108,7 +2041,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             <div className="grid grid-cols-2 gap-2 border-b border-white/[0.07] bg-[#070c18] p-2.5">
               <button
                 onClick={openPracticeWrapUp}
-                className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/15 to-blue-500/10 p-2 text-left transition hover:border-cyan-400/50 hover:from-cyan-500/20"
+                className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2 text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20"
                 title="Kavram Eşleştirme & Sınav Soruları"
               >
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
@@ -2122,23 +2055,40 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </div>
               </button>
 
-              <button
-                onClick={() => setSimLabOpen(true)}
-                className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 to-cyan-500/10 p-2 text-left transition hover:border-emerald-400/50 hover:from-emerald-500/20"
-                title="İnteraktif Piyasa & İktisat Laboratuvarı"
-              >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
-                  <Activity className="h-3.5 w-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-white">İktisat Labı</p>
-                  <p className="truncate text-[10px] text-slate-300">Piyasa & Makro</p>
-                </div>
-              </button>
+              {/* İktisat Laboratuvarı: Sadece Mikro ve Makro İktisat Derslerinde Gösterilir */}
+              {isEconomicsLabApplicable ? (
+                <button
+                  onClick={() => setSimLabOpen(true)}
+                  className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2 text-left transition hover:border-emerald-400/50 hover:bg-emerald-500/20"
+                  title="İnteraktif Piyasa & İktisat Laboratuvarı"
+                >
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+                    <Activity className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-white">İktisat Labı</p>
+                    <p className="truncate text-[10px] text-slate-300">Piyasa & Makro</p>
+                  </div>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setSearchModalOpen(true)}
+                  className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2 text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20"
+                  title="Ders İçi Akıllı İçerik Arama"
+                >
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300">
+                    <Search className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-white">Ders İçi Arama</p>
+                    <p className="truncate text-[10px] text-slate-300">Kelime & Konu</p>
+                  </div>
+                </button>
+              )}
 
               <button
                 onClick={() => setConceptMapOpen(true)}
-                className="flex items-center gap-2 rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-500/15 to-pink-500/10 p-2 text-left transition hover:border-purple-400/50 hover:from-purple-500/20"
+                className="flex items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 p-2 text-left transition hover:border-purple-400/50 hover:bg-purple-500/20"
                 title="Ders İçi Kavram Ağı & Bilgi Haritası"
               >
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300">
@@ -2152,8 +2102,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
               <button
                 onClick={() => setFlashcardsOpen(true)}
-                className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/15 to-orange-500/10 p-2 text-left transition hover:border-amber-400/50 hover:from-amber-500/20"
-                title="Aralıklı Tekrar & Bilgi Kartları (SM-2)"
+                className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2 text-left transition hover:border-amber-400/50 hover:from-amber-500/20"
+                title="Aralıklı Tekrar & Bilgi Kartları"
               >
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
                   <Brain className="h-3.5 w-3.5" />

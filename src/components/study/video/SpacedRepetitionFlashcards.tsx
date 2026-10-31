@@ -198,11 +198,8 @@ export const SpacedRepetitionFlashcards: React.FC<SpacedRepetitionFlashcardsProp
               <Brain className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
-                <span>Akıllı Aralıklı Tekrar & Bilgi Kartları</span>
-                <span className="rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold text-purple-300 border border-purple-400/20">
-                  SM-2 Algoritması
-                </span>
+              <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                Aralıklı Tekrar & Bilgi Kartları
               </h2>
             </div>
           </div>

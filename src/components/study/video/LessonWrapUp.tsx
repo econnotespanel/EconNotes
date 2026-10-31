@@ -253,7 +253,7 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
         {/* Üst Başlık ve İlerleme Şeridi */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#080f1f]/90 px-5 py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/25 to-blue-600/25 text-cyan-300 ring-1 ring-cyan-400/30">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/15 text-cyan-300 border border-cyan-400/30">
               <Trophy className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -436,7 +436,7 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
                     {examQuestions.length > 0 && (
                       <Button
                         onClick={() => setActiveTab('questions')}
-                        className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white hover:from-cyan-400 hover:to-blue-500 gap-1.5"
+                        className="rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold gap-1.5"
                       >
                         <span>Hocanın Sorularına Geç</span>
                         <ArrowRight className="h-4 w-4" />
@@ -724,7 +724,7 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
                     <Button
                       size="sm"
                       onClick={() => setActiveTab('summary')}
-                      className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white gap-1.5"
+                      className="rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold gap-1.5"
                     >
                       <span>Sınav Özetini Gör ({correctCount}/{examQuestions.length})</span>
                       <ArrowRight className="h-3.5 w-3.5" />

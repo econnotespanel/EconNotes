@@ -445,7 +445,7 @@ export const ConceptKnowledgeMap: React.FC<ConceptKnowledgeMapProps> = ({
                       onJumpToScene(selectedNode.sceneIdx);
                       onClose();
                     }}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-2.5 text-xs font-bold text-slate-950 transition hover:brightness-110 shadow-lg"
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 px-4 py-2.5 text-xs font-bold text-slate-950 transition shadow-lg"
                   >
                     <span>Bu Kavramın Anlatıldığı Bölümü İzle</span>
                     <ArrowRight className="h-4 w-4" />
