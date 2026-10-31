@@ -49,6 +49,8 @@ import {
   Mic,
   MicOff,
   Eye,
+  ChevronUp,
+  Sliders,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -280,6 +282,62 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const [flashcardsOpen, setFlashcardsOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [accessibilityOpen, setAccessibilityOpen] = useState(false);
+  const [chaptersMenuOpen, setChaptersMenuOpen] = useState(false);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const chaptersMenuRef = useRef<HTMLDivElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (chaptersMenuRef.current && !chaptersMenuRef.current.contains(e.target as Node)) {
+        setChaptersMenuOpen(false);
+      }
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(e.target as Node)) {
+        setSettingsMenuOpen(false);
+      }
+    };
+    if (chaptersMenuOpen || settingsMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [chaptersMenuOpen, settingsMenuOpen]);
+
+  // Mobil ve sistem durum çubuğu rengini (theme-color ve HTML/Body arka planını) stüdyo koyu temasına (#070b16) eşitle
+  useEffect(() => {
+    const origHtmlBg = document.documentElement.style.backgroundColor;
+    const origBodyBg = document.body.style.backgroundColor;
+    document.documentElement.style.backgroundColor = '#070b16';
+    document.body.style.backgroundColor = '#070b16';
+
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    const origTheme = metaTheme?.getAttribute('content');
+    if (metaTheme) metaTheme.setAttribute('content', '#070b16');
+
+    // Mobil tarayıcı geçmişi (back swipe / donanım geri tuşu) entegrasyonu
+    const handlePopState = () => {
+      if (onClose) {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+        onClose();
+      }
+    };
+    try {
+      window.history.pushState({ econnotesStudio: true }, '');
+      window.addEventListener('popstate', handlePopState);
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      document.documentElement.style.backgroundColor = origHtmlBg;
+      document.body.style.backgroundColor = origBodyBg;
+      if (metaTheme && origTheme) metaTheme.setAttribute('content', origTheme);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [onClose]);
   const [examMode, setExamMode] = useState<boolean>(() => {
     try {
       return localStorage.getItem('econnotes_studio_exam_mode') === 'true';
@@ -1282,39 +1340,47 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const studioElement = (
     <div
       ref={containerRef}
-      className={`pointer-events-auto fixed inset-0 z-[200] flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#050811] text-slate-100 select-none font-sans ${
+      className={`pointer-events-auto fixed inset-0 z-[200] flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#070b16] text-slate-100 select-none font-sans pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)] ${
         accessibilitySettings.highContrast ? 'contrast-125 saturate-110' : ''
       } ${accessibilitySettings.reduceMotion ? '[&_*]:transition-none [&_*]:animate-none' : ''}`}
     >
       {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
-      <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-[#070b16]/95 px-3 sm:px-5 backdrop-blur-xl">
-        {/* Sol: Beyaz EconNotes Logosu + Çıkış + Başlık */}
-        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3 flex-1 overflow-hidden">
+      <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-2 sm:gap-3 border-b border-white/[0.08] bg-[#070b16]/95 px-2.5 sm:px-5 backdrop-blur-xl">
+        {/* Sol: Çıkış / Geri Dön + Beyaz EconNotes Logosu + Başlık */}
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3 flex-1 overflow-hidden">
+          {onClose && (
+            <button
+              onClick={() => {
+                if (document.fullscreenElement) {
+                  document.exitFullscreen().catch(() => {});
+                }
+                onClose();
+              }}
+              className="group flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.12] bg-white/[0.05] px-2.5 sm:px-3 text-xs font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/[0.1] hover:text-white active:scale-95 touch-manipulation shadow-xs"
+              title="Stüdyodan Çık (Geri)"
+            >
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5 text-cyan-300 shrink-0" />
+              <span className="text-xs font-semibold">Geri</span>
+            </button>
+          )}
+
           <div className="flex items-center shrink-0 pr-1" title="EconNotes Çalışma Stüdyosu">
-            <EconLogo allWhite className="h-7 w-28 sm:h-8 sm:w-36 shrink-0" />
+            <EconLogo allWhite className="h-6 w-20 sm:h-7 sm:w-28 shrink-0" />
           </div>
 
           <div className="h-5 w-px bg-white/[0.12] hidden sm:block shrink-0" />
 
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="group flex h-8 shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.09] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
-              title="Stüdyodan Çık (Esc)"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
-              <span className="hidden md:inline">Stüdyodan Çık</span>
-            </button>
-          )}
-
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <h1 className="truncate text-sm sm:text-base font-semibold tracking-tight text-white" title={studio.title}>
+          <div className="min-w-0 flex-1 overflow-hidden cursor-pointer" onClick={() => setChaptersMenuOpen(true)}>
+            <h1 className="truncate text-xs sm:text-sm md:text-base font-semibold tracking-tight text-white hover:text-cyan-300 transition" title={studio.title}>
               {studio.title}
             </h1>
+            <p className="truncate text-[10px] sm:text-[11px] text-slate-400 hidden xs:block">
+              Bölüm {activeSceneIndex + 1}/{scenes.length}: {currentScene.title}
+            </p>
           </div>
         </div>
 
-        {/* Sağ: Akademik ve Yeni Nesil Araçlar */}
+        {/* Sağ: Sınav Modu, Podcast, Ders Notları, Göz ve En Sağda Arama */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           {/* Sınav Modu Toggle */}
           <button
@@ -1325,15 +1391,15 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 return next;
               });
             }}
-            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition whitespace-nowrap ${
+            className={`flex h-9 min-w-[36px] sm:min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
               examMode
                 ? 'border-amber-400 bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/50 shadow-xs'
                 : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-200'
             }`}
             title="Sınav Hazırlık Modu: Kritik bilgiler ve sınav sorularını öne çıkarır"
           >
-            <Sparkles className={`h-3.5 w-3.5 ${examMode ? 'text-amber-300 fill-amber-300' : 'text-amber-400'}`} />
-            <span className="hidden xl:inline">Sınav Modu</span>
+            <Sparkles className={`h-3.5 w-3.5 shrink-0 ${examMode ? 'text-amber-300 fill-amber-300' : 'text-amber-400'}`} />
+            <span className="hidden sm:inline">Sınav Modu</span>
           </button>
 
           {/* Podcast / Sesli Ders Modu Toggle */}
@@ -1341,37 +1407,33 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             onClick={() => {
               setAudioOnlyMode(m => {
                 const next = !m;
-                toast.info(next ? 'Podcast & Sesli Ders Modu: Görseller kapatıldı, ses ve teleprompter dökümü öne çıkarıldı' : 'Stüdyo Görsel Moduna Dönüldü');
+                toast.info(next ? 'Podcast & Sesli Ders Modu: Ekran ve batarya tasarrufu aktif' : 'Stüdyo Görsel Moduna Dönüldü');
                 return next;
               });
             }}
-            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition whitespace-nowrap ${
+            className={`flex h-9 min-w-[36px] sm:min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
               audioOnlyMode
                 ? 'border-purple-400 bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/50 shadow-xs'
                 : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-purple-400/40 hover:text-purple-200'
             }`}
             title="Podcast ve Sesli Ders Modu (Ekran ve Batarya Tasarrufu)"
           >
-            <Headphones className="h-3.5 w-3.5 text-purple-400" />
-            <span className="hidden xl:inline">Podcast</span>
+            <Headphones className="h-3.5 w-3.5 shrink-0 text-purple-400" />
+            <span className="hidden sm:inline">Podcast</span>
           </button>
 
-          {/* Ders İçi Akıllı Arama */}
+          {/* Yan Panel Aç/Kapat (Ders Notları) */}
           <button
-            onClick={() => setSearchModalOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition"
-            title="Ders İçi Akıllı Arama: Cümle, altyazı ve kavramlarda ara"
+            onClick={() => setSidebarOpen(s => !s)}
+            className={`flex h-9 min-w-[36px] sm:min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation ${
+              sidebarOpen
+                ? 'border-cyan-500/40 bg-cyan-500/12 text-cyan-200'
+                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'
+            }`}
+            title="Ders Notları ve Bilgi Panelini Aç/Kapat"
           >
-            <Search className="h-3.5 w-3.5 text-cyan-400" />
-          </button>
-
-          {/* Erişilebilirlik ve Kişiselleştirme */}
-          <button
-            onClick={() => setAccessibilityOpen(true)}
-            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition"
-            title="Erişilebilirlik ve Kişiselleştirme Tercihleri"
-          >
-            <Eye className="h-3.5 w-3.5 text-slate-300" />
+            {sidebarOpen ? <PanelRightClose className="h-3.5 w-3.5 shrink-0" /> : <PanelRightOpen className="h-3.5 w-3.5 shrink-0" />}
+            <span className="hidden md:inline">Ders Notları</span>
           </button>
 
           {/* Ses Ayarları Menüsü — YALNIZCA YÖNETİCİLERE AÇIK */}
@@ -1531,18 +1593,22 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             </div>
           )}
 
-          {/* Yan Panel Aç/Kapat */}
+          {/* Erişilebilirlik ve Kişiselleştirme (GÖZ İŞARETİ - ARAMANIN SOLUNDA) */}
           <button
-            onClick={() => setSidebarOpen(s => !s)}
-            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition ${
-              sidebarOpen
-                ? 'border-cyan-500/40 bg-cyan-500/12 text-cyan-200'
-                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'
-            }`}
-            title="Ders Notları ve Bilgi Panelini Aç/Kapat"
+            onClick={() => setAccessibilityOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition active:scale-95 touch-manipulation"
+            title="Erişilebilirlik ve Kişiselleştirme Tercihleri"
           >
-            {sidebarOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRightOpen className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">Ders Notları</span>
+            <Eye className="h-4 w-4 text-slate-300" />
+          </button>
+
+          {/* Ders İçi Akıllı Arama (ARAMA BÜYÜTEÇİ - EN SAĞDA) */}
+          <button
+            onClick={() => setSearchModalOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition active:scale-95 touch-manipulation"
+            title="Ders İçi Akıllı Arama: Cümle, altyazı ve kavramlarda ara"
+          >
+            <Search className="h-4 w-4 text-cyan-400" />
           </button>
         </div>
       </header>
@@ -1834,12 +1900,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               </span>
             </div>
 
-            <div className="mt-1 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 sm:gap-1.5">
+            <div className="mt-1 flex items-center justify-between gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 <button
                   onClick={() => goToScene(activeSceneIndex - 1)}
                   disabled={activeSceneIndex === 0}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-30"
+                  className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-30 active:scale-95 touch-manipulation"
                   title="Önceki Bölüm"
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -1847,7 +1913,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <button
                   onClick={() => seekRelative(-10)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                  className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation"
                   title="10 Saniye Geri (←)"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -1856,7 +1922,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 <button
                   onClick={togglePlay}
                   disabled={isPreparingAudio}
-                  className="flex h-8 items-center gap-1.5 rounded-xl bg-white px-3.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-cyan-50 disabled:opacity-75"
+                  className="flex h-9 sm:h-8 items-center gap-1.5 rounded-xl bg-white px-3 sm:px-3.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-cyan-50 disabled:opacity-75 active:scale-95 touch-manipulation"
                 >
                   {isPreparingAudio ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-900" />
@@ -1870,7 +1936,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <button
                   onClick={() => seekRelative(10)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                  className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation"
                   title="10 Saniye İleri (→)"
                 >
                   <RotateCw className="h-3.5 w-3.5" />
@@ -1879,15 +1945,15 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 <button
                   onClick={() => goToScene(activeSceneIndex + 1)}
                   disabled={activeSceneIndex === scenes.length - 1}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-30"
+                  className="hidden sm:flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-30 active:scale-95 touch-manipulation"
                   title="Sonraki Bölüm"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
 
-                <div className="mx-1 h-4 w-px bg-white/[0.08]" />
+                <div className="mx-1 h-4 w-px bg-white/[0.08] hidden md:block" />
 
-                <div className="flex items-center gap-1.5 group/vol">
+                <div className="hidden md:flex items-center gap-1.5 group/vol">
                   <button
                     onClick={() => setIsMuted(m => !m)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
@@ -1906,14 +1972,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       setVolume(v);
                       if (v > 0 && isMuted) setIsMuted(false);
                     }}
-                    className="hidden sm:inline-block w-14 lg:w-18 h-1 accent-cyan-400 cursor-pointer"
+                    className="w-14 lg:w-18 h-1 accent-cyan-400 cursor-pointer"
                     title={`Ses Seviyesi: %${Math.round((isMuted ? 0 : volume) * 100)}`}
                   />
                 </div>
 
                 <button
                   onClick={() => setShowSubtitles(s => !s)}
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg transition hover:bg-white/[0.08] ${
+                  className={`flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-lg transition hover:bg-white/[0.08] active:scale-95 touch-manipulation ${
                     showSubtitles ? 'text-cyan-400' : 'text-slate-500'
                   }`}
                   title="Altyazı Aç/Kapat (C)"
@@ -1923,68 +1989,195 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <button
                   onClick={togglePiP}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                  className="hidden md:flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
                   title="Resim İçinde Resim (PiP) (P)"
                 >
                   <PictureInPicture className="h-4 w-4" />
                 </button>
               </div>
 
-              <div className="hidden lg:flex min-w-0 items-center gap-2 text-xs">
-                <span
-                  className={`rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                    liveSpeaker === 'Deniz'
-                      ? 'bg-cyan-500/15 text-cyan-300'
-                      : 'bg-purple-500/15 text-purple-300'
-                  }`}
+              {/* YouTube Tarzı Bölüm Başlığı & Tıklayınca Açılan Bölüm Listesi */}
+              <div className="relative min-w-0 flex-1 max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl">
+                <button
+                  onClick={() => setChaptersMenuOpen(o => !o)}
+                  className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2 sm:px-2.5 py-1 text-left transition hover:border-cyan-400/40 hover:bg-white/[0.06] w-full group/chap active:scale-[0.99] touch-manipulation"
+                  title="Tüm bölümleri ve tam başlıkları görüntüle (Tıklayın)"
                 >
-                  {liveSpeaker === 'Deniz' ? 'Dr. Deniz' : 'Barış'}
-                </span>
-                <span className="truncate max-w-md font-medium text-slate-200">
-                  {activeSceneIndex + 1}/{scenes.length} · {currentScene.title}
-                </span>
+                  <span
+                    className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                      liveSpeaker === 'Deniz'
+                        ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/25'
+                        : 'bg-purple-500/15 text-purple-300 border border-purple-400/25'
+                    }`}
+                  >
+                    {liveSpeaker === 'Deniz' ? 'Dr. Deniz' : 'Barış'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-slate-100 group-hover/chap:text-cyan-200 transition">
+                      {activeSceneIndex + 1}/{scenes.length} · {currentScene.title}
+                    </p>
+                  </div>
+                  <ChevronUp className={`h-3.5 w-3.5 text-slate-400 shrink-0 transition-transform ${chaptersMenuOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+                </button>
+
+                {/* YouTube Tarzı Bölümler Menüsü */}
+                {chaptersMenuOpen && (
+                  <div
+                    ref={chaptersMenuRef}
+                    className="fixed inset-x-2 sm:absolute sm:inset-x-auto sm:left-0 sm:w-96 bottom-16 sm:bottom-11 z-50 max-h-[65vh] sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/10 bg-[#080d1b]/98 p-3 shadow-2xl backdrop-blur-2xl space-y-1.5 animate-in fade-in slide-in-from-bottom-2"
+                  >
+                    <div className="flex items-center justify-between px-1 pb-2 border-b border-white/[0.08]">
+                      <div>
+                        <span className="text-xs font-bold text-white block">Ders Bölümleri ({scenes.length} Bölüm)</span>
+                        <span className="text-[11px] text-slate-400 truncate max-w-[240px] block">{studio.title}</span>
+                      </div>
+                      <button onClick={() => setChaptersMenuOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="space-y-1 pt-1">
+                      {scenes.map((sc, sIdx) => {
+                        const isCurrent = sIdx === activeSceneIndex;
+                        return (
+                          <button
+                            key={sc.id}
+                            onClick={() => {
+                              goToScene(sIdx, 0);
+                              setChaptersMenuOpen(false);
+                            }}
+                            className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
+                              isCurrent
+                                ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 ring-1 ring-cyan-400/30'
+                                : 'text-slate-300 hover:bg-white/[0.06] hover:text-white border border-transparent'
+                            }`}
+                          >
+                            <span className="font-mono text-xs font-bold text-cyan-400 shrink-0 mt-0.5">
+                              {sIdx + 1}.
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium leading-snug break-words">
+                                {sc.title}
+                              </p>
+                              <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                                <span>{formatTime(sc.durationSec)}</span>
+                                <span>•</span>
+                                <span>{DIAGRAM_BADGE_TR[sc.diagram.type]}</span>
+                                {isCurrent && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-cyan-300 font-semibold">Oynatılıyor</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {isCurrent && (
+                              <span className="h-2 w-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 animate-pulse" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
-                {/* Sahne Düzeni (Stüdyo / Sanal Tahta / Odak) */}
-                <div className="hidden sm:flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-0.5" title="Sunum Düzeni">
-                  {(
-                    [
-                      { id: 'standard', label: 'Stüdyo' },
-                      { id: 'whiteboard', label: 'Sanal Tahta' },
-                      { id: 'focus', label: 'Odak' },
-                    ] as const
-                  ).map(mode => (
-                    <button
-                      key={mode.id}
-                      onClick={() => setLayoutMode(mode.id)}
-                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
-                        layoutMode === mode.id
-                          ? 'bg-cyan-500/20 text-cyan-200 font-semibold shadow-xs'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
+              {/* Sağ: YouTube Tarzı Ayarlar Menüsü + Tam Ekran */}
+              <div className="relative flex items-center gap-1 sm:gap-1.5 shrink-0">
+                {/* YouTube Tarzı Ayarlar Popover Butonu */}
+                <button
+                  onClick={() => setSettingsMenuOpen(o => !o)}
+                  className={`flex h-9 sm:h-8 items-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-medium transition active:scale-95 touch-manipulation ${
+                    settingsMenuOpen
+                      ? 'border-cyan-400 bg-cyan-500/20 text-cyan-200'
+                      : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                  }`}
+                  title="Oynatma Seçenekleri & Ayarlar (Hız, Sunum Düzeni)"
+                >
+                  <Sliders className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                  <span className="font-mono font-bold text-[11px] text-cyan-300">{playbackSpeed}x</span>
+                </button>
 
-                {/* Hız Seçenekleri */}
-                <div className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.02] p-0.5">
-                  {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
-                    <button
-                      key={spd}
-                      onClick={() => setPlaybackSpeed(spd)}
-                      className={`rounded-lg px-2 py-1 font-mono text-[11px] transition ${
-                        playbackSpeed === spd
-                          ? 'bg-cyan-500/20 font-semibold text-cyan-300'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      {spd}x
-                    </button>
-                  ))}
-                </div>
+                {/* Tam Ekran Butonu */}
+                <button
+                  onClick={toggleFullscreen}
+                  className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation"
+                  title={isFullscreen ? 'Tam Ekrandan Çık (F)' : 'Tam Ekran (F)'}
+                >
+                  {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                </button>
+
+                {/* YouTube Tarzı Seçenekler Popover Menüsü */}
+                {settingsMenuOpen && (
+                  <div
+                    ref={settingsMenuRef}
+                    className="fixed inset-x-4 sm:absolute sm:inset-x-auto sm:right-0 sm:w-72 bottom-16 sm:bottom-11 z-50 rounded-2xl border border-white/10 bg-[#080d1b]/98 p-3.5 shadow-2xl backdrop-blur-2xl space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
+                  >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08]">
+                      <span className="font-bold text-white flex items-center gap-1.5">
+                        <Sliders className="h-3.5 w-3.5 text-cyan-400" />
+                        <span>Oynatma Seçenekleri</span>
+                      </span>
+                      <button onClick={() => setSettingsMenuOpen(false)} className="text-slate-400 hover:text-white">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Oynatma Hızı */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                        <span>OYNATMA HIZI</span>
+                        <span className="font-mono text-cyan-300 font-bold">{playbackSpeed}x</span>
+                      </div>
+                      <div className="grid grid-cols-5 gap-1">
+                        {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
+                          <button
+                            key={spd}
+                            onClick={() => {
+                              setPlaybackSpeed(spd);
+                              setSettingsMenuOpen(false);
+                            }}
+                            className={`rounded-lg py-1.5 font-mono text-xs font-semibold transition ${
+                              playbackSpeed === spd
+                                ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                                : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
+                            }`}
+                          >
+                            {spd}x
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Sunum Düzeni */}
+                    <div className="space-y-1.5 pt-1.5 border-t border-white/[0.06]">
+                      <span className="text-[11px] font-semibold text-slate-400">SUNUM DÜZENİ</span>
+                      <div className="grid grid-cols-3 gap-1">
+                        {(
+                          [
+                            { id: 'standard', label: 'Stüdyo' },
+                            { id: 'whiteboard', label: 'Sanal Tahta' },
+                            { id: 'focus', label: 'Odak' },
+                          ] as const
+                        ).map(mode => (
+                          <button
+                            key={mode.id}
+                            onClick={() => {
+                              setLayoutMode(mode.id);
+                              setSettingsMenuOpen(false);
+                            }}
+                            className={`rounded-lg py-1.5 text-xs font-medium transition ${
+                              layoutMode === mode.id
+                                ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                                : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
+                            }`}
+                          >
+                            {mode.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

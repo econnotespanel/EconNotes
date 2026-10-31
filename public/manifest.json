@@ -4,8 +4,8 @@
   "description": "Üniversite öğrencileri için not paylaşım platformu",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1e40af",
+  "background_color": "#070b16",
+  "theme_color": "#070b16",
   "orientation": "portrait-primary",
   "icons": [
     {
