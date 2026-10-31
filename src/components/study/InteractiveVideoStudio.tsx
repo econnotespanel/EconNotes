@@ -326,12 +326,20 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   useEffect(() => {
     const origHtmlBg = document.documentElement.style.backgroundColor;
     const origBodyBg = document.body.style.backgroundColor;
+    const origColorScheme = document.documentElement.style.colorScheme;
+    const wasDark = document.documentElement.classList.contains('dark');
+
+    document.documentElement.classList.add('dark');
     document.documentElement.style.backgroundColor = '#070b16';
     document.body.style.backgroundColor = '#070b16';
+    document.documentElement.style.colorScheme = 'dark';
 
-    const metaTheme = document.querySelector('meta[name="theme-color"]');
-    const origTheme = metaTheme?.getAttribute('content');
-    if (metaTheme) metaTheme.setAttribute('content', '#070b16');
+    const metaThemes = document.querySelectorAll('meta[name="theme-color"]');
+    const origThemes: { el: Element; val: string | null }[] = [];
+    metaThemes.forEach(el => {
+      origThemes.push({ el, val: el.getAttribute('content') });
+      el.setAttribute('content', '#070b16');
+    });
 
     // Mobil tarayıcı geçmişi (back swipe / donanım geri tuşu) entegrasyonu
     const handlePopState = () => {
@@ -350,9 +358,15 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
 
     return () => {
+      if (!wasDark) {
+        document.documentElement.classList.remove('dark');
+      }
       document.documentElement.style.backgroundColor = origHtmlBg;
       document.body.style.backgroundColor = origBodyBg;
-      if (metaTheme && origTheme) metaTheme.setAttribute('content', origTheme);
+      document.documentElement.style.colorScheme = origColorScheme;
+      origThemes.forEach(({ el, val }) => {
+        if (val) el.setAttribute('content', val);
+      });
       window.removeEventListener('popstate', handlePopState);
     };
   }, [onClose]);
@@ -1362,9 +1376,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         accessibilitySettings.highContrast ? 'contrast-125 saturate-110' : ''
       } ${accessibilitySettings.reduceMotion ? '[&_*]:transition-none [&_*]:animate-none' : ''}`}
     >
-      {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
-      <header className={`relative z-30 flex ${isMobileLandscape ? 'h-10 px-2 sm:px-3' : 'h-14 px-2.5 sm:px-5'} shrink-0 items-center justify-between gap-2 sm:gap-3 border-b border-white/[0.08] bg-[#070b16]/95 backdrop-blur-xl`}>
-        {/* Sol: Çıkış / Geri Dön + Beyaz EconNotes Logosu (Asla sıkışmaz, shrink-0) */}
+      {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Turkuaz & Koyu Tema Uyumlu */}
+      <header className={`relative z-30 flex ${isMobileLandscape ? 'h-10 px-2 sm:px-3' : 'h-14 px-2.5 sm:px-5'} shrink-0 items-center justify-between gap-2 sm:gap-3 border-b border-cyan-500/20 bg-gradient-to-r from-[#060a16] via-[#070b16] to-[#080e1e] backdrop-blur-xl shadow-xs shadow-cyan-500/5`}>
+        {/* Üst İnce Neon Çizgi (Üst Bar Tema Vurgusu) */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
+
+        {/* Sol: Çıkış / Geri Dön + EconNotes Marka Logosu (Asla sıkışmaz, shrink-0) */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
           {onClose && (
             <button
@@ -1374,22 +1391,22 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 }
                 onClose();
               }}
-              className={`group flex ${isMobileLandscape ? 'h-7 px-2' : 'h-9 px-2 sm:px-2.5'} shrink-0 items-center gap-1 rounded-xl border border-white/[0.12] bg-white/[0.05] text-xs font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/[0.1] hover:text-white active:scale-95 touch-manipulation shadow-xs`}
+              className={`group flex ${isMobileLandscape ? 'h-7 px-2' : 'h-9 px-2 sm:px-2.5'} shrink-0 items-center gap-1 rounded-xl border border-cyan-500/25 bg-cyan-500/10 text-xs font-semibold text-cyan-100 transition hover:border-cyan-400/50 hover:bg-cyan-500/20 hover:text-white active:scale-95 touch-manipulation shadow-xs shadow-cyan-500/5`}
               title="Stüdyodan Çık (Geri)"
             >
-              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5 text-cyan-300 shrink-0" />
+              <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5 text-cyan-400 shrink-0" />
               <span className="text-xs font-semibold">Geri</span>
             </button>
           )}
 
           <div className="flex items-center shrink-0 max-h-8 max-w-[140px] overflow-hidden" title="EconNotes Çalışma Stüdyosu">
-            <EconLogo allWhite className={isMobileLandscape ? 'h-5 w-20 sm:h-6 sm:w-24 shrink-0' : 'h-6 w-24 sm:h-7 sm:w-28 shrink-0'} />
+            <EconLogo onDark className={isMobileLandscape ? 'h-5 w-20 sm:h-6 sm:w-24 shrink-0' : 'h-6 w-24 sm:h-7 sm:w-28 shrink-0'} />
           </div>
         </div>
 
         {/* Orta: Ders Başlığı (Masaüstü ve tablette görünür, mobilde gizlenir) */}
         <div className={`${isMobileLandscape ? 'hidden' : 'hidden md:flex'} min-w-0 flex-1 items-center px-3 cursor-pointer overflow-hidden`} onClick={() => setChaptersMenuOpen(true)}>
-          <div className="h-5 w-px bg-white/[0.12] mr-3 shrink-0" />
+          <div className="h-5 w-px bg-cyan-500/25 mr-3 shrink-0" />
           <div className="min-w-0 flex-1 overflow-hidden">
             <h1 className="truncate text-xs sm:text-sm font-semibold tracking-tight text-white hover:text-cyan-300 transition" title={studio.title}>
               {studio.title}
@@ -1414,7 +1431,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             className={`flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
               examMode
                 ? 'border-amber-400 bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/50 shadow-xs'
-                : `border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-200 ${isMobileLandscape ? 'hidden' : 'hidden sm:flex'}`
+                : `border-cyan-500/20 bg-cyan-500/5 text-slate-300 hover:border-amber-400/40 hover:text-amber-200 ${isMobileLandscape ? 'hidden' : 'hidden sm:flex'}`
             }`}
             title="Sınav Hazırlık Modu: Kritik bilgiler ve sınav sorularını öne çıkarır"
           >
@@ -1434,7 +1451,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             className={`flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
               audioOnlyMode
                 ? 'border-purple-400 bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/50 shadow-xs'
-                : `border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-purple-400/40 hover:text-purple-200 ${isMobileLandscape ? 'hidden' : 'hidden sm:flex'}`
+                : `border-cyan-500/20 bg-cyan-500/5 text-slate-300 hover:border-purple-400/40 hover:text-purple-200 ${isMobileLandscape ? 'hidden' : 'hidden sm:flex'}`
             }`}
             title="Podcast ve Sesli Ders Modu (Ekran ve Batarya Tasarrufu)"
           >
@@ -1447,12 +1464,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             onClick={() => setSidebarOpen(s => !s)}
             className={`flex ${isMobileLandscape ? 'h-7 px-2' : 'h-9 px-2.5'} items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition active:scale-95 touch-manipulation ${
               sidebarOpen
-                ? 'border-cyan-500/40 bg-cyan-500/12 text-cyan-200'
-                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'
+                ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200 shadow-xs shadow-cyan-500/20'
+                : 'border-cyan-500/25 bg-cyan-500/8 text-slate-200 hover:border-cyan-400/40 hover:bg-cyan-500/15 hover:text-white'
             }`}
             title="Ders Notları ve Bilgi Panelini Aç/Kapat"
           >
-            {sidebarOpen ? <PanelRightClose className="h-3.5 w-3.5 shrink-0" /> : <PanelRightOpen className="h-3.5 w-3.5 shrink-0" />}
+            {sidebarOpen ? <PanelRightClose className="h-3.5 w-3.5 shrink-0 text-cyan-300" /> : <PanelRightOpen className="h-3.5 w-3.5 shrink-0 text-cyan-400" />}
             <span className={isMobileLandscape ? 'hidden' : 'hidden md:inline'}>Ders Notları</span>
           </button>
 
@@ -1463,8 +1480,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 onClick={() => setVoiceMenuOpen(o => !o)}
                 className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs transition ${
                   voiceMenuOpen
-                    ? 'border-white/25 bg-white/[0.09] text-white'
-                    : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/20 hover:bg-white/[0.07] hover:text-white'
+                    ? 'border-cyan-400/50 bg-cyan-500/20 text-white'
+                    : 'border-cyan-500/20 bg-cyan-500/5 text-slate-300 hover:border-cyan-400/30 hover:bg-cyan-500/10 hover:text-white'
                 }`}
                 title="Ses Ayarları (Yönetici)"
               >
@@ -1619,16 +1636,16 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           {/* Erişilebilirlik ve Kişiselleştirme (GÖZ İŞARETİ - ARAMANIN SOLUNDA) */}
           <button
             onClick={() => setAccessibilityOpen(true)}
-            className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9'} items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition active:scale-95 touch-manipulation`}
+            className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9'} items-center justify-center rounded-xl border border-cyan-500/25 bg-cyan-500/8 text-slate-200 hover:border-cyan-400/50 hover:bg-cyan-500/20 hover:text-cyan-100 transition active:scale-95 touch-manipulation`}
             title="Erişilebilirlik ve Kişiselleştirme Tercihleri"
           >
-            <Eye className="h-3.5 w-3.5 text-slate-300" />
+            <Eye className="h-3.5 w-3.5 text-cyan-300" />
           </button>
 
           {/* Ders İçi Akıllı Arama (ARAMA BÜYÜTEÇİ - EN SAĞDA) */}
           <button
             onClick={() => setSearchModalOpen(true)}
-            className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9'} items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition active:scale-95 touch-manipulation`}
+            className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9'} items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-500/12 text-cyan-200 hover:border-cyan-400 hover:bg-cyan-500/25 hover:text-white transition active:scale-95 touch-manipulation shadow-xs shadow-cyan-500/10`}
             title="Ders İçi Akıllı Arama: Cümle, altyazı ve kavramlarda ara"
           >
             <Search className="h-3.5 w-3.5 text-cyan-400" />
