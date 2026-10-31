@@ -1127,17 +1127,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           )}
 
           <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex items-center gap-2">
-              {material.course && (
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-cyan-500/12 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-cyan-300 ring-1 ring-inset ring-cyan-400/25 whitespace-nowrap">
-                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
-                  {material.course}
-                </span>
-              )}
-              <h1 className="truncate text-xs sm:text-sm font-semibold tracking-tight text-white" title={studio.title}>
-                {studio.title}
-              </h1>
-            </div>
+            <h1 className="truncate text-sm sm:text-base font-semibold tracking-tight text-white" title={studio.title}>
+              {studio.title}
+            </h1>
           </div>
         </div>
 
