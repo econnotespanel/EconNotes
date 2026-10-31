@@ -284,8 +284,26 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const [accessibilityOpen, setAccessibilityOpen] = useState(false);
   const [chaptersMenuOpen, setChaptersMenuOpen] = useState(false);
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [isMobileLandscape, setIsMobileLandscape] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth > window.innerHeight && window.innerHeight <= 520;
+  });
   const chaptersMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOrientation = () => {
+      const isLand = window.innerWidth > window.innerHeight && window.innerHeight <= 520;
+      setIsMobileLandscape(isLand);
+    };
+    handleOrientation();
+    window.addEventListener('resize', handleOrientation);
+    window.addEventListener('orientationchange', handleOrientation);
+    return () => {
+      window.removeEventListener('resize', handleOrientation);
+      window.removeEventListener('orientationchange', handleOrientation);
+    };
+  }, []);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -1345,7 +1363,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       } ${accessibilitySettings.reduceMotion ? '[&_*]:transition-none [&_*]:animate-none' : ''}`}
     >
       {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
-      <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-2 sm:gap-3 border-b border-white/[0.08] bg-[#070b16]/95 px-2.5 sm:px-5 backdrop-blur-xl">
+      <header className={`relative z-30 flex ${isMobileLandscape ? 'h-10 px-2 sm:px-3' : 'h-14 px-2.5 sm:px-5'} shrink-0 items-center justify-between gap-2 sm:gap-3 border-b border-white/[0.08] bg-[#070b16]/95 backdrop-blur-xl`}>
         {/* Sol: Çıkış / Geri Dön + Beyaz EconNotes Logosu (Asla sıkışmaz, shrink-0) */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
           {onClose && (
@@ -1356,7 +1374,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 }
                 onClose();
               }}
-              className="group flex h-9 shrink-0 items-center gap-1 rounded-xl border border-white/[0.12] bg-white/[0.05] px-2 sm:px-2.5 text-xs font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/[0.1] hover:text-white active:scale-95 touch-manipulation shadow-xs"
+              className={`group flex ${isMobileLandscape ? 'h-7 px-2' : 'h-9 px-2 sm:px-2.5'} shrink-0 items-center gap-1 rounded-xl border border-white/[0.12] bg-white/[0.05] text-xs font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/[0.1] hover:text-white active:scale-95 touch-manipulation shadow-xs`}
               title="Stüdyodan Çık (Geri)"
             >
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5 text-cyan-300 shrink-0" />
@@ -1365,12 +1383,12 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           )}
 
           <div className="flex items-center shrink-0" title="EconNotes Çalışma Stüdyosu">
-            <EconLogo allWhite className="h-6 w-22 sm:h-7 sm:w-28 shrink-0" />
+            <EconLogo allWhite className={isMobileLandscape ? 'h-5 w-20 shrink-0' : 'h-6 w-22 sm:h-7 sm:w-28 shrink-0'} />
           </div>
         </div>
 
         {/* Orta: Ders Başlığı (Masaüstü ve tablette görünür, mobilde gizlenir) */}
-        <div className="hidden md:flex min-w-0 flex-1 items-center px-3 cursor-pointer overflow-hidden" onClick={() => setChaptersMenuOpen(true)}>
+        <div className={`${isMobileLandscape ? 'hidden' : 'hidden md:flex'} min-w-0 flex-1 items-center px-3 cursor-pointer overflow-hidden`} onClick={() => setChaptersMenuOpen(true)}>
           <div className="h-5 w-px bg-white/[0.12] mr-3 shrink-0" />
           <div className="min-w-0 flex-1 overflow-hidden">
             <h1 className="truncate text-xs sm:text-sm font-semibold tracking-tight text-white hover:text-cyan-300 transition" title={studio.title}>
@@ -1396,7 +1414,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             className={`flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
               examMode
                 ? 'border-amber-400 bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/50 shadow-xs'
-                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-200 hidden sm:flex'
+                : `border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-200 ${isMobileLandscape ? 'hidden' : 'hidden sm:flex'}`
             }`}
             title="Sınav Hazırlık Modu: Kritik bilgiler ve sınav sorularını öne çıkarır"
           >
@@ -1416,7 +1434,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             className={`flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
               audioOnlyMode
                 ? 'border-purple-400 bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/50 shadow-xs'
-                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-purple-400/40 hover:text-purple-200 hidden sm:flex'
+                : `border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-purple-400/40 hover:text-purple-200 ${isMobileLandscape ? 'hidden' : 'hidden sm:flex'}`
             }`}
             title="Podcast ve Sesli Ders Modu (Ekran ve Batarya Tasarrufu)"
           >
@@ -1427,7 +1445,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           {/* Yan Panel Aç/Kapat (Ders Notları) */}
           <button
             onClick={() => setSidebarOpen(s => !s)}
-            className={`flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation ${
+            className={`flex ${isMobileLandscape ? 'h-7 px-2' : 'h-9 px-2.5'} items-center justify-center gap-1.5 rounded-xl border text-xs font-semibold transition active:scale-95 touch-manipulation ${
               sidebarOpen
                 ? 'border-cyan-500/40 bg-cyan-500/12 text-cyan-200'
                 : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'
@@ -1435,7 +1453,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             title="Ders Notları ve Bilgi Panelini Aç/Kapat"
           >
             {sidebarOpen ? <PanelRightClose className="h-3.5 w-3.5 shrink-0" /> : <PanelRightOpen className="h-3.5 w-3.5 shrink-0" />}
-            <span className="hidden md:inline">Ders Notları</span>
+            <span className={isMobileLandscape ? 'hidden' : 'hidden md:inline'}>Ders Notları</span>
           </button>
 
           {/* Ses Ayarları Menüsü — YALNIZCA YÖNETİCİLERE AÇIK VE DESKTOPTA GÖRÜNÜR */}
@@ -1601,19 +1619,19 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           {/* Erişilebilirlik ve Kişiselleştirme (GÖZ İŞARETİ - ARAMANIN SOLUNDA) */}
           <button
             onClick={() => setAccessibilityOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition active:scale-95 touch-manipulation"
+            className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9'} items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition active:scale-95 touch-manipulation`}
             title="Erişilebilirlik ve Kişiselleştirme Tercihleri"
           >
-            <Eye className="h-4 w-4 text-slate-300" />
+            <Eye className="h-3.5 w-3.5 text-slate-300" />
           </button>
 
           {/* Ders İçi Akıllı Arama (ARAMA BÜYÜTEÇİ - EN SAĞDA) */}
           <button
             onClick={() => setSearchModalOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition active:scale-95 touch-manipulation"
+            className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9'} items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition active:scale-95 touch-manipulation`}
             title="Ders İçi Akıllı Arama: Cümle, altyazı ve kavramlarda ara"
           >
-            <Search className="h-4 w-4 text-cyan-400" />
+            <Search className="h-3.5 w-3.5 text-cyan-400" />
           </button>
         </div>
       </header>
@@ -1667,7 +1685,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           {/* 16:9 Tuval Alanı — Platform İçi Korumalı Özel Stüdyo Oynatıcısı */}
           <div
             onContextMenu={e => e.preventDefault()}
-            className="relative flex flex-1 min-h-0 items-center justify-center p-2 sm:p-4 lg:p-5"
+            className={`relative flex flex-1 min-h-0 items-center justify-center ${isMobileLandscape ? 'p-1 sm:p-2' : 'p-2 sm:p-4 lg:p-5'}`}
           >
             <div className="relative aspect-video w-full max-h-full max-w-[1480px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#040710] shadow-[0_24px_80px_rgba(0,0,0,0.85)]">
               <video
@@ -1806,16 +1824,18 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               {!hasStartedOnce && !isPreparingAudio && !resumePrompt && (
                 <div
                   onClick={togglePlay}
-                  className="group absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-gradient-to-t from-[#040710]/85 via-[#040710]/40 to-transparent backdrop-blur-[1.5px] transition-all"
+                  className="group absolute inset-0 z-10 flex cursor-pointer flex-col items-center justify-center bg-gradient-to-t from-[#040710]/85 via-[#040710]/40 to-transparent backdrop-blur-[1.5px] transition-all"
                 >
-                  <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-[0_0_50px_rgba(34,211,238,0.45)] transition-transform duration-300 group-hover:scale-110">
-                    <Play className="ml-1 h-7 w-7 sm:h-8 sm:w-8 fill-slate-950" />
+                  <div className={`flex items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-[0_0_50px_rgba(34,211,238,0.45)] transition-transform duration-300 group-hover:scale-110 ${
+                    isMobileLandscape ? 'h-11 w-11' : 'h-16 w-16 sm:h-20 sm:w-20'
+                  }`}>
+                    <Play className={`fill-slate-950 ml-0.5 ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7 sm:h-8 sm:w-8'}`} />
                   </div>
-                  <div className="mt-3 sm:mt-4 text-center px-4">
-                    <h2 className="text-sm sm:text-lg font-bold text-white">
+                  <div className={`${isMobileLandscape ? 'mt-1.5' : 'mt-3 sm:mt-4'} text-center px-4`}>
+                    <h2 className={`font-bold text-white ${isMobileLandscape ? 'text-xs' : 'text-sm sm:text-lg'}`}>
                       Dersi Başlat
                     </h2>
-                    <p className="mt-0.5 text-xs text-slate-300">
+                    <p className={`mt-0.5 text-slate-300 ${isMobileLandscape ? 'text-[10px]' : 'text-xs'}`}>
                       {scenes.length} Bölüm · {formatTime(totalDurationSec)}
                     </p>
                   </div>
@@ -1825,7 +1845,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           </div>
 
           {/* ALT KONTROL DOCK & BÖLÜMLÜ ZAMAN ÇİZELGESİ */}
-          <div className="relative z-20 shrink-0 border-t border-white/[0.07] bg-[#070b16] px-3 sm:px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+          <div className={`relative z-20 shrink-0 border-t border-white/[0.07] bg-[#070b16] ${isMobileLandscape ? 'px-2 pt-1 pb-1' : 'px-3 sm:px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]'} backdrop-blur-xl`}>
             {hoveredChapterInfo && scenes[hoveredChapterInfo.chapterIdx] && (
               <div
                 className="pointer-events-none absolute -top-11 z-40 -translate-x-1/2 rounded-lg border border-cyan-400/40 bg-[#060b17]/95 px-2.5 py-1 text-center shadow-xl backdrop-blur-md transition-all"
@@ -1896,9 +1916,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                           scrubChapter(e.clientX, e.currentTarget);
                         }
                       }}
-                      className="group relative cursor-pointer py-2 touch-none"
+                      className="group relative cursor-pointer py-1.5 touch-none"
                     >
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800/90 transition-all group-hover:h-2.5">
+                      <div className={`${isMobileLandscape ? 'h-1.5' : 'h-2'} w-full overflow-hidden rounded-full bg-slate-800/90 transition-all group-hover:h-2.5`}>
                         <div
                           className="h-full bg-cyan-400 transition-[width] duration-75"
                           style={{ width: `${fillPct}%` }}
@@ -1914,31 +1934,33 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               </span>
             </div>
 
-            {/* Mobilde Tam Genişlikte Bölüm Seçici Çubuğu */}
-            <div className="sm:hidden mt-1 mb-1.5">
-              <button
-                onClick={() => setChaptersMenuOpen(o => !o)}
-                className="flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-left transition hover:border-cyan-400/40 hover:bg-white/[0.08] w-full active:scale-[0.99] touch-manipulation shadow-xs"
-              >
-                <span
-                  className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                    liveSpeaker === 'Deniz'
-                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/25'
-                      : 'bg-purple-500/15 text-purple-300 border border-purple-400/25'
-                  }`}
+            {/* Mobilde Tam Genişlikte Bölüm Seçici Çubuğu - Yatay modda gizlenir */}
+            {!isMobileLandscape && (
+              <div className="sm:hidden mt-1 mb-1.5">
+                <button
+                  onClick={() => setChaptersMenuOpen(o => !o)}
+                  className="flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-left transition hover:border-cyan-400/40 hover:bg-white/[0.08] w-full active:scale-[0.99] touch-manipulation shadow-xs"
                 >
-                  {liveSpeaker === 'Deniz' ? 'Dr. Deniz' : 'Barış'}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-semibold text-slate-100">
-                    Bölüm {activeSceneIndex + 1}/{scenes.length} · {currentScene.title}
-                  </p>
-                </div>
-                <ChevronUp className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${chaptersMenuOpen ? 'rotate-180 text-cyan-400' : ''}`} />
-              </button>
-            </div>
+                  <span
+                    className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                      liveSpeaker === 'Deniz'
+                        ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/25'
+                        : 'bg-purple-500/15 text-purple-300 border border-purple-400/25'
+                    }`}
+                  >
+                    {liveSpeaker === 'Deniz' ? 'Dr. Deniz' : 'Barış'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-slate-100">
+                      Bölüm {activeSceneIndex + 1}/{scenes.length} · {currentScene.title}
+                    </p>
+                  </div>
+                  <ChevronUp className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${chaptersMenuOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+                </button>
+              </div>
+            )}
 
-            <div className="mt-1 flex items-center justify-between gap-1.5 sm:gap-2">
+            <div className={`${isMobileLandscape ? 'mt-0.5' : 'mt-1'} flex items-center justify-between gap-1.5 sm:gap-2`}>
               <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 <button
                   onClick={() => goToScene(activeSceneIndex - 1)}
@@ -1951,7 +1973,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <button
                   onClick={() => seekRelative(-10)}
-                  className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation"
+                  className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9 sm:h-8 sm:w-8'} items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation`}
                   title="10 Saniye Geri (←)"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
@@ -1960,7 +1982,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 <button
                   onClick={togglePlay}
                   disabled={isPreparingAudio}
-                  className="flex h-9 sm:h-8 items-center gap-1.5 rounded-xl bg-white px-3 sm:px-3.5 text-xs font-bold text-slate-950 shadow-sm transition hover:bg-cyan-50 disabled:opacity-75 active:scale-95 touch-manipulation"
+                  className={`flex ${isMobileLandscape ? 'h-7 px-2.5 text-[11px]' : 'h-9 sm:h-8 px-3 sm:px-3.5 text-xs'} items-center gap-1.5 rounded-xl bg-white font-bold text-slate-950 shadow-sm transition hover:bg-cyan-50 disabled:opacity-75 active:scale-95 touch-manipulation`}
                 >
                   {isPreparingAudio ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-900" />
@@ -1974,7 +1996,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <button
                   onClick={() => seekRelative(10)}
-                  className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation"
+                  className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9 sm:h-8 sm:w-8'} items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation`}
                   title="10 Saniye İleri (→)"
                 >
                   <RotateCw className="h-3.5 w-3.5" />
@@ -2017,7 +2039,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <button
                   onClick={() => setShowSubtitles(s => !s)}
-                  className={`flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-lg transition hover:bg-white/[0.08] active:scale-95 touch-manipulation ${
+                  className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9 sm:h-8 sm:w-8'} items-center justify-center rounded-lg transition hover:bg-white/[0.08] active:scale-95 touch-manipulation ${
                     showSubtitles ? 'text-cyan-400' : 'text-slate-500'
                   }`}
                   title="Altyazı Aç/Kapat (C)"
@@ -2034,11 +2056,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </button>
               </div>
 
-              {/* YouTube Tarzı Bölüm Başlığı (Tablet ve Masaüstünde Görünür) */}
-              <div className="relative min-w-0 flex-1 max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl hidden sm:block">
+              {/* YouTube Tarzı Bölüm Başlığı (Tablet, Masaüstü ve Yatay Mobilde Görünür) */}
+              <div className={`relative min-w-0 flex-1 max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl ${isMobileLandscape ? 'block' : 'hidden sm:block'}`}>
                 <button
                   onClick={() => setChaptersMenuOpen(o => !o)}
-                  className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2 sm:px-2.5 py-1 text-left transition hover:border-cyan-400/40 hover:bg-white/[0.06] w-full group/chap active:scale-[0.99] touch-manipulation"
+                  className={`flex items-center gap-1.5 sm:gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2 sm:px-2.5 ${isMobileLandscape ? 'py-0.5' : 'py-1'} text-left transition hover:border-cyan-400/40 hover:bg-white/[0.06] w-full group/chap active:scale-[0.99] touch-manipulation`}
                   title="Tüm bölümleri ve tam başlıkları görüntüle (Tıklayın)"
                 >
                   <span
@@ -2057,13 +2079,112 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </div>
                   <ChevronUp className={`h-3.5 w-3.5 text-slate-400 shrink-0 transition-transform ${chaptersMenuOpen ? 'rotate-180 text-cyan-400' : ''}`} />
                 </button>
+              </div>
 
-                {/* YouTube Tarzı Bölümler Menüsü */}
-                {chaptersMenuOpen && (
+              {/* Sağ: YouTube Tarzı Ayarlar Menüsü + Tam Ekran */}
+              <div className="relative flex items-center gap-1 sm:gap-1.5 shrink-0">
+                {/* YouTube Tarzı Ayarlar Popover Butonu */}
+                <button
+                  onClick={() => setSettingsMenuOpen(o => !o)}
+                  className={`flex ${isMobileLandscape ? 'h-7 px-2' : 'h-9 sm:h-8 px-2 sm:px-2.5'} items-center gap-1.5 rounded-xl border text-xs font-medium transition active:scale-95 touch-manipulation ${
+                    settingsMenuOpen
+                      ? 'border-cyan-400 bg-cyan-500/20 text-cyan-200'
+                      : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                  }`}
+                  title="Oynatma Seçenekleri & Ayarlar (Hız, Sunum Düzeni)"
+                >
+                  <Sliders className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
+                  <span className="font-mono font-bold text-[11px] text-cyan-300">{playbackSpeed}x</span>
+                </button>
+
+                {/* Tam Ekran Butonu */}
+                <button
+                  onClick={toggleFullscreen}
+                  className={`flex ${isMobileLandscape ? 'h-7 w-7' : 'h-9 w-9 sm:h-8 sm:w-8'} items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation`}
+                  title={isFullscreen ? 'Tam Ekrandan Çık (F)' : 'Tam Ekran (F)'}
+                >
+                  {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* BÖLÜMLER MENÜSÜ: Yatay Mobilde YouTube Tarzı Sağ Çekmece, Diğer Durumlarda Alttan Açılan Popover */}
+            {chaptersMenuOpen && (
+              <>
+                <div
+                  onClick={() => setChaptersMenuOpen(false)}
+                  className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs transition-opacity"
+                />
+
+                {isMobileLandscape ? (
+                  /* Yatay Mobilde YouTube Tarzı Sağdan Kayan Bölümler Çekmecesi (Ortadaki videoyu ve oynat butonunu asla kapatmaz) */
+                  <div
+                    ref={chaptersMenuRef}
+                    style={{ backgroundColor: '#090e1c' }}
+                    className="fixed inset-y-0 right-0 z-[85] w-80 max-w-[85vw] flex flex-col border-l border-white/[0.14] bg-[#090e1c] shadow-[0_0_60px_rgba(0,0,0,0.95)] animate-in slide-in-from-right duration-200"
+                  >
+                    <div className="flex shrink-0 items-center justify-between px-3.5 py-2.5 border-b border-white/[0.1] bg-[#090e1c]">
+                      <div className="min-w-0 flex-1 pr-2">
+                        <span className="text-xs font-bold text-white block">Ders Bölümleri ({scenes.length} Bölüm)</span>
+                        <span className="text-[10px] text-slate-400 truncate block">{studio.title}</span>
+                      </div>
+                      <button
+                        onClick={() => setChaptersMenuOpen(false)}
+                        className="h-7 w-7 flex shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]">
+                      {scenes.map((sc, sIdx) => {
+                        const isCurrent = sIdx === activeSceneIndex;
+                        return (
+                          <button
+                            key={sc.id}
+                            onClick={() => {
+                              goToScene(sIdx, 0);
+                              setChaptersMenuOpen(false);
+                            }}
+                            className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
+                              isCurrent
+                                ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 ring-1 ring-cyan-400/30'
+                                : 'bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.05]'
+                            }`}
+                          >
+                            <span className="font-mono text-xs font-bold text-cyan-400 shrink-0 mt-0.5">
+                              {sIdx + 1}.
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium leading-snug break-words">
+                                {sc.title}
+                              </p>
+                              <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                                <span>{formatTime(sc.durationSec)}</span>
+                                <span>•</span>
+                                <span>{DIAGRAM_BADGE_TR[sc.diagram.type]}</span>
+                                {isCurrent && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-cyan-300 font-semibold">Oynatılıyor</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            {isCurrent && (
+                              <span className="h-2 w-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 animate-pulse" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  /* Dikey Mobil ve Masaüstü: Alttan Açılan YouTube Tarzı Bölümler Menüsü */
                   <div
                     ref={chaptersMenuRef}
                     style={{ backgroundColor: '#0a0f1d' }}
-                    className="fixed inset-x-2 sm:absolute sm:inset-x-auto sm:left-0 sm:w-96 bottom-24 sm:bottom-12 z-[70] max-h-[65vh] sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-1.5 animate-in fade-in slide-in-from-bottom-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
+                    className="fixed inset-x-2 bottom-20 z-[85] max-h-[65vh] sm:absolute sm:inset-x-auto sm:left-32 sm:bottom-14 sm:w-96 sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-1.5 animate-in fade-in slide-in-from-bottom-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
                   >
                     <div className="sticky top-0 z-10 flex items-center justify-between px-1 pb-2 border-b border-white/[0.1] bg-[#0a0f1d]">
                       <div>
@@ -2118,108 +2239,93 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     </div>
                   </div>
                 )}
-              </div>
+              </>
+            )}
 
-              {/* Sağ: YouTube Tarzı Ayarlar Menüsü + Tam Ekran */}
-              <div className="relative flex items-center gap-1 sm:gap-1.5 shrink-0">
-                {/* YouTube Tarzı Ayarlar Popover Butonu */}
-                <button
-                  onClick={() => setSettingsMenuOpen(o => !o)}
-                  className={`flex h-9 sm:h-8 items-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-medium transition active:scale-95 touch-manipulation ${
-                    settingsMenuOpen
-                      ? 'border-cyan-400 bg-cyan-500/20 text-cyan-200'
-                      : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white'
-                  }`}
-                  title="Oynatma Seçenekleri & Ayarlar (Hız, Sunum Düzeni)"
+            {/* AYARLAR MENÜSÜ: Oynatma Hızı & Sunum Düzeni */}
+            {settingsMenuOpen && (
+              <>
+                <div
+                  onClick={() => setSettingsMenuOpen(false)}
+                  className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs transition-opacity"
+                />
+
+                <div
+                  ref={settingsMenuRef}
+                  style={{ backgroundColor: '#0a0f1d' }}
+                  className={
+                    isMobileLandscape
+                      ? "fixed bottom-12 right-2 z-[85] w-72 max-h-[calc(100vh-3.5rem)] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-2.5 text-xs animate-in fade-in slide-in-from-bottom-2"
+                      : "fixed inset-x-4 bottom-24 z-[85] sm:absolute sm:inset-x-auto sm:right-2 sm:bottom-14 sm:w-72 rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
+                  }
                 >
-                  <Sliders className="h-3.5 w-3.5 text-cyan-400 shrink-0" />
-                  <span className="font-mono font-bold text-[11px] text-cyan-300">{playbackSpeed}x</span>
-                </button>
+                  <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08]">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <Sliders className="h-3.5 w-3.5 text-cyan-400" />
+                      <span>Oynatma Seçenekleri</span>
+                    </span>
+                    <button onClick={() => setSettingsMenuOpen(false)} className="text-slate-400 hover:text-white">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
 
-                {/* Tam Ekran Butonu */}
-                <button
-                  onClick={toggleFullscreen}
-                  className="flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 transition hover:bg-white/[0.08] hover:text-white active:scale-95 touch-manipulation"
-                  title={isFullscreen ? 'Tam Ekrandan Çık (F)' : 'Tam Ekran (F)'}
-                >
-                  {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-                </button>
-
-                {/* YouTube Tarzı Seçenekler Popover Menüsü */}
-                {settingsMenuOpen && (
-                  <div
-                    ref={settingsMenuRef}
-                    style={{ backgroundColor: '#0a0f1d' }}
-                    className="fixed inset-x-4 sm:absolute sm:inset-x-auto sm:right-0 sm:w-72 bottom-24 sm:bottom-12 z-[70] rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
-                  >
-                    <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08]">
-                      <span className="font-bold text-white flex items-center gap-1.5">
-                        <Sliders className="h-3.5 w-3.5 text-cyan-400" />
-                        <span>Oynatma Seçenekleri</span>
-                      </span>
-                      <button onClick={() => setSettingsMenuOpen(false)} className="text-slate-400 hover:text-white">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                  {/* Oynatma Hızı */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                      <span>OYNATMA HIZI</span>
+                      <span className="font-mono text-cyan-300 font-bold">{playbackSpeed}x</span>
                     </div>
-
-                    {/* Oynatma Hızı */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
-                        <span>OYNATMA HIZI</span>
-                        <span className="font-mono text-cyan-300 font-bold">{playbackSpeed}x</span>
-                      </div>
-                      <div className="grid grid-cols-5 gap-1">
-                        {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
-                          <button
-                            key={spd}
-                            onClick={() => {
-                              setPlaybackSpeed(spd);
-                              setSettingsMenuOpen(false);
-                            }}
-                            className={`rounded-lg py-1.5 font-mono text-xs font-semibold transition ${
-                              playbackSpeed === spd
-                                ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
-                                : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
-                            }`}
-                          >
-                            {spd}x
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Sunum Düzeni */}
-                    <div className="space-y-1.5 pt-1.5 border-t border-white/[0.06]">
-                      <span className="text-[11px] font-semibold text-slate-400">SUNUM DÜZENİ</span>
-                      <div className="grid grid-cols-3 gap-1">
-                        {(
-                          [
-                            { id: 'standard', label: 'Stüdyo' },
-                            { id: 'whiteboard', label: 'Sanal Tahta' },
-                            { id: 'focus', label: 'Odak' },
-                          ] as const
-                        ).map(mode => (
-                          <button
-                            key={mode.id}
-                            onClick={() => {
-                              setLayoutMode(mode.id);
-                              setSettingsMenuOpen(false);
-                            }}
-                            className={`rounded-lg py-1.5 text-xs font-medium transition ${
-                              layoutMode === mode.id
-                                ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
-                                : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
-                            }`}
-                          >
-                            {mode.label}
-                          </button>
-                        ))}
-                      </div>
+                    <div className="grid grid-cols-5 gap-1">
+                      {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
+                        <button
+                          key={spd}
+                          onClick={() => {
+                            setPlaybackSpeed(spd);
+                            setSettingsMenuOpen(false);
+                          }}
+                          className={`rounded-lg py-1.5 font-mono text-xs font-semibold transition ${
+                            playbackSpeed === spd
+                              ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                              : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
+                          }`}
+                        >
+                          {spd}x
+                        </button>
+                      ))}
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
+
+                  {/* Sunum Düzeni */}
+                  <div className="space-y-1.5 pt-1.5 border-t border-white/[0.06]">
+                    <span className="text-[11px] font-semibold text-slate-400">SUNUM DÜZENİ</span>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(
+                        [
+                          { id: 'standard', label: 'Stüdyo' },
+                          { id: 'whiteboard', label: 'Sanal Tahta' },
+                          { id: 'focus', label: 'Odak' },
+                        ] as const
+                      ).map(mode => (
+                        <button
+                          key={mode.id}
+                          onClick={() => {
+                            setLayoutMode(mode.id);
+                            setSettingsMenuOpen(false);
+                          }}
+                          className={`rounded-lg py-1.5 text-xs font-medium transition ${
+                            layoutMode === mode.id
+                              ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                              : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
+                          }`}
+                        >
+                          {mode.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
