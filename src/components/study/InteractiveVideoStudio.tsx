@@ -1382,8 +1382,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             </button>
           )}
 
-          <div className="flex items-center shrink-0" title="EconNotes Çalışma Stüdyosu">
-            <EconLogo allWhite className={isMobileLandscape ? 'h-6.5 w-26 sm:h-7 sm:w-28 shrink-0' : 'h-7.5 w-30 sm:h-8 sm:w-34 shrink-0'} />
+          <div className="flex items-center shrink-0 max-h-8 max-w-[140px] overflow-hidden" title="EconNotes Çalışma Stüdyosu">
+            <EconLogo allWhite className={isMobileLandscape ? 'h-5 w-20 sm:h-6 sm:w-24 shrink-0' : 'h-6 w-24 sm:h-7 sm:w-28 shrink-0'} />
           </div>
         </div>
 
