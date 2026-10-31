@@ -183,6 +183,23 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
     setQIndex(0);
   };
 
+  const retryWrongAnswers = () => {
+    const wrongIdxs: number[] = [];
+    setAnswers(prev => {
+      const next = { ...prev };
+      examQuestions.forEach((q, idx) => {
+        if (next[idx] !== q.correctIndex) {
+          delete next[idx];
+          wrongIdxs.push(idx);
+        }
+      });
+      return next;
+    });
+    if (wrongIdxs.length > 0) {
+      setQIndex(wrongIdxs[0]);
+    }
+  };
+
   // Soru ekranında klavye kısayolları (A-D / 1-4 ile cevapla, Enter ile sonraki soruya geç)
   useEffect(() => {
     if (activeTab !== 'questions' || !currentQ) return;
@@ -533,15 +550,27 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
                       </p>
                     )}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={onDownloadNotes}
-                    className="rounded-xl border-emerald-400/30 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 gap-1.5"
-                  >
-                    <FileDown className="h-3.5 w-3.5" />
-                    <span>Çözümlü Ders Notunu İndir</span>
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {wrongScenes.length > 0 && (
+                      <Button
+                        size="sm"
+                        onClick={retryWrongAnswers}
+                        className="rounded-xl border border-rose-400/40 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 gap-1.5"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        <span>Yanlışları Tekrar Çöz</span>
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={onDownloadNotes}
+                      className="rounded-xl border-emerald-400/30 bg-emerald-500/15 text-emerald-100 hover:bg-emerald-500/25 gap-1.5"
+                    >
+                      <FileDown className="h-3.5 w-3.5" />
+                      <span>Çözümlü Ders Notunu İndir</span>
+                    </Button>
+                  </div>
                 </div>
               )}
 

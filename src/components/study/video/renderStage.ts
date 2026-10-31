@@ -32,6 +32,7 @@ export interface StageFrame {
   viseme: Viseme;
   mouthOpen: number;
   inBreathPause: boolean;
+  layoutMode?: 'standard' | 'whiteboard' | 'focus';
 }
 
 const FONT = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
@@ -55,7 +56,7 @@ const TYPE_LABEL: Record<string, string> = {
   shapes: 'ŞEKİLLER & DÖNGÜSEL MEKANİZMA',
   table: 'AKADEMİK KARŞILAŞTIRMA TABLOSU',
   chart: 'ANALİTİK GRAFİK & ETKİ EĞRİSİ',
-  curve: 'ANALİTİK GRAFİK & ETKİ EĞRİSİ',
+  curve: 'EKONOMİK EĞRİ & PİYASA DENGESİ',
   scenario: 'VAKA & SENARYO SİMÜLASYONU',
   timeline: 'TARİHSEL & SÜREÇSEL AKIŞ',
   comparison: 'İKİLİ KARŞILAŞTIRMA MATRİSİ',
@@ -63,8 +64,24 @@ const TYPE_LABEL: Record<string, string> = {
   network: 'KAVRAM İLİŞKİ MODELİ',
 };
 
-const BOARD = { x: 340, y: 72, w: 1240, h: 728 };
-const SUB = { x: 364, y: 828, w: 1192, h: 170 };
+export function getBoardLayout(layoutMode?: 'standard' | 'whiteboard' | 'focus') {
+  if (layoutMode === 'whiteboard') {
+    return {
+      board: { x: 96, y: 56, w: 1728, h: 756 },
+      sub: { x: 96, y: 832, w: 1728, h: 168 },
+    };
+  }
+  if (layoutMode === 'focus') {
+    return {
+      board: { x: 96, y: 56, w: 1728, h: 940 },
+      sub: { x: 96, y: 840, w: 1728, h: 160 },
+    };
+  }
+  return {
+    board: { x: 340, y: 72, w: 1240, h: 728 },
+    sub: { x: 364, y: 828, w: 1192, h: 170 },
+  };
+}
 
 const clamp = (v: number, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const easeOut = (t: number) => 1 - Math.pow(1 - clamp(t), 3);
@@ -215,7 +232,7 @@ interface Point {
 type Area = { x: number; y: number; w: number; h: number };
 
 function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
-  const { x, y, w, h } = BOARD;
+  const { x, y, w, h } = getBoardLayout(f.layoutMode).board;
   const reveal = f.poster ? 1 : f.progress;
   const d = f.scene.diagram;
 
@@ -323,8 +340,14 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
     focusPoint = drawShapesDiagram(ctx, contentArea, nodes, d.rootBadge || 'MERKEZ YAPI', reveal, f.now);
   } else if (d.type === 'table') {
     focusPoint = drawDataTable(ctx, contentArea, nodes, reveal);
-  } else if (d.type === 'chart' || d.type === 'curve') {
-    focusPoint = drawAnalyticsChart(ctx, contentArea, nodes, reveal, f.now);
+  } else if (d.type === 'curve') {
+    focusPoint = drawEconomicCurvesDiagram(ctx, contentArea, nodes, d.title, reveal, f.now);
+  } else if (d.type === 'chart') {
+    if (/arz|talep|eğri|fiyat|miktar|maliyet|fayda|esneklik|denge/i.test(`${d.title} ${f.scene.title}`)) {
+      focusPoint = drawEconomicCurvesDiagram(ctx, contentArea, nodes, d.title, reveal, f.now);
+    } else {
+      focusPoint = drawAnalyticsChart(ctx, contentArea, nodes, reveal, f.now);
+    }
   } else if (d.type === 'scenario') {
     focusPoint = drawScenarioBoard(ctx, contentArea, nodes, reveal, f.now);
   } else if (d.type === 'timeline') {
@@ -1211,6 +1234,322 @@ function drawAnalyticsChart(
   return target;
 }
 
+// ================================================================ 4B. SANAL TAHTA: EKONOMİK EĞRİLER & PİYASA DENGESİ ('curve')
+function drawEconomicCurvesDiagram(
+  ctx: CanvasRenderingContext2D,
+  a: Area,
+  nodes: DiagramNode[],
+  mainTitle: string,
+  reveal: number,
+  now: number,
+): Point {
+  const list = nodes.slice(0, 4);
+  const n = Math.max(1, list.length);
+  const act = activeIndex(n, reveal);
+
+  const plotX = a.x + 50;
+  const plotY = a.y + 24;
+  const plotW = Math.round(a.w * 0.53);
+  const plotH = a.h - 68;
+
+  ctx.save();
+
+  // 1. Koordinat Izgarası ve Eksen Çizimleri
+  for (let g = 0; g <= 4; g++) {
+    const gy = plotY + plotH - (g / 4) * plotH;
+    ctx.strokeStyle = g === 0 ? 'rgba(148, 163, 184, 0.45)' : 'rgba(148, 163, 184, 0.10)';
+    ctx.lineWidth = g === 0 ? 2 : 1;
+    ctx.beginPath();
+    ctx.moveTo(plotX, gy);
+    ctx.lineTo(plotX + plotW, gy);
+    ctx.stroke();
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = font(600, 11);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${g * 25}`, plotX - 8, gy + 4);
+  }
+  ctx.textAlign = 'left';
+
+  // Dikey ve Yatay Eksen Doğruları
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(plotX, plotY);
+  ctx.lineTo(plotX, plotY + plotH);
+  ctx.lineTo(plotX + plotW + 10, plotY + plotH);
+  ctx.stroke();
+
+  // Eksen Okları
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath();
+  ctx.moveTo(plotX, plotY - 6);
+  ctx.lineTo(plotX - 4, plotY + 4);
+  ctx.lineTo(plotX + 4, plotY + 4);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(plotX + plotW + 16, plotY + plotH);
+  ctx.lineTo(plotX + plotW + 6, plotY + plotH - 4);
+  ctx.lineTo(plotX + plotW + 6, plotY + plotH + 4);
+  ctx.fill();
+
+  // Eksen Etiketleri: P (Fiyat) ve Q (Miktar)
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = font(800, 15);
+  ctx.fillText('P (Fiyat)', plotX - 36, plotY - 4);
+
+  ctx.fillText('Q (Miktar)', plotX + plotW - 40, plotY + plotH + 28);
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = font(600, 12);
+  ctx.fillText('0', plotX - 14, plotY + plotH + 16);
+
+  // Denge Noktası Parametreleri
+  const eqX = plotX + plotW * 0.50;
+  const eqY = plotY + plotH * 0.48;
+
+  // 2. Talep Eğrisi (D0 - Negatif Eğimli)
+  const dStartX = plotX + 32;
+  const dStartY = plotY + 28;
+  const dEndX = plotX + plotW - 24;
+  const dEndY = plotY + plotH - 24;
+
+  const dProg = clamp((reveal - 0.05) / 0.32);
+  if (dProg > 0) {
+    const curDX = dStartX + (dEndX - dStartX) * dProg;
+    const curDY = dStartY + (dEndY - dStartY) * dProg;
+
+    ctx.beginPath();
+    ctx.moveTo(dStartX, dStartY);
+    ctx.lineTo(curDX, curDY);
+    ctx.strokeStyle = '#22d3ee';
+    ctx.lineWidth = 3.4;
+    ctx.shadowColor = 'rgba(34, 211, 238, 0.4)';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    if (dProg > 0.85) {
+      ctx.fillStyle = '#22d3ee';
+      ctx.font = font(800, 14);
+      ctx.fillText('D₀ (Talep)', dEndX - 18, dEndY + 18);
+    }
+  }
+
+  // 3. Arz Eğrisi (S0 - Pozitif Eğimli)
+  const sStartX = plotX + 32;
+  const sStartY = plotY + plotH - 28;
+  const sEndX = plotX + plotW - 24;
+  const sEndY = plotY + 36;
+
+  const sProg = clamp((reveal - 0.25) / 0.32);
+  if (sProg > 0) {
+    const curSX = sStartX + (sEndX - sStartX) * sProg;
+    const curSY = sStartY + (sEndY - sStartY) * sProg;
+
+    ctx.beginPath();
+    ctx.moveTo(sStartX, sStartY);
+    ctx.lineTo(curSX, curSY);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 3.4;
+    ctx.shadowColor = 'rgba(251, 191, 36, 0.4)';
+    ctx.shadowBlur = 10;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    if (sProg > 0.85) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = font(800, 14);
+      ctx.fillText('S₀ (Arz)', sEndX - 10, sEndY - 10);
+    }
+  }
+
+  // 4. Piyasa Denge Noktası (E0) ve İzdüşüm Çizgileri
+  const eqProg = clamp((reveal - 0.45) / 0.25);
+  if (eqProg > 0) {
+    // Tüketici Rantı (Consumer Surplus) Tarama Alanı
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(plotX, dStartY);
+    ctx.lineTo(eqX, eqY);
+    ctx.lineTo(plotX, eqY);
+    ctx.closePath();
+    const csGrad = ctx.createLinearGradient(plotX, dStartY, plotX, eqY);
+    csGrad.addColorStop(0, 'rgba(34, 211, 238, 0.22)');
+    csGrad.addColorStop(1, 'rgba(34, 211, 238, 0.04)');
+    ctx.fillStyle = csGrad;
+    ctx.fill();
+
+    // Üretici Rantı (Producer Surplus) Tarama Alanı
+    ctx.beginPath();
+    ctx.moveTo(plotX, sStartY);
+    ctx.lineTo(eqX, eqY);
+    ctx.lineTo(plotX, eqY);
+    ctx.closePath();
+    const psGrad = ctx.createLinearGradient(plotX, sStartY, plotX, eqY);
+    psGrad.addColorStop(0, 'rgba(192, 132, 252, 0.04)');
+    psGrad.addColorStop(1, 'rgba(192, 132, 252, 0.20)');
+    ctx.fillStyle = psGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // Kesikli İzdüşüm Çizgileri
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = '#34d399';
+    ctx.lineWidth = 1.8;
+
+    // Yatay izdüşüm (P*)
+    ctx.beginPath();
+    ctx.moveTo(plotX, eqY);
+    ctx.lineTo(eqX, eqY);
+    ctx.stroke();
+
+    // Dikey izdüşüm (Q*)
+    ctx.beginPath();
+    ctx.moveTo(eqX, plotY + plotH);
+    ctx.lineTo(eqX, eqY);
+    ctx.stroke();
+    ctx.restore();
+
+    // Eksen İsimleri: P* ve Q*
+    ctx.fillStyle = '#34d399';
+    ctx.font = font(800, 13);
+    ctx.textAlign = 'right';
+    ctx.fillText('P* (Denge)', plotX - 8, eqY + 4);
+    ctx.textAlign = 'center';
+    ctx.fillText('Q* (Denge)', eqX, plotY + plotH + 24);
+    ctx.textAlign = 'left';
+
+    // Rant Rozetleri
+    ctx.fillStyle = 'rgba(34, 211, 238, 0.85)';
+    ctx.font = font(700, 11);
+    ctx.fillText('CS: Tüketici Rantı', plotX + 16, eqY - 24);
+
+    ctx.fillStyle = 'rgba(192, 132, 252, 0.85)';
+    ctx.fillText('PS: Üretici Rantı', plotX + 16, eqY + 34);
+
+    // Denge Noktası (E0) Parlayan Halka
+    const pulse = 7 + Math.sin(now / 220) * 2;
+    ctx.beginPath();
+    ctx.arc(eqX, eqY, pulse + 5, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(52, 211, 153, 0.22)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(eqX, eqY, pulse, 0, Math.PI * 2);
+    ctx.fillStyle = '#34d399';
+    ctx.fill();
+    ctx.strokeStyle = '#050811';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(800, 14.5);
+    ctx.fillText('E₀ (P*, Q*)', eqX + 12, eqY - 10);
+  }
+
+  // 5. Dinamik Eğri Kayması (D1 Shift)
+  if (reveal > 0.72) {
+    const shiftProgress = clamp((reveal - 0.72) / 0.20);
+    const shiftOffset = 42 * shiftProgress;
+
+    ctx.save();
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(dStartX + shiftOffset, dStartY);
+    ctx.lineTo(dEndX + shiftOffset, dEndY);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = font(800, 13);
+    ctx.fillText('D₁ (Talep Kayması)', dEndX + shiftOffset - 24, dEndY - 20);
+
+    // Kayma Oku
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(eqX + 10, eqY + 30);
+    ctx.lineTo(eqX + 38, eqY + 30);
+    ctx.lineTo(eqX + 32, eqY + 26);
+    ctx.moveTo(eqX + 38, eqY + 30);
+    ctx.lineTo(eqX + 32, eqY + 34);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  // 6. Sağ Açıklama & Formül Paneli
+  const rx = plotX + plotW + 32;
+  const rw = a.x + a.w - rx;
+
+  // Üst Formül Kutusu
+  rr(ctx, rx, a.y + 12, rw, 86, 16);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.40)';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = font(700, 11);
+  ctx.fillText('AKADEMİK DENGE MODELİ & FORMÜL', rx + 18, a.y + 34);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = font(800, 16.5);
+  ctx.fillText('Qd(P) = Qs(P)  ⟺  P*, Q*', rx + 18, a.y + 58);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = font(400, 12.5);
+  ctx.fillText('Ceteris paribus: Denge noktasında piyasa temizlenir.', rx + 18, a.y + 78);
+
+  // Alt Kavram Kartları
+  const gap = 12;
+  const cardStartY = a.y + 110;
+  const cardH = Math.min(105, (a.h - 110 - gap * (n - 1)) / n);
+  let target: Point = { x: eqX, y: eqY };
+
+  list.forEach((nd, i) => {
+    const t = appearAmount(i, n, reveal);
+    if (t <= 0) return;
+    const isAct = i === act && reveal > 0.02;
+    const [c1] = PALETTE[i % PALETTE.length];
+    const cy = cardStartY + i * (cardH + gap);
+
+    ctx.save();
+    ctx.globalAlpha = t;
+    rr(ctx, rx, cy, rw, cardH, 16);
+    ctx.fillStyle = isAct ? 'rgba(20, 33, 60, 0.96)' : 'rgba(15, 23, 42, 0.78)';
+    ctx.fill();
+    ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.22)';
+    ctx.lineWidth = isAct ? 2 : 1;
+    ctx.stroke();
+
+    ctx.fillStyle = c1;
+    ctx.beginPath();
+    ctx.arc(rx + 18, cy + 24, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(700, 15.5);
+    ctx.fillText(wrapText(ctx, nd.label, rw - 44, 1)[0] || '', rx + 32, cy + 28);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = font(400, 13.5);
+    const sl = wrapText(ctx, nd.subtext, rw - 34, 2);
+    drawLines(ctx, sl, rx + 18, cy + 50, 19);
+
+    ctx.restore();
+    if (isAct) target = { x: rx + rw / 2, y: cy + cardH / 2 };
+  });
+
+  return target;
+}
+
 // ================================================================ 5. VAKA & SENARYO SİMÜLASYONU ('scenario')
 function drawScenarioStepIcon(ctx: CanvasRenderingContext2D, stepIdx: number, cx: number, cy: number, color: string) {
   ctx.save();
@@ -1541,7 +1880,7 @@ function drawComparison(
 function drawCinemaSubtitles(ctx: CanvasRenderingContext2D, f: StageFrame, activeSpeaker: Speaker) {
   const sc = f.scene;
   const accent = SPEAKER_COLOR[activeSpeaker];
-  const { x, y, w, h } = SUB;
+  const { x, y, w, h } = getBoardLayout(f.layoutMode).sub;
 
   ctx.save();
   ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
@@ -1670,6 +2009,84 @@ function drawChapterIntroOverlay(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.textAlign = 'left';
 }
 
+function drawWhiteboardPresenterBadge(
+  ctx: CanvasRenderingContext2D,
+  f: StageFrame,
+  activeSpeaker: Speaker,
+) {
+  const accent = SPEAKER_COLOR[activeSpeaker];
+  const bx = STAGE_W - 276;
+  const by = 16;
+  const bw = 246;
+  const bh = 54;
+
+  ctx.save();
+  rr(ctx, bx, by, bw, bh, 27);
+  ctx.fillStyle = 'rgba(8, 14, 28, 0.94)';
+  ctx.fill();
+  ctx.strokeStyle = `${accent}66`;
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  const avX = bx + 30;
+  const avY = by + bh / 2;
+  const avR = 19;
+
+  ctx.beginPath();
+  ctx.arc(avX, avY, avR + 2, 0, Math.PI * 2);
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(avX, avY, avR, 0, Math.PI * 2);
+  ctx.fillStyle = activeSpeaker === 'Deniz' ? '#162846' : '#281a42';
+  ctx.fill();
+
+  ctx.fillStyle = activeSpeaker === 'Deniz' ? '#f4d0b5' : '#eed5c2';
+  ctx.beginPath();
+  ctx.arc(avX, avY + 1, 11, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = activeSpeaker === 'Deniz' ? '#2c221e' : '#1e1c22';
+  ctx.beginPath();
+  ctx.arc(avX, avY - 4, 11.5, Math.PI * 0.9, Math.PI * 2.1);
+  ctx.fill();
+
+  const blink = (f.now / 1000) % 4.5 < 0.12 ? 0 : 2;
+  ctx.fillStyle = '#1e293b';
+  if (blink > 0) {
+    ctx.fillRect(avX - 5, avY - 1, 2.5, 2);
+    ctx.fillRect(avX + 2.5, avY - 1, 2.5, 2);
+  } else {
+    ctx.fillRect(avX - 5, avY, 3, 1);
+    ctx.fillRect(avX + 2.5, avY, 3, 1);
+  }
+
+  const mouthH = Math.max(1.2, f.mouthOpen * 7);
+  ctx.fillStyle = '#881337';
+  ctx.beginPath();
+  ctx.ellipse(avX, avY + 6, 3.5, mouthH / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = font(700, 13);
+  ctx.fillText(activeSpeaker === 'Deniz' ? 'Dr. Deniz' : 'Barış', bx + 58, by + 23);
+
+  const isSpeaking = f.playing && !f.inBreathPause;
+  ctx.fillStyle = accent;
+  ctx.font = font(600, 10);
+  ctx.fillText(isSpeaking ? '● CANLI ANLATIM' : '○ DİNLİYOR', bx + 58, by + 40);
+
+  for (let b = 0; b < 3; b++) {
+    const waveH = isSpeaking ? 4 + Math.sin(f.now / 90 + b * 1.5) * 6 * f.mouthOpen : 3;
+    const barX = bx + bw - 38 + b * 6;
+    ctx.fillRect(barX, by + bh / 2 - waveH / 2, 3, waveH);
+  }
+
+  ctx.restore();
+}
+
 export function renderStage(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.save();
   drawBroadcastStudioBackground(ctx, f.now);
@@ -1682,21 +2099,29 @@ export function renderStage(ctx: CanvasRenderingContext2D, f: StageFrame) {
 
   const target = drawSmartBoard(ctx, f);
 
-  drawStudioPresentersAndDesk(
-    {
-      ctx,
-      now: f.now,
-      denizSpeaking: denizSpeaks,
-      barisSpeaking: barisSpeaks,
-      viseme: f.viseme,
-      mouthOpen: f.mouthOpen,
-      inBreathPause: f.inBreathPause,
-      boardFocusX: target.x,
-      boardFocusY: target.y,
-    },
-    STAGE_W,
-    STAGE_H,
-  );
+  if (f.layoutMode === 'whiteboard') {
+    // Sanal Tahta Modu: Tahta tüm ekranı kaplar, sunucu üst köşede canlı avatar rozetiyle konuşur!
+    drawWhiteboardPresenterBadge(ctx, f, activeSpeaker);
+  } else if (f.layoutMode === 'focus') {
+    // Odak Modu: Sadece tam ekran tahta ve altyazı
+  } else {
+    // Standart Stüdyo Modu: Masada sunucular ve merkezde akıllı tahta
+    drawStudioPresentersAndDesk(
+      {
+        ctx,
+        now: f.now,
+        denizSpeaking: denizSpeaks,
+        barisSpeaking: barisSpeaks,
+        viseme: f.viseme,
+        mouthOpen: f.mouthOpen,
+        inBreathPause: f.inBreathPause,
+        boardFocusX: target.x,
+        boardFocusY: target.y,
+      },
+      STAGE_W,
+      STAGE_H,
+    );
+  }
 
   if (f.showSubtitles) {
     drawCinemaSubtitles(ctx, f, activeSpeaker);

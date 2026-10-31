@@ -38,6 +38,11 @@ import {
   GraduationCap,
   Headphones,
   Trophy,
+  Activity,
+  Star,
+  Edit2,
+  PictureInPicture,
+  Layout,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +50,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 import EconLogo from '@/components/EconLogo';
 import LessonWrapUp from './video/LessonWrapUp';
+import InteractiveEconomicsLab from './video/InteractiveEconomicsLab';
 import {
   downloadVideoStudyNotes,
   printVideoStudyNotesPdf,
@@ -96,6 +102,7 @@ interface PersonalNoteItem {
   timestampSec: number;
   text: string;
   createdAt: string;
+  favorite?: boolean;
 }
 
 interface InteractiveVideoStudioProps {
@@ -169,11 +176,35 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   );
+  const [layoutMode, setLayoutMode] = useState<'standard' | 'whiteboard' | 'focus'>('standard');
+  const [simLabOpen, setSimLabOpen] = useState<boolean>(false);
+  const pipVideoRef = useRef<HTMLVideoElement | null>(null);
   const [activeTab, setActiveTab] = useState<'notes' | 'terms' | 'facts' | 'playlist' | 'coach'>('notes');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [termQuery, setTermQuery] = useState('');
   const [hoveredChapter, setHoveredChapter] = useState<number | null>(null);
+  const [hoveredChapterInfo, setHoveredChapterInfo] = useState<{
+    chapterIdx: number;
+    timeSec: number;
+    clientX: number;
+  } | null>(null);
+
+  // Otomatik kaydedilen son ilerleme ve kaldığın yerden devam etme durumu
+  const [resumePrompt, setResumePrompt] = useState<{ sceneIndex: number; timeSec: number } | null>(() => {
+    try {
+      const raw = localStorage.getItem(`econnotes_studio_progress_${material.id}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.sceneIndex === 'number' && (parsed.sceneIndex > 0 || parsed.timeSec > 6)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
 
   // 5. Kişisel zaman damgalı öğrenci notları (gerçek kalıcı depolama)
   const notesStorageKey = `econnotes_studio_notes_${material.id}`;
@@ -186,6 +217,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
   });
   const [quickNoteDraft, setQuickNoteDraft] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState<string>('');
+  const [personalNoteFilter, setPersonalNoteFilter] = useState<string>('');
   const [noteComposerOpen, setNoteComposerOpen] = useState(false);
 
   useEffect(() => {
@@ -579,6 +613,53 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
   }, []);
 
+  const togglePiP = useCallback(async () => {
+    const canvas = canvasRef.current;
+    const video = pipVideoRef.current;
+    if (!canvas || !video) return;
+
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture().catch(() => {});
+      return;
+    }
+
+    try {
+      if (!video.srcObject) {
+        const stream = (canvas as any).captureStream ? (canvas as any).captureStream(30) : null;
+        if (stream) {
+          video.srcObject = stream;
+          await video.play().catch(() => {});
+        }
+      }
+      if (video.requestPictureInPicture) {
+        await video.requestPictureInPicture();
+      }
+    } catch {
+      toast.error('Resim içinde resim (PiP) bu cihazda veya tarayıcıda desteklenmiyor.');
+    }
+  }, []);
+
+  // İzleme ilerlemesini düzenli aralıklarla localStorage'a kaydet (Kaldığın Yerden Devam Et desteği)
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (activeSceneIndex > 0 || clockRef.current > 5) {
+        try {
+          localStorage.setItem(
+            `econnotes_studio_progress_${material.id}`,
+            JSON.stringify({
+              sceneIndex: activeSceneIndex,
+              timeSec: Math.floor(clockRef.current),
+              updatedAt: Date.now(),
+            }),
+          );
+        } catch {
+          // ignore storage quota
+        }
+      }
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [material.id, activeSceneIndex]);
+
   useEffect(() => {
     const onFs = () => setIsFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener('fullscreenchange', onFs);
@@ -623,21 +704,34 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         togglePlay();
       } else if (e.code === 'ArrowRight') {
         e.preventDefault();
-        seekRelative(5);
+        seekRelative(10);
       } else if (e.code === 'ArrowLeft') {
         e.preventDefault();
-        seekRelative(-5);
+        seekRelative(-10);
+      } else if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        setVolume(v => {
+          const next = Math.min(1, Math.round((v + 0.05) * 100) / 100);
+          if (next > 0) setIsMuted(false);
+          return next;
+        });
+      } else if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        setVolume(v => Math.max(0, Math.round((v - 0.05) * 100) / 100));
       } else if (e.code === 'KeyM') {
         setIsMuted(m => !m);
       } else if (e.code === 'KeyF') {
         toggleFullscreen();
       } else if (e.code === 'KeyC') {
         setShowSubtitles(s => !s);
+      } else if (e.code === 'KeyP') {
+        e.preventDefault();
+        togglePiP();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, seekRelative, toggleFullscreen, onClose, voiceMenuOpen, wrapUpOpen]);
+  }, [togglePlay, seekRelative, toggleFullscreen, togglePiP, onClose, voiceMenuOpen, wrapUpOpen]);
 
   // Ses menüsü dışına tıklanınca kapat
   const voiceMenuRef = useRef<HTMLDivElement>(null);
@@ -675,6 +769,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     showSubtitles,
     course: material.course || '',
     totalDurationSec,
+    layoutMode,
   });
   liveRef.current = {
     currentScene,
@@ -688,6 +783,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     showSubtitles,
     course: material.course || '',
     totalDurationSec,
+    layoutMode,
   };
   const lastLiveSpeakerRef = useRef<Speaker>('Deniz');
 
@@ -812,6 +908,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         viseme: targetViseme,
         mouthOpen: smoothMouthRef.current,
         inBreathPause: sync.inBreathPause || sync.buffering,
+        layoutMode: live.layoutMode,
       };
 
       try {
@@ -848,6 +945,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       timestampSec: Math.floor(elapsedSceneTime),
       text,
       createdAt: new Date().toISOString(),
+      favorite: false,
     };
     setPersonalNotes(prev => [item, ...prev]);
     setQuickNoteDraft('');
@@ -859,7 +957,35 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
   const removePersonalNote = (id: string) => {
     setPersonalNotes(prev => prev.filter(n => n.id !== id));
+    toast.success('Not silindi');
   };
+
+  const toggleNoteFavorite = (id: string) => {
+    setPersonalNotes(prev =>
+      prev.map(n => (n.id === id ? { ...n, favorite: !n.favorite } : n)),
+    );
+  };
+
+  const updatePersonalNoteText = (id: string, newText: string) => {
+    if (!newText.trim()) return;
+    setPersonalNotes(prev =>
+      prev.map(n => (n.id === id ? { ...n, text: newText.trim() } : n)),
+    );
+    setEditingNoteId(null);
+    setEditingNoteText('');
+    toast.success('Not güncellendi');
+  };
+
+  const filteredPersonalNotes = useMemo(() => {
+    const q = personalNoteFilter.trim().toLocaleLowerCase('tr-TR');
+    return personalNotes.filter(n => {
+      if (!q) return true;
+      return (
+        n.text.toLocaleLowerCase('tr-TR').includes(q) ||
+        n.sceneTitle.toLocaleLowerCase('tr-TR').includes(q)
+      );
+    });
+  }, [personalNotes, personalNoteFilter]);
 
   const markSceneCompleted = useCallback((idx: number) => {
     setCompletedScenes(prev => {
@@ -1020,6 +1146,39 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
         {/* Sağ: Akademik Araçlar */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {/* Sahne Görünümü Modu */}
+          <div className="hidden sm:flex items-center rounded-xl border border-white/[0.08] bg-white/[0.03] p-0.5" title="Sunum ve Tahta Düzeni">
+            {(
+              [
+                { id: 'standard', label: 'Stüdyo' },
+                { id: 'whiteboard', label: 'Sanal Tahta' },
+                { id: 'focus', label: 'Odak' },
+              ] as const
+            ).map(mode => (
+              <button
+                key={mode.id}
+                onClick={() => setLayoutMode(mode.id)}
+                className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                  layoutMode === mode.id
+                    ? 'bg-cyan-500/20 text-cyan-200 font-semibold shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+
+          {/* İnteraktif Simülatör (Lab) */}
+          <button
+            onClick={() => setSimLabOpen(true)}
+            className="flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-500/20 shadow-xs"
+            title="İnteraktif Piyasa Dengesi & İktisat Laboratuvarı"
+          >
+            <Activity className="h-3.5 w-3.5 text-emerald-400" />
+            <span className="hidden md:inline">İnteraktif Simülasyon</span>
+          </button>
+
           {/* Ders Sonu Eşleştirme & Sınav Soruları */}
           <button
             onClick={openPracticeWrapUp}
@@ -1317,6 +1476,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             className="relative flex flex-1 min-h-0 items-center justify-center p-2 sm:p-4 lg:p-5"
           >
             <div className="relative aspect-video w-full max-h-full max-w-[1480px] overflow-hidden rounded-2xl border border-white/[0.08] bg-[#040710] shadow-[0_24px_80px_rgba(0,0,0,0.85)]">
+              <video
+                ref={pipVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="hidden pointer-events-none opacity-0 absolute"
+              />
+
               <canvas
                 ref={canvasRef}
                 width={STAGE_W}
@@ -1324,6 +1491,43 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 onClick={togglePlay}
                 className="block h-full w-full cursor-pointer object-contain"
               />
+
+              {/* Kaldığın Yerden Devam Et Kartı */}
+              {resumePrompt && !hasStartedOnce && !isPreparingAudio && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 max-w-md w-[92%] rounded-2xl border border-cyan-400/40 bg-[#070d1d]/95 p-3.5 shadow-2xl backdrop-blur-xl">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                      <RotateCcw className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-bold text-white">Kaldığınız Yerden Devam Edin</h4>
+                      <p className="mt-0.5 text-[11px] text-slate-300">
+                        Daha önce <strong className="text-cyan-300">Bölüm {resumePrompt.sceneIndex + 1}</strong> ({formatTime(resumePrompt.timeSec)}) üzerinde kalmıştınız.
+                      </p>
+                      <div className="mt-2.5 flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const targetSec = resumePrompt.timeSec;
+                            const targetScene = resumePrompt.sceneIndex;
+                            setResumePrompt(null);
+                            goToScene(targetScene, targetSec);
+                            togglePlay();
+                          }}
+                          className="rounded-lg bg-cyan-500 px-3 py-1.5 text-[11px] font-bold text-slate-950 transition hover:bg-cyan-400 shadow-sm"
+                        >
+                          Kaldığım Yerden Devam Et
+                        </button>
+                        <button
+                          onClick={() => setResumePrompt(null)}
+                          className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] text-slate-400 hover:text-white"
+                        >
+                          Baştan Başla
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Sade Video Yükleme Katmanı */}
               {(isPreparingAudio || isBuffering) && (
@@ -1369,7 +1573,23 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
           {/* ALT KONTROL DOCK & BÖLÜMLÜ ZAMAN ÇİZELGESİ */}
           <div className="relative z-20 shrink-0 border-t border-white/[0.07] bg-[#070b16]/95 px-4 py-2.5 backdrop-blur-xl">
-            {hoveredChapter !== null && scenes[hoveredChapter] && (
+            {hoveredChapterInfo && scenes[hoveredChapterInfo.chapterIdx] && (
+              <div
+                className="pointer-events-none absolute -top-11 z-40 -translate-x-1/2 rounded-lg border border-cyan-400/40 bg-[#060b17]/95 px-2.5 py-1 text-center shadow-xl backdrop-blur-md transition-all"
+                style={{
+                  left: `${Math.max(80, Math.min(typeof window !== 'undefined' ? window.innerWidth - 80 : 300, hoveredChapterInfo.clientX))}px`,
+                }}
+              >
+                <div className="font-mono text-[11px] font-bold text-cyan-300">
+                  {formatTime(hoveredChapterInfo.timeSec)}
+                </div>
+                <div className="max-w-[220px] truncate text-[10px] text-slate-300">
+                  Bölüm {hoveredChapterInfo.chapterIdx + 1}: {scenes[hoveredChapterInfo.chapterIdx].title}
+                </div>
+              </div>
+            )}
+
+            {hoveredChapter !== null && scenes[hoveredChapter] && !hoveredChapterInfo && (
               <div className="mb-1 flex items-center justify-between text-[11px] text-cyan-300">
                 <span className="truncate font-medium">
                   Bölüm {hoveredChapter + 1}: {scenes[hoveredChapter].title}
@@ -1403,12 +1623,22 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       key={sc.id}
                       style={{ flexGrow: weight, flexBasis: 0 }}
                       onMouseEnter={() => setHoveredChapter(idx)}
-                      onMouseLeave={() => setHoveredChapter(null)}
+                      onMouseLeave={() => {
+                        setHoveredChapter(null);
+                        setHoveredChapterInfo(null);
+                      }}
                       onPointerDown={e => {
                         e.currentTarget.setPointerCapture?.(e.pointerId);
                         scrubChapter(e.clientX, e.currentTarget);
                       }}
                       onPointerMove={e => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)));
+                        setHoveredChapterInfo({
+                          chapterIdx: idx,
+                          timeSec: ratio * sc.durationSec,
+                          clientX: e.clientX,
+                        });
                         if (e.buttons === 1) {
                           scrubChapter(e.clientX, e.currentTarget);
                         }
@@ -1443,9 +1673,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </button>
 
                 <button
-                  onClick={() => seekRelative(-5)}
+                  onClick={() => seekRelative(-10)}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                  title="5 Saniye Geri (←)"
+                  title="10 Saniye Geri (←)"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
@@ -1466,9 +1696,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </button>
 
                 <button
-                  onClick={() => seekRelative(5)}
+                  onClick={() => seekRelative(10)}
                   className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                  title="5 Saniye İleri (→)"
+                  title="10 Saniye İleri (→)"
                 >
                   <RotateCw className="h-3.5 w-3.5" />
                 </button>
@@ -1517,6 +1747,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 >
                   <Subtitles className="h-4 w-4" />
                 </button>
+
+                <button
+                  onClick={togglePiP}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                  title="Resim İçinde Resim (PiP) (P)"
+                >
+                  <PictureInPicture className="h-4 w-4" />
+                </button>
               </div>
 
               <div className="hidden lg:flex min-w-0 items-center gap-2 text-xs">
@@ -1535,7 +1773,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               </div>
 
               <div className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.02] p-0.5">
-                {[0.85, 1.0, 1.15, 1.3].map(spd => (
+                {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
                   <button
                     key={spd}
                     onClick={() => setPlaybackSpeed(spd)}
@@ -1665,26 +1903,45 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       </button>
                     </div>
 
-                    {currentScene.keyTakeaways.map((note, idx) => (
-                      <div
-                        key={idx}
-                        className="group flex items-start gap-2.5 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-cyan-500/30 hover:bg-white/[0.04]"
-                      >
-                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
-                        <p className="flex-1 text-xs leading-relaxed text-slate-200">{note}</p>
-                        <button
-                          onClick={() => copyText(note, `tk-${idx}`)}
-                          className="opacity-0 transition group-hover:opacity-100 text-slate-400 hover:text-white"
-                          title="Kopyala"
+                    {currentScene.keyTakeaways.map((note, idx) => {
+                      const activeTakeawayIdx = Math.min(
+                        currentScene.keyTakeaways.length - 1,
+                        Math.floor((elapsedSceneTime / Math.max(0.1, currentScene.durationSec)) * currentScene.keyTakeaways.length),
+                      );
+                      const isCurNote = isPlaying && idx === activeTakeawayIdx;
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            const fraction = idx / Math.max(1, currentScene.keyTakeaways.length);
+                            goToScene(activeSceneIndex, fraction * currentScene.durationSec);
+                          }}
+                          className={`group flex items-start gap-2.5 rounded-xl border p-3 cursor-pointer transition ${
+                            isCurNote
+                              ? 'border-cyan-400/70 bg-cyan-500/15 ring-1 ring-cyan-400/40 shadow-[0_0_15px_rgba(34,211,238,0.15)]'
+                              : 'border-white/[0.07] bg-white/[0.025] hover:border-cyan-500/30 hover:bg-white/[0.04]'
+                          }`}
+                          title="Bu kavrama atlamak için tıklayın"
                         >
-                          {copiedId === `tk-${idx}` ? (
-                            <Check className="h-3.5 w-3.5 text-emerald-400" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </div>
-                    ))}
+                          <CheckCircle2 className={`mt-0.5 h-4 w-4 shrink-0 ${isCurNote ? 'text-cyan-300 animate-pulse' : 'text-cyan-400'}`} />
+                          <p className={`flex-1 text-xs leading-relaxed ${isCurNote ? 'text-white font-medium' : 'text-slate-200'}`}>{note}</p>
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              copyText(note, `tk-${idx}`);
+                            }}
+                            className="opacity-0 transition group-hover:opacity-100 text-slate-400 hover:text-white"
+                            title="Kopyala"
+                          >
+                            {copiedId === `tk-${idx}` ? (
+                              <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Kişisel Zaman Damgalı Notlar */}
@@ -1701,16 +1958,31 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                       </button>
                     </div>
 
+                    {personalNotes.length > 2 && (
+                      <Input
+                        value={personalNoteFilter}
+                        onChange={e => setPersonalNoteFilter(e.target.value)}
+                        placeholder="Notlarımda ara..."
+                        className="h-7 text-[11px] border-white/10 bg-white/[0.03] text-white placeholder:text-slate-500 mb-1"
+                      />
+                    )}
+
                     {personalNotes.length === 0 ? (
                       <p className="rounded-xl border border-dashed border-white/[0.08] p-3 text-[11px] text-slate-400 leading-relaxed">
                         Dersi izlerken üstteki <strong>Not Ekle</strong> butonuna basarak önemli anları zaman damgasıyla buraya kaydedebilirsiniz.
                       </p>
+                    ) : filteredPersonalNotes.length === 0 ? (
+                      <p className="text-[11px] text-slate-500 py-1">Aramaya uygun not bulunamadı.</p>
                     ) : (
                       <div className="space-y-2">
-                        {personalNotes.map(pn => (
+                        {filteredPersonalNotes.map(pn => (
                           <div
                             key={pn.id}
-                            className="group rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-2.5 space-y-1"
+                            className={`group rounded-xl border p-2.5 space-y-1 transition ${
+                              pn.favorite
+                                ? 'border-amber-400/40 bg-amber-500/[0.09]'
+                                : 'border-amber-500/20 bg-amber-500/[0.05]'
+                            }`}
                           >
                             <div className="flex items-center justify-between">
                               <button
@@ -1719,15 +1991,60 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                               >
                                 ▶ Bölüm {pn.sceneIndex + 1} · {formatTime(pn.timestampSec)}
                               </button>
-                              <button
-                                onClick={() => removePersonalNote(pn.id)}
-                                className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 transition"
-                                title="Sil"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
+                              <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100">
+                                <button
+                                  onClick={() => toggleNoteFavorite(pn.id)}
+                                  className="text-slate-500 hover:text-amber-400 transition"
+                                  title={pn.favorite ? 'Yıldızı Kaldır' : 'Yıldızla'}
+                                >
+                                  <Star className={`h-3 w-3 ${pn.favorite ? 'fill-amber-400 text-amber-400' : ''}`} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingNoteId(pn.id);
+                                    setEditingNoteText(pn.text);
+                                  }}
+                                  className="text-slate-500 hover:text-cyan-300 transition"
+                                  title="Düzenle"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => removePersonalNote(pn.id)}
+                                  className="text-slate-500 hover:text-rose-400 transition"
+                                  title="Sil"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
                             </div>
-                            <p className="text-xs text-slate-200 leading-relaxed">{pn.text}</p>
+                            {editingNoteId === pn.id ? (
+                              <div className="space-y-1.5 pt-1">
+                                <textarea
+                                  value={editingNoteText}
+                                  onChange={e => setEditingNoteText(e.target.value)}
+                                  className="w-full rounded-lg border border-cyan-400/40 bg-slate-900 p-2 text-xs text-white focus:outline-none"
+                                  rows={2}
+                                />
+                                <div className="flex justify-end gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => updatePersonalNoteText(pn.id, editingNoteText)}
+                                    className="h-6 rounded bg-cyan-500 px-2 text-[10px] text-slate-950 font-bold"
+                                  >
+                                    Kaydet
+                                  </Button>
+                                  <button
+                                    onClick={() => setEditingNoteId(null)}
+                                    className="text-[10px] text-slate-400 hover:text-white px-2"
+                                  >
+                                    İptal
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-200 leading-relaxed">{pn.text}</p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1951,9 +2268,11 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                   <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/[0.07] pt-2.5">
                     {[
-                      'Bu bölümü örnek senaryoyla anlat',
-                      'Sınavda nasıl sorulur?',
-                      '3 kısa test sorusu sor',
+                      'Bu grafiği ve formülü açıkla',
+                      'Konuyu gerçek hayat örneğiyle anlat',
+                      'Sınavda hoca ne sorar?',
+                      'Bana 2 mini soru sor',
+                      'Daha sade bir dille özetle',
                     ].map(prompt => (
                       <button
                         key={prompt}
@@ -1993,6 +2312,18 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               )}
             </div>
           </aside>
+        )}
+
+        {simLabOpen && (
+          <InteractiveEconomicsLab
+            onClose={() => setSimLabOpen(false)}
+            onAskCoach={question => {
+              setSimLabOpen(false);
+              setSidebarOpen(true);
+              setActiveTab('coach');
+              sendCoachQuestion(question);
+            }}
+          />
         )}
 
         {wrapUpOpen && (
