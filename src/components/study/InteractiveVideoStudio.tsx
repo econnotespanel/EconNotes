@@ -1346,8 +1346,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     >
       {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
       <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-2 sm:gap-3 border-b border-white/[0.08] bg-[#070b16]/95 px-2.5 sm:px-5 backdrop-blur-xl">
-        {/* Sol: Çıkış / Geri Dön + Beyaz EconNotes Logosu + Başlık */}
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3 flex-1 overflow-hidden">
+        {/* Sol: Çıkış / Geri Dön + Beyaz EconNotes Logosu (Asla sıkışmaz, shrink-0) */}
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
           {onClose && (
             <button
               onClick={() => {
@@ -1356,7 +1356,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 }
                 onClose();
               }}
-              className="group flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.12] bg-white/[0.05] px-2.5 sm:px-3 text-xs font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/[0.1] hover:text-white active:scale-95 touch-manipulation shadow-xs"
+              className="group flex h-9 shrink-0 items-center gap-1 rounded-xl border border-white/[0.12] bg-white/[0.05] px-2 sm:px-2.5 text-xs font-semibold text-slate-200 transition hover:border-white/30 hover:bg-white/[0.1] hover:text-white active:scale-95 touch-manipulation shadow-xs"
               title="Stüdyodan Çık (Geri)"
             >
               <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5 text-cyan-300 shrink-0" />
@@ -1364,17 +1364,19 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             </button>
           )}
 
-          <div className="flex items-center shrink-0 pr-1" title="EconNotes Çalışma Stüdyosu">
-            <EconLogo allWhite className="h-6 w-20 sm:h-7 sm:w-28 shrink-0" />
+          <div className="flex items-center shrink-0" title="EconNotes Çalışma Stüdyosu">
+            <EconLogo allWhite className="h-6 w-22 sm:h-7 sm:w-28 shrink-0" />
           </div>
+        </div>
 
-          <div className="h-5 w-px bg-white/[0.12] hidden sm:block shrink-0" />
-
-          <div className="min-w-0 flex-1 overflow-hidden cursor-pointer" onClick={() => setChaptersMenuOpen(true)}>
-            <h1 className="truncate text-xs sm:text-sm md:text-base font-semibold tracking-tight text-white hover:text-cyan-300 transition" title={studio.title}>
+        {/* Orta: Ders Başlığı (Masaüstü ve tablette görünür, mobilde gizlenir) */}
+        <div className="hidden md:flex min-w-0 flex-1 items-center px-3 cursor-pointer overflow-hidden" onClick={() => setChaptersMenuOpen(true)}>
+          <div className="h-5 w-px bg-white/[0.12] mr-3 shrink-0" />
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <h1 className="truncate text-xs sm:text-sm font-semibold tracking-tight text-white hover:text-cyan-300 transition" title={studio.title}>
               {studio.title}
             </h1>
-            <p className="truncate text-[10px] sm:text-[11px] text-slate-400 hidden xs:block">
+            <p className="truncate text-[10px] sm:text-[11px] text-slate-400">
               Bölüm {activeSceneIndex + 1}/{scenes.length}: {currentScene.title}
             </p>
           </div>
@@ -1391,10 +1393,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 return next;
               });
             }}
-            className={`flex h-9 min-w-[36px] sm:min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
+            className={`flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
               examMode
                 ? 'border-amber-400 bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/50 shadow-xs'
-                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-200'
+                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-200 hidden sm:flex'
             }`}
             title="Sınav Hazırlık Modu: Kritik bilgiler ve sınav sorularını öne çıkarır"
           >
@@ -1411,10 +1413,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 return next;
               });
             }}
-            className={`flex h-9 min-w-[36px] sm:min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
+            className={`flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation whitespace-nowrap ${
               audioOnlyMode
                 ? 'border-purple-400 bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/50 shadow-xs'
-                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-purple-400/40 hover:text-purple-200'
+                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-purple-400/40 hover:text-purple-200 hidden sm:flex'
             }`}
             title="Podcast ve Sesli Ders Modu (Ekran ve Batarya Tasarrufu)"
           >
@@ -1425,7 +1427,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           {/* Yan Panel Aç/Kapat (Ders Notları) */}
           <button
             onClick={() => setSidebarOpen(s => !s)}
-            className={`flex h-9 min-w-[36px] sm:min-w-0 items-center justify-center gap-1.5 rounded-xl border px-2 sm:px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation ${
+            className={`flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition active:scale-95 touch-manipulation ${
               sidebarOpen
                 ? 'border-cyan-500/40 bg-cyan-500/12 text-cyan-200'
                 : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.07]'
@@ -1436,9 +1438,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             <span className="hidden md:inline">Ders Notları</span>
           </button>
 
-          {/* Ses Ayarları Menüsü — YALNIZCA YÖNETİCİLERE AÇIK */}
+          {/* Ses Ayarları Menüsü — YALNIZCA YÖNETİCİLERE AÇIK VE DESKTOPTA GÖRÜNÜR */}
           {isAdmin && (
-            <div ref={voiceMenuRef} className="relative">
+            <div ref={voiceMenuRef} className="relative hidden md:block">
               <button
                 onClick={() => setVoiceMenuOpen(o => !o)}
                 className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs transition ${
@@ -1734,38 +1736,47 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </div>
               )}
 
-              {/* Kaldığın Yerden Devam Et Kartı */}
+              {/* Kaldığın Yerden Devam Et Kartı - Merkezlenmiş ve arkadaki kapakla çakışmayan katman */}
               {resumePrompt && !hasStartedOnce && !isPreparingAudio && (
-                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 max-w-md w-[92%] rounded-2xl border border-cyan-400/40 bg-[#070d1d]/95 p-3.5 shadow-2xl backdrop-blur-xl">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
-                      <RotateCcw className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-bold text-white">Kaldığınız Yerden Devam Edin</h4>
-                      <p className="mt-0.5 text-[11px] text-slate-300">
-                        Daha önce <strong className="text-cyan-300">Bölüm {resumePrompt.sceneIndex + 1}</strong> ({formatTime(resumePrompt.timeSec)}) üzerinde kalmıştınız.
-                      </p>
-                      <div className="mt-2.5 flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            const targetSec = resumePrompt.timeSec;
-                            const targetScene = resumePrompt.sceneIndex;
-                            setResumePrompt(null);
-                            goToScene(targetScene, targetSec);
-                            togglePlay();
-                          }}
-                          className="rounded-lg bg-cyan-500 px-3 py-1.5 text-[11px] font-bold text-slate-950 transition hover:bg-cyan-400 shadow-sm"
-                        >
-                          Kaldığım Yerden Devam Et
-                        </button>
-                        <button
-                          onClick={() => setResumePrompt(null)}
-                          className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-[11px] text-slate-400 hover:text-white"
-                        >
-                          Baştan Başla
-                        </button>
+                <div className="absolute inset-0 z-30 flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-xs animate-in fade-in">
+                  <div
+                    style={{ backgroundColor: '#090e1c' }}
+                    className="max-w-sm sm:max-w-md w-full rounded-2xl border border-cyan-400/40 bg-[#090e1c] p-4 sm:p-5 shadow-2xl space-y-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                        <RotateCcw className="h-5 w-5" />
                       </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-sm font-bold text-white">Kaldığınız Yerden Devam Edin</h4>
+                        <p className="mt-1 text-xs text-slate-300">
+                          Daha önce <strong className="text-cyan-300">Bölüm {resumePrompt.sceneIndex + 1}</strong> ({formatTime(resumePrompt.timeSec)}) üzerinde kalmıştınız.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => {
+                          const targetSec = resumePrompt.timeSec;
+                          const targetScene = resumePrompt.sceneIndex;
+                          setResumePrompt(null);
+                          goToScene(targetScene, targetSec);
+                          togglePlay();
+                        }}
+                        className="flex-1 rounded-xl bg-cyan-500 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-cyan-400 shadow-md text-center active:scale-95"
+                      >
+                        Kaldığım Yerden Devam Et
+                      </button>
+                      <button
+                        onClick={() => {
+                          setResumePrompt(null);
+                          goToScene(0, 0);
+                          togglePlay();
+                        }}
+                        className="rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-xs text-slate-300 hover:text-white text-center active:scale-95"
+                      >
+                        Baştan Başla
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1791,17 +1802,17 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </div>
               )}
 
-              {/* İlk Başlangıç Kapak Katmanı */}
-              {!hasStartedOnce && !isPreparingAudio && (
+              {/* İlk Başlangıç Kapak Katmanı - Yalnızca devam etme kartı yokken gösterilir */}
+              {!hasStartedOnce && !isPreparingAudio && !resumePrompt && (
                 <div
                   onClick={togglePlay}
                   className="group absolute inset-0 flex cursor-pointer flex-col items-center justify-center bg-gradient-to-t from-[#040710]/85 via-[#040710]/40 to-transparent backdrop-blur-[1.5px] transition-all"
                 >
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-[0_0_50px_rgba(34,211,238,0.45)] transition-transform duration-300 group-hover:scale-110">
-                    <Play className="ml-1 h-8 w-8 fill-slate-950" />
+                  <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-[0_0_50px_rgba(34,211,238,0.45)] transition-transform duration-300 group-hover:scale-110">
+                    <Play className="ml-1 h-7 w-7 sm:h-8 sm:w-8 fill-slate-950" />
                   </div>
-                  <div className="mt-4 text-center px-4">
-                    <h2 className="text-base sm:text-lg font-bold text-white">
+                  <div className="mt-3 sm:mt-4 text-center px-4">
+                    <h2 className="text-sm sm:text-lg font-bold text-white">
                       Dersi Başlat
                     </h2>
                     <p className="mt-0.5 text-xs text-slate-300">
@@ -1814,7 +1825,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           </div>
 
           {/* ALT KONTROL DOCK & BÖLÜMLÜ ZAMAN ÇİZELGESİ */}
-          <div className="relative z-20 shrink-0 border-t border-white/[0.07] bg-[#070b16]/95 px-4 py-2.5 backdrop-blur-xl">
+          <div className="relative z-20 shrink-0 border-t border-white/[0.07] bg-[#070b16] px-3 sm:px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
             {hoveredChapterInfo && scenes[hoveredChapterInfo.chapterIdx] && (
               <div
                 className="pointer-events-none absolute -top-11 z-40 -translate-x-1/2 rounded-lg border border-cyan-400/40 bg-[#060b17]/95 px-2.5 py-1 text-center shadow-xl backdrop-blur-md transition-all"
@@ -1901,6 +1912,30 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               <span className="w-11 font-mono text-[11px] text-slate-400">
                 {formatTime(totalDurationSec)}
               </span>
+            </div>
+
+            {/* Mobilde Tam Genişlikte Bölüm Seçici Çubuğu */}
+            <div className="sm:hidden mt-1 mb-1.5">
+              <button
+                onClick={() => setChaptersMenuOpen(o => !o)}
+                className="flex items-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-left transition hover:border-cyan-400/40 hover:bg-white/[0.08] w-full active:scale-[0.99] touch-manipulation shadow-xs"
+              >
+                <span
+                  className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                    liveSpeaker === 'Deniz'
+                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/25'
+                      : 'bg-purple-500/15 text-purple-300 border border-purple-400/25'
+                  }`}
+                >
+                  {liveSpeaker === 'Deniz' ? 'Dr. Deniz' : 'Barış'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-slate-100">
+                    Bölüm {activeSceneIndex + 1}/{scenes.length} · {currentScene.title}
+                  </p>
+                </div>
+                <ChevronUp className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${chaptersMenuOpen ? 'rotate-180 text-cyan-400' : ''}`} />
+              </button>
             </div>
 
             <div className="mt-1 flex items-center justify-between gap-1.5 sm:gap-2">
@@ -1999,8 +2034,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </button>
               </div>
 
-              {/* YouTube Tarzı Bölüm Başlığı & Tıklayınca Açılan Bölüm Listesi */}
-              <div className="relative min-w-0 flex-1 max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl">
+              {/* YouTube Tarzı Bölüm Başlığı (Tablet ve Masaüstünde Görünür) */}
+              <div className="relative min-w-0 flex-1 max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl hidden sm:block">
                 <button
                   onClick={() => setChaptersMenuOpen(o => !o)}
                   className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2 sm:px-2.5 py-1 text-left transition hover:border-cyan-400/40 hover:bg-white/[0.06] w-full group/chap active:scale-[0.99] touch-manipulation"
@@ -2028,7 +2063,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   <div
                     ref={chaptersMenuRef}
                     style={{ backgroundColor: '#0a0f1d' }}
-                    className="fixed inset-x-2 sm:absolute sm:inset-x-auto sm:left-0 sm:w-96 bottom-16 sm:bottom-11 z-[60] max-h-[65vh] sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-1.5 animate-in fade-in slide-in-from-bottom-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
+                    className="fixed inset-x-2 sm:absolute sm:inset-x-auto sm:left-0 sm:w-96 bottom-24 sm:bottom-12 z-[70] max-h-[65vh] sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-1.5 animate-in fade-in slide-in-from-bottom-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
                   >
                     <div className="sticky top-0 z-10 flex items-center justify-between px-1 pb-2 border-b border-white/[0.1] bg-[#0a0f1d]">
                       <div>
@@ -2115,7 +2150,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   <div
                     ref={settingsMenuRef}
                     style={{ backgroundColor: '#0a0f1d' }}
-                    className="fixed inset-x-4 sm:absolute sm:inset-x-auto sm:right-0 sm:w-72 bottom-16 sm:bottom-11 z-[60] rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
+                    className="fixed inset-x-4 sm:absolute sm:inset-x-auto sm:right-0 sm:w-72 bottom-24 sm:bottom-12 z-[70] rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
                   >
                     <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08]">
                       <span className="font-bold text-white flex items-center gap-1.5">

@@ -201,75 +201,75 @@ const Dashboard = () => {
         <Dialog open={showStudioUpdateModal} onOpenChange={(open) => {
           if (!open) handleDismissStudioUpdate(false);
         }}>
-          <DialogContent className="max-w-lg rounded-2xl p-5 sm:p-7 border border-primary/20 bg-gradient-to-b from-card via-card to-primary/5 shadow-2xl backdrop-blur-xl">
-            <DialogHeader className="space-y-3 text-left">
+          <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg max-h-[86dvh] flex flex-col rounded-2xl p-4 sm:p-6 border border-primary/20 bg-card shadow-2xl backdrop-blur-xl overflow-hidden my-auto">
+            <DialogHeader className="space-y-2 text-left shrink-0">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-cyan-500/15 via-blue-500/15 to-purple-500/15 text-primary border border-primary/25 w-fit">
                 <Sparkles className="h-3.5 w-3.5 animate-pulse text-cyan-400" />
                 <span>Yeni Büyük Güncelleme</span>
                 <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{APP_VERSION}</span>
               </div>
               
-              <DialogTitle className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              <DialogTitle className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">
                 Çalışma Stüdyosu Baştan Aşağı Yenilendi! 🚀
               </DialogTitle>
               
-              <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
+              <DialogDescription className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                 Ders çalışma ve sınavlara hazırlanma deneyiminizi üst seviyeye taşıyan video stüdyosu ve interaktif çalışma özellikleri yayında:
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-2.5 py-2">
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-accent/40 border border-border/50">
+            <div className="space-y-2 py-2 overflow-y-auto flex-1 pr-1 [scrollbar-width:thin]">
+              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-accent/40 border border-border/50">
                 <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500 shrink-0">
                   <Video className="h-4 w-4" />
                 </div>
                 <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-sm">İnteraktif İkili Video Dersi</p>
-                  <p className="text-muted-foreground">Dr. Deniz ve Barış eşliğinde ezber kalıplardan uzak, soru-cevaplı derin akademik konu anlatımı.</p>
+                  <p className="font-semibold text-foreground text-xs sm:text-sm">İnteraktif İkili Video Dersi</p>
+                  <p className="text-muted-foreground text-[11px] sm:text-xs">Dr. Deniz ve Barış eşliğinde ezber kalıplardan uzak, soru-cevaplı derin akademik konu anlatımı.</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-accent/40 border border-border/50">
+              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-accent/40 border border-border/50">
                 <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 shrink-0">
                   <Headphones className="h-4 w-4" />
                 </div>
                 <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-sm">Stüdyo Kalitesinde Doğal Seslendirme</p>
-                  <p className="text-muted-foreground">Robotik olmayan, pürüzsüz diksiyon ve akıcı üniversite semineri doğallığında ses akışı.</p>
+                  <p className="font-semibold text-foreground text-xs sm:text-sm">Stüdyo Kalitesinde Doğal Seslendirme</p>
+                  <p className="text-muted-foreground text-[11px] sm:text-xs">Robotik olmayan, pürüzsüz diksiyon ve akıcı üniversite semineri doğallığında ses akışı.</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-accent/40 border border-border/50">
+              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-accent/40 border border-border/50">
                 <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500 shrink-0">
                   <Target className="h-4 w-4" />
                 </div>
                 <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-sm">Akıllı Tahta, Sınav Tüyoları & Eşleştirme</p>
-                  <p className="text-muted-foreground">Karşılaştırma tabloları, analitik grafikler, hocanın sorabileceği sorular ve interaktif kartlar.</p>
+                  <p className="font-semibold text-foreground text-xs sm:text-sm">Akıllı Tahta, Sınav Tüyoları & Eşleştirme</p>
+                  <p className="text-muted-foreground text-[11px] sm:text-xs">Karşılaştırma tabloları, analitik grafikler, hocanın sorabileceği sorular ve interaktif kartlar.</p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-accent/40 border border-border/50">
+              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-accent/40 border border-border/50">
                 <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
                   <FileText className="h-4 w-4" />
                 </div>
                 <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-sm">Yapılandırılmış PDF & HTML Not İndirme</p>
-                  <p className="text-muted-foreground">Video dersindeki tüm kavram ve özetleri tek tıkla şık akademik formatta bilgisayara kaydetme.</p>
+                  <p className="font-semibold text-foreground text-xs sm:text-sm">Yapılandırılmış PDF & HTML Not İndirme</p>
+                  <p className="text-muted-foreground text-[11px] sm:text-xs">Video dersindeki tüm kavram ve özetleri tek tıkla şık akademik formatta bilgisayara kaydetme.</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2 border-t border-border/40 shrink-0">
               <Button
                 variant="outline"
-                className="w-full sm:w-auto text-xs"
+                className="w-full sm:w-auto text-xs h-9"
                 onClick={() => handleDismissStudioUpdate(false)}
               >
                 Daha Sonra İncele
               </Button>
               <Button
-                className="w-full sm:flex-1 gap-2 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-cyan-500/20"
+                className="w-full sm:flex-1 gap-2 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-cyan-500/20 text-xs sm:text-sm h-9"
                 onClick={() => handleDismissStudioUpdate(true)}
               >
                 <span>Çalışma Stüdyosuna Git</span>
