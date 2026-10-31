@@ -286,14 +286,14 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [isMobileLandscape, setIsMobileLandscape] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    return window.innerWidth > window.innerHeight && window.innerHeight <= 520;
+    return window.innerWidth > window.innerHeight && window.innerHeight <= 550;
   });
   const chaptersMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleOrientation = () => {
-      const isLand = window.innerWidth > window.innerHeight && window.innerHeight <= 520;
+      const isLand = window.innerWidth > window.innerHeight && window.innerHeight <= 550;
       setIsMobileLandscape(isLand);
     };
     handleOrientation();
@@ -1456,9 +1456,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             <span className={isMobileLandscape ? 'hidden' : 'hidden md:inline'}>Ders Notları</span>
           </button>
 
-          {/* Ses Ayarları Menüsü — YALNIZCA YÖNETİCİLERE AÇIK VE DESKTOPTA GÖRÜNÜR */}
+          {/* Ses Ayarları Menüsü — YALNIZCA YÖNETİCİLERE AÇIK VE YALNIZCA BÜYÜK EKRANDA GÖRÜNÜR */}
           {isAdmin && (
-            <div ref={voiceMenuRef} className="relative hidden md:block">
+            <div ref={voiceMenuRef} className="relative hidden xl:block">
               <button
                 onClick={() => setVoiceMenuOpen(o => !o)}
                 className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs transition ${
@@ -2011,9 +2011,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   <ChevronRight className="h-4 w-4" />
                 </button>
 
-                <div className="mx-1 h-4 w-px bg-white/[0.08] hidden md:block" />
+                <div className={`mx-1 h-4 w-px bg-white/[0.08] ${isMobileLandscape ? 'hidden' : 'hidden md:block'}`} />
 
-                <div className="hidden md:flex items-center gap-1.5 group/vol">
+                <div className={`${isMobileLandscape ? 'hidden' : 'hidden lg:flex'} items-center gap-1.5 group/vol`}>
                   <button
                     onClick={() => setIsMuted(m => !m)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
@@ -2049,7 +2049,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
                 <button
                   onClick={togglePiP}
-                  className="hidden md:flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                  className={`${isMobileLandscape ? 'hidden' : 'hidden md:flex'} h-8 w-8 items-center justify-center rounded-lg text-slate-300 transition hover:bg-white/[0.08] hover:text-white`}
                   title="Resim İçinde Resim (PiP) (P)"
                 >
                   <PictureInPicture className="h-4 w-4" />
@@ -2107,225 +2107,6 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </button>
               </div>
             </div>
-
-            {/* BÖLÜMLER MENÜSÜ: Yatay Mobilde YouTube Tarzı Sağ Çekmece, Diğer Durumlarda Alttan Açılan Popover */}
-            {chaptersMenuOpen && (
-              <>
-                <div
-                  onClick={() => setChaptersMenuOpen(false)}
-                  className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs transition-opacity"
-                />
-
-                {isMobileLandscape ? (
-                  /* Yatay Mobilde YouTube Tarzı Sağdan Kayan Bölümler Çekmecesi (Ortadaki videoyu ve oynat butonunu asla kapatmaz) */
-                  <div
-                    ref={chaptersMenuRef}
-                    style={{ backgroundColor: '#090e1c' }}
-                    className="fixed inset-y-0 right-0 z-[85] w-80 max-w-[85vw] flex flex-col border-l border-white/[0.14] bg-[#090e1c] shadow-[0_0_60px_rgba(0,0,0,0.95)] animate-in slide-in-from-right duration-200"
-                  >
-                    <div className="flex shrink-0 items-center justify-between px-3.5 py-2.5 border-b border-white/[0.1] bg-[#090e1c]">
-                      <div className="min-w-0 flex-1 pr-2">
-                        <span className="text-xs font-bold text-white block">Ders Bölümleri ({scenes.length} Bölüm)</span>
-                        <span className="text-[10px] text-slate-400 truncate block">{studio.title}</span>
-                      </div>
-                      <button
-                        onClick={() => setChaptersMenuOpen(false)}
-                        className="h-7 w-7 flex shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]">
-                      {scenes.map((sc, sIdx) => {
-                        const isCurrent = sIdx === activeSceneIndex;
-                        return (
-                          <button
-                            key={sc.id}
-                            onClick={() => {
-                              goToScene(sIdx, 0);
-                              setChaptersMenuOpen(false);
-                            }}
-                            className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
-                              isCurrent
-                                ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 ring-1 ring-cyan-400/30'
-                                : 'bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.05]'
-                            }`}
-                          >
-                            <span className="font-mono text-xs font-bold text-cyan-400 shrink-0 mt-0.5">
-                              {sIdx + 1}.
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium leading-snug break-words">
-                                {sc.title}
-                              </p>
-                              <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
-                                <span>{formatTime(sc.durationSec)}</span>
-                                <span>•</span>
-                                <span>{DIAGRAM_BADGE_TR[sc.diagram.type]}</span>
-                                {isCurrent && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="text-cyan-300 font-semibold">Oynatılıyor</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            {isCurrent && (
-                              <span className="h-2 w-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 animate-pulse" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  /* Dikey Mobil ve Masaüstü: Alttan Açılan YouTube Tarzı Bölümler Menüsü */
-                  <div
-                    ref={chaptersMenuRef}
-                    style={{ backgroundColor: '#0a0f1d' }}
-                    className="fixed inset-x-2 bottom-20 z-[85] max-h-[65vh] sm:absolute sm:inset-x-auto sm:left-32 sm:bottom-14 sm:w-96 sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-1.5 animate-in fade-in slide-in-from-bottom-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
-                  >
-                    <div className="sticky top-0 z-10 flex items-center justify-between px-1 pb-2 border-b border-white/[0.1] bg-[#0a0f1d]">
-                      <div>
-                        <span className="text-xs font-bold text-white block">Ders Bölümleri ({scenes.length} Bölüm)</span>
-                        <span className="text-[11px] text-slate-400 truncate max-w-[240px] block">{studio.title}</span>
-                      </div>
-                      <button onClick={() => setChaptersMenuOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]">
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <div className="space-y-1 pt-1">
-                      {scenes.map((sc, sIdx) => {
-                        const isCurrent = sIdx === activeSceneIndex;
-                        return (
-                          <button
-                            key={sc.id}
-                            onClick={() => {
-                              goToScene(sIdx, 0);
-                              setChaptersMenuOpen(false);
-                            }}
-                            className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
-                              isCurrent
-                                ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 ring-1 ring-cyan-400/30'
-                                : 'bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.05]'
-                            }`}
-                          >
-                            <span className="font-mono text-xs font-bold text-cyan-400 shrink-0 mt-0.5">
-                              {sIdx + 1}.
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium leading-snug break-words">
-                                {sc.title}
-                              </p>
-                              <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
-                                <span>{formatTime(sc.durationSec)}</span>
-                                <span>•</span>
-                                <span>{DIAGRAM_BADGE_TR[sc.diagram.type]}</span>
-                                {isCurrent && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="text-cyan-300 font-semibold">Oynatılıyor</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            {isCurrent && (
-                              <span className="h-2 w-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 animate-pulse" />
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* AYARLAR MENÜSÜ: Oynatma Hızı & Sunum Düzeni */}
-            {settingsMenuOpen && (
-              <>
-                <div
-                  onClick={() => setSettingsMenuOpen(false)}
-                  className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-xs transition-opacity"
-                />
-
-                <div
-                  ref={settingsMenuRef}
-                  style={{ backgroundColor: '#0a0f1d' }}
-                  className={
-                    isMobileLandscape
-                      ? "fixed bottom-12 right-2 z-[85] w-72 max-h-[calc(100vh-3.5rem)] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-2.5 text-xs animate-in fade-in slide-in-from-bottom-2"
-                      : "fixed inset-x-4 bottom-24 z-[85] sm:absolute sm:inset-x-auto sm:right-2 sm:bottom-14 sm:w-72 rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
-                  }
-                >
-                  <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08]">
-                    <span className="font-bold text-white flex items-center gap-1.5">
-                      <Sliders className="h-3.5 w-3.5 text-cyan-400" />
-                      <span>Oynatma Seçenekleri</span>
-                    </span>
-                    <button onClick={() => setSettingsMenuOpen(false)} className="text-slate-400 hover:text-white">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Oynatma Hızı */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
-                      <span>OYNATMA HIZI</span>
-                      <span className="font-mono text-cyan-300 font-bold">{playbackSpeed}x</span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-1">
-                      {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
-                        <button
-                          key={spd}
-                          onClick={() => {
-                            setPlaybackSpeed(spd);
-                            setSettingsMenuOpen(false);
-                          }}
-                          className={`rounded-lg py-1.5 font-mono text-xs font-semibold transition ${
-                            playbackSpeed === spd
-                              ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
-                              : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
-                          }`}
-                        >
-                          {spd}x
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Sunum Düzeni */}
-                  <div className="space-y-1.5 pt-1.5 border-t border-white/[0.06]">
-                    <span className="text-[11px] font-semibold text-slate-400">SUNUM DÜZENİ</span>
-                    <div className="grid grid-cols-3 gap-1">
-                      {(
-                        [
-                          { id: 'standard', label: 'Stüdyo' },
-                          { id: 'whiteboard', label: 'Sanal Tahta' },
-                          { id: 'focus', label: 'Odak' },
-                        ] as const
-                      ).map(mode => (
-                        <button
-                          key={mode.id}
-                          onClick={() => {
-                            setLayoutMode(mode.id);
-                            setSettingsMenuOpen(false);
-                          }}
-                          className={`rounded-lg py-1.5 text-xs font-medium transition ${
-                            layoutMode === mode.id
-                              ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
-                              : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
-                          }`}
-                        >
-                          {mode.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
           </div>
         </div>
 
@@ -2341,9 +2122,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         {sidebarOpen && (
           <aside
             style={{ backgroundColor: '#080d1a' }}
-            className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[400px] lg:static lg:w-[410px] xl:w-[430px] shrink-0 flex-col border-l border-white/[0.08] bg-[#080d1a] backdrop-blur-2xl shadow-2xl lg:shadow-none"
+            className={`absolute inset-y-0 right-0 z-30 flex ${isMobileLandscape ? 'w-80 max-w-[85vw]' : 'w-full max-w-[400px]'} lg:static lg:w-[410px] xl:w-[430px] shrink-0 flex-col border-l border-white/[0.08] bg-[#080d1a] backdrop-blur-2xl shadow-2xl lg:shadow-none`}
           >
-            <div className="flex items-center justify-between border-b border-white/[0.07] bg-[#060a14] px-3.5 py-2 lg:hidden">
+            <div className={`flex items-center justify-between border-b border-white/[0.07] bg-[#060a14] ${isMobileLandscape ? 'px-3 py-1.5' : 'px-3.5 py-2'} lg:hidden`}>
               <span className="text-xs font-semibold text-slate-200">Ders Notları ve Pekiştirme</span>
               <button
                 onClick={() => setSidebarOpen(false)}
@@ -2353,7 +2134,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               </button>
             </div>
 
-            <div className="grid grid-cols-5 gap-1 border-b border-white/[0.07] bg-[#060a14] p-2">
+            <div className={`grid grid-cols-5 gap-1 border-b border-white/[0.07] bg-[#060a14] ${isMobileLandscape ? 'p-1' : 'p-2'}`}>
               {[
                 { id: 'notes', label: 'Notlar', icon: BookOpen },
                 { id: 'terms', label: 'Kavramlar', icon: Lightbulb },
@@ -2367,7 +2148,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex flex-col items-center gap-1 rounded-xl py-2 text-[11px] font-medium transition ${
+                    className={`flex flex-col items-center gap-0.5 rounded-xl ${isMobileLandscape ? 'py-1 text-[10px]' : 'py-2 text-[11px]'} font-medium transition ${
                       active
                         ? 'bg-white/[0.08] text-cyan-300 ring-1 ring-inset ring-cyan-400/30 font-semibold'
                         : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
@@ -2380,20 +2161,22 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               })}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 border-b border-white/[0.07] bg-[#070c18] p-2.5">
+            <div className={`border-b border-white/[0.07] bg-[#070c18] ${isMobileLandscape ? 'flex items-center gap-1.5 p-1.5 overflow-x-auto no-scrollbar' : 'grid grid-cols-2 gap-2 p-2.5'}`}>
               <button
                 onClick={openPracticeWrapUp}
-                className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2 text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20"
+                className={`flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20`}
                 title="Kavram Eşleştirme & Sınav Soruları"
               >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
+                <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300`}>
                   <Trophy className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-bold text-white">Eşleştirme & Test</p>
-                  <p className="truncate text-[10px] text-slate-300">
-                    {matchingPairs.length} çift · {examQuestions.length} soru
-                  </p>
+                  {!isMobileLandscape && (
+                    <p className="truncate text-[10px] text-slate-300">
+                      {matchingPairs.length} çift · {examQuestions.length} soru
+                    </p>
+                  )}
                 </div>
               </button>
 
@@ -2401,63 +2184,63 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               {isEconomicsLabApplicable ? (
                 <button
                   onClick={() => setSimLabOpen(true)}
-                  className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2 text-left transition hover:border-emerald-400/50 hover:bg-emerald-500/20"
+                  className={`flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-emerald-400/50 hover:bg-emerald-500/20`}
                   title="İnteraktif Piyasa & İktisat Laboratuvarı"
                 >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+                  <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300`}>
                     <Activity className="h-3.5 w-3.5" />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-white">İktisat Labı</p>
-                    <p className="truncate text-[10px] text-slate-300">Piyasa & Makro</p>
+                    {!isMobileLandscape && <p className="truncate text-[10px] text-slate-300">Piyasa & Makro</p>}
                   </div>
                 </button>
               ) : (
                 <button
                   onClick={() => setSearchModalOpen(true)}
-                  className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2 text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20"
+                  className={`flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20`}
                   title="Ders İçi Akıllı İçerik Arama"
                 >
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300">
+                  <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300`}>
                     <Search className="h-3.5 w-3.5" />
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-xs font-bold text-white">Ders İçi Arama</p>
-                    <p className="truncate text-[10px] text-slate-300">Kelime & Konu</p>
+                    {!isMobileLandscape && <p className="truncate text-[10px] text-slate-300">Kelime & Konu</p>}
                   </div>
                 </button>
               )}
 
               <button
                 onClick={() => setConceptMapOpen(true)}
-                className="flex items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 p-2 text-left transition hover:border-purple-400/50 hover:bg-purple-500/20"
+                className={`flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-purple-400/50 hover:bg-purple-500/20`}
                 title="Ders İçi Kavram Ağı & Bilgi Haritası"
               >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300">
+                <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300`}>
                   <Network className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-bold text-white">Kavram Ağı</p>
-                  <p className="truncate text-[10px] text-slate-300">Görsel Harita</p>
+                  {!isMobileLandscape && <p className="truncate text-[10px] text-slate-300">Görsel Harita</p>}
                 </div>
               </button>
 
               <button
                 onClick={() => setFlashcardsOpen(true)}
-                className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2 text-left transition hover:border-amber-400/50 hover:from-amber-500/20"
+                className={`flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-amber-400/50 hover:from-amber-500/20`}
                 title="Aralıklı Tekrar & Bilgi Kartları"
               >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
+                <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300`}>
                   <Brain className="h-3.5 w-3.5" />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-bold text-white">Bilgi Kartları</p>
-                  <p className="truncate text-[10px] text-slate-300">Aralıklı Tekrar</p>
+                  {!isMobileLandscape && <p className="truncate text-[10px] text-slate-300">Aralıklı Tekrar</p>}
                 </div>
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className={`flex-1 overflow-y-auto ${isMobileLandscape ? 'p-2.5 space-y-2.5' : 'p-4 space-y-4'} [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]`}>
               {activeTab === 'notes' && (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3.5">
@@ -3042,6 +2825,225 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           />
         )}
       </div>
+
+      {/* BÖLÜMLER MENÜSÜ: Yatay Mobilde YouTube Tarzı Tam Ekran Sağ Çekmece, Diğer Durumlarda Alttan Açılan Popover */}
+      {chaptersMenuOpen && (
+        <>
+          <div
+            onClick={() => setChaptersMenuOpen(false)}
+            className="fixed inset-0 z-[240] bg-black/60 backdrop-blur-xs transition-opacity"
+          />
+
+          {isMobileLandscape ? (
+            /* Yatay Mobilde YouTube Tarzı Sağdan Kayan Bölümler Çekmecesi (Tüm ekran yüksekliğinde, asla alta sıkışmaz ve ortadaki videoyu kapatmaz) */
+            <div
+              ref={chaptersMenuRef}
+              style={{ backgroundColor: '#090e1c' }}
+              className="fixed inset-y-0 right-0 z-[250] w-80 max-w-[85vw] flex flex-col border-l border-white/[0.14] bg-[#090e1c] shadow-[0_0_60px_rgba(0,0,0,0.95)] animate-in slide-in-from-right duration-200"
+            >
+              <div className="flex shrink-0 items-center justify-between px-3.5 py-2.5 border-b border-white/[0.1] bg-[#090e1c]">
+                <div className="min-w-0 flex-1 pr-2">
+                  <span className="text-xs font-bold text-white block">Ders Bölümleri ({scenes.length} Bölüm)</span>
+                  <span className="text-[10px] text-slate-400 truncate block">{studio.title}</span>
+                </div>
+                <button
+                  onClick={() => setChaptersMenuOpen(false)}
+                  className="h-7 w-7 flex shrink-0 items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]">
+                {scenes.map((sc, sIdx) => {
+                  const isCurrent = sIdx === activeSceneIndex;
+                  return (
+                    <button
+                      key={sc.id}
+                      onClick={() => {
+                        goToScene(sIdx, 0);
+                        setChaptersMenuOpen(false);
+                      }}
+                      className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
+                        isCurrent
+                          ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 ring-1 ring-cyan-400/30'
+                          : 'bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.05]'
+                      }`}
+                    >
+                      <span className="font-mono text-xs font-bold text-cyan-400 shrink-0 mt-0.5">
+                        {sIdx + 1}.
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium leading-snug break-words">
+                          {sc.title}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                          <span>{formatTime(sc.durationSec)}</span>
+                          <span>•</span>
+                          <span>{DIAGRAM_BADGE_TR[sc.diagram.type]}</span>
+                          {isCurrent && (
+                            <>
+                              <span>•</span>
+                              <span className="text-cyan-300 font-semibold">Oynatılıyor</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {isCurrent && (
+                        <span className="h-2 w-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 animate-pulse" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Dikey Mobil ve Masaüstü: Alttan Açılan YouTube Tarzı Bölümler Menüsü */
+            <div
+              ref={chaptersMenuRef}
+              style={{ backgroundColor: '#0a0f1d' }}
+              className="fixed inset-x-2 bottom-20 z-[250] max-h-[65vh] sm:fixed sm:inset-x-auto sm:left-24 sm:bottom-16 sm:w-96 sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-1.5 animate-in fade-in slide-in-from-bottom-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
+            >
+              <div className="sticky top-0 z-10 flex items-center justify-between px-1 pb-2 border-b border-white/[0.1] bg-[#0a0f1d]">
+                <div>
+                  <span className="text-xs font-bold text-white block">Ders Bölümleri ({scenes.length} Bölüm)</span>
+                  <span className="text-[11px] text-slate-400 truncate max-w-[240px] block">{studio.title}</span>
+                </div>
+                <button onClick={() => setChaptersMenuOpen(false)} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08]">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-1 pt-1">
+                {scenes.map((sc, sIdx) => {
+                  const isCurrent = sIdx === activeSceneIndex;
+                  return (
+                    <button
+                      key={sc.id}
+                      onClick={() => {
+                        goToScene(sIdx, 0);
+                        setChaptersMenuOpen(false);
+                      }}
+                      className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
+                        isCurrent
+                          ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 ring-1 ring-cyan-400/30'
+                          : 'bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.05]'
+                      }`}
+                    >
+                      <span className="font-mono text-xs font-bold text-cyan-400 shrink-0 mt-0.5">
+                        {sIdx + 1}.
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium leading-snug break-words">
+                          {sc.title}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                          <span>{formatTime(sc.durationSec)}</span>
+                          <span>•</span>
+                          <span>{DIAGRAM_BADGE_TR[sc.diagram.type]}</span>
+                          {isCurrent && (
+                            <>
+                              <span>•</span>
+                              <span className="text-cyan-300 font-semibold">Oynatılıyor</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      {isCurrent && (
+                        <span className="h-2 w-2 rounded-full bg-cyan-400 shrink-0 mt-1.5 animate-pulse" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* AYARLAR MENÜSÜ: Oynatma Hızı & Sunum Düzeni */}
+      {settingsMenuOpen && (
+        <>
+          <div
+            onClick={() => setSettingsMenuOpen(false)}
+            className="fixed inset-0 z-[240] bg-black/60 backdrop-blur-xs transition-opacity"
+          />
+
+          <div
+            ref={settingsMenuRef}
+            style={{ backgroundColor: '#0a0f1d' }}
+            className={
+              isMobileLandscape
+                ? "fixed bottom-12 right-2 z-[250] w-72 max-h-[calc(100vh-3.5rem)] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-2.5 text-xs animate-in fade-in slide-in-from-bottom-2"
+                : "fixed inset-x-4 bottom-20 z-[250] sm:fixed sm:inset-x-auto sm:right-4 sm:bottom-16 sm:w-72 rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
+            }
+          >
+            <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08]">
+              <span className="font-bold text-white flex items-center gap-1.5">
+                <Sliders className="h-3.5 w-3.5 text-cyan-400" />
+                <span>Oynatma Seçenekleri</span>
+              </span>
+              <button onClick={() => setSettingsMenuOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Oynatma Hızı */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                <span>OYNATMA HIZI</span>
+                <span className="font-mono text-cyan-300 font-bold">{playbackSpeed}x</span>
+              </div>
+              <div className="grid grid-cols-5 gap-1">
+                {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
+                  <button
+                    key={spd}
+                    onClick={() => {
+                      setPlaybackSpeed(spd);
+                      setSettingsMenuOpen(false);
+                    }}
+                    className={`rounded-lg py-1.5 font-mono text-xs font-semibold transition ${
+                      playbackSpeed === spd
+                        ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                        : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
+                    }`}
+                  >
+                    {spd}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sunum Düzeni */}
+            <div className="space-y-1.5 pt-1.5 border-t border-white/[0.06]">
+              <span className="text-[11px] font-semibold text-slate-400">SUNUM DÜZENİ</span>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    { id: 'standard', label: 'Stüdyo' },
+                    { id: 'whiteboard', label: 'Sanal Tahta' },
+                    { id: 'focus', label: 'Odak' },
+                  ] as const
+                ).map(mode => (
+                  <button
+                    key={mode.id}
+                    onClick={() => {
+                      setLayoutMode(mode.id);
+                      setSettingsMenuOpen(false);
+                    }}
+                    className={`rounded-lg py-1.5 text-xs font-medium transition ${
+                      layoutMode === mode.id
+                        ? 'bg-cyan-500 text-slate-950 font-bold shadow-sm'
+                        : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]'
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 
