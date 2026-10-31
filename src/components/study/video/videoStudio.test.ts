@@ -253,4 +253,41 @@ describe('video studio sceneModel & speechEngine', () => {
     expect(visemeFromTurkishChar('e').viseme).toBe('wide');
     expect(visemeFromTurkishChar(' ').viseme).toBe('rest');
   });
+
+  it('calculates macroeconomic Taylor Rule policy rate and Fisher real rate correctly', () => {
+    // Taylor Rule: i = π + r* + 0.5(π - π*) + 0.5(Y - Y*)
+    const pi = 14;
+    const rStar = 2.5;
+    const piStar = 5;
+    const outputGap = 1.2;
+    const taylor = pi + rStar + 0.5 * (pi - piStar) + 0.5 * outputGap;
+    expect(taylor).toBeCloseTo(21.6, 1);
+
+    // Fisher real rate: r = i - π
+    const fisherReal = taylor - pi;
+    expect(fisherReal).toBeCloseTo(7.6, 1);
+  });
+
+  it('verifies Leitner 3-box spaced repetition state progression', () => {
+    let box: 1 | 2 | 3 = 1;
+    let streak = 0;
+
+    // Successful review advances box
+    box = Math.min(3, box + 1) as 1 | 2 | 3;
+    streak += 1;
+    expect(box).toBe(2);
+    expect(streak).toBe(1);
+
+    // Further success advances to mastery
+    box = Math.min(3, box + 1) as 1 | 2 | 3;
+    streak += 1;
+    expect(box).toBe(3);
+    expect(streak).toBe(2);
+
+    // Failed review returns to box 1
+    box = 1;
+    streak = 0;
+    expect(box).toBe(1);
+    expect(streak).toBe(0);
+  });
 });

@@ -13,6 +13,10 @@ import {
   DollarSign,
   Maximize2,
   CheckCircle2,
+  Scale,
+  Globe,
+  Coins,
+  Percent,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -22,26 +26,24 @@ interface InteractiveEconomicsLabProps {
   courseTitle?: string;
 }
 
-type SimMode = 'market' | 'fiscal' | 'elasticity';
+export type SimMode = 'market' | 'macro' | 'fx' | 'fiscal';
 
 export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = ({
   onClose,
   onAskCoach,
-  courseTitle = 'Mikroekonomi & İktisat',
+  courseTitle = 'İktisat & İktisadi Modeller',
 }) => {
   const [mode, setMode] = useState<SimMode>('market');
 
-  // 1. Arz - Talep ve Piyasa Dengesi Parametreleri
-  // Talep: Qd = a - bP
-  // Arz:   Qs = c + dP
+  // ==========================================
+  // 1. MİKROEKONOMİ: ARZ - TALEP & PİYASA DENGESİ
+  // ==========================================
   const [demandBase, setDemandBase] = useState<number>(120); // a
   const [demandSlope, setDemandSlope] = useState<number>(4); // b
   const [supplyBase, setSupplyBase] = useState<number>(20); // c
   const [supplySlope, setSupplySlope] = useState<number>(6); // d
   const [currentPrice, setCurrentPrice] = useState<number>(10); // P
 
-  // Analitik Denge Hesaplamaları
-  // a - bP = c + dP => P* = (a - c) / (b + d)
   const eqPrice = useMemo(() => {
     const denom = demandSlope + supplySlope;
     if (denom === 0) return 10;
@@ -52,15 +54,11 @@ export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = (
     return Math.max(1, Math.round(demandBase - demandSlope * eqPrice));
   }, [demandBase, demandSlope, eqPrice]);
 
-  // Mevcut fiyattaki talep ve arz miktarları
   const qDemand = Math.max(0, Math.round(demandBase - demandSlope * currentPrice));
   const qSupply = Math.max(0, Math.round(supplyBase + supplySlope * currentPrice));
   const diffQ = qSupply - qDemand; // > 0: Fazla / Artık, < 0: Kıtlık
 
-  // Tüketici Rantı ve Üretici Rantı
-  // Max P (Qd = 0) = a / b
   const maxDemandP = demandSlope > 0 ? demandBase / demandSlope : 30;
-  // Min P (Qs = 0) = -c / d
   const minSupplyP = supplySlope > 0 ? Math.max(0, -supplyBase / supplySlope) : 0;
 
   const consumerSurplus = useMemo(() => {
@@ -73,47 +71,80 @@ export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = (
     return Math.round(0.5 * (eqPrice - minSupplyP) * eqQuantity);
   }, [eqPrice, minSupplyP, eqQuantity]);
 
-  // 2. Maliye / İltizam & Vergi Akışı Simülatörü Parametreleri
-  const [agriculturalOutput, setAgriculturalOutput] = useState<number>(1000); // 1000 kile buğday
-  const [taxRate, setTaxRate] = useState<number>(12); // %12 aşar / vergi oranı
-  const [mültezimCut, setMültezimCut] = useState<number>(18); // %18 mültezim kâr payı
+  // ==========================================
+  // 2. MAKROEKONOMİ: ENFLASYON & FAİZ (TAYLOR KURALI & FISHER)
+  // ==========================================
+  const [inflationRate, setInflationRate] = useState<number>(14); // % π
+  const [targetInflation, setTargetInflation] = useState<number>(5); // % π*
+  const [neutralRealRate, setNeutralRealRate] = useState<number>(2.5); // % r*
+  const [outputGap, setOutputGap] = useState<number>(1.2); // % Y - Y*
+  const [moneyGrowth, setMoneyGrowth] = useState<number>(18); // % ΔM
+
+  // Taylor Kuralı: i = π + r* + 0.5(π - π*) + 0.5(Y - Y*)
+  const taylorPolicyRate = useMemo(() => {
+    const rate =
+      inflationRate +
+      neutralRealRate +
+      0.5 * (inflationRate - targetInflation) +
+      0.5 * outputGap;
+    return Math.round(rate * 10) / 10;
+  }, [inflationRate, neutralRealRate, targetInflation, outputGap]);
+
+  // Fisher Denklemi Reel Faizi: r = i - π
+  const realInterestRate = useMemo(() => {
+    return Math.round((taylorPolicyRate - inflationRate) * 10) / 10;
+  }, [taylorPolicyRate, inflationRate]);
+
+  // Miktar Teorisi Beklenen Enflasyon: π ≈ ΔM - ΔY
+  const expectedQuantityTheoryInflation = useMemo(() => {
+    const gdpTrendGrowth = 4.0; // potansiyel büyüme
+    return Math.max(0, Math.round((moneyGrowth - gdpTrendGrowth) * 10) / 10);
+  }, [moneyGrowth]);
+
+  // ==========================================
+  // 3. AÇIK EKONOMİ: DÖVİZ KURU & FAİZ PARİTESİ (UIP & PPP)
+  // ==========================================
+  const [domesticRate, setDomesticRate] = useState<number>(36); // % i_TL
+  const [foreignRate, setForeignRate] = useState<number>(4.5); // % i_USD
+  const [cdsSpread, setCdsSpread] = useState<number>(260); // bps (2.6%)
+  const [baseExchangeRate, setBaseExchangeRate] = useState<number>(34.0); // E_0
+  const [domesticInflation, setDomesticInflation] = useState<number>(28); // % π_TR
+  const [foreignInflation, setForeignInflation] = useState<number>(3); // % π_US
+
+  // UIP Net Faiz Arbitrajı: i_TL - i_USD - CDS%
+  const netCarryReturn = useMemo(() => {
+    const cdsPct = cdsSpread / 100;
+    return Math.round((domesticRate - foreignRate - cdsPct) * 10) / 10;
+  }, [domesticRate, foreignRate, cdsSpread]);
+
+  // Satın Alma Gücü Paritesi (PPP) Kuru: E_1 = E_0 * (1 + π_TR) / (1 + π_US)
+  const pppExchangeRate = useMemo(() => {
+    const ratio = (1 + domesticInflation / 100) / (1 + foreignInflation / 100);
+    return Math.round(baseExchangeRate * ratio * 100) / 100;
+  }, [baseExchangeRate, domesticInflation, foreignInflation]);
+
+  // UIP Beklenen Denge Kuru: E_UIP = E_0 * (1 + (i_TL - i_USD - CDS%) / 100)
+  const uipExpectedRate = useMemo(() => {
+    const expectedDeprec = (domesticRate - foreignRate - cdsSpread / 100) / 100;
+    return Math.round(baseExchangeRate * (1 + expectedDeprec) * 100) / 100;
+  }, [baseExchangeRate, domesticRate, foreignRate, cdsSpread]);
+
+  // ==========================================
+  // 4. MALİYE & İLTİZAM AKIŞI
+  // ==========================================
+  const [agriculturalOutput, setAgriculturalOutput] = useState<number>(1000);
+  const [taxRate, setTaxRate] = useState<number>(12);
+  const [mültezimCut, setMültezimCut] = useState<number>(18);
 
   const grossTax = Math.round((agriculturalOutput * taxRate) / 100);
   const mültezimProfit = Math.round((grossTax * mültezimCut) / 100);
   const treasuryRevenue = grossTax - mültezimProfit;
 
-  // Sıfırla
-  const resetMarket = () => {
-    setDemandBase(120);
-    setDemandSlope(4);
-    setSupplyBase(20);
-    setSupplySlope(6);
-    setCurrentPrice(10);
-  };
-
-  const applyPreset = (type: 'shiftDemand' | 'shiftSupply' | 'priceCeiling' | 'priceFloor') => {
-    if (type === 'shiftDemand') {
-      // Tüketici geliri arttı -> Talep sağa kayar
-      setDemandBase(160);
-      setCurrentPrice(14);
-    } else if (type === 'shiftSupply') {
-      // Girdi maliyeti düştü -> Arz arttı
-      setSupplyBase(50);
-      setCurrentPrice(9);
-    } else if (type === 'priceCeiling') {
-      // Taban fiyat / Tavan fiyat (Kıtlık)
-      setCurrentPrice(6);
-    } else if (type === 'priceFloor') {
-      // Taban fiyat (Artık)
-      setCurrentPrice(15);
-    }
-  };
-
-  // SVG Koordinat Dönüşümleri (Genişlik 480, Yükseklik 320)
-  const svgW = 460;
-  const svgH = 300;
-  const padL = 45;
-  const padB = 40;
+  // SVG Çizim Sabitleri
+  const svgW = 420;
+  const svgH = 310;
+  const padL = 40;
+  const padB = 35;
   const padT = 20;
   const padR = 25;
 
@@ -123,11 +154,8 @@ export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = (
   const toSvgX = (q: number) => padL + (Math.max(0, Math.min(maxPlotQ, q)) / maxPlotQ) * (svgW - padL - padR);
   const toSvgY = (p: number) => svgH - padB - (Math.max(0, Math.min(maxPlotP, p)) / maxPlotP) * (svgH - padB - padT);
 
-  // Talep doğrusu uç noktaları
   const dStart = { x: toSvgX(demandBase - demandSlope * 24), y: toSvgY(24) };
   const dEnd = { x: toSvgX(demandBase - demandSlope * 2), y: toSvgY(2) };
-
-  // Arz doğrusu uç noktaları
   const sStart = { x: toSvgX(supplyBase + supplySlope * 2), y: toSvgY(2) };
   const sEnd = { x: toSvgX(supplyBase + supplySlope * 24), y: toSvgY(24) };
 
@@ -136,8 +164,8 @@ export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = (
   const curSupplySvg = { x: toSvgX(qSupply), y: toSvgY(currentPrice) };
 
   return (
-    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/80 p-3 sm:p-6 backdrop-blur-md animate-fade-in select-none font-sans">
-      <div className="relative flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-cyan-500/30 bg-[#090e1c] shadow-[0_25px_90px_rgba(0,0,0,0.85)] text-slate-100">
+    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/85 p-3 sm:p-6 backdrop-blur-xl animate-in fade-in duration-200 select-none font-sans text-slate-100">
+      <div className="relative flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-cyan-500/30 bg-[#090e1c] shadow-2xl">
         {/* Üst Başlık Çubuğu */}
         <div className="flex shrink-0 items-center justify-between border-b border-white/[0.08] bg-[#0c1326] px-5 py-3.5">
           <div className="flex items-center gap-3">
@@ -146,55 +174,58 @@ export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = (
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-white">İnteraktif Akademik Simülasyon Laboratuvarı</h3>
+                <h3 className="text-sm font-bold text-white">Akademik İktisat Simülasyon Laboratuvarı</h3>
                 <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-cyan-300 border border-cyan-500/25">
-                  Canlı Model
+                  Canlı Matematiksel Modeller
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Grafik parametrelerini değiştirin, piyasa dengesi ve refah değişimini anında gözlemleyin.
+                Piyasa dengesi, Taylor kuralı, Fisher reel faizi ve faiz paritesi dinamiklerini etkileşimli deneyimleyin.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.03] p-1">
-              <button
-                onClick={() => setMode('market')}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                  mode === 'market'
-                    ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <TrendingUp className="h-3.5 w-3.5" />
-                <span>Arz - Talep Dengesi</span>
-              </button>
-              <button
-                onClick={() => setMode('fiscal')}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                  mode === 'fiscal'
-                    ? 'bg-purple-500/20 text-purple-200 border border-purple-400/30'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Layers className="h-3.5 w-3.5" />
-                <span>Maliye & İltizam Akışı</span>
-              </button>
-            </div>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] text-slate-400 hover:bg-white/[0.08] hover:text-white transition"
+            title="Kapat"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-            <button
-              onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] text-slate-400 hover:bg-white/[0.08] hover:text-white transition"
-              title="Kapat"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+        {/* Model Mod Seçici Tablar */}
+        <div className="flex items-center gap-1.5 border-b border-white/[0.08] bg-[#080d1a] px-5 py-2 overflow-x-auto text-xs">
+          {[
+            { id: 'market', label: 'Arz - Talep & Piyasa Dengesi', icon: TrendingUp },
+            { id: 'macro', label: 'Enflasyon & Politika Faizi (Taylor)', icon: Percent },
+            { id: 'fx', label: 'Döviz Kuru & Faiz Paritesi (UIP/PPP)', icon: Globe },
+            { id: 'fiscal', label: 'Kamu Maliyesi & İltizam Akışı', icon: Layers },
+          ].map(tab => {
+            const Icon = tab.icon;
+            const active = mode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setMode(tab.id as SimMode)}
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-semibold transition whitespace-nowrap ${
+                  active
+                    ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/35 shadow-xs'
+                    : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Ana İçerik */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 bg-[#060a14]">
+          {/* ========================================================= */}
+          {/* MOD 1: MİKROEKONOMİ ARZ - TALEP & PİYASA DENGESİ */}
+          {/* ========================================================= */}
           {mode === 'market' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
               {/* Sol: İnteraktif Grafik Tuvali (SVG) */}
@@ -207,7 +238,7 @@ export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = (
                   <div className="flex items-center gap-3 text-[11px] font-mono">
                     <span className="text-cyan-300 font-bold">D: Talep</span>
                     <span className="text-amber-300 font-bold">S: Arz</span>
-                    <span className="text-emerald-300 font-bold">E₀: Denge ({eqPrice}₺, {eqQuantity} Adet)</span>
+                    <span className="text-emerald-300 font-bold">E₀: ({eqPrice}₺, {eqQuantity} Adet)</span>
                   </div>
                 </div>
 
@@ -218,464 +249,492 @@ export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = (
                         <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.25" />
                         <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.03" />
                       </linearGradient>
-                      <linearGradient id="psGrad" x1="0" y1="1" x2="0" y2="0">
-                        <stop offset="0%" stopColor="#c084fc" stopOpacity="0.25" />
-                        <stop offset="100%" stopColor="#c084fc" stopOpacity="0.03" />
+                      <linearGradient id="psGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.03" />
                       </linearGradient>
                     </defs>
 
-                    {/* Koordinat Izgaraları */}
+                    {/* Izgara Çizgileri */}
                     {[5, 10, 15, 20, 25].map(p => (
-                      <g key={p}>
-                        <line
-                          x1={padL}
-                          y1={toSvgY(p)}
-                          x2={svgW - padR}
-                          y2={toSvgY(p)}
-                          stroke="rgba(148,163,184,0.09)"
-                          strokeWidth="1"
-                        />
-                        <text
-                          x={padL - 6}
-                          y={toSvgY(p) + 3}
-                          fontSize="9"
-                          fill="#64748b"
-                          textAnchor="end"
-                          fontFamily="monospace"
-                        >
-                          {p}₺
-                        </text>
-                      </g>
+                      <line
+                        key={`gp-${p}`}
+                        x1={padL}
+                        y1={toSvgY(p)}
+                        x2={svgW - padR}
+                        y2={toSvgY(p)}
+                        stroke="rgba(255,255,255,0.05)"
+                        strokeDasharray="2 2"
+                      />
                     ))}
-                    {[30, 60, 90, 120, 150].map(q => (
-                      <g key={q}>
-                        <line
-                          x1={toSvgX(q)}
-                          y1={padT}
-                          x2={toSvgX(q)}
-                          y2={svgH - padB}
-                          stroke="rgba(148,163,184,0.09)"
-                          strokeWidth="1"
-                        />
-                        <text
-                          x={toSvgX(q)}
-                          y={svgH - padB + 14}
-                          fontSize="9"
-                          fill="#64748b"
-                          textAnchor="middle"
-                          fontFamily="monospace"
-                        >
-                          {q}
-                        </text>
-                      </g>
+                    {[40, 80, 120, 160].map(q => (
+                      <line
+                        key={`gq-${q}`}
+                        x1={toSvgX(q)}
+                        y1={padT}
+                        x2={toSvgX(q)}
+                        y2={svgH - padB}
+                        stroke="rgba(255,255,255,0.05)"
+                        strokeDasharray="2 2"
+                      />
                     ))}
 
-                    {/* Ana Eksenler */}
-                    <line
-                      x1={padL}
-                      y1={padT}
-                      x2={padL}
-                      y2={svgH - padB}
-                      stroke="#94a3b8"
-                      strokeWidth="2"
-                    />
-                    <line
-                      x1={padL}
-                      y1={svgH - padB}
-                      x2={svgW - padR + 8}
-                      y2={svgH - padB}
-                      stroke="#94a3b8"
-                      strokeWidth="2"
-                    />
-
-                    {/* Eksen Etiketleri */}
-                    <text x={padL - 10} y={padT - 4} fontSize="11" fontWeight="bold" fill="#38bdf8" textAnchor="end">
-                      P (Fiyat)
-                    </text>
-                    <text x={svgW - padR + 10} y={svgH - padB + 16} fontSize="11" fontWeight="bold" fill="#38bdf8">
-                      Q (Miktar)
-                    </text>
-
-                    {/* Tüketici Rantı Üçgeni (Consumer Surplus) */}
-                    <polygon
-                      points={`${padL},${toSvgY(maxDemandP)} ${eqSvg.x},${eqSvg.y} ${padL},${eqSvg.y}`}
-                      fill="url(#csGrad)"
-                      stroke="rgba(34,211,238,0.3)"
-                      strokeDasharray="2 2"
-                    />
-
-                    {/* Üretici Rantı Üçgeni (Producer Surplus) */}
-                    <polygon
-                      points={`${padL},${toSvgY(minSupplyP)} ${eqSvg.x},${eqSvg.y} ${padL},${eqSvg.y}`}
-                      fill="url(#psGrad)"
-                      stroke="rgba(192,132,252,0.3)"
-                      strokeDasharray="2 2"
-                    />
-
-                    {/* Talep Eğrisi (D) */}
-                    <line
-                      x1={dStart.x}
-                      y1={dStart.y}
-                      x2={dEnd.x}
-                      y2={dEnd.y}
-                      stroke="#22d3ee"
-                      strokeWidth="3.2"
-                      strokeLinecap="round"
-                    />
-                    <text x={dEnd.x + 6} y={dEnd.y + 4} fontSize="12" fontWeight="bold" fill="#22d3ee">
-                      D₀
-                    </text>
-
-                    {/* Arz Eğrisi (S) */}
-                    <line
-                      x1={sStart.x}
-                      y1={sStart.y}
-                      x2={sEnd.x}
-                      y2={sEnd.y}
-                      stroke="#fbbf24"
-                      strokeWidth="3.2"
-                      strokeLinecap="round"
-                    />
-                    <text x={sEnd.x + 6} y={sEnd.y - 2} fontSize="12" fontWeight="bold" fill="#fbbf24">
-                      S₀
-                    </text>
-
-                    {/* Denge Noktası (E0) İzdüşüm Çizgileri */}
-                    <line
-                      x1={padL}
-                      y1={eqSvg.y}
-                      x2={eqSvg.x}
-                      y2={eqSvg.y}
-                      stroke="#34d399"
-                      strokeWidth="1.5"
-                      strokeDasharray="4 3"
-                    />
-                    <line
-                      x1={eqSvg.x}
-                      y1={eqSvg.y}
-                      x2={eqSvg.x}
-                      y2={svgH - padB}
-                      stroke="#34d399"
-                      strokeWidth="1.5"
-                      strokeDasharray="4 3"
-                    />
-
-                    {/* Denge Noktası Çemberi */}
-                    <circle cx={eqSvg.x} cy={eqSvg.y} r="6" fill="#34d399" stroke="#060a14" strokeWidth="2" />
-                    <text
-                      x={eqSvg.x + 8}
-                      y={eqSvg.y - 8}
-                      fontSize="11"
-                      fontWeight="bold"
-                      fill="#34d399"
-                    >
-                      E₀ ({eqPrice}₺, {eqQuantity})
-                    </text>
-
-                    {/* Mevcut Seçilen Fiyat Çizgisi (P) */}
-                    {Math.abs(currentPrice - eqPrice) > 0.3 && (
-                      <g>
-                        <line
-                          x1={padL}
-                          y1={toSvgY(currentPrice)}
-                          x2={Math.max(curDemandSvg.x, curSupplySvg.x) + 12}
-                          y2={toSvgY(currentPrice)}
-                          stroke={diffQ > 0 ? '#f43f5e' : '#f59e0b'}
-                          strokeWidth="2"
-                          strokeDasharray="5 3"
-                        />
-                        {/* Artık / Kıtlık Aralığı Şeridi */}
-                        <line
-                          x1={Math.min(curDemandSvg.x, curSupplySvg.x)}
-                          y1={toSvgY(currentPrice)}
-                          x2={Math.max(curDemandSvg.x, curSupplySvg.x)}
-                          y2={toSvgY(currentPrice)}
-                          stroke={diffQ > 0 ? '#f43f5e' : '#f59e0b'}
-                          strokeWidth="5"
-                          strokeLinecap="round"
-                        />
-                        <circle cx={curDemandSvg.x} cy={toSvgY(currentPrice)} r="4" fill="#22d3ee" />
-                        <circle cx={curSupplySvg.x} cy={toSvgY(currentPrice)} r="4" fill="#fbbf24" />
-                      </g>
+                    {/* Tüketici Rantı Üçgeni */}
+                    {maxDemandP > eqPrice && (
+                      <polygon
+                        points={`${toSvgX(0)},${toSvgY(maxDemandP)} ${eqSvg.x},${eqSvg.y} ${toSvgX(0)},${eqSvg.y}`}
+                        fill="url(#csGrad)"
+                      />
                     )}
+
+                    {/* Üretici Rantı Üçgeni */}
+                    {eqPrice > minSupplyP && (
+                      <polygon
+                        points={`${toSvgX(0)},${toSvgY(minSupplyP)} ${eqSvg.x},${eqSvg.y} ${toSvgX(0)},${eqSvg.y}`}
+                        fill="url(#psGrad)"
+                      />
+                    )}
+
+                    {/* Denge İzdüşüm Çizgileri */}
+                    <line x1={padL} y1={eqSvg.y} x2={eqSvg.x} y2={eqSvg.y} stroke="#34d399" strokeDasharray="3 3" />
+                    <line x1={eqSvg.x} y1={eqSvg.y} x2={eqSvg.x} y2={svgH - padB} stroke="#34d399" strokeDasharray="3 3" />
+
+                    {/* Talep Doğrusu (D) */}
+                    <line x1={dStart.x} y1={dStart.y} x2={dEnd.x} y2={dEnd.y} stroke="#22d3ee" strokeWidth="2.5" />
+                    <text x={dEnd.x + 8} y={dEnd.y + 4} fill="#22d3ee" fontSize="12" fontWeight="bold">D</text>
+
+                    {/* Arz Doğrusu (S) */}
+                    <line x1={sStart.x} y1={sStart.y} x2={sEnd.x} y2={sEnd.y} stroke="#f59e0b" strokeWidth="2.5" />
+                    <text x={sEnd.x + 8} y={sEnd.y + 4} fill="#f59e0b" fontSize="12" fontWeight="bold">S</text>
+
+                    {/* Denge Noktası E0 */}
+                    <circle cx={eqSvg.x} cy={eqSvg.y} r="5" fill="#10b981" stroke="#ffffff" strokeWidth="2" />
+
+                    {/* Eksenler */}
+                    <line x1={padL} y1={svgH - padB} x2={svgW - padR} y2={svgH - padB} stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
+                    <line x1={padL} y1={svgH - padB} x2={padL} y2={padT} stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
+                    <text x={svgW - padR + 5} y={svgH - padB + 4} fill="#94a3b8" fontSize="11" fontWeight="bold">Q</text>
+                    <text x={padL - 10} y={padT - 6} fill="#94a3b8" fontSize="11" fontWeight="bold">P</text>
+                  </svg>
+                </div>
+              </div>
+
+              {/* Sağ: Kontrol Parametreleri */}
+              <div className="lg:col-span-5 flex flex-col space-y-4">
+                <div className="rounded-2xl border border-white/[0.08] bg-[#070d1d] p-4 space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
+                    Piyasa Parametreleri
+                  </h4>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Piyasa Fiyatı (P)</span>
+                      <span className="font-mono font-bold text-white">{currentPrice} ₺</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="2"
+                      max="22"
+                      step="1"
+                      value={currentPrice}
+                      onChange={e => setCurrentPrice(Number(e.target.value))}
+                      className="w-full accent-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Talep Otonom Kayması (a)</span>
+                      <span className="font-mono font-bold text-cyan-300">{demandBase}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="80"
+                      max="180"
+                      step="5"
+                      value={demandBase}
+                      onChange={e => setDemandBase(Number(e.target.value))}
+                      className="w-full accent-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Arz Otonom Kayması (c)</span>
+                      <span className="font-mono font-bold text-amber-300">{supplyBase}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="60"
+                      step="5"
+                      value={supplyBase}
+                      onChange={e => setSupplyBase(Number(e.target.value))}
+                      className="w-full accent-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Piyasa Çıktı Kartı */}
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-slate-300">Denge Fiyatı (P*):</span>
+                    <span className="font-mono font-bold text-emerald-300">{eqPrice} ₺</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-300">Denge Miktarı (Q*):</span>
+                    <span className="font-mono font-bold text-emerald-300">{eqQuantity} Adet</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-300">Tüketici Rantı (CS):</span>
+                    <span className="font-mono text-cyan-300">{consumerSurplus} ₺</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-300">Üretici Rantı (PS):</span>
+                    <span className="font-mono text-amber-300">{producerSurplus} ₺</span>
+                  </div>
+                  <div className="pt-2 border-t border-white/[0.06] text-[11px] text-slate-300 font-semibold">
+                    Durum: {diffQ === 0 ? 'Tam Piyasa Temizliği (Denge)' : diffQ > 0 ? `Artık / Ürün Fazlası (${diffQ} adet)` : `Kıtlık / Talep Fazlası (${Math.abs(diffQ)} adet)`}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* MOD 2: MAKROEKONOMİ: ENFLASYON & POLİTİKA FAİZİ (TAYLOR) */}
+          {/* ========================================================= */}
+          {mode === 'macro' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              <div className="lg:col-span-7 flex flex-col rounded-2xl border border-white/[0.08] bg-[#060a14] p-5 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
+                    <Percent className="h-4 w-4" />
+                    <span>Taylor Kuralı Politika Faizi Reaksiyon Modeli</span>
+                  </h4>
+                  <span className="font-mono text-xs text-purple-300 font-bold">
+                    i = π + r* + 0.5(π - π*) + 0.5(Y - Y*)
+                  </span>
+                </div>
+
+                {/* SVG Taylor Kuralı Eğrisi */}
+                <div className="relative w-full aspect-[16/9] flex items-center justify-center rounded-xl bg-[#03060f] p-3 border border-white/[0.04]">
+                  <svg viewBox="0 0 400 220" className="w-full h-full">
+                    {/* Eksenler */}
+                    <line x1="40" y1="180" x2="380" y2="180" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+                    <line x1="40" y1="180" x2="40" y2="20" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" />
+                    <text x="350" y="200" fill="#94a3b8" fontSize="10">Enflasyon (π)</text>
+                    <text x="15" y="30" fill="#94a3b8" fontSize="10">Faiz (i)</text>
+
+                    {/* 45 Derece Nötr Çizgisi (i = π) */}
+                    <line x1="40" y1="180" x2="320" y2="20" stroke="rgba(255,255,255,0.15)" strokeDasharray="3 3" />
+                    <text x="325" y="30" fill="#64748b" fontSize="9">i = π (0 Reel Faiz)</text>
+
+                    {/* Taylor Kuralı Tepki Doğrusu */}
+                    <line x1="50" y1="165" x2="360" y2="35" stroke="#c084fc" strokeWidth="3" />
+                    <text x="320" y="55" fill="#c084fc" fontSize="10" fontWeight="bold">Taylor Doğrusu</text>
+
+                    {/* Dinamik Denge Noktası */}
+                    {(() => {
+                      const cx = 40 + (inflationRate / 30) * 320;
+                      const cy = 180 - (taylorPolicyRate / 40) * 160;
+                      return (
+                        <g>
+                          <line x1="40" y1={cy} x2={cx} y2={cy} stroke="#38bdf8" strokeDasharray="2 2" />
+                          <line x1={cx} y1={cy} x2={cx} y2="180" stroke="#38bdf8" strokeDasharray="2 2" />
+                          <circle cx={cx} cy={cy} r="6" fill="#38bdf8" stroke="#ffffff" strokeWidth="2" />
+                          <text x={cx + 8} y={cy - 4} fill="#ffffff" fontSize="11" fontWeight="bold">
+                            i* = %{taylorPolicyRate}
+                          </text>
+                        </g>
+                      );
+                    })()}
                   </svg>
                 </div>
 
-                {/* Piyasa Durum Kartı */}
-                <div
-                  className={`mt-3 rounded-xl border p-3 text-xs leading-relaxed transition ${
-                    Math.abs(diffQ) < 2
-                      ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
-                      : diffQ > 0
-                      ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
-                      : 'border-amber-500/35 bg-amber-500/10 text-amber-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-bold text-[13px] mb-1">
-                    <span>
-                      {Math.abs(diffQ) < 2
-                        ? 'Piyasa Tam Dengede (E₀)'
-                        : diffQ > 0
-                        ? `Piyasa Artığı (Arz Fazlası: +${diffQ} Adet)`
-                        : `Piyasa Kıtlığı (Talep Fazlası: ${Math.abs(diffQ)} Adet)`}
-                    </span>
-                    <span className="font-mono text-xs">
-                      P = {currentPrice}₺ (Denge: {eqPrice}₺)
-                    </span>
-                  </div>
-                  <p className="text-[11px] opacity-90">
-                    {Math.abs(diffQ) < 2
-                      ? `Arz edilen miktar (${qSupply}) ile talep edilen miktar (${qDemand}) eşitlenmiştir. Görünmez el (fiyat mekanizması) tam etkin çalışmaktadır.`
-                      : diffQ > 0
-                      ? `Fiyat denge fiyatının üzerinde (${currentPrice}₺ > ${eqPrice}₺). Satıcılar ellerindeki ${diffQ} adetlik stoku eritmek için fiyatı düşürmek zorunda kalacaktır.`
-                      : `Fiyat denge fiyatının altında (${currentPrice}₺ < ${eqPrice}₺). Tüketiciler mal bulamadığı için kuyruklar oluşacak, fiyat yukarı doğru itilecektir.`}
+                {/* Formül ve Akademik Açıklama */}
+                <div className="rounded-xl border border-purple-500/20 bg-purple-500/[0.06] p-3 text-xs space-y-1.5">
+                  <div className="font-semibold text-purple-200">Fisher Denklemi & Reel Getiri:</div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Nominal Politika Faizi (%{taylorPolicyRate}) - Enflasyon (%{inflationRate}) ={' '}
+                    <strong className={realInterestRate >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+                      Reel Faiz: %{realInterestRate}
+                    </strong>
+                    {realInterestRate < 0 && ' (Negatif reel faiz: Tasarruf cezalandırılır, harcama öne çekilir).'}
                   </p>
                 </div>
               </div>
 
-              {/* Sağ: Canlı Kontrol Paneli & Hızlı Senaryolar */}
-              <div className="lg:col-span-5 space-y-4">
-                {/* 1. Fiyat Kontrolü */}
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <SlidersHorizontal className="h-3.5 w-3.5 text-cyan-400" />
-                      Piyasa Fiyatı ($P$)
-                    </label>
-                    <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-500/15 px-2 py-0.5 rounded border border-cyan-500/25">
-                      {currentPrice} ₺
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={3}
-                    max={22}
-                    step={0.5}
-                    value={currentPrice}
-                    onChange={e => setCurrentPrice(Number(e.target.value))}
-                    className="w-full accent-cyan-400 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                    <span>3 ₺ (Düşük)</span>
-                    <button
-                      onClick={() => setCurrentPrice(eqPrice)}
-                      className="text-cyan-400 hover:underline font-semibold"
-                    >
-                      Dengeye Getir ({eqPrice} ₺)
-                    </button>
-                    <span>22 ₺ (Yüksek)</span>
-                  </div>
-                </div>
-
-                {/* 2. Talep ve Arz Eğrisi Kaymaları */}
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 space-y-3">
-                  <h4 className="text-xs font-bold text-slate-200">Eğri Kayması & Dışsal Şoklar</h4>
-                  <div className="space-y-2">
-                    <div>
-                      <div className="flex justify-between text-[11px] text-slate-300 mb-1">
-                        <span>Tüketici Geliri / Tercih (Talep $a$):</span>
-                        <span className="font-mono font-bold text-cyan-300">{demandBase}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={80}
-                        max={180}
-                        step={5}
-                        value={demandBase}
-                        onChange={e => setDemandBase(Number(e.target.value))}
-                        className="w-full accent-cyan-400 cursor-pointer"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-[11px] text-slate-300 mb-1">
-                        <span>Teknoloji / Girdi Maliyeti (Arz $c$):</span>
-                        <span className="font-mono font-bold text-amber-300">{supplyBase}</span>
-                      </div>
-                      <input
-                        type="range"
-                        min={0}
-                        max={60}
-                        step={5}
-                        value={supplyBase}
-                        onChange={e => setSupplyBase(Number(e.target.value))}
-                        className="w-full accent-amber-400 cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. İktisadi Refah & Rant Hesabı */}
-                <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.03] to-cyan-500/[0.03] p-4 space-y-2">
-                  <h4 className="text-xs font-bold text-slate-200 flex items-center justify-between">
-                    <span>Toplumsal Refah & Rant Dağılımı</span>
-                    <span className="font-mono text-cyan-300 font-bold">
-                      {consumerSurplus + producerSurplus} ₺
-                    </span>
+              {/* Sağ: Makro Parametre Kontrolleri */}
+              <div className="lg:col-span-5 flex flex-col space-y-4">
+                <div className="rounded-2xl border border-white/[0.08] bg-[#070d1d] p-4 space-y-3.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-purple-300">
+                    Makroekonomik Girdiler
                   </h4>
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                    <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 p-2.5">
-                      <div className="text-[10px] text-cyan-300 uppercase font-semibold">Tüketici Rantı (CS)</div>
-                      <div className="text-base font-bold text-white mt-0.5">{consumerSurplus} ₺</div>
-                      <p className="text-[9px] text-slate-400 mt-0.5">Tüketicinin ödemeye hazır olduğu fazlalık</p>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Gerçekleşen / Beklenen Enflasyon (π)</span>
+                      <span className="font-mono font-bold text-white">%{inflationRate}</span>
                     </div>
-                    <div className="rounded-xl border border-purple-500/25 bg-purple-500/10 p-2.5">
-                      <div className="text-[10px] text-purple-300 uppercase font-semibold">Üretici Rantı (PS)</div>
-                      <div className="text-base font-bold text-white mt-0.5">{producerSurplus} ₺</div>
-                      <p className="text-[9px] text-slate-400 mt-0.5">Üreticinin maliyeti üstündeki kazancı</p>
+                    <input
+                      type="range"
+                      min="2"
+                      max="30"
+                      step="0.5"
+                      value={inflationRate}
+                      onChange={e => setInflationRate(Number(e.target.value))}
+                      className="w-full accent-purple-400"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Çıktı Açığı (Y - Y*)</span>
+                      <span className="font-mono font-bold text-cyan-300">
+                        {outputGap > 0 ? `+${outputGap}` : outputGap}%
+                      </span>
                     </div>
+                    <input
+                      type="range"
+                      min="-6"
+                      max="6"
+                      step="0.2"
+                      value={outputGap}
+                      onChange={e => setOutputGap(Number(e.target.value))}
+                      className="w-full accent-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Para Arzı Yıllık Artışı (ΔM)</span>
+                      <span className="font-mono font-bold text-amber-300">%{moneyGrowth}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="40"
+                      step="1"
+                      value={moneyGrowth}
+                      onChange={e => setMoneyGrowth(Number(e.target.value))}
+                      className="w-full accent-amber-400"
+                    />
                   </div>
                 </div>
 
-                {/* 4. Hazır Senaryo Butonları */}
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    onClick={() => applyPreset('shiftDemand')}
-                    className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition"
-                  >
-                    📈 Gelir Artışı (Talep Kayması)
-                  </button>
-                  <button
-                    onClick={() => applyPreset('shiftSupply')}
-                    className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-300 hover:border-amber-400/40 hover:text-amber-200 transition"
-                  >
-                    ⚙️ Verimlilik Artışı (Arz Kayması)
-                  </button>
-                  <button
-                    onClick={() => applyPreset('priceCeiling')}
-                    className="rounded-lg border border-rose-500/25 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-300 hover:bg-rose-500/20 transition"
-                  >
-                    ⚠️ Tavan Fiyat (Kıtlık)
-                  </button>
-                  <button
-                    onClick={resetMarket}
-                    className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-400 hover:text-white transition flex items-center gap-1"
-                  >
-                    <RotateCcw className="h-3 w-3" /> Sıfırla
-                  </button>
+                <div className="rounded-2xl border border-purple-400/30 bg-purple-500/10 p-4 space-y-2 text-xs">
+                  <div className="flex justify-between font-bold">
+                    <span>Taylor Kuralı Tavsiye Faizi:</span>
+                    <span className="font-mono text-purple-300 text-sm">%{taylorPolicyRate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Miktar Teorisi Enflasyon Öngörüsü:</span>
+                    <span className="font-mono text-amber-300">%{expectedQuantityTheoryInflation}</span>
+                  </div>
+                  <div className="pt-2 border-t border-white/[0.08] text-[11px] text-slate-300">
+                    Merkez Bankası Duruşu:{' '}
+                    <strong className="text-white">
+                      {realInterestRate > 2
+                        ? 'Sıkı Para Politikası (Şahin)'
+                        : realInterestRate < 0
+                        ? 'Gevşek Para Politikası (Güvercin)'
+                        : 'Nötr Denge Politikası'}
+                    </strong>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {mode === 'fiscal' && (
-            <div className="space-y-5">
-              <div className="rounded-2xl border border-purple-500/25 bg-purple-500/10 p-4">
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-sm font-bold text-purple-200">
-                    Osmanlı İktisat Tarihi & Mali Sistem: İltizam ve Hazine Gelirleri Akışı
+          {/* ========================================================= */}
+          {/* MOD 3: DÖVİZ KURU & FAİZ PARİTESİ (UIP & PPP) */}
+          {/* ========================================================= */}
+          {mode === 'fx' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              <div className="lg:col-span-7 flex flex-col rounded-2xl border border-white/[0.08] bg-[#060a14] p-5 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                    <Globe className="h-4 w-4" />
+                    <span>Açık Faiz Paritesi (UIP) & Satın Alma Gücü (PPP)</span>
                   </h4>
-                  <span className="rounded bg-purple-500/20 px-2 py-0.5 text-[10px] font-mono text-purple-300">
-                    Maliye Modeli
+                  <span className="font-mono text-xs text-emerald-300 font-bold">
+                    ΔE^e ≈ i_TL - i_USD - CDS%
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Tarımsal üretimden alınan aşar vergisinin doğrudan devlet eliyle değil, mültezimler aracılığıyla peşin ihale (iltizam) yöntemiyle hazineye aktarılma dinamiği:
-                </p>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-white/[0.08] bg-[#060a14] p-4 space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">Tarımsal Üretim Hacmi (Kile)</label>
-                  <input
-                    type="range"
-                    min={500}
-                    max={2500}
-                    step={100}
-                    value={agriculturalOutput}
-                    onChange={e => setAgriculturalOutput(Number(e.target.value))}
-                    className="w-full accent-cyan-400"
-                  />
-                  <div className="font-mono text-lg font-bold text-cyan-300">{agriculturalOutput} Kile</div>
-                  <p className="text-[10px] text-slate-400">Köylünün hasat ettiği toplam ürün</p>
+                {/* Canlı Döviz ve Getiri Kartları */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-center">
+                    <p className="text-[10px] uppercase font-bold text-slate-400">Başlangıç Spot Kur (E₀)</p>
+                    <p className="text-lg font-bold text-white font-mono mt-1">{baseExchangeRate.toFixed(2)} ₺</p>
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-center">
+                    <p className="text-[10px] uppercase font-bold text-emerald-300">UIP 1 Yıl Sonu Beklenti</p>
+                    <p className="text-lg font-bold text-emerald-300 font-mono mt-1">{uipExpectedRate.toFixed(2)} ₺</p>
+                  </div>
+                  <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-center">
+                    <p className="text-[10px] uppercase font-bold text-cyan-300">PPP Enflasyon Denge Kuru</p>
+                    <p className="text-lg font-bold text-cyan-300 font-mono mt-1">{pppExchangeRate.toFixed(2)} ₺</p>
+                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/[0.08] bg-[#060a14] p-4 space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">Aşar / Vergi Oranı (%)</label>
-                  <input
-                    type="range"
-                    min={10}
-                    max={25}
-                    step={1}
-                    value={taxRate}
-                    onChange={e => setTaxRate(Number(e.target.value))}
-                    className="w-full accent-amber-400"
-                  />
-                  <div className="font-mono text-lg font-bold text-amber-300">%{taxRate} ({grossTax} Kile)</div>
-                  <p className="text-[10px] text-slate-400">Şer'i ve örfi vergi toplamı</p>
-                </div>
-
-                <div className="rounded-2xl border border-white/[0.08] bg-[#060a14] p-4 space-y-2">
-                  <label className="text-xs font-semibold text-slate-300">Mültezim Payı & İhale Kârı (%)</label>
-                  <input
-                    type="range"
-                    min={5}
-                    max={35}
-                    step={1}
-                    value={mültezimCut}
-                    onChange={e => setMültezimCut(Number(e.target.value))}
-                    className="w-full accent-purple-400"
-                  />
-                  <div className="font-mono text-lg font-bold text-purple-300">%{mültezimCut} ({mültezimProfit} Kile)</div>
-                  <p className="text-[10px] text-slate-400">Vergi toplayıcının risk ve kâr payı</p>
+                {/* Sermaye Akımı ve Arbitraj Göstergesi */}
+                <div className="rounded-xl border border-white/10 bg-[#080d1d] p-4 space-y-2 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-slate-200">Net Carry Trade Arbitraj Getirisi:</span>
+                    <span className={`font-mono font-bold text-sm ${netCarryReturn >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      %{netCarryReturn}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    {netCarryReturn > 5
+                      ? '🟢 Yüksek TL faizi ve kontrol altındaki risk primi nedeniyle yabancı sermaye girişi güçlü. TL reel olarak değer kazanma eğiliminde.'
+                      : netCarryReturn < 0
+                      ? '🔴 Yurtiçi faiz yabancı getiri + risk primini karşılamıyor. Sermaye çıkışı ve döviz kurunda hızlı yükseliş riski yüksek.'
+                      : '🟡 Faiz ve kur risk primi dengede. Carry trade arbitraj fırsatı sınırlı.'}
+                  </p>
                 </div>
               </div>
 
-              {/* Akış Diagramı */}
-              <div className="rounded-2xl border border-white/[0.08] bg-[#060a14] p-5">
-                <div className="flex items-center justify-between text-xs text-slate-400 pb-3 border-b border-white/[0.06]">
-                  <span>Mali Transfer Zinciri</span>
-                  <span>Net Hazine Geliri: <strong className="text-emerald-300 font-mono text-sm">{treasuryRevenue} Kile</strong></span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-4 text-center">
-                  <div className="rounded-xl border border-slate-700 bg-slate-800/40 p-3">
-                    <div className="text-[10px] text-slate-400 uppercase font-semibold">1. Üretici (Reaya)</div>
-                    <div className="font-bold text-white mt-1">{agriculturalOutput - grossTax} Kile</div>
-                    <div className="text-[10px] text-slate-400 mt-1">Köylüye kalan geçimlik ürün</div>
+              {/* Sağ: Döviz Parametreleri */}
+              <div className="lg:col-span-5 flex flex-col space-y-4">
+                <div className="rounded-2xl border border-white/[0.08] bg-[#070d1d] p-4 space-y-3.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                    Faiz & Kur Değişkenleri
+                  </h4>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Yurtiçi Politika Faizi (i_TL)</span>
+                      <span className="font-mono font-bold text-white">%{domesticRate}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="10"
+                      max="60"
+                      step="1"
+                      value={domesticRate}
+                      onChange={e => setDomesticRate(Number(e.target.value))}
+                      className="w-full accent-emerald-400"
+                    />
                   </div>
-                  <div className="flex items-center justify-center text-slate-500">➔</div>
-                  <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-3">
-                    <div className="text-[10px] text-purple-300 uppercase font-semibold">2. Mültezim (İltizam)</div>
-                    <div className="font-bold text-purple-200 mt-1">{mültezimProfit} Kile</div>
-                    <div className="text-[10px] text-slate-400 mt-1">İhale komisyonu ve kârı</div>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Yurtdışı FED Faizi (i_USD)</span>
+                      <span className="font-mono font-bold text-cyan-300">%{foreignRate}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="8"
+                      step="0.25"
+                      value={foreignRate}
+                      onChange={e => setForeignRate(Number(e.target.value))}
+                      className="w-full accent-cyan-400"
+                    />
                   </div>
-                  <div className="flex items-center justify-center text-slate-500">➔</div>
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-                    <div className="text-[10px] text-emerald-300 uppercase font-semibold">3. Hazine-i Amire</div>
-                    <div className="font-bold text-emerald-200 mt-1">{treasuryRevenue} Kile</div>
-                    <div className="text-[10px] text-slate-400 mt-1">Merkezi ordu ve maaşlar</div>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Ülke Risk Primi (CDS)</span>
+                      <span className="font-mono font-bold text-amber-300">{cdsSpread} bps</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="100"
+                      max="700"
+                      step="10"
+                      value={cdsSpread}
+                      onChange={e => setCdsSpread(Number(e.target.value))}
+                      className="w-full accent-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Yurtiçi Yıllık Enflasyon (π_TR)</span>
+                      <span className="font-mono font-bold text-purple-300">%{domesticInflation}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="60"
+                      step="1"
+                      value={domesticInflation}
+                      onChange={e => setDomesticInflation(Number(e.target.value))}
+                      className="w-full accent-purple-400"
+                    />
                   </div>
                 </div>
               </div>
             </div>
           )}
-        </div>
 
-        {/* Alt Bilgi ve Asistan Köprüsü */}
-        <div className="flex shrink-0 items-center justify-between border-t border-white/[0.08] bg-[#070c18] px-5 py-3">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-            <span>Simülatör anlık mikro-ekonomik ve maliye teorisi formülleriyle çalışır.</span>
-          </div>
+          {/* ========================================================= */}
+          {/* MOD 4: KAMU MALİYESİ & İLTİZAM AKIŞI */}
+          {/* ========================================================= */}
+          {mode === 'fiscal' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              <div className="lg:col-span-7 flex flex-col rounded-2xl border border-white/[0.08] bg-[#060a14] p-5 space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                  Osmanlı İltizam Sistemi & Vergi Akışı
+                </h4>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <p className="text-[10px] text-slate-400">Reaya Üretimi</p>
+                    <p className="text-base font-bold text-white mt-1 font-mono">{agriculturalOutput} Kile</p>
+                  </div>
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+                    <p className="text-[10px] text-amber-300">Mültezim Kâr Payı</p>
+                    <p className="text-base font-bold text-amber-300 mt-1 font-mono">{mültezimProfit} ₺</p>
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
+                    <p className="text-[10px] text-emerald-300">Devlet Hazinesi Geliri</p>
+                    <p className="text-base font-bold text-emerald-300 mt-1 font-mono">{treasuryRevenue} ₺</p>
+                  </div>
+                </div>
+              </div>
 
-          {onAskCoach && (
-            <Button
-              size="sm"
-              onClick={() => {
-                onClose();
-                onAskCoach(
-                  mode === 'market'
-                    ? `Piyasa fiyatı ${currentPrice} TL iken oluşan ${
-                        diffQ > 0 ? `arz fazlasını (${diffQ} adet)` : `kıtlığı (${Math.abs(diffQ)} adet)`
-                      } ve dengeye dönüş mekanizmasını açıklar mısın?`
-                    : `İltizam sisteminde mültezim kâr payı ile merkezi hazine gelirleri arasındaki gerilimi açıklar mısın?`,
-                );
-              }}
-              className="gap-1.5 rounded-xl bg-cyan-500 px-3.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Bu Modeli Akıl Hocasına Sor</span>
-            </Button>
+              <div className="lg:col-span-5 flex flex-col space-y-4">
+                <div className="rounded-2xl border border-white/[0.08] bg-[#070d1d] p-4 space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                    Maliye Parametreleri
+                  </h4>
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Aşar Vergi Oranı</span>
+                      <span className="font-mono font-bold text-white">%{taxRate}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="30"
+                      step="1"
+                      value={taxRate}
+                      onChange={e => setTaxRate(Number(e.target.value))}
+                      className="w-full accent-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs text-slate-300 mb-1">
+                      <span>Mültezim Komisyonu</span>
+                      <span className="font-mono font-bold text-amber-300">%{mültezimCut}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="35"
+                      step="1"
+                      value={mültezimCut}
+                      onChange={e => setMültezimCut(Number(e.target.value))}
+                      className="w-full accent-amber-400"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

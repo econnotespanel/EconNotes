@@ -43,6 +43,12 @@ import {
   Edit2,
   PictureInPicture,
   Layout,
+  Network,
+  Brain,
+  Search,
+  Mic,
+  MicOff,
+  Eye,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,6 +57,10 @@ import ReactMarkdown from 'react-markdown';
 import EconLogo from '@/components/EconLogo';
 import LessonWrapUp from './video/LessonWrapUp';
 import InteractiveEconomicsLab from './video/InteractiveEconomicsLab';
+import ConceptKnowledgeMap from './video/ConceptKnowledgeMap';
+import SpacedRepetitionFlashcards from './video/SpacedRepetitionFlashcards';
+import SearchTranscriptModal from './video/SearchTranscriptModal';
+import AccessibilityDialog, { AccessibilitySettings } from './video/AccessibilityDialog';
 import {
   downloadVideoStudyNotes,
   printVideoStudyNotesPdf,
@@ -230,6 +240,108 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     }
   }, [personalNotes, notesStorageKey]);
 
+  // 6. Gelişmiş Öğrenme Teknolojileri & Yeni Nesil Durumlar
+  const [conceptMapOpen, setConceptMapOpen] = useState(false);
+  const [flashcardsOpen, setFlashcardsOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [accessibilityOpen, setAccessibilityOpen] = useState(false);
+  const [examMode, setExamMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('econnotes_studio_exam_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [audioOnlyMode, setAudioOnlyMode] = useState<boolean>(false);
+  const [isListeningVoice, setIsListeningVoice] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const recognitionRef = useRef<any>(null);
+
+  const [accessibilitySettings, setAccessibilitySettings] = useState<AccessibilitySettings>(() => {
+    try {
+      const raw = localStorage.getItem('econnotes_studio_accessibility');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return {
+      subtitleSize: 'md',
+      highContrast: false,
+      reduceMotion: false,
+      lowDataMode: false,
+      explanationLevel: 'orta',
+    };
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('econnotes_studio_accessibility', JSON.stringify(accessibilitySettings));
+    } catch {}
+  }, [accessibilitySettings]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('econnotes_studio_exam_mode', String(examMode));
+    } catch {}
+  }, [examMode]);
+
+  const toggleVoiceQuestion = useCallback(() => {
+    if (isListeningVoice) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListeningVoice(false);
+      return;
+    }
+
+    const SpeechRec =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      toast.error('Sesli komut tarayıcınız tarafından desteklenmiyor.');
+      return;
+    }
+
+    try {
+      const rec = new SpeechRec();
+      rec.lang = 'tr-TR';
+      rec.continuous = false;
+      rec.interimResults = true;
+
+      rec.onstart = () => {
+        setIsListeningVoice(true);
+        setVoiceTranscript('');
+        toast.info('Sizi dinliyorum, sorunuzu sorabilirsiniz...');
+      };
+
+      rec.onresult = (event: any) => {
+        const text = Array.from(event.results)
+          .map((r: any) => r[0].transcript)
+          .join('');
+        setVoiceTranscript(text);
+      };
+
+      rec.onerror = () => {
+        setIsListeningVoice(false);
+      };
+
+      rec.onend = () => {
+        setIsListeningVoice(false);
+        setVoiceTranscript(prev => {
+          if (prev.trim()) {
+            setSidebarOpen(true);
+            setActiveTab('coach');
+            sendCoachQuestion(prev);
+          }
+          return '';
+        });
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+    } catch {
+      setIsListeningVoice(false);
+      toast.error('Mikrofon erişimi başlatılamadı.');
+    }
+  }, [isListeningVoice]);
+
   // 6. Akıcı Türkçe Neural Ses Ön-Hazırlık (Buffer) ve Önizleme durumları
   const [isPreparingAudio, setIsPreparingAudio] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -250,6 +362,36 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const [coachInput, setCoachInput] = useState('');
   const [coachLoading, setCoachLoading] = useState(false);
   const coachEndRef = useRef<HTMLDivElement>(null);
+  const [speakingCoachIdx, setSpeakingCoachIdx] = useState<number | null>(null);
+
+  const toggleSpeakCoach = useCallback((idx: number, markdownText: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      toast.error('Tarayıcınız sesli okumayı desteklemiyor.');
+      return;
+    }
+    if (speakingCoachIdx === idx) {
+      window.speechSynthesis.cancel();
+      setSpeakingCoachIdx(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const clean = markdownText
+      .replace(/[*_#`[\]()]/g, '')
+      .replace(/https?:\/\/\S+/g, '')
+      .trim();
+    if (!clean) return;
+
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.lang = 'tr-TR';
+    utter.rate = 1.05;
+    const trVoice = window.speechSynthesis.getVoices().find(v => v.lang.startsWith('tr'));
+    if (trVoice) utter.voice = trVoice;
+
+    utter.onend = () => setSpeakingCoachIdx(null);
+    utter.onerror = () => setSpeakingCoachIdx(null);
+    setSpeakingCoachIdx(idx);
+    window.speechSynthesis.speak(utter);
+  }, [speakingCoachIdx]);
 
   // 8. Referanslar
   const containerRef = useRef<HTMLDivElement>(null);
@@ -784,6 +926,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     course: material.course || '',
     totalDurationSec,
     layoutMode,
+    accessibilitySettings,
   };
   const lastLiveSpeakerRef = useRef<Speaker>('Deniz');
 
@@ -909,6 +1052,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
         mouthOpen: smoothMouthRef.current,
         inBreathPause: sync.inBreathPause || sync.buffering,
         layoutMode: live.layoutMode,
+        subtitleSize: live.accessibilitySettings?.subtitleSize || 'md',
       };
 
       try {
@@ -1103,7 +1247,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const studioElement = (
     <div
       ref={containerRef}
-      className="pointer-events-auto fixed inset-0 z-[200] flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#050811] text-slate-100 select-none font-sans"
+      className={`pointer-events-auto fixed inset-0 z-[200] flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#050811] text-slate-100 select-none font-sans ${
+        accessibilitySettings.highContrast ? 'contrast-125 saturate-110' : ''
+      } ${accessibilitySettings.reduceMotion ? '[&_*]:transition-none [&_*]:animate-none' : ''}`}
     >
       {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
       <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-[#070b16]/95 px-3 sm:px-5 backdrop-blur-xl">
@@ -1133,13 +1279,82 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           </div>
         </div>
 
-        {/* Sağ: Akademik Araçlar */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        {/* Sağ: Akademik ve Yeni Nesil Araçlar */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
+          {/* Sınav Modu Toggle */}
+          <button
+            onClick={() => {
+              setExamMode(m => {
+                const next = !m;
+                toast.success(next ? 'Sınav Hazırlık Modu Açıldı: Formüller ve püf noktalar öne çıkarıldı' : 'Normal Çalışma Moduna Dönüldü');
+                return next;
+              });
+            }}
+            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition whitespace-nowrap ${
+              examMode
+                ? 'border-amber-400 bg-amber-500/20 text-amber-200 ring-1 ring-amber-400/50 shadow-xs'
+                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-200'
+            }`}
+            title="Sınav Hazırlık Modu: Kritik bilgiler ve sınav sorularını öne çıkarır"
+          >
+            <Sparkles className={`h-3.5 w-3.5 ${examMode ? 'text-amber-300 fill-amber-300' : 'text-amber-400'}`} />
+            <span className="hidden xl:inline">Sınav Modu</span>
+          </button>
+
+          {/* Podcast / Sesli Ders Modu Toggle */}
+          <button
+            onClick={() => {
+              setAudioOnlyMode(m => {
+                const next = !m;
+                toast.info(next ? 'Podcast & Sesli Ders Modu: Görseller kapatıldı, ses ve teleprompter dökümü öne çıkarıldı' : 'Stüdyo Görsel Moduna Dönüldü');
+                return next;
+              });
+            }}
+            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition whitespace-nowrap ${
+              audioOnlyMode
+                ? 'border-purple-400 bg-purple-500/20 text-purple-200 ring-1 ring-purple-400/50 shadow-xs'
+                : 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-purple-400/40 hover:text-purple-200'
+            }`}
+            title="Podcast ve Sesli Ders Modu (Ekran ve Batarya Tasarrufu)"
+          >
+            <Headphones className="h-3.5 w-3.5 text-purple-400" />
+            <span className="hidden xl:inline">Podcast</span>
+          </button>
+
+          {/* Ders İçi Akıllı Arama */}
+          <button
+            onClick={() => setSearchModalOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition"
+            title="Ders İçi Akıllı Arama: Cümle, altyazı ve kavramlarda ara"
+          >
+            <Search className="h-3.5 w-3.5 text-cyan-400" />
+          </button>
+
+          {/* Akıllı Kavram Haritası */}
+          <button
+            onClick={() => setConceptMapOpen(true)}
+            className="hidden lg:flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 hover:bg-white/[0.08] transition whitespace-nowrap"
+            title="Akıllı Kavram Haritası"
+          >
+            <Network className="h-3.5 w-3.5 text-cyan-400" />
+            <span className="hidden 2xl:inline">Kavram Haritası</span>
+          </button>
+
+          {/* Aralıklı Tekrar & Bilgi Kartları */}
+          <button
+            onClick={() => setFlashcardsOpen(true)}
+            className="hidden lg:flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-300 hover:border-purple-400/40 hover:text-purple-200 hover:bg-white/[0.08] transition whitespace-nowrap"
+            title="Aralıklı Tekrar & Bilgi Kartları (SM-2)"
+          >
+            <Brain className="h-3.5 w-3.5 text-purple-400" />
+            <span className="hidden 2xl:inline">Bilgi Kartları</span>
+          </button>
+
           {/* İnteraktif Simülatör (Lab) */}
           <button
             onClick={() => setSimLabOpen(true)}
             className="flex h-8 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-500/20 shadow-xs whitespace-nowrap"
-            title="İnteraktif Piyasa Dengesi & İktisat Laboratuvarı"
+            title="İnteraktif Piyasa, Taylor ve Döviz Simülasyonu"
           >
             <Activity className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
             <span className="hidden lg:inline">Simülasyon</span>
@@ -1153,10 +1368,19 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
                 : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:border-cyan-400/50 hover:bg-cyan-500/20'
             }`}
-            title="Kavram Eşleştirme ve Hocanın Sorabileceği Sorular"
+            title="Kavram Eşleştirme ve Sınav Soruları"
           >
             <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-            <span className="hidden md:inline">Eşleştirme & Sınav</span>
+            <span className="hidden md:inline">Test & Sınav</span>
+          </button>
+
+          {/* Erişilebilirlik ve Kişiselleştirme */}
+          <button
+            onClick={() => setAccessibilityOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white transition"
+            title="Erişilebilirlik ve Kişiselleştirme Tercihleri"
+          >
+            <Eye className="h-3.5 w-3.5 text-slate-300" />
           </button>
 
           {/* Ses Ayarları Menüsü — YALNIZCA YÖNETİCİLERE AÇIK */}
@@ -1457,6 +1681,56 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 onClick={togglePlay}
                 className="block h-full w-full cursor-pointer object-contain"
               />
+
+              {/* Sınav Hazırlık Modu Aktif Rozeti */}
+              {examMode && (
+                <div className="absolute top-3 left-3 z-30 flex items-center gap-1.5 rounded-full border border-amber-400/50 bg-amber-950/80 px-3 py-1 backdrop-blur-md text-[11px] font-bold text-amber-200 shadow-lg animate-in fade-in">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-300 fill-amber-300 animate-pulse" />
+                  <span>Sınav Hazırlık Modu Aktif</span>
+                </div>
+              )}
+
+              {/* Podcast & Sesli Ders Modu Katmanı */}
+              {audioOnlyMode && (
+                <div className="absolute inset-0 z-30 flex flex-col items-center justify-between bg-gradient-to-b from-[#060a16] via-[#090f24] to-[#040710] p-6 text-center select-none animate-in fade-in duration-300">
+                  <div className="flex items-center gap-2 rounded-full border border-purple-500/40 bg-purple-500/15 px-3 py-1 text-xs font-semibold text-purple-200">
+                    <Headphones className="h-3.5 w-3.5 animate-pulse text-purple-400" />
+                    <span>Podcast & Sesli Ders Modu (Ekran ve Batarya Tasarrufu)</span>
+                  </div>
+
+                  <div className="flex flex-col items-center justify-center space-y-4 my-auto">
+                    <div className={`relative flex h-28 w-28 sm:h-36 sm:w-36 items-center justify-center rounded-full border-4 border-white/10 bg-[#070d1d] shadow-[0_0_60px_rgba(168,85,247,0.25)] ${isPlaying ? 'animate-pulse' : ''}`}>
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 text-slate-950 font-bold shadow-md">
+                        <Headphones className="h-7 w-7 text-white" />
+                      </div>
+                    </div>
+
+                    <div className="flex items-end justify-center gap-1.5 h-10">
+                      {[40, 75, 55, 90, 60, 100, 70, 85, 45, 95, 65, 80].map((h, i) => (
+                        <div
+                          key={i}
+                          className={`w-1.5 rounded-full bg-gradient-to-t from-cyan-500 to-purple-400 transition-all duration-150 ${isPlaying ? 'animate-pulse' : 'opacity-30'}`}
+                          style={{ height: isPlaying ? `${Math.max(20, h * 0.9)}%` : '20%' }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="max-w-2xl w-full rounded-2xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md space-y-2 text-left">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-cyan-300">
+                        {liveSpeaker === 'Deniz' ? 'Dr. Deniz (Anlatıcı)' : 'Barış (Soru Soran)'}
+                      </span>
+                      <span className="font-mono text-slate-400 text-[11px]">
+                        Bölüm {activeSceneIndex + 1}: {currentScene.title}
+                      </span>
+                    </div>
+                    <p className="text-sm sm:text-base text-slate-100 font-medium leading-relaxed">
+                      {currentScene.sentences[speechSyncRef.current.sentenceIndex] || currentScene.narration}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Kaldığın Yerden Devam Et Kartı */}
               {resumePrompt && !hasStartedOnce && !isPreparingAudio && (
@@ -1858,7 +2132,35 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-bold text-white">İktisat Labı</p>
-                  <p className="truncate text-[10px] text-slate-300">Piyasa Simülasyonu</p>
+                  <p className="truncate text-[10px] text-slate-300">Piyasa & Makro</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setConceptMapOpen(true)}
+                className="flex items-center gap-2 rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-500/15 to-pink-500/10 p-2 text-left transition hover:border-purple-400/50 hover:from-purple-500/20"
+                title="Ders İçi Kavram Ağı & Bilgi Haritası"
+              >
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300">
+                  <Network className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-white">Kavram Ağı</p>
+                  <p className="truncate text-[10px] text-slate-300">Görsel Harita</p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setFlashcardsOpen(true)}
+                className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/15 to-orange-500/10 p-2 text-left transition hover:border-amber-400/50 hover:from-amber-500/20"
+                title="Aralıklı Tekrar & Bilgi Kartları (SM-2)"
+              >
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
+                  <Brain className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-white">Bilgi Kartları</p>
+                  <p className="truncate text-[10px] text-slate-300">Aralıklı Tekrar</p>
                 </div>
               </button>
             </div>
@@ -2248,8 +2550,25 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                           }`}
                         >
                           {m.role === 'assistant' ? (
-                            <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-li:my-0.5">
-                              <ReactMarkdown>{m.content}</ReactMarkdown>
+                            <div className="space-y-2">
+                              <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-li:my-0.5">
+                                <ReactMarkdown>{m.content}</ReactMarkdown>
+                              </div>
+                              <div className="flex items-center justify-end pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSpeakCoach(i, m.content)}
+                                  className={`flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[10px] font-medium transition ${
+                                    speakingCoachIdx === i
+                                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 ring-1 ring-cyan-400/30'
+                                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+                                  }`}
+                                  title="Asistan yanıtını Türkçe seslendir"
+                                >
+                                  <Volume2 className={`h-3 w-3 ${speakingCoachIdx === i ? 'animate-pulse text-cyan-300' : ''}`} />
+                                  <span>{speakingCoachIdx === i ? 'Durdur' : 'Sesli Dinle'}</span>
+                                </button>
+                              </div>
                             </div>
                           ) : (
                             <p>{m.content}</p>
@@ -2287,7 +2606,28 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     ))}
                   </div>
 
+                  {isListeningVoice && (
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-950/40 p-2 text-xs text-red-200 animate-pulse">
+                      <Mic className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                      <span className="truncate flex-1 font-medium">
+                        {voiceTranscript || 'Sizi dinliyorum, konuşabilirsiniz...'}
+                      </span>
+                    </div>
+                  )}
+
                   <div className="mt-2 flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={toggleVoiceQuestion}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${
+                        isListeningVoice
+                          ? 'border-red-500 bg-red-500/25 text-red-400 animate-pulse ring-2 ring-red-500/30'
+                          : 'border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                      }`}
+                      title={isListeningVoice ? 'Sesli Dinlemeyi Durdur' : 'Mikrofonla Sesli Soru Sor'}
+                    >
+                      {isListeningVoice ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </button>
                     <Input
                       value={coachInput}
                       onChange={e => setCoachInput(e.target.value)}
@@ -2351,6 +2691,62 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               goToScene(0, 0);
               setIsPlaying(true);
             }}
+          />
+        )}
+
+        {/* Akıllı Kavram Haritası (Knowledge Graph) */}
+        {conceptMapOpen && (
+          <ConceptKnowledgeMap
+            scenes={scenes}
+            allTerms={allTerms}
+            courseTitle={material.title}
+            onClose={() => setConceptMapOpen(false)}
+            onJumpToScene={(sceneIdx, timeSec) => {
+              setConceptMapOpen(false);
+              unlockStudioAudio();
+              goToScene(sceneIdx, timeSec || 0);
+              setIsPlaying(true);
+            }}
+          />
+        )}
+
+        {/* Aralıklı Tekrar & Bilgi Kartları (SM-2 / Leitner) */}
+        {flashcardsOpen && (
+          <SpacedRepetitionFlashcards
+            materialId={material.id}
+            scenes={scenes}
+            keyFacts={keyFacts}
+            wrongQuestionIndexes={[]}
+            onClose={() => setFlashcardsOpen(false)}
+            onJumpToScene={sceneIdx => {
+              setFlashcardsOpen(false);
+              unlockStudioAudio();
+              goToScene(sceneIdx, 0);
+              setIsPlaying(true);
+            }}
+          />
+        )}
+
+        {/* Akıllı İçerik Arama (Cümle, Altyazı ve Terim Dökümü) */}
+        {searchModalOpen && (
+          <SearchTranscriptModal
+            scenes={scenes}
+            onClose={() => setSearchModalOpen(false)}
+            onJumpTo={(sceneIdx, timeSec) => {
+              setSearchModalOpen(false);
+              unlockStudioAudio();
+              goToScene(sceneIdx, timeSec);
+              setIsPlaying(true);
+            }}
+          />
+        )}
+
+        {/* Erişilebilirlik ve Kişiselleştirme Ayarları */}
+        {accessibilityOpen && (
+          <AccessibilityDialog
+            settings={accessibilitySettings}
+            onChange={setAccessibilitySettings}
+            onClose={() => setAccessibilityOpen(false)}
           />
         )}
       </div>

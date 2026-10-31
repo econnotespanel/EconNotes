@@ -33,6 +33,7 @@ export interface StageFrame {
   mouthOpen: number;
   inBreathPause: boolean;
   layoutMode?: 'standard' | 'whiteboard' | 'focus';
+  subtitleSize?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 const FONT = 'Inter, "Segoe UI", system-ui, -apple-system, sans-serif';
@@ -1917,7 +1918,9 @@ function drawCinemaSubtitles(ctx: CanvasRenderingContext2D, f: StageFrame, activ
   ctx.textAlign = 'left';
 
   const sentence = sc.sentences[f.sentenceIndex] || sc.narration;
-  ctx.font = font(600, 25.5);
+  const subFontSize =
+    f.subtitleSize === 'sm' ? 21 : f.subtitleSize === 'lg' ? 29 : f.subtitleSize === 'xl' ? 33 : 25.5;
+  ctx.font = font(600, subFontSize);
   const maxW = w - 58;
   const words = sentence.split(' ').filter(Boolean);
   const lines: { word: string; start: number }[][] = [[]];
