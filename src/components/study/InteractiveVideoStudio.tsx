@@ -1108,17 +1108,17 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
       <header className="relative z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] bg-[#070b16]/95 px-3 sm:px-5 backdrop-blur-xl">
         {/* Sol: Beyaz EconNotes Logosu + Çıkış + Başlık */}
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex items-center px-1" title="EconNotes Çalışma Stüdyosu">
-            <EconLogo allWhite className="h-6 sm:h-7 w-auto" />
+        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3 flex-1 overflow-hidden">
+          <div className="flex items-center shrink-0 pr-1" title="EconNotes Çalışma Stüdyosu">
+            <EconLogo allWhite className="h-7 w-28 sm:h-8 sm:w-36 shrink-0" />
           </div>
 
-          <div className="h-5 w-px bg-white/[0.12] hidden sm:block" />
+          <div className="h-5 w-px bg-white/[0.12] hidden sm:block shrink-0" />
 
           {onClose && (
             <button
               onClick={onClose}
-              className="group flex h-8 items-center gap-1.5 rounded-xl border border-white/[0.09] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
+              className="group flex h-8 shrink-0 items-center gap-1.5 rounded-xl border border-white/[0.09] bg-white/[0.03] px-2.5 text-xs font-medium text-slate-300 transition hover:border-white/25 hover:bg-white/[0.08] hover:text-white"
               title="Stüdyodan Çık (Esc)"
             >
               <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
@@ -1126,70 +1126,44 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
             </button>
           )}
 
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1 overflow-hidden">
             <div className="flex items-center gap-2">
               {material.course && (
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/12 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-cyan-300 ring-1 ring-inset ring-cyan-400/25">
-                  <span className={`h-1.5 w-1.5 rounded-full ${isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-cyan-500/12 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-cyan-300 ring-1 ring-inset ring-cyan-400/25 whitespace-nowrap">
+                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isPlaying ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'}`} />
                   {material.course}
                 </span>
               )}
-              <span className="hidden lg:inline text-[11px] text-slate-400">
-                {DIAGRAM_BADGE_TR[currentScene.diagram.type]}
-              </span>
+              <h1 className="truncate text-xs sm:text-sm font-semibold tracking-tight text-white" title={studio.title}>
+                {studio.title}
+              </h1>
             </div>
-            <h1 className="truncate text-sm font-semibold tracking-tight text-white sm:text-[15px]">
-              {studio.title}
-            </h1>
           </div>
         </div>
 
         {/* Sağ: Akademik Araçlar */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {/* Sahne Görünümü Modu */}
-          <div className="hidden sm:flex items-center rounded-xl border border-white/[0.08] bg-white/[0.03] p-0.5" title="Sunum ve Tahta Düzeni">
-            {(
-              [
-                { id: 'standard', label: 'Stüdyo' },
-                { id: 'whiteboard', label: 'Sanal Tahta' },
-                { id: 'focus', label: 'Odak' },
-              ] as const
-            ).map(mode => (
-              <button
-                key={mode.id}
-                onClick={() => setLayoutMode(mode.id)}
-                className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
-                  layoutMode === mode.id
-                    ? 'bg-cyan-500/20 text-cyan-200 font-semibold shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-
           {/* İnteraktif Simülatör (Lab) */}
           <button
             onClick={() => setSimLabOpen(true)}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-500/20 shadow-xs"
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 text-xs font-semibold text-emerald-200 transition hover:border-emerald-400/50 hover:bg-emerald-500/20 shadow-xs whitespace-nowrap"
             title="İnteraktif Piyasa Dengesi & İktisat Laboratuvarı"
           >
-            <Activity className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="hidden md:inline">İnteraktif Simülasyon</span>
+            <Activity className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+            <span className="hidden lg:inline">Simülasyon</span>
           </button>
 
           {/* Ders Sonu Eşleştirme & Sınav Soruları */}
           <button
             onClick={openPracticeWrapUp}
-            className={`flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition ${
+            className={`flex h-8 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-semibold transition whitespace-nowrap ${
               wrapUpOpen
                 ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-200'
                 : 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200 hover:border-cyan-400/50 hover:bg-cyan-500/20'
             }`}
             title="Kavram Eşleştirme ve Hocanın Sorabileceği Sorular"
           >
-            <Trophy className="h-3.5 w-3.5 text-amber-400" />
+            <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             <span className="hidden md:inline">Eşleştirme & Sınav</span>
           </button>
 
@@ -1772,20 +1746,46 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.02] p-0.5">
-                {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
-                  <button
-                    key={spd}
-                    onClick={() => setPlaybackSpeed(spd)}
-                    className={`rounded-lg px-2 py-1 font-mono text-[11px] transition ${
-                      playbackSpeed === spd
-                        ? 'bg-cyan-500/20 font-semibold text-cyan-300'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {spd}x
-                  </button>
-                ))}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* Sahne Düzeni (Stüdyo / Sanal Tahta / Odak) */}
+                <div className="hidden sm:flex items-center rounded-xl border border-white/[0.08] bg-white/[0.02] p-0.5" title="Sunum Düzeni">
+                  {(
+                    [
+                      { id: 'standard', label: 'Stüdyo' },
+                      { id: 'whiteboard', label: 'Sanal Tahta' },
+                      { id: 'focus', label: 'Odak' },
+                    ] as const
+                  ).map(mode => (
+                    <button
+                      key={mode.id}
+                      onClick={() => setLayoutMode(mode.id)}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-medium transition ${
+                        layoutMode === mode.id
+                          ? 'bg-cyan-500/20 text-cyan-200 font-semibold shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Hız Seçenekleri */}
+                <div className="flex items-center gap-1 rounded-xl border border-white/[0.07] bg-white/[0.02] p-0.5">
+                  {[0.75, 1.0, 1.25, 1.5, 1.75].map(spd => (
+                    <button
+                      key={spd}
+                      onClick={() => setPlaybackSpeed(spd)}
+                      className={`rounded-lg px-2 py-1 font-mono text-[11px] transition ${
+                        playbackSpeed === spd
+                          ? 'bg-cyan-500/20 font-semibold text-cyan-300'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {spd}x
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -1839,25 +1839,35 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               })}
             </div>
 
-            <div className="border-b border-white/[0.07] bg-[#070c18] px-3.5 py-2.5">
+            <div className="grid grid-cols-2 gap-2 border-b border-white/[0.07] bg-[#070c18] p-2.5">
               <button
                 onClick={openPracticeWrapUp}
-                className="flex w-full items-center justify-between gap-2 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/15 via-blue-500/10 to-purple-500/10 px-3 py-2 text-left transition hover:border-cyan-400/50 hover:from-cyan-500/20"
+                className="flex items-center gap-2 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/15 to-blue-500/10 p-2 text-left transition hover:border-cyan-400/50 hover:from-cyan-500/20"
+                title="Kavram Eşleştirme & Sınav Soruları"
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
-                    <Trophy className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-white">
-                      Kavram Eşleştirme & Sınav Soruları
-                    </p>
-                    <p className="truncate text-[10px] text-slate-300">
-                      {matchingPairs.length} eşleştirme · {examQuestions.length} hocanın sorabileceği soru
-                    </p>
-                  </div>
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
+                  <Trophy className="h-3.5 w-3.5" />
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-cyan-300" />
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-white">Eşleştirme & Test</p>
+                  <p className="truncate text-[10px] text-slate-300">
+                    {matchingPairs.length} çift · {examQuestions.length} soru
+                  </p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setSimLabOpen(true)}
+                className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 to-cyan-500/10 p-2 text-left transition hover:border-emerald-400/50 hover:from-emerald-500/20"
+                title="İnteraktif Piyasa & İktisat Laboratuvarı"
+              >
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+                  <Activity className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-white">İktisat Labı</p>
+                  <p className="truncate text-[10px] text-slate-300">Piyasa Simülasyonu</p>
+                </div>
               </button>
             </div>
 
