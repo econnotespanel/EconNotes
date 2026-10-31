@@ -1457,7 +1457,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               </button>
 
               {voiceMenuOpen && (
-                <div className="absolute right-0 top-10 z-50 w-80 sm:w-[340px] rounded-2xl border border-white/10 bg-[#0b1120]/98 p-4 shadow-2xl backdrop-blur-xl space-y-3 text-xs">
+                <div
+                  style={{ backgroundColor: '#0a0f1d' }}
+                  className="absolute right-0 top-10 z-[60] w-80 sm:w-[340px] rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-3 text-xs"
+                >
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="font-semibold text-white">Ses Ayarları (Yönetici Paneli)</span>
@@ -2024,9 +2027,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 {chaptersMenuOpen && (
                   <div
                     ref={chaptersMenuRef}
-                    className="fixed inset-x-2 sm:absolute sm:inset-x-auto sm:left-0 sm:w-96 bottom-16 sm:bottom-11 z-50 max-h-[65vh] sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/10 bg-[#080d1b]/98 p-3 shadow-2xl backdrop-blur-2xl space-y-1.5 animate-in fade-in slide-in-from-bottom-2"
+                    style={{ backgroundColor: '#0a0f1d' }}
+                    className="fixed inset-x-2 sm:absolute sm:inset-x-auto sm:left-0 sm:w-96 bottom-16 sm:bottom-11 z-[60] max-h-[65vh] sm:max-h-[380px] overflow-y-auto rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-1.5 animate-in fade-in slide-in-from-bottom-2 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]"
                   >
-                    <div className="flex items-center justify-between px-1 pb-2 border-b border-white/[0.08]">
+                    <div className="sticky top-0 z-10 flex items-center justify-between px-1 pb-2 border-b border-white/[0.1] bg-[#0a0f1d]">
                       <div>
                         <span className="text-xs font-bold text-white block">Ders Bölümleri ({scenes.length} Bölüm)</span>
                         <span className="text-[11px] text-slate-400 truncate max-w-[240px] block">{studio.title}</span>
@@ -2048,7 +2052,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                             className={`flex w-full items-start gap-2.5 rounded-xl p-2.5 text-left transition ${
                               isCurrent
                                 ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 ring-1 ring-cyan-400/30'
-                                : 'text-slate-300 hover:bg-white/[0.06] hover:text-white border border-transparent'
+                                : 'bg-white/[0.03] text-slate-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.05]'
                             }`}
                           >
                             <span className="font-mono text-xs font-bold text-cyan-400 shrink-0 mt-0.5">
@@ -2110,7 +2114,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 {settingsMenuOpen && (
                   <div
                     ref={settingsMenuRef}
-                    className="fixed inset-x-4 sm:absolute sm:inset-x-auto sm:right-0 sm:w-72 bottom-16 sm:bottom-11 z-50 rounded-2xl border border-white/10 bg-[#080d1b]/98 p-3.5 shadow-2xl backdrop-blur-2xl space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
+                    style={{ backgroundColor: '#0a0f1d' }}
+                    className="fixed inset-x-4 sm:absolute sm:inset-x-auto sm:right-0 sm:w-72 bottom-16 sm:bottom-11 z-[60] rounded-2xl border border-white/[0.14] bg-[#0a0f1d] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.95)] space-y-3 text-xs animate-in fade-in slide-in-from-bottom-2"
                   >
                     <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08]">
                       <span className="font-bold text-white flex items-center gap-1.5">
@@ -2193,7 +2198,10 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
 
         {/* SAĞ ÇALIŞMA PANELİ */}
         {sidebarOpen && (
-          <aside className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[400px] lg:static lg:w-[410px] xl:w-[430px] shrink-0 flex-col border-l border-white/[0.08] bg-[#080d1a]/98 backdrop-blur-2xl shadow-2xl lg:shadow-none">
+          <aside
+            style={{ backgroundColor: '#080d1a' }}
+            className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[400px] lg:static lg:w-[410px] xl:w-[430px] shrink-0 flex-col border-l border-white/[0.08] bg-[#080d1a] backdrop-blur-2xl shadow-2xl lg:shadow-none"
+          >
             <div className="flex items-center justify-between border-b border-white/[0.07] bg-[#060a14] px-3.5 py-2 lg:hidden">
               <span className="text-xs font-semibold text-slate-200">Ders Notları ve Pekiştirme</span>
               <button
