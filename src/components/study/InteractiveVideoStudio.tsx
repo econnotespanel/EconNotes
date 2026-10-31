@@ -1365,7 +1365,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
       {/* 1. MODERN SİNEMATİK ÜST ÇUBUK — Sol Üst Saf Beyaz EconNotes Logolu, Sıfır 1080p Yazısı */}
       <header className={`relative z-30 flex ${isMobileLandscape ? 'h-10 px-2 sm:px-3' : 'h-14 px-2.5 sm:px-5'} shrink-0 items-center justify-between gap-2 sm:gap-3 border-b border-white/[0.08] bg-[#070b16]/95 backdrop-blur-xl`}>
         {/* Sol: Çıkış / Geri Dön + Beyaz EconNotes Logosu (Asla sıkışmaz, shrink-0) */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
           {onClose && (
             <button
               onClick={() => {
@@ -1383,7 +1383,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
           )}
 
           <div className="flex items-center shrink-0" title="EconNotes Çalışma Stüdyosu">
-            <EconLogo allWhite className={isMobileLandscape ? 'h-5 w-20 shrink-0' : 'h-6 w-22 sm:h-7 sm:w-28 shrink-0'} />
+            <EconLogo allWhite className={isMobileLandscape ? 'h-6.5 w-26 sm:h-7 sm:w-28 shrink-0' : 'h-7.5 w-30 sm:h-8 sm:w-34 shrink-0'} />
           </div>
         </div>
 
@@ -1826,7 +1826,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   onClick={togglePlay}
                   className="group absolute inset-0 z-10 flex cursor-pointer flex-col items-center justify-center bg-gradient-to-t from-[#040710]/85 via-[#040710]/40 to-transparent backdrop-blur-[1.5px] transition-all"
                 >
-                  <div className={`flex items-center justify-center rounded-full bg-white/95 text-slate-950 shadow-[0_0_50px_rgba(34,211,238,0.45)] transition-transform duration-300 group-hover:scale-110 ${
+                  <div className={`flex items-center justify-center rounded-full bg-cyan-400 hover:bg-cyan-300 text-slate-950 shadow-[0_0_50px_rgba(34,211,238,0.45)] transition-transform duration-300 group-hover:scale-110 ${
                     isMobileLandscape ? 'h-11 w-11' : 'h-16 w-16 sm:h-20 sm:w-20'
                   }`}>
                     <Play className={`fill-slate-950 ml-0.5 ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7 sm:h-8 sm:w-8'}`} />
@@ -1982,7 +1982,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                 <button
                   onClick={togglePlay}
                   disabled={isPreparingAudio}
-                  className={`flex ${isMobileLandscape ? 'h-7 px-2.5 text-[11px]' : 'h-9 sm:h-8 px-3 sm:px-3.5 text-xs'} items-center gap-1.5 rounded-xl bg-white font-bold text-slate-950 shadow-sm transition hover:bg-cyan-50 disabled:opacity-75 active:scale-95 touch-manipulation`}
+                  className={`flex ${isMobileLandscape ? 'h-7 px-2.5 text-[11px]' : 'h-9 sm:h-8 px-3 sm:px-3.5 text-xs'} items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-400 text-slate-950 hover:from-cyan-400 hover:to-cyan-300 font-bold shadow-md shadow-cyan-500/25 transition disabled:opacity-75 active:scale-95 touch-manipulation`}
                 >
                   {isPreparingAudio ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-900" />
@@ -2161,84 +2161,85 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               })}
             </div>
 
-            <div className={`border-b border-white/[0.07] bg-[#070c18] ${isMobileLandscape ? 'flex items-center gap-1.5 p-1.5 overflow-x-auto no-scrollbar' : 'grid grid-cols-2 gap-2 p-2.5'}`}>
-              <button
-                onClick={openPracticeWrapUp}
-                className={`flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20`}
-                title="Kavram Eşleştirme & Sınav Soruları"
-              >
-                <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300`}>
-                  <Trophy className="h-3.5 w-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-white">Eşleştirme & Test</p>
-                  {!isMobileLandscape && (
+            {/* Pekiştirme & Çalışma Araçları: Yalnızca Notlar sekmesinde düzenli 2'li dikey grid olarak görünür */}
+            {activeTab === 'notes' && (
+              <div className="grid grid-cols-2 gap-2 border-b border-white/[0.07] bg-[#070c18] p-2 sm:p-2.5">
+                <button
+                  onClick={openPracticeWrapUp}
+                  className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2 text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20 active:scale-95 touch-manipulation"
+                  title="Kavram Eşleştirme & Sınav Soruları"
+                >
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
+                    <Trophy className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-white">Eşleştirme & Test</p>
                     <p className="truncate text-[10px] text-slate-300">
                       {matchingPairs.length} çift · {examQuestions.length} soru
                     </p>
-                  )}
-                </div>
-              </button>
-
-              {/* İktisat Laboratuvarı: Sadece Mikro ve Makro İktisat Derslerinde Gösterilir */}
-              {isEconomicsLabApplicable ? (
-                <button
-                  onClick={() => setSimLabOpen(true)}
-                  className={`flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-emerald-400/50 hover:bg-emerald-500/20`}
-                  title="İnteraktif Piyasa & İktisat Laboratuvarı"
-                >
-                  <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300`}>
-                    <Activity className="h-3.5 w-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-white">İktisat Labı</p>
-                    {!isMobileLandscape && <p className="truncate text-[10px] text-slate-300">Piyasa & Makro</p>}
                   </div>
                 </button>
-              ) : (
+
+                {/* İktisat Laboratuvarı: Sadece Mikro ve Makro İktisat Derslerinde Gösterilir */}
+                {isEconomicsLabApplicable ? (
+                  <button
+                    onClick={() => setSimLabOpen(true)}
+                    className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2 text-left transition hover:border-emerald-400/50 hover:bg-emerald-500/20 active:scale-95 touch-manipulation"
+                    title="İnteraktif Piyasa & İktisat Laboratuvarı"
+                  >
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/20 text-emerald-300">
+                      <Activity className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-white">İktisat Labı</p>
+                      <p className="truncate text-[10px] text-slate-300">Piyasa & Makro</p>
+                    </div>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setSearchModalOpen(true)}
+                    className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-2 text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20 active:scale-95 touch-manipulation"
+                    title="Ders İçi Akıllı İçerik Arama"
+                  >
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300">
+                      <Search className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-white">Ders İçi Arama</p>
+                      <p className="truncate text-[10px] text-slate-300">Kelime & Konu</p>
+                    </div>
+                  </button>
+                )}
+
                 <button
-                  onClick={() => setSearchModalOpen(true)}
-                  className={`flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-cyan-400/50 hover:bg-cyan-500/20`}
-                  title="Ders İçi Akıllı İçerik Arama"
+                  onClick={() => setConceptMapOpen(true)}
+                  className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-purple-500/30 bg-purple-500/10 p-2 text-left transition hover:border-purple-400/50 hover:bg-purple-500/20 active:scale-95 touch-manipulation"
+                  title="Ders İçi Kavram Ağı & Bilgi Haritası"
                 >
-                  <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-300`}>
-                    <Search className="h-3.5 w-3.5" />
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300">
+                    <Network className="h-3.5 w-3.5" />
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-bold text-white">Ders İçi Arama</p>
-                    {!isMobileLandscape && <p className="truncate text-[10px] text-slate-300">Kelime & Konu</p>}
+                    <p className="truncate text-xs font-bold text-white">Kavram Ağı</p>
+                    <p className="truncate text-[10px] text-slate-300">Görsel Harita</p>
                   </div>
                 </button>
-              )}
 
-              <button
-                onClick={() => setConceptMapOpen(true)}
-                className={`flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-purple-400/50 hover:bg-purple-500/20`}
-                title="Ders İçi Kavram Ağı & Bilgi Haritası"
-              >
-                <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300`}>
-                  <Network className="h-3.5 w-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-white">Kavram Ağı</p>
-                  {!isMobileLandscape && <p className="truncate text-[10px] text-slate-300">Görsel Harita</p>}
-                </div>
-              </button>
-
-              <button
-                onClick={() => setFlashcardsOpen(true)}
-                className={`flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 ${isMobileLandscape ? 'px-2 py-1 shrink-0' : 'p-2'} text-left transition hover:border-amber-400/50 hover:from-amber-500/20`}
-                title="Aralıklı Tekrar & Bilgi Kartları"
-              >
-                <div className={`flex ${isMobileLandscape ? 'h-5 w-5' : 'h-7 w-7'} shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300`}>
-                  <Brain className="h-3.5 w-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-white">Bilgi Kartları</p>
-                  {!isMobileLandscape && <p className="truncate text-[10px] text-slate-300">Aralıklı Tekrar</p>}
-                </div>
-              </button>
-            </div>
+                <button
+                  onClick={() => setFlashcardsOpen(true)}
+                  className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2 text-left transition hover:border-amber-400/50 hover:from-amber-500/20 active:scale-95 touch-manipulation"
+                  title="Aralıklı Tekrar & Bilgi Kartları"
+                >
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/20 text-amber-300">
+                    <Brain className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-white">Bilgi Kartları</p>
+                    <p className="truncate text-[10px] text-slate-300">Aralıklı Tekrar</p>
+                  </div>
+                </button>
+              </div>
+            )}
 
             <div className={`flex-1 overflow-y-auto ${isMobileLandscape ? 'p-2.5 space-y-2.5' : 'p-4 space-y-4'} [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]`}>
               {activeTab === 'notes' && (
@@ -2610,8 +2611,8 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
               )}
 
               {activeTab === 'coach' && (
-                <div className="flex h-[calc(100dvh-230px)] min-h-[340px] flex-col">
-                  <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+                <div className={`flex ${isMobileLandscape ? 'h-[calc(100dvh-120px)]' : 'h-[calc(100dvh-220px)]'} flex-col min-h-0`}>
+                  <div className="flex-1 min-h-0 space-y-3 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.25)_transparent]">
                     {coachMessages.map((m, i) => (
                       <div
                         key={i}
@@ -2662,7 +2663,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     <div ref={coachEndRef} />
                   </div>
 
-                  <div className="mt-2 flex flex-wrap gap-1.5 border-t border-white/[0.07] pt-2.5">
+                  <div className={`mt-2 flex ${isMobileLandscape ? 'overflow-x-auto no-scrollbar pb-1' : 'flex-wrap'} gap-1.5 border-t border-white/[0.07] pt-2 shrink-0`}>
                     {[
                       'Bu grafiği ve formülü açıkla',
                       'Konuyu gerçek hayat örneğiyle anlat',
@@ -2674,7 +2675,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                         key={prompt}
                         onClick={() => sendCoachQuestion(prompt)}
                         disabled={coachLoading}
-                        className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200 disabled:opacity-50"
+                        className={`rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-200 disabled:opacity-50 ${
+                          isMobileLandscape ? 'shrink-0 whitespace-nowrap' : ''
+                        }`}
                       >
                         {prompt}
                       </button>
@@ -2682,7 +2685,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                   </div>
 
                   {isListeningVoice && (
-                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-950/40 p-2 text-xs text-red-200 animate-pulse">
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-950/40 p-2 text-xs text-red-200 animate-pulse shrink-0">
                       <Mic className="h-3.5 w-3.5 text-red-400 shrink-0" />
                       <span className="truncate flex-1 font-medium">
                         {voiceTranscript || 'Sizi dinliyorum, konuşabilirsiniz...'}
@@ -2690,7 +2693,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
                     </div>
                   )}
 
-                  <div className="mt-2 flex gap-1.5">
+                  <div className="mt-2 flex gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={toggleVoiceQuestion}
