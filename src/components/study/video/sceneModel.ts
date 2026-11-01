@@ -455,6 +455,12 @@ const VALID_DIAGRAM_TYPES: DiagramType[] = [
 
 function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   const t = text.toLocaleLowerCase('tr-TR');
+  if (/arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh/.test(t)) {
+    return /denge|arz|talep|esneklik/.test(t) ? 'curve' : 'chart';
+  }
+  if (/sultan|hanedan|fetih|tanzimat|antlaşma|yüzyıl|dönem|kronoloji|tarih/.test(t)) return 'timeline';
+  if (/kurum|devlet|bakanlık|merkez bankası|hiyerarşi|yapı/.test(t)) return 'structure';
+  if (/aktör|ilişki|etkileşim|ağ|bağlantı|mekanizma/.test(t)) return 'network';
   if (/senaryo|örnek olay|vaka|uygulama|düşünelim|somut örnek/.test(t)) return 'scenario';
   if (/tablo|sınıflandır|türleri|unsurları|kategor|matris/.test(t) && sceneIdx % 3 === 1) return 'table';
   if (/oran|yüzde|artış|düşüş|eğilim|grafik|denge|büyüme|etki düzeyi|dağılım/.test(t)) return 'chart';
@@ -463,6 +469,18 @@ function inferDiagramType(text: string, sceneIdx: number): DiagramType {
 
   const richCycle: DiagramType[] = ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison'];
   return richCycle[sceneIdx % richCycle.length];
+}
+
+function chooseDistinctDiagramType(
+  preferred: DiagramType,
+  text: string,
+  sceneIdx: number,
+  used: Set<DiagramType>,
+): DiagramType {
+  const semantic = inferDiagramType(text, sceneIdx);
+  const cycle: DiagramType[] = ['curve', 'chart', 'timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual'];
+  const candidates = [preferred, semantic, ...cycle.slice(sceneIdx % cycle.length), ...cycle];
+  return candidates.find(type => !used.has(type)) || semantic;
 }
 
 const DEFAULT_BADGES = ['Kurucu Eksen', 'İşleyiş Mekanizması', 'Yapısal Etki', 'Akademik Odak', 'Uzun Vadeli Sonuç'];
@@ -670,11 +688,12 @@ function buildConversationalSentences(
   const sentences: string[] = [];
   const speakers: Speaker[] = [];
 
+  const focusTerm = terms[0]?.term || takeaways[0] || sceneTitle;
   const probingQuestionBank = [
-    `Dur bir saniye Deniz hocam, burası konunun kilit noktası; peki bu ilke sahaya ve sınav sorularına tam olarak nasıl yansıyor?`,
-    `Bekle bir dakika hocam, ilk bakışta karmaşık gelebilir ama arkasındaki mekanizma aslında çok zarif değil mi?`,
-    `Harika bir giriş Deniz hocam! Peki bu kurucu zemin devreye girdiğinde ardışık halkalar nasıl tetikleniyor?`,
-    `Çok çarpıcı bir tespit hocam; öğrencilerin bu kavramı sınavda hiç unutmaması için en temel püf noktası nedir?`,
+    `Deniz hocam, ${focusTerm} başlığında öğrencilerin önce hangi ilişkiyi kurması gerekiyor?`,
+    `Bu noktayı ${focusTerm} üzerinden somutlaştırabilir miyiz hocam; neden-sonuç zinciri nasıl ilerliyor?`,
+    `Akıllı tahtadaki ${focusTerm} bağlantısı dikkat çekici. Bu mekanizmanın sınavdaki ayırt edici ipucu nedir?`,
+    `Bu sahnede ${focusTerm} kavramını diğerlerinden ayıran temel özellik sizce hangisi, Deniz hocam?`,
   ];
 
   const instructorAckBank = [
@@ -684,34 +703,37 @@ function buildConversationalSentences(
     `Harika bir noktayı yakaladın Barış!`,
   ];
 
+  const firstSpeaker = leadSpeaker;
+  const secondSpeaker: Speaker = firstSpeaker === 'Deniz' ? 'Barış' : 'Deniz';
+
   if (baseSentences.length === 1) {
     sentences.push(baseSentences[0]);
-    speakers.push('Deniz');
+    speakers.push(firstSpeaker);
     sentences.push(probingQuestionBank[sceneIdx % probingQuestionBank.length]);
-    speakers.push('Barış');
+    speakers.push(secondSpeaker);
     if (takeaways.length > 0) {
       sentences.push(`${instructorAckBank[sceneIdx % instructorAckBank.length]} İşin kalbi şurada: ${ensureSentenceEnd(lowerFirstIfNotProper(takeaways[0]))}`);
-      speakers.push('Deniz');
+      speakers.push(firstSpeaker);
     }
   } else if (baseSentences.length === 2) {
     sentences.push(baseSentences[0]);
-    speakers.push('Deniz');
+    speakers.push(firstSpeaker);
     sentences.push(probingQuestionBank[sceneIdx % probingQuestionBank.length]);
-    speakers.push('Barış');
+    speakers.push(secondSpeaker);
     sentences.push(`${instructorAckBank[sceneIdx % instructorAckBank.length]} ${ensureSentenceEnd(lowerFirstIfNotProper(baseSentences[1]))}`);
-    speakers.push('Deniz');
+    speakers.push(firstSpeaker);
   } else if (baseSentences.length >= 3) {
     sentences.push(baseSentences[0]);
-    speakers.push('Deniz');
+    speakers.push(firstSpeaker);
     sentences.push(probingQuestionBank[sceneIdx % probingQuestionBank.length]);
-    speakers.push('Barış');
+    speakers.push(secondSpeaker);
     sentences.push(`${instructorAckBank[sceneIdx % instructorAckBank.length]} ${ensureSentenceEnd(lowerFirstIfNotProper(baseSentences[1]))}`);
-    speakers.push('Deniz');
-    sentences.push(`Harika! Peki bu mekanizmanın devamında olaylar sahaya ve kurumlara nasıl yansıyor hocam?`);
-    speakers.push('Barış');
+    speakers.push(firstSpeaker);
+    sentences.push(`${focusTerm} açısından bir sonraki halka neyi değiştiriyor; bunu ${sceneTitle} bağlamında nasıl okumalıyız?`);
+    speakers.push(secondSpeaker);
     baseSentences.slice(2).forEach(s => {
       sentences.push(s);
-      speakers.push('Deniz');
+      speakers.push(firstSpeaker);
     });
   } else {
     baseSentences.forEach(s => {
@@ -1490,7 +1512,7 @@ export function buildStudioContent(
       ? rawScenes
       : [{ speaker: 'Deniz', title, narration: outline || title, keyTakeaways: [] }];
 
-  let prevType: DiagramType | null = null;
+  const usedDiagramTypes = new Set<DiagramType>();
 
   const baseScenes: StudioScene[] = source.map((s, idx) => {
     const leadSpeaker = normalizeSpeaker(s?.speaker, idx);
@@ -1524,14 +1546,11 @@ export function buildStudioContent(
 
     const diagram = buildDiagram(s, idx, courseLabel, sceneTitle, rawNarration, takeaways, terms);
 
-    if (prevType && diagram.type === prevType) {
-      const cycle: DiagramType[] = ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison'];
-      const alt = cycle.find(t => t !== prevType);
-      if (alt && !s?.diagramData?.diagramType) {
-        diagram.type = alt;
-      }
+    const diagramText = `${courseLabel} ${title} ${sceneTitle} ${rawNarration} ${terms.map(t => t.term).join(' ')}`;
+    if (usedDiagramTypes.has(diagram.type) || !s?.diagramData?.diagramType) {
+      diagram.type = chooseDistinctDiagramType(diagram.type, diagramText, idx, usedDiagramTypes);
     }
-    prevType = diagram.type;
+    usedDiagramTypes.add(diagram.type);
 
     const finalTakeaways =
       takeaways.length > 0
