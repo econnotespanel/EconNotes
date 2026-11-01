@@ -4,7 +4,7 @@ import EconLogo from '@/components/EconLogo';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,17 +82,15 @@ const Notes = () => {
   const uploadFileWithProgress = async (path: string, file: File) => {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    if (!accessToken || !supabaseUrl || !publishableKey) {
+    if (!accessToken) {
       throw new Error('Dosya yükleme oturumu bulunamadı.');
     }
 
     await new Promise<void>((resolve, reject) => {
       const request = new XMLHttpRequest();
-      request.open('POST', `${supabaseUrl}/storage/v1/object/notes/${path}`);
+      request.open('POST', `${SUPABASE_URL}/storage/v1/object/notes/${path}`);
       request.setRequestHeader('Authorization', `Bearer ${accessToken}`);
-      request.setRequestHeader('apikey', publishableKey);
+      request.setRequestHeader('apikey', SUPABASE_PUBLISHABLE_KEY);
       request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
       request.setRequestHeader('x-upsert', 'false');
       request.upload.onprogress = (event) => {
