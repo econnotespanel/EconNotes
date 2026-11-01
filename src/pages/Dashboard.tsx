@@ -14,6 +14,7 @@ import LeaderboardCard from '@/components/LeaderboardCard';
 import DailyMissions from '@/components/DailyMissions';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { APP_VERSION } from '@/lib/version';
+import LoadingMessage from '@/components/ui/loading-message';
 
 
 const BannerContent = ({ content }: { content: string }) => {
@@ -427,18 +428,21 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent className="space-y-3">
               {loading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-accent/30">
-                    <div className="flex items-center gap-2 flex-1">
-                      <Skeleton className="h-3 w-4" />
-                      <div className="space-y-2 flex-1">
-                        <Skeleton className="h-3 w-1/2" />
-                        <Skeleton className="h-2 w-3/4" />
+                <>
+                  <LoadingMessage className="mb-1" />
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-accent/30">
+                      <div className="flex items-center gap-2 flex-1">
+                        <Skeleton className="h-3 w-4" />
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-3 w-1/2" />
+                          <Skeleton className="h-2 w-3/4" />
+                        </div>
                       </div>
+                      <Skeleton className="h-3 w-20" />
                     </div>
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                ))
+                  ))}
+                </>
               ) : recentNotes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Henüz not paylaşılmamış.</p>
               ) : (
@@ -476,17 +480,20 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent className="space-y-3">
               {loading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-accent/30">
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="h-3 w-4" />
-                      <div className="space-y-2 flex-1">
-                        <Skeleton className="h-3 w-2/3" />
-                        <Skeleton className="h-2 w-1/2" />
+                <>
+                  <LoadingMessage className="mb-1" />
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="p-3 rounded-lg bg-accent/30">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-3 w-4" />
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-3 w-2/3" />
+                          <Skeleton className="h-2 w-1/2" />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </>
               ) : recentAnnouncements.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Henüz duyuru yok.</p>
               ) : (
