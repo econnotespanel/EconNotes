@@ -335,6 +335,17 @@ export function discoverTurkishVoices(): VoiceOption[] {
   return combined;
 }
 
+function withSpeakerTone(
+  assignment: SpeakerVoiceAssignment,
+  speaker: Speaker,
+): SpeakerVoiceAssignment {
+  return {
+    ...assignment,
+    pitch: speaker === 'Deniz' ? 0.96 : 1.04,
+    baseRate: speaker === 'Deniz' ? 0.97 : 1.03,
+  };
+}
+
 function toAssignment(opt: VoiceOption, customLengthScale?: number): SpeakerVoiceAssignment {
   if (opt.engine === 'vits-neural' && opt.vitsVoiceId) {
     return {
@@ -349,16 +360,6 @@ function toAssignment(opt: VoiceOption, customLengthScale?: number): SpeakerVoic
     };
   }
 
-  function withSpeakerTone(
-    assignment: SpeakerVoiceAssignment,
-    speaker: Speaker,
-  ): SpeakerVoiceAssignment {
-    return {
-      ...assignment,
-      pitch: speaker === 'Deniz' ? 0.96 : 1.04,
-      baseRate: speaker === 'Deniz' ? 0.97 : 1.03,
-    };
-  }
   return {
     engine: 'browser',
     voice: opt.voice || null,
