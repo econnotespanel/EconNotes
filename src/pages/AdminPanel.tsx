@@ -364,11 +364,24 @@ const AdminPanel = () => {
     }).eq('user_id', editUserData.user_id);
     if (error) { toast.error('Güncelleme başarısız: ' + error.message); return; }
     const selectedQuota = editUserForm.download_quota === '' ? null : Number(editUserForm.download_quota);
-    const { error: quotaError } = await supabase.rpc('admin_set_download_quota', {
-      _user_id: editUserData.user_id,
-      _quota: selectedQuota,
-    });
-    if (quotaError) { toast.error('Not kotası güncellenemedi: ' + quotaError.message); return; }
+    const originalQuota = editUserData.manual_download_quota ?? null;
+
+    if (selectedQuota !== originalQuota) {
+      const { error: quotaError } = await supabase.rpc('admin_set_download_quota', {
+        _user_id: editUserData.user_id,
+        _quota: selectedQuota,
+      });
+      if (quotaError) {
+        if (quotaError.code === 'PGRST202' || (quotaError.message && quotaError.message.includes('schema cache'))) {
+          toast.error('Profil güncellendi ancak özel kota kaydedilemedi: Veritabanında kota fonksiyonu (admin_set_download_quota) henüz tanımlanmamış.');
+        } else {
+          toast.error('Not kotası güncellenemedi: ' + quotaError.message);
+        }
+        setEditUserDialog(false);
+        fetchAll();
+        return;
+      }
+    }
     toast.success('Kullanıcı bilgileri güncellendi!');
     setEditUserDialog(false); fetchAll();
   };

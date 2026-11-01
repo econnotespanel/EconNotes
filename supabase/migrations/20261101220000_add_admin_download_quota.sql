@@ -1,9 +1,16 @@
 ALTER TABLE public.profiles
 ADD COLUMN IF NOT EXISTS manual_download_quota INTEGER;
 
-ALTER TABLE public.profiles
-ADD CONSTRAINT profiles_manual_download_quota_check
-CHECK (manual_download_quota IS NULL OR manual_download_quota BETWEEN 1 AND 9);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'profiles_manual_download_quota_check'
+  ) THEN
+    ALTER TABLE public.profiles
+    ADD CONSTRAINT profiles_manual_download_quota_check
+    CHECK (manual_download_quota IS NULL OR manual_download_quota BETWEEN 1 AND 9);
+  END IF;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.get_download_quota(_user_id uuid)
 RETURNS TABLE (
@@ -76,3 +83,5 @@ $$;
 REVOKE ALL ON FUNCTION public.admin_set_download_quota(uuid, integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_set_download_quota(uuid, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_download_quota(uuid) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
