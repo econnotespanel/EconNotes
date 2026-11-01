@@ -22,6 +22,7 @@ import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Progress } from '@/components/ui/progress';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import LoadingMessage from '@/components/ui/loading-message';
@@ -33,6 +34,7 @@ const splitDepartments = (value: string | null | undefined) =>
 
 const Notes = () => {
   const navigate = useNavigate();
+  const { theme } = useTheme();
   const { user, profile, isAdmin } = useAuth();
   const { quota, refresh: refreshQuota } = useDownloadQuota();
   const [quotaBlockOpen, setQuotaBlockOpen] = useState(false);
@@ -408,6 +410,15 @@ const Notes = () => {
     return acc;
   }, {});
 
+  const getUniversityLogo = (university: string) => {
+    if (university.toLocaleLowerCase('tr-TR').includes('düzce')) {
+      return theme === 'dark'
+        ? '/university-logos/duzce-university-white.png'
+        : '/university-logos/duzce-university.png';
+    }
+    return null;
+  };
+
   const isPreviewable = (fileType: string | null, fileUrl: string | null) => {
     if (!fileType || !fileUrl) return false;
     return fileType.startsWith('image/') || fileType === 'application/pdf';
@@ -683,7 +694,9 @@ const Notes = () => {
               </Card>
             ) : filterUniversity === 'all' ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {Object.entries(universityGroups).map(([university, universityNotes]) => (
+                {Object.entries(universityGroups).map(([university, universityNotes]) => {
+                  const universityLogo = getUniversityLogo(university);
+                  return (
                   <button
                     key={university}
                     onClick={() => { setFilterUniversity(university); setSelectedCourse(null); }}
@@ -693,7 +706,17 @@ const Notes = () => {
                     <span className="pointer-events-none absolute inset-x-5 top-4 border-t border-dashed border-primary/20" />
                     <div className="absolute -right-5 -top-7 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition-colors group-hover:bg-primary/20" />
                     <div className="relative flex w-full items-start justify-between gap-3">
-                      <span className="rounded-xl border border-primary/15 bg-background/70 p-2.5 text-primary shadow-sm"><Building2 className="h-5 w-5" /></span>
+                      <span className="flex h-12 w-28 items-center justify-center rounded-xl border border-primary/15 bg-background/70 px-2 shadow-sm">
+                        {universityLogo ? (
+                          <img
+                            src={universityLogo}
+                            alt={`${university} logosu`}
+                            className="max-h-9 w-auto max-w-full object-contain"
+                          />
+                        ) : (
+                          <Building2 className="h-5 w-5 text-primary" />
+                        )}
+                      </span>
                       <span className="rounded-full bg-background/75 px-2.5 py-1 text-xs font-medium text-muted-foreground">{universityNotes.length} not</span>
                     </div>
                     <div className="relative mt-4">
@@ -701,7 +724,8 @@ const Notes = () => {
                       <span className="mt-1 block text-xs text-muted-foreground">Ders klasörlerini görüntüle</span>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
