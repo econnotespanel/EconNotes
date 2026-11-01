@@ -257,35 +257,44 @@ const Notes = () => {
       }
 
       const noteData: any = {
-      title: form.title, description: form.description, grade: parseInt(form.grade),
-      department: departments.join(' | '), course: form.course, semester: form.semester,
-      file_url: fileUrl, file_name: fileName, file_type: fileType,
-      user_id: user!.id, uploader_name: profile?.full_name || '',
-      note_password: form.note_password || null,
-      university: form.university || profile?.university || '',
-      // Admin'in yüklediği notlar otomatik onaylı; diğerleri admin onayı bekler
-      status: isAdmin ? 'approved' : 'pending',
-      approved_at: isAdmin ? new Date().toISOString() : null,
-      approved_by: isAdmin ? user!.id : null,
-    };
+        title: form.title,
+        description: form.description,
+        grade: parseInt(form.grade),
+        department: departments.join(' | '),
+        course: form.course,
+        semester: form.semester,
+        file_url: fileUrl,
+        file_name: fileName,
+        file_type: fileType,
+        note_password: form.note_password || null,
+        university: form.university || profile?.university || '',
+      };
 
       if (editingNote) {
-      noteData.edited_at = new Date().toISOString();
-      const { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
-      if (error) { toast.error('Not güncellenemedi.'); return; }
-      await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_updated', `"${form.title}" notu güncellendi`, 'note', editingNote.id);
-      toast.success('Not güncellendi!');
+        noteData.edited_at = new Date().toISOString();
+        const { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
+        if (error) { toast.error('Not güncellenemedi.'); return; }
+        await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_updated', `"${form.title}" notu güncellendi`, 'note', editingNote.id);
+        toast.success('Not güncellendi!');
       } else {
-      const { data: insertedData, error } = await supabase.from('notes').insert(noteData).select('id').single();
-      if (error) { toast.error('Not eklenemedi: ' + error.message); return; }
-      await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_created', `"${form.title}" notu paylaşıldı`, 'note', insertedData?.id);
-      const { awardPoints } = await import('@/hooks/usePoints');
-      await awardPoints('note_upload', 25);
-      if (isAdmin) {
-        toast.success('Not başarıyla yayınlandı.');
-      } else {
-        toast.success('Notunuz başarıyla yüklendi. Admin yönetici ekibinin onayının ardından, en geç 24 saat içerisinde yayınlanacaktır.', { duration: 9000 });
-      }
+        Object.assign(noteData, {
+          user_id: user!.id,
+          uploader_name: profile?.full_name || '',
+          // Admin'in yüklediği notlar otomatik onaylı; diğerleri admin onayı bekler
+          status: isAdmin ? 'approved' : 'pending',
+          approved_at: isAdmin ? new Date().toISOString() : null,
+          approved_by: isAdmin ? user!.id : null,
+        });
+        const { data: insertedData, error } = await supabase.from('notes').insert(noteData).select('id').single();
+        if (error) { toast.error('Not eklenemedi: ' + error.message); return; }
+        await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_created', `"${form.title}" notu paylaşıldı`, 'note', insertedData?.id);
+        const { awardPoints } = await import('@/hooks/usePoints');
+        await awardPoints('note_upload', 25);
+        if (isAdmin) {
+          toast.success('Not başarıyla yayınlandı.');
+        } else {
+          toast.success('Notunuz başarıyla yüklendi. Admin yönetici ekibinin onayının ardından, en geç 24 saat içerisinde yayınlanacaktır.', { duration: 9000 });
+        }
       }
 
       setDialogOpen(false);
