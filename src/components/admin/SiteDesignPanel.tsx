@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { MANAGED_PAGES, useSiteConfig, type SiteTheme } from '@/contexts/SiteConfigContext';
+import { MANAGED_PAGES, SEASONAL_THEMES, getSeasonalTheme, useSiteConfig, type SeasonalThemeId, type SiteTheme } from '@/contexts/SiteConfigContext';
 
 /** Hazır tema paletleri — HSL bileşenleri (H S% L%) olarak tutulur. */
 const PRESETS: { name: string; theme: SiteTheme }[] = [
@@ -40,6 +40,9 @@ const SiteDesignPanel = () => {
     setTheme(config.theme || {});
     setPages(config.pages || {});
   }, [config]);
+
+  const seasonalMode = (theme.seasonalMode || 'default') as SeasonalThemeId;
+  const activeSeason = getSeasonalTheme(seasonalMode);
 
   const save = async () => {
     setSaving(true);
@@ -134,6 +137,28 @@ const SiteDesignPanel = () => {
                   {p.name}
                 </Button>
               ))}
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label>Özel gün teması</Label>
+                  <p className="text-xs text-muted-foreground">EconNotes renkleriyle hazırlanmış tema, otomatik veya elle yayınlanabilir.</p>
+                </div>
+                {activeSeason && <Badge variant="secondary">{activeSeason.emoji} {activeSeason.label}</Badge>}
+              </div>
+              <select
+                value={seasonalMode}
+                onChange={(e) => setTheme(t => ({ ...t, seasonalMode: e.target.value as SeasonalThemeId }))}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="default">Özel gün temasını kapat</option>
+                <option value="auto">Otomatik (takvime göre)</option>
+                {SEASONAL_THEMES.map(item => <option key={item.id} value={item.id}>{item.emoji} {item.label}</option>)}
+              </select>
+              <p className="text-[11px] text-muted-foreground">
+                Otomatik mod; 18 Mart, 23 Nisan, 19 Mayıs, 29 Ekim, 10 Kasım, bayramlar ve yılbaşı dönemlerinde aktif olur.
+              </p>
             </div>
           </div>
 
