@@ -122,9 +122,9 @@ const AdminPanel = () => {
   const fetchAll = async () => {
     setUsersLoading(true);
     setNotesLoading(true);
-    const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes] = await Promise.all([
-      supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000),
-      supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }).limit(1000),
+    const usersPromise = supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000);
+    const notesPromise = supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }).limit(1000);
+    const secondaryPromise = Promise.all([
       supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('penalties').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('system_settings').select('*').limit(1).maybeSingle(),
@@ -134,40 +134,57 @@ const AdminPanel = () => {
       supabase.from('banners').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('study_materials').select('*').order('created_at', { ascending: false }).limit(500),
     ]);
-    const failedLoads = [
-      usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes,
-      logsRes, rolesRes, reportsRes, bannersRes, studyRes,
-    ].filter((result) => result.error);
-    if (failedLoads.length > 0) {
-      console.error('Yönetici paneli verileri yüklenemedi:', failedLoads.map(({ error }) => error));
-      toast.error('Panel verilerinin bir kısmı yüklenemedi. Lütfen tekrar deneyin.');
+
+    try {
+      const [usersRes, notesRes] = await Promise.all([usersPromise, notesPromise]);
+      if (usersRes.error || notesRes.error) {
+        console.error('Kullanıcı veya not verileri yüklenemedi:', usersRes.error || notesRes.error);
+        toast.error('Kullanıcı veya not listesi yüklenemedi.');
+      }
+      setUsers(usersRes.data || []);
+      setNotes((notesRes.data as any[]) || []);
+    } catch (error) {
+      console.error('Kullanıcı ve not sorguları başarısız:', error);
+      toast.error('Kullanıcı ve not listesi yüklenemedi.');
+      setUsers([]);
+      setNotes([]);
+    } finally {
+      setUsersLoading(false);
+      setNotesLoading(false);
     }
-    setUsers(usersRes.data || []);
-    setNotes((notesRes.data as any[]) || []);
-    setUsersLoading(false);
-    setNotesLoading(false);
-    setAnnouncements(announcementsRes.data || []);
-    setPenalties(penaltiesRes.data || []);
-    setActivityLogs(logsRes.data || []);
-    setUserRoles(rolesRes.data || []);
-    setMessageReports(reportsRes.data || []);
-    setBanners(bannersRes.data || []);
-    setStudyMaterials(studyRes.data || []);
+
+    try {
+      const [announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes] = await secondaryPromise;
+      const failedLoads = [announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes].filter((result) => result.error);
+      if (failedLoads.length > 0) {
+        console.error('Yönetici paneli ek verileri yüklenemedi:', failedLoads.map(({ error }) => error));
+        toast.error('Panel verilerinin bir kısmı yüklenemedi. Lütfen tekrar deneyin.');
+      }
+      setAnnouncements(announcementsRes.data || []);
+      setPenalties(penaltiesRes.data || []);
+      setActivityLogs(logsRes.data || []);
+      setUserRoles(rolesRes.data || []);
+      setMessageReports(reportsRes.data || []);
+      setBanners(bannersRes.data || []);
+      setStudyMaterials(studyRes.data || []);
+      if (settingsRes.data) {
+        setSystemOpen(settingsRes.data.is_system_open);
+        setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
+        setNoteViewRestricted((settingsRes.data as any).note_view_restricted ?? false);
+        setAcademicWeek(String((settingsRes.data as any).academic_week || ''));
+        setAcademicWeekLabel((settingsRes.data as any).academic_week_label || '');
+        setAcademicSemester((settingsRes.data as any).academic_semester || 'Güz');
+        setClosureTitle((settingsRes.data as any).closure_title || '');
+        setClosureMessage((settingsRes.data as any).closure_message || '');
+        setClosureImageUrl((settingsRes.data as any).closure_image_url || '');
+        setClosureMode((settingsRes.data as any).closure_mode || 'maintenance');
+        const cu = (settingsRes.data as any).closed_until;
+        setClosedUntilInput(cu ? new Date(cu).toISOString().slice(0, 16) : '');
+      }
+    } catch (error) {
+      console.error('Yönetici ek verileri yüklenemedi:', error);
+    }
     void fetchUserEmails();
-    if (settingsRes.data) {
-      setSystemOpen(settingsRes.data.is_system_open);
-      setNoteUploadRestricted((settingsRes.data as any).note_upload_restricted ?? true);
-      setNoteViewRestricted((settingsRes.data as any).note_view_restricted ?? false);
-      setAcademicWeek(String((settingsRes.data as any).academic_week || ''));
-      setAcademicWeekLabel((settingsRes.data as any).academic_week_label || '');
-      setAcademicSemester((settingsRes.data as any).academic_semester || 'Güz');
-      setClosureTitle((settingsRes.data as any).closure_title || '');
-      setClosureMessage((settingsRes.data as any).closure_message || '');
-      setClosureImageUrl((settingsRes.data as any).closure_image_url || '');
-      setClosureMode((settingsRes.data as any).closure_mode || 'maintenance');
-      const cu = (settingsRes.data as any).closed_until;
-      setClosedUntilInput(cu ? new Date(cu).toISOString().slice(0, 16) : '');
-    }
   };
 
   const toggleSystem = async () => {
