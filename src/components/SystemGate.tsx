@@ -17,6 +17,21 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const previousSystemOpen = useRef<boolean | null>(null);
+  const fatalErrorLogged = useRef(false);
+
+  useEffect(() => {
+    if (status.systemOpen === false && status.closureMode === 'fatal_error' && !fatalErrorLogged.current) {
+      fatalErrorLogged.current = true;
+      console.error('[EconNotes] FATAL_ERROR: HTTP 500 SERVICE_UNAVAILABLE', {
+        status: 500,
+        code: 'ECONNOTES_FATAL_ERROR',
+        message: 'EconNotes is temporarily unavailable.',
+      });
+    }
+    if (status.systemOpen !== false || status.closureMode !== 'fatal_error') {
+      fatalErrorLogged.current = false;
+    }
+  }, [status.systemOpen, status.closureMode]);
 
   useEffect(() => {
     const wasOpen = previousSystemOpen.current;

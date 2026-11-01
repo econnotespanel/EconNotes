@@ -24,7 +24,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
   return (
     <div
       className={`min-h-screen flex items-center justify-center p-4 relative overflow-hidden ${
-        isSummer ? 'summer-scene' : isFatalError ? 'bg-[#120b12]' : 'bg-slate-950'
+        isSummer ? 'summer-scene' : isFatalError ? 'bg-[#220307]' : 'bg-slate-950'
       }`}
     >
       {isSummer && (
@@ -49,7 +49,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
           isSummer
             ? 'border border-white/60 bg-white/40'
             : isFatalError
-              ? 'border border-red-400/30 bg-red-950/40 shadow-red-950/40'
+              ? 'border-2 border-red-500/80 bg-red-950/75 shadow-[0_0_80px_rgba(239,68,68,0.35)]'
               : 'border border-white/10 bg-slate-900/60 shadow-black/30'
         }`}>
           <div className="relative mb-8 h-10 w-full sm:h-11">
@@ -66,11 +66,11 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             </div>
           ) : (
             <div className="mb-5 flex justify-center">
-            <div className={`flex h-16 w-16 items-center justify-center rounded-full ${isSummer ? 'bg-yellow-400/30' : 'border-2 border-amber-300/70 bg-amber-500/20 shadow-[0_0_24px_rgba(252,211,77,0.25)]'}`}>
+            <div className={`flex h-20 w-20 items-center justify-center rounded-full ${isSummer ? 'bg-yellow-400/30' : isFatalError ? 'border-4 border-red-400 bg-red-600/30 shadow-[0_0_45px_rgba(248,113,113,0.75)]' : 'border-2 border-amber-300/70 bg-amber-500/20 shadow-[0_0_24px_rgba(252,211,77,0.25)]'}`}>
                 {isSummer ? (
                   <Sun className="h-12 w-12 text-yellow-500 animate-spin-slow drop-shadow" />
                 ) : (
-                  <AlertTriangle className={`h-8 w-8 stroke-[2.5] ${isFatalError ? 'text-red-200' : 'text-amber-200'}`} />
+                  <AlertTriangle className={`h-10 w-10 stroke-[2.5] ${isFatalError ? 'text-red-100' : 'text-amber-200'}`} />
                 )}
               </div>
             </div>
@@ -80,7 +80,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             {isSummer && <Palmtree className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />}
             {heading}
           </h1>
-          {isFatalError && <p className="mb-2 font-mono text-xs tracking-widest text-red-300/80">FATAL_ERROR · HTTP 500</p>}
+          {isFatalError && <p className="mb-2 rounded border border-red-400/50 bg-red-500/20 px-3 py-2 font-mono text-xs font-bold tracking-widest text-red-100">FATAL_ERROR · HTTP 500 · SERVICE_UNAVAILABLE</p>}
           <p className={`mt-3 text-sm leading-relaxed whitespace-pre-line ${isSummer ? 'text-slate-800 dark:text-slate-100' : 'text-slate-300'}`}>
             {body}
           </p>
