@@ -507,7 +507,7 @@ function drawThematicIllustration(
   ctx.save();
   rr(ctx, box.x, box.y, box.w, box.h, 24);
   const bg = ctx.createLinearGradient(box.x, box.y, box.x + box.w, box.y + box.h);
-  if (theme === 'history' && variant === 0) {
+  if (theme === 'history' && variant === -1) {
     bg.addColorStop(0, '#0f1d38');
     bg.addColorStop(0.55, '#13243f');
     bg.addColorStop(1, '#1d1636');

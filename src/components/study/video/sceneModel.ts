@@ -652,6 +652,32 @@ function textSignature(text: string): string {
     .join(' ');
 }
 
+function dialogueSignature(text: string): string {
+  return cleanText(text)
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function removeRepeatedDialogue(
+  sentences: string[],
+  speakers: Speaker[],
+  globalSeen?: Set<string>,
+): { sentences: string[]; speakers: Speaker[] } {
+  const seen = globalSeen || new Set<string>();
+  const uniqueSentences: string[] = [];
+  const uniqueSpeakers: Speaker[] = [];
+  sentences.forEach((sentence, index) => {
+    const signature = dialogueSignature(sentence);
+    if (!signature || seen.has(signature)) return;
+    seen.add(signature);
+    uniqueSentences.push(sentence);
+    uniqueSpeakers.push(speakers[index] || 'Deniz');
+  });
+  return { sentences: uniqueSentences, speakers: uniqueSpeakers };
+}
+
 /**
  * Ham sahneyi zengin, entelektüel ve tekrarsız çoklu konuşmacı (Dr. Deniz <-> Barış) diyaloğuna dönüştürür.
  * Sahnedeki tüm kavramları, çıkarımları ve sınav uyarılarını derinlikli akademik Türkçe ile işler.
@@ -1637,6 +1663,21 @@ export function buildStudioContent(
   const finalScenes = options?.disableCurriculumExpansion
     ? baseScenes
     : ensureRichFiveMinuteCurriculum(baseScenes, title, outline, courseLabel, mergedFacts);
+  const globalDialogue = new Set<string>();
+  finalScenes.forEach(scene => {
+    const unique = removeRepeatedDialogue(scene.sentences, scene.sentenceSpeakers, globalDialogue);
+    scene.sentences = unique.sentences;
+    scene.sentenceSpeakers = unique.speakers;
+    scene.narration = unique.sentences.join(' ');
+    scene.sentenceOffsets = [];
+    let offset = 0;
+    unique.sentences.forEach(sentence => {
+      scene.sentenceOffsets.push(offset);
+      offset += sentence.length + 1;
+    });
+    scene.totalChars = Math.max(1, offset);
+    scene.durationSec = computeDuration(unique.sentences, unique.speakers);
+  });
 
   const searches: string[] = (Array.isArray(c.suggestedSearches) ? c.suggestedSearches : [])
     .map(cleanText)

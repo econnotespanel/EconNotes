@@ -898,7 +898,8 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     audio.muted = false;
     audio.src = clip.blobUrl;
     activeAudio = audio;
-    audio.playbackRate = Math.max(0.7, Math.min(1.75, playbackSpeed));
+    const speakerBoost = turn.speaker === 'Barış' ? 1.08 : 1;
+    audio.playbackRate = Math.max(0.7, Math.min(1.75, playbackSpeed * speakerBoost));
     audio.volume = Math.max(0, Math.min(1, volume));
 
     // Eğer bulut sesi nedeniyle sentenceEndSec boşsa karakter ağırlıklı zaman sınırları üret
@@ -1017,7 +1018,8 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     utter.lang = chosenVoice?.lang || 'tr-TR';
     if (chosenVoice) utter.voice = chosenVoice;
     utter.pitch = assignment.pitch;
-    utter.rate = Math.max(0.75, Math.min(1.75, assignment.baseRate * playbackSpeed));
+    const speakerBoost = turn.speaker === 'Barış' ? 1.08 : 1;
+    utter.rate = Math.max(0.75, Math.min(1.75, assignment.baseRate * playbackSpeed * speakerBoost));
     utter.volume = Math.max(0, Math.min(1, volume));
 
     // Birleşik metin üzerindeki karakter sınırlarını ilgili sahne cümlelerine eşle
