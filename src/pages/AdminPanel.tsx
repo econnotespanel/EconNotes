@@ -87,7 +87,7 @@ const AdminPanel = () => {
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLocaleLowerCase('tr-TR');
     return users.filter((u) => {
-      const role = getUserRole(u.user_id);
+      const role = userRoles.find((item) => item.user_id === u.user_id)?.role || 'student';
       const searchable = [u.full_name, u.university, u.department, userEmails[u.user_id]]
         .filter(Boolean)
         .join(' ')
