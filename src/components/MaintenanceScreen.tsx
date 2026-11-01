@@ -20,6 +20,51 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
       : isFatalError
         ? 'EconNotes şu anda beklenmeyen bir sunucu hatası nedeniyle kullanılamıyor. Teknik ekip bilgilendirildi ve hizmetin yeniden başlatılması için çalışmalar sürdürülüyor.'
         : "EconNotes'a şu anda bakım çalışmaları nedeniyle geçici olarak erişim sağlanamamaktadır. Yaşanan sorunun en kısa sürede giderilmesi için çalışmalarımız titizlikle sürdürülmektedir. Anlayışınız, sabrınız ve desteğiniz için teşekkür ederiz.");
+  const errorTime = new Date().toLocaleString('tr-TR');
+
+  if (isFatalError) {
+    return (
+      <div className="relative min-h-screen overflow-hidden bg-[#2b0308] font-mono text-red-50">
+        <div className="pointer-events-none absolute -left-20 top-1/3 h-80 w-[120%] rotate-[-12deg] rounded-[50%] border-t-[22px] border-red-500/25 shadow-[0_-8px_0_rgba(248,113,113,0.12)] sm:top-1/4" />
+        <div className="pointer-events-none absolute -left-20 top-1/2 h-80 w-[120%] rotate-[-12deg] rounded-[50%] border-t-2 border-red-300/25" />
+        <header className="relative flex items-center justify-between border-b border-red-200/25 px-6 py-6 sm:px-14">
+          <div className="flex items-center gap-4">
+            <EconLogo allWhite className="h-8 w-40 sm:h-10 sm:w-52" />
+            <span className="hidden border-l border-red-200/30 pl-4 text-xs tracking-[0.3em] text-red-100/70 sm:block">SYSTEM STATUS</span>
+          </div>
+          <span className="text-xs tracking-widest text-red-200/70">ERR-NX500</span>
+        </header>
+        <main className="relative mx-auto grid min-h-[calc(100vh-145px)] max-w-6xl items-center gap-10 px-6 py-10 sm:px-14 lg:grid-cols-[1fr_1.2fr]">
+          <section>
+            <p className="mb-5 text-sm font-bold tracking-[0.35em] text-red-300">CRITICAL SERVICE INTERRUPTION</p>
+            <h1 className="text-6xl font-light tracking-tight text-white sm:text-8xl">500</h1>
+            <p className="mt-4 max-w-md text-lg leading-8 text-red-100/85">{heading}</p>
+            <div className="mt-8 h-px w-40 bg-red-300/60" />
+            <p className="mt-5 max-w-md font-sans text-sm leading-7 text-red-100/70">{body}</p>
+          </section>
+          <section className="border-l border-red-200/35 pl-6 sm:pl-10">
+            <div className="grid gap-4 text-sm sm:grid-cols-[150px_1fr]">
+              <span className="text-red-300/70">ERROR CODE</span><strong>ECON-FATAL-500</strong>
+              <span className="text-red-300/70">TIMESTAMP</span><span>{errorTime}</span>
+              <span className="text-red-300/70">APPLICATION</span><span>ECONNOTES-WEB</span>
+              <span className="text-red-300/70">STATUS</span><span className="text-red-200">SERVICE_UNAVAILABLE</span>
+              <span className="text-red-300/70">REQUEST</span><span>ACCESS_BLOCKED_FOR_MAINTENANCE</span>
+            </div>
+            <div className="mt-8 border border-red-200/25 bg-black/15 p-5 text-sm leading-7 text-red-100/75">
+              <p className="mb-2 text-red-200">System diagnostic</p>
+              <p>Runtime could not establish a healthy application session.</p>
+              <p>Administrator intervention is required before access can resume.</p>
+            </div>
+          </section>
+        </main>
+        <footer className="relative flex flex-wrap items-center justify-between gap-3 border-t border-red-200/25 px-6 py-5 text-xs text-red-200/70 sm:px-14">
+          <span>○ Back to EconNotes support</span>
+          <a href="mailto:destek@econnotes.online" className="hover:text-white">destek@econnotes.online</a>
+          <span>© EconNotes Operations</span>
+        </footer>
+      </div>
+    );
+  }
 
   return (
     <div
