@@ -348,6 +348,17 @@ function toAssignment(opt: VoiceOption, customLengthScale?: number): SpeakerVoic
       quality: 'neural',
     };
   }
+
+  function withSpeakerTone(
+    assignment: SpeakerVoiceAssignment,
+    speaker: Speaker,
+  ): SpeakerVoiceAssignment {
+    return {
+      ...assignment,
+      pitch: speaker === 'Deniz' ? 0.96 : 1.04,
+      baseRate: speaker === 'Deniz' ? 0.97 : 1.03,
+    };
+  }
   return {
     engine: 'browser',
     voice: opt.voice || null,
@@ -417,8 +428,8 @@ export function selectVoicesForSpeakers(
       };
 
   return {
-    Deniz: denizAssign,
-    Barış: barisAssign,
+    Deniz: withSpeakerTone(denizAssign, 'Deniz'),
+    Barış: withSpeakerTone(barisAssign, 'Barış'),
   };
 }
 

@@ -489,7 +489,13 @@ function masterAndEncodeStudioWav(
   const gapsSamples: number[] = clausesPcm.map((_, idx) => {
     if (idx >= clausesPcm.length - 1) return Math.floor(sampleRate * 0.04);
     const txt = (clausesText[idx] || '').trim();
-    const pauseSec = /[?!]$/.test(txt) ? 0.185 : 0.145;
+    const pauseSec = /[?!]$/.test(txt)
+      ? 0.24
+      : /[;:]$/.test(txt)
+      ? 0.19
+      : /[,،]$/.test(txt)
+      ? 0.12
+      : 0.16;
     return Math.floor(sampleRate * pauseSec);
   });
 
@@ -519,8 +525,8 @@ function masterAndEncodeStudioWav(
   let prev = 0;
   for (let i = 0; i < totalSamples; i++) {
     const centered = merged[i] - dcMean;
-    // Hafif 1-kutuplu stüdyo kondenser mikrofon sıcaklığı (metalik dijital sertliği yumuşatır)
-    const warmed = centered * 0.88 + prev * 0.12;
+    // Hafif mikrofon sıcaklığı; yüksek frekansları fazla bastırmadan netliği korur.
+    const warmed = centered * 0.94 + prev * 0.06;
     prev = warmed;
     merged[i] = warmed;
     const abs = Math.abs(warmed);

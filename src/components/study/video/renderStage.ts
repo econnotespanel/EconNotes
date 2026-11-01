@@ -157,7 +157,7 @@ function activeIndex(n: number, progress: number) {
 }
 
 // ---------------------------------------------------------------- Stüdyo Arka Planı
-function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: number) {
+function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: number, energy = 0) {
   const bg = ctx.createLinearGradient(0, 0, 0, STAGE_H);
   bg.addColorStop(0, '#080e1c');
   bg.addColorStop(0.55, '#050813');
@@ -193,6 +193,35 @@ function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: numbe
   horizonGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
   ctx.fillStyle = horizonGrad;
   ctx.fillRect(0, 816, STAGE_W, 1.5);
+
+  // Sahnede derinlik hissi veren yavaş hareketli parçacıklar ve konuşma enerjisine
+  // çok hafif tepki veren yayın ışığı; içerik okunabilirliğini kapatmayacak kadar düşük kontrastlıdır.
+  ctx.save();
+  for (let i = 0; i < 28; i++) {
+    const phase = i * 1.73;
+    const x = ((i * 271 + now * (0.008 + (i % 3) * 0.002)) % (STAGE_W + 80)) - 40;
+    const y = 110 + ((i * 97 + Math.sin(now / 2400 + phase) * 36) % 680);
+    const radius = 1.2 + (i % 4) * 0.55;
+    const alpha = 0.045 + energy * 0.035;
+    ctx.fillStyle = i % 2 ? `rgba(34, 211, 238, ${alpha})` : `rgba(168, 85, 247, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const sweepX = ((now / 8) % (STAGE_W + 700)) - 350;
+  const sweep = ctx.createLinearGradient(sweepX - 220, 0, sweepX + 220, 0);
+  sweep.addColorStop(0, 'rgba(255,255,255,0)');
+  sweep.addColorStop(0.5, `rgba(125, 211, 252, ${0.025 + energy * 0.025})`);
+  sweep.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sweep;
+  ctx.fillRect(0, 80, STAGE_W, 700);
+  ctx.restore();
+
+  const vignette = ctx.createRadialGradient(STAGE_W / 2, STAGE_H * 0.42, 320, STAGE_W / 2, STAGE_H * 0.42, 1120);
+  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, STAGE_W, STAGE_H);
 }
 
 // ---------------------------------------------------------------- Üst Yayın Bilgisi (Sade ve Sinematik HUD)
@@ -2092,7 +2121,7 @@ function drawWhiteboardPresenterBadge(
 
 export function renderStage(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.save();
-  drawBroadcastStudioBackground(ctx, f.now);
+  drawBroadcastStudioBackground(ctx, f.now, f.playing ? f.mouthOpen : 0);
 
   const activeSpeaker: Speaker =
     f.activeSpeaker || f.scene.sentenceSpeakers?.[f.sentenceIndex] || f.scene.speaker;
