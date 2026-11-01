@@ -238,7 +238,7 @@ const Sidebar = () => {
           'border-r border-[hsl(var(--sidebar-border))]',
           'transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
           'md:translate-x-0',
-          open ? 'translate-x-0' : '-translate-x-[105%]',
+          open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
         <div className="flex-1 overflow-y-auto overscroll-contain">
