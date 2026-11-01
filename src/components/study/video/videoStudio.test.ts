@@ -160,7 +160,7 @@ describe('video studio sceneModel & speechEngine', () => {
     expect(assigned.Deniz.pitch).toBe(1.0);
     expect(assigned.Barış.pitch).toBe(1.0);
     expect(assigned.Deniz.vitsVoiceId).toBe('tr_TR-eren-fluid');
-    expect(assigned.Barış.vitsVoiceId).toBe('tr_TR-fahrettin-medium');
+    expect(assigned.Barış.vitsVoiceId).toBe('tr_TR-dfki-medium');
     expect(assigned.Deniz.voice).toBeNull();
     expect(assigned.Barış.voice).toBeNull();
     expect(assigned.Deniz.label).not.toBe(assigned.Barış.label);

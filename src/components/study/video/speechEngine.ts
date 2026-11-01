@@ -395,11 +395,13 @@ export function selectVoicesForSpeakers(
   const denizPicked = manualDeniz || erenNeural || dfkiNeural || fettahNeural || pool[0];
   const barisPicked =
     manualBaris ||
-    (fahrettinNeural && fahrettinNeural.id !== denizPicked?.id
-      ? fahrettinNeural
-      : dfkiNeural && dfkiNeural.id !== denizPicked?.id
+    (dfkiNeural && dfkiNeural.id !== denizPicked?.id
       ? dfkiNeural
-      : fettahNeural) ||
+      : fettahNeural && fettahNeural.id !== denizPicked?.id
+      ? fettahNeural
+      : fahrettinNeural && fahrettinNeural.id !== denizPicked?.id
+      ? fahrettinNeural
+      : fahrettinNeural) ||
     pool.find(o => o.id !== denizPicked?.id) ||
     denizPicked;
 
@@ -421,11 +423,11 @@ export function selectVoicesForSpeakers(
     : {
         engine: 'vits-neural',
         voice: null,
-        vitsVoiceId: 'tr_TR-fahrettin-medium',
+        vitsVoiceId: 'tr_TR-dfki-medium',
         lengthScale: 0.92,
         pitch: 1.0,
         baseRate: 1.0,
-        label: 'Fahrettin · Stüdyo Anlatıcı',
+        label: 'Obadiah · Öğrenci Anlatıcı',
         quality: 'neural',
       };
 
@@ -573,7 +575,7 @@ async function synthesizeTurnAudio(
   const assign = assignments[turn.speaker] || assignments.Deniz;
   const joinedSpoken = turn.spokenSentences.join(' ');
 
-  if (preferCloudNeural && cloudTtsState !== 'unavailable') {
+  if (preferCloudNeural && turn.speaker === 'Deniz' && cloudTtsState !== 'unavailable') {
     const cloudUrl = await fetchStudioNeuralTts(joinedSpoken, turn.speaker);
     if (cloudUrl) {
       return {

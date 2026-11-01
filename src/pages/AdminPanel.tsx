@@ -51,6 +51,7 @@ const AdminPanel = () => {
   const [messageReports, setMessageReports] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [studyMaterials, setStudyMaterials] = useState<any[]>([]);
+  const [studyLoading, setStudyLoading] = useState(true);
   const [studyFilter, setStudyFilter] = useState('');
   const [studyDetail, setStudyDetail] = useState<any>(null);
   const [systemOpen, setSystemOpen] = useState(true);
@@ -125,6 +126,7 @@ const AdminPanel = () => {
     setNotesLoading(true);
     const usersPromise = supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000);
     const notesPromise = supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }).limit(1000);
+    setStudyLoading(true);
     const secondaryPromise = Promise.all([
       supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('penalties').select('*').order('created_at', { ascending: false }).limit(500),
@@ -184,6 +186,8 @@ const AdminPanel = () => {
       }
     } catch (error) {
       console.error('Yönetici ek verileri yüklenemedi:', error);
+    } finally {
+      setStudyLoading(false);
     }
     void fetchUserEmails();
   };
@@ -815,14 +819,20 @@ const AdminPanel = () => {
             <Card className="glass-card"><CardContent className="p-4 space-y-3">
               <div className="flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Çalışma Stüdyosu Üretimleri</h3>
-                  <p className="text-xs text-muted-foreground">Toplam {studyMaterials.length} materyal · güvenlik denetimi için tüm üretimler listelenir.</p>
+                  <h3 className="font-semibold text-sm flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" />Yüklenen Ders Notları ve Stüdyo Üretimleri</h3>
+                  <p className="text-xs text-muted-foreground">Toplam {studyMaterials.length} materyal · kullanıcıların yüklediği notlar ve oluşturduğu içerikler burada listelenir.</p>
                 </div>
                 <Input placeholder="Kullanıcı, ders veya başlık ara..." value={studyFilter} onChange={(e) => setStudyFilter(e.target.value)} className="sm:max-w-xs" />
               </div>
               <ScrollArea className="h-[520px]">
                 <div className="space-y-2">
-                  {studyMaterials
+                  {studyLoading && (
+                    <div className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-muted/20 p-10 text-sm text-muted-foreground">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      Ders notları yükleniyor…
+                    </div>
+                  )}
+                  {!studyLoading && studyMaterials
                     .filter((m) => {
                       if (!studyFilter.trim()) return true;
                       const q = studyFilter.toLowerCase();
@@ -865,7 +875,7 @@ const AdminPanel = () => {
                         </div>
                       );
                     })}
-                  {studyMaterials.length === 0 && (
+                  {!studyLoading && studyMaterials.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-8">Henüz üretim yok.</p>
                   )}
                 </div>
