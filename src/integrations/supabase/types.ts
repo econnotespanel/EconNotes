@@ -1154,6 +1154,10 @@ export type Database = {
     }
     Functions: {
       admin_get_note_password: { Args: { _note_id: string }; Returns: string }
+      admin_set_download_quota: {
+        Args: { _quota: number | null; _user_id: string }
+        Returns: boolean
+      }
       award_daily_login: {
         Args: never
         Returns: {

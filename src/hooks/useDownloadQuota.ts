@@ -27,7 +27,7 @@ export const useDownloadQuota = () => {
       const nextQuota = data[0] as DownloadQuota;
       const normalized = {
         ...nextQuota,
-        allowed_downloads: Math.max(2, nextQuota.allowed_downloads),
+        allowed_downloads: Math.max(0, nextQuota.allowed_downloads),
       };
       normalized.remaining = Math.max(normalized.allowed_downloads - normalized.total_downloads, 0);
       normalized.can_download = normalized.is_admin || normalized.total_downloads < normalized.allowed_downloads;

@@ -76,7 +76,7 @@ const AdminPanel = () => {
   const [selectedRole, setSelectedRole] = useState('student');
   const [editUserDialog, setEditUserDialog] = useState(false);
   const [editUserData, setEditUserData] = useState<any>(null);
-  const [editUserForm, setEditUserForm] = useState({ full_name: '', university: '', department: '', grade: 1 });
+  const [editUserForm, setEditUserForm] = useState({ full_name: '', university: '', department: '', grade: 1, download_quota: '' });
   const [extendPenaltyDialog, setExtendPenaltyDialog] = useState(false);
   const [extendPenalty, setExtendPenalty] = useState<any>(null);
   const [extendMinutes, setExtendMinutes] = useState('60');
@@ -363,6 +363,12 @@ const AdminPanel = () => {
       grade: editUserForm.grade,
     }).eq('user_id', editUserData.user_id);
     if (error) { toast.error('Güncelleme başarısız: ' + error.message); return; }
+    const selectedQuota = editUserForm.download_quota === '' ? null : Number(editUserForm.download_quota);
+    const { error: quotaError } = await supabase.rpc('admin_set_download_quota', {
+      _user_id: editUserData.user_id,
+      _quota: selectedQuota,
+    });
+    if (quotaError) { toast.error('Not kotası güncellenemedi: ' + quotaError.message); return; }
     toast.success('Kullanıcı bilgileri güncellendi!');
     setEditUserDialog(false); fetchAll();
   };
@@ -595,7 +601,7 @@ const AdminPanel = () => {
                           <td className="p-3 hidden lg:table-cell whitespace-nowrap text-xs text-muted-foreground">{u.last_login ? new Date(u.last_login).toLocaleString('tr-TR') : '-'}</td>
                           <td className="p-3">
                             <div className="flex gap-1">
-                              <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name || '', university: u.university || '', department: u.department || '', grade: u.grade || 1 }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
+                              <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name || '', university: u.university || '', department: u.department || '', grade: u.grade || 1, download_quota: u.manual_download_quota ? String(u.manual_download_quota) : '' }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol"><UserCog className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza"><Ban className="h-3 w-3" /></Button>
                               <AlertDialog>
@@ -1005,6 +1011,19 @@ const AdminPanel = () => {
                     <SelectItem value="5">Mezun</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Özel not indirme kotası</Label>
+                <Select value={editUserForm.download_quota || 'auto'} onValueChange={(value) => setEditUserForm({...editUserForm, download_quota: value === 'auto' ? '' : value})}>
+                  <SelectTrigger><SelectValue placeholder="Otomatik hesapla" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Otomatik hesapla</SelectItem>
+                    {Array.from({ length: 9 }, (_, index) => String(index + 1)).map((quota) => (
+                      <SelectItem key={quota} value={quota}>{quota} indirme hakkı</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Seçilen değer, kullanıcının toplam indirme hakkını belirler.</p>
               </div>
               <Button className="w-full" onClick={updateUserProfile}>Kaydet</Button>
             </div>
