@@ -24,7 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Progress } from '@/components/ui/progress';
-import { NOTE_SELECT } from '@/lib/noteColumns';
+import { NOTE_EDITOR_SELECT, NOTE_SELECT } from '@/lib/noteColumns';
 import LoadingMessage from '@/components/ui/loading-message';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
@@ -109,7 +109,10 @@ const Notes = () => {
   };
 
   const fetchNotes = async () => {
-    const { data, error } = await supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: sortOrder === 'asc' });
+    let { data, error } = await supabase.from('notes').select(NOTE_EDITOR_SELECT).order('created_at', { ascending: sortOrder === 'asc' });
+    if (error?.message.includes('edited_by_name')) {
+      ({ data, error } = await supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: sortOrder === 'asc' }));
+    }
     if (error) toast.error('Notlar yüklenemedi: ' + error.message);
     setNotes((data as any[]) || []);
     setLoading(false);
@@ -272,8 +275,13 @@ const Notes = () => {
 
       if (editingNote) {
         noteData.edited_at = new Date().toISOString();
-        noteData.edited_by_name = profile?.full_name || user?.user_metadata?.full_name || '';
-        const { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
+        const editorName = profile?.full_name || user?.user_metadata?.full_name || '';
+        noteData.edited_by_name = editorName;
+        let { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
+        if (error?.message.includes('edited_by_name')) {
+          delete noteData.edited_by_name;
+          ({ error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id));
+        }
         if (error) { toast.error('Not güncellenemedi.'); return; }
         await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_updated', `"${form.title}" notu güncellendi`, 'note', editingNote.id);
         toast.success('Not güncellendi!');

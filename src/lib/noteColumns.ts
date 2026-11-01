@@ -19,7 +19,6 @@ export const NOTE_SELECT = [
   'created_at',
   'updated_at',
   'edited_at',
-  'edited_by_name',
   'university',
   'status',
   'approved_at',
@@ -27,3 +26,5 @@ export const NOTE_SELECT = [
   'rejection_reason',
   'has_password',
 ].join(',');
+
+export const NOTE_EDITOR_SELECT = `${NOTE_SELECT},edited_by_name`;
