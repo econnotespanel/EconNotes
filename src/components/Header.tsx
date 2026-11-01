@@ -28,6 +28,7 @@ const Header = () => {
   const { theme, toggleTheme } = useTheme();
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const flagThemeIds = new Set(['march18', 'october29', 'april23', 'may19']);
   const navigate = useNavigate();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
@@ -145,7 +146,12 @@ const Header = () => {
           <EconLogo className="h-6 w-24 sm:h-7 sm:w-32" />
           {seasonalTheme && (
             <span className="ml-2 hidden items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary lg:inline-flex">
-              {seasonalTheme.emoji} {seasonalTheme.label}
+              {flagThemeIds.has(seasonalTheme.id) ? (
+                <span className="seasonal-flag" title={`${seasonalTheme.label} teması`} aria-label={`${seasonalTheme.label} teması`}>🇹🇷</span>
+              ) : seasonalTheme.id === 'november10' ? (
+                <span className="seasonal-ribbon" title="Atatürk'ü Anma Günü" aria-label="Atatürk'ü Anma Günü" />
+              ) : seasonalTheme.emoji}
+              <span>{seasonalTheme.id === 'november10' ? 'Atatürk • 10 Kasım' : seasonalTheme.label}</span>
             </span>
           )}
         </div>
