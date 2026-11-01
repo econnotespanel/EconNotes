@@ -28,8 +28,17 @@ export const useSystemStatus = (): SystemStatus => {
 
   useEffect(() => {
     let alive = true;
+    const startupFallback = window.setTimeout(() => {
+      if (alive) setState((s) => s.systemOpen === null ? { ...s, systemOpen: true } : s);
+    }, 3000);
     const checkSystem = async () => {
-      const { data, error } = await (supabase as any).from('public_system_status').select('*').limit(1).maybeSingle();
+      const request = (supabase as any).from('public_system_status').select('*').limit(1).maybeSingle();
+      const { data, error } = await Promise.race([
+        request,
+        new Promise<{ data: null; error: Error }>((resolve) => {
+          window.setTimeout(() => resolve({ data: null, error: new Error('Sistem durumu zaman aşımına uğradı.') }), 3000);
+        }),
+      ]);
       if (!alive) return;
       if (error) {
         setState((s) => (s.systemOpen === null ? { ...s, systemOpen: true } : s));
@@ -59,6 +68,7 @@ export const useSystemStatus = (): SystemStatus => {
     window.addEventListener('econnotes:system-changed', checkSystem);
     return () => {
       alive = false;
+      clearTimeout(startupFallback);
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('econnotes:system-changed', checkSystem);
