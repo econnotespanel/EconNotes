@@ -386,7 +386,15 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
   if (nodes.length === 0) {
     focusPoint = drawTakeawayCards(ctx, contentArea, f.scene.keyTakeaways, reveal);
   } else if (d.type === 'visual') {
-    focusPoint = drawVisualShowcase(ctx, contentArea, nodes, d.visualTheme, reveal, f.now);
+    focusPoint = drawVisualShowcase(
+      ctx,
+      contentArea,
+      nodes,
+      d.visualTheme,
+      reveal,
+      f.now,
+      `${f.courseLabel}|${f.scene.title}|${f.sceneIndex}|${d.title}`,
+    );
   } else if (d.type === 'shapes' || d.type === 'structure' || d.type === 'network') {
     focusPoint = drawShapesDiagram(ctx, contentArea, nodes, d.rootBadge || 'MERKEZ YAPI', reveal, f.now);
   } else if (d.type === 'table') {
@@ -406,7 +414,15 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
   } else if (d.type === 'comparison') {
     focusPoint = drawComparison(ctx, contentArea, nodes, reveal);
   } else {
-    focusPoint = drawVisualShowcase(ctx, contentArea, nodes, d.visualTheme, reveal, f.now);
+    focusPoint = drawVisualShowcase(
+      ctx,
+      contentArea,
+      nodes,
+      d.visualTheme,
+      reveal,
+      f.now,
+      `${f.courseLabel}|${f.scene.title}|${f.sceneIndex}|${d.title}`,
+    );
   }
 
   // Alt sınav vurgu bandı — hocanın sorabileceği noktaları öne çıkarır
@@ -491,7 +507,7 @@ function drawThematicIllustration(
   ctx.save();
   rr(ctx, box.x, box.y, box.w, box.h, 24);
   const bg = ctx.createLinearGradient(box.x, box.y, box.x + box.w, box.y + box.h);
-  if (theme === 'history') {
+  if (theme === 'history' && variant === 0) {
     bg.addColorStop(0, '#0f1d38');
     bg.addColorStop(0.55, '#13243f');
     bg.addColorStop(1, '#1d1636');
@@ -588,6 +604,73 @@ function drawThematicIllustration(
       ctx.bezierCurveTo(cx - 80, ry - 8, cx + 80, ry + 8, box.x + box.w - 20, ry - 4);
       ctx.strokeStyle = r === 0 ? 'rgba(52, 211, 153, 0.55)' : 'rgba(56, 189, 248, 0.30)';
       ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  } else if (theme === 'history') {
+    // Tarih derslerinde tek bir anıt yerine konuya göre kronik ve ticaret rotası kompozisyonu.
+    const baseY = box.y + box.h - 84;
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.58)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(box.x + 42, baseY);
+    ctx.lineTo(box.x + box.w - 42, baseY);
+    ctx.stroke();
+
+    if (variant === 1) {
+      const milestones = [
+        { x: box.x + 74, title: 'KÖKEN', color: '#22d3ee' },
+        { x: cx - 74, title: 'DÖNÜŞÜM', color: '#fbbf24' },
+        { x: cx + 74, title: 'ETKİ', color: '#a78bfa' },
+        { x: box.x + box.w - 74, title: 'MİRAS', color: '#34d399' },
+      ];
+      milestones.forEach((item, index) => {
+        const y = baseY - (index % 2 === 0 ? 112 : 188);
+        ctx.beginPath();
+        ctx.moveTo(item.x, baseY);
+        ctx.lineTo(item.x, y + 34);
+        ctx.strokeStyle = `${item.color}99`;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(item.x, baseY, 10, 0, Math.PI * 2);
+        ctx.fillStyle = item.color;
+        ctx.fill();
+        rr(ctx, item.x - 58, y, 116, 38, 12);
+        ctx.fillStyle = `${item.color}22`;
+        ctx.fill();
+        ctx.strokeStyle = `${item.color}88`;
+        ctx.stroke();
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = font(700, 10.5);
+        ctx.textAlign = 'center';
+        ctx.fillText(item.title, item.x, y + 24);
+      });
+      ctx.textAlign = 'left';
+    } else {
+      const left = cx - 154;
+      const top = box.y + 98;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.62)';
+      ctx.lineWidth = 2;
+      rr(ctx, left, top, 308, 220, 18);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.18)';
+      ctx.fillRect(left + 18, top + 18, 272, 42);
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = font(800, 17);
+      ctx.textAlign = 'center';
+      ctx.fillText('KRONİK / BELGE', cx, top + 45);
+      ctx.textAlign = 'left';
+      for (let row = 0; row < 4; row++) {
+        const y = top + 86 + row * 30;
+        ctx.fillStyle = row === activeIdx % 4 ? '#67e8f9' : 'rgba(148, 163, 184, 0.48)';
+        ctx.fillRect(left + 28, y, 54 + row * 22, 5);
+        ctx.fillRect(left + 98, y, 166 - row * 16, 5);
+      }
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.5)';
+      ctx.beginPath();
+      ctx.moveTo(left + 28, top + 188);
+      ctx.bezierCurveTo(left + 92, top + 144, left + 194, top + 212, left + 280, top + 164);
       ctx.stroke();
     }
   } else if (theme === 'economics' && variant === 0) {
@@ -807,6 +890,7 @@ function drawVisualShowcase(
   theme: VisualTheme,
   reveal: number,
   now: number,
+  lessonKey: string,
 ): Point {
   const list = nodes.slice(0, 4);
   const n = list.length;
@@ -818,7 +902,7 @@ function drawVisualShowcase(
     w: Math.round(a.w * 0.41),
     h: a.h - 8,
   };
-  const variantKey = `${theme}|${nodes.map(node => `${node.label}:${node.subtext}`).join('|')}`;
+  const variantKey = `${theme}|${lessonKey}|${nodes.map(node => `${node.label}:${node.subtext}`).join('|')}`;
   const anchors = drawThematicIllustration(ctx, illBox, theme, now, act, variantKey);
 
   const rightX = illBox.x + illBox.w + 34;
