@@ -182,16 +182,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
+    const authStartupTimer = window.setTimeout(() => {
+      if (mounted) {
+        setLoading((current) => {
+          if (current) {
+            console.warn('Oturum başlatma zaman aşımına uğradı, misafir modunda başlatılıyor.');
+            return false;
+          }
+          return current;
+        });
+      }
+    }, 2500);
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      window.clearTimeout(authStartupTimer);
       await hydrateSession(session);
       initialized = true;
     }).catch((error) => {
+      window.clearTimeout(authStartupTimer);
       console.error('Oturum başlatılamadı:', error);
       if (mounted) setLoading(false);
     });
 
     return () => {
       mounted = false;
+      window.clearTimeout(authStartupTimer);
       subscription.unsubscribe();
     };
   }, []);

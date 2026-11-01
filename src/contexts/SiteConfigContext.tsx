@@ -159,11 +159,17 @@ export const SiteConfigProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const refresh = useCallback(async () => {
     try {
-      const { data, error } = await (supabase as any)
+      const request = (supabase as any)
         .from('site_config')
         .select('*')
         .limit(1)
         .maybeSingle();
+      const { data, error } = await Promise.race([
+        request,
+        new Promise<{ data: null; error: Error }>((resolve) =>
+          window.setTimeout(() => resolve({ data: null, error: new Error('Site config zaman aşımı') }), 2500)
+        ),
+      ]);
       if (error) {
         console.error('Site config yüklenemedi:', error);
         return;
