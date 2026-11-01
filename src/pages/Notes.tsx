@@ -976,7 +976,7 @@ const Notes = () => {
         {/* Preview Modal */}
         {previewUrl && (
           <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); }}>
-            <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:right-3 [&>button]:top-3 [&>button]:z-30 [&>button]:h-9 [&>button]:w-9 [&>button]:rounded-lg [&>button]:bg-white/10 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-white/20 sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
+            <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:!right-3 [&>button]:!top-3 [&>button]:z-30 [&>button]:h-10 [&>button]:w-10 [&>button]:rounded-lg [&>button]:bg-white/15 [&>button]:p-2 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-white/25 sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
               <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-14 text-left sm:px-6 sm:pr-16">
                 <div className="flex min-w-0 items-center gap-3">
                   <EconLogo allWhite className="h-8 w-28 sm:h-9 sm:w-36" />
@@ -1001,8 +1001,8 @@ const Notes = () => {
                     <p className="text-sm text-slate-300">Bu dosya türü önizlenemez. Lütfen indirin.</p>
                   </div>
                 )}
-                <div className="pointer-events-none absolute right-5 top-5 z-10 opacity-20">
-                  <EconLogo allWhite className="h-5 w-20 sm:h-6 sm:w-24" />
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-[0.12]">
+                  <EconLogo allWhite className="h-12 w-48 sm:h-16 sm:w-64" />
                 </div>
               </div>
             </DialogContent>
