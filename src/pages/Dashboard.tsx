@@ -349,19 +349,24 @@ const Dashboard = () => {
 
         <div className="grid gap-4 sm:grid-cols-3">
           {loading
-            ? Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-stretch min-w-0">
-                  <Card className="glass-card flex-1">
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <Skeleton className="h-12 w-12 rounded-xl" />
-                      <div className="space-y-2 flex-1">
-                        <Skeleton className="h-6 w-12" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              ))
+            ? (
+              <>
+                <LoadingMessage className="sm:col-span-3" />
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-stretch min-w-0">
+                    <Card className="glass-card flex-1">
+                      <CardContent className="p-4 flex items-center gap-4">
+                        <Skeleton className="h-12 w-12 rounded-xl" />
+                        <div className="space-y-2 flex-1">
+                          <Skeleton className="h-6 w-12" />
+                          <Skeleton className="h-3 w-24" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ))}
+              </>
+            )
             : statCards.map((stat, i) => (
             <div key={stat.label} className="flex items-stretch min-w-0">
               <Card className="glass-card flex-1 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => i < 2 ? navigate('/notes') : navigate('/announcements')}>
