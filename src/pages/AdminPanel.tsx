@@ -492,15 +492,15 @@ const AdminPanel = () => {
             <Card className="glass-card">
               <CardContent className="p-4">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                <table className="min-w-[1180px] w-full text-sm">
                     <thead><tr className="border-b border-border"><th className="text-left p-2">Ad Soyad</th><th className="text-left p-2">E-posta</th><th className="text-left p-2 hidden md:table-cell">Üniversite</th><th className="text-left p-2 hidden md:table-cell">Bölüm</th><th className="text-left p-2">Rol</th><th className="text-left p-2 hidden lg:table-cell">Son Giriş</th><th className="text-left p-2">İşlemler</th></tr></thead>
                     <tbody>
                       {users.map((u) => (
                         <tr key={u.id} className="border-b border-border/50 hover:bg-accent/50">
                           <td className="p-2 font-medium">{u.full_name || '-'}</td>
-                          <td className="p-2 text-xs break-all">{userEmails[u.user_id] || '—'}</td>
-                          <td className="p-2 hidden md:table-cell">{u.university || '-'}</td>
-                          <td className="p-2 hidden md:table-cell">{u.department || '-'}</td>
+                          <td className="p-2 min-w-[240px] max-w-[300px] align-top text-xs whitespace-normal break-all" title={userEmails[u.user_id] || undefined}>{userEmails[u.user_id] || '—'}</td>
+                          <td className="p-2 min-w-[190px] max-w-[280px] align-top whitespace-normal break-words hidden md:table-cell" title={u.university || undefined}>{u.university || '-'}</td>
+                          <td className="p-2 min-w-[190px] max-w-[300px] align-top whitespace-normal break-words hidden md:table-cell" title={u.department || undefined}>{u.department || '-'}</td>
                           <td className="p-2"><Badge variant="outline" className="text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge></td>
                           <td className="p-2 hidden lg:table-cell">{u.last_login ? new Date(u.last_login).toLocaleString('tr-TR') : '-'}</td>
                           <td className="p-2">

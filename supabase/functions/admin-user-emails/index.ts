@@ -37,9 +37,13 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
       if (error) return json({ error: error.message }, 500);
       for (const u of data.users) {
+        const identityEmail = u.identities
+          ?.map((identity) => identity.identity_data?.email)
+          .find((email): email is string => typeof email === 'string' && email.trim().length > 0);
+        const metadataEmail = u.user_metadata?.email;
         users.push({
           id: u.id,
-          email: u.email ?? null,
+          email: u.email ?? identityEmail ?? (typeof metadataEmail === 'string' ? metadataEmail : null),
           created_at: u.created_at,
           confirmed: Boolean(u.email_confirmed_at ?? u.confirmed_at),
           provider: (u.app_metadata?.provider as string) ?? 'email',
