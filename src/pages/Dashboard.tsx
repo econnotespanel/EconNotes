@@ -49,6 +49,10 @@ const Dashboard = () => {
   const [banners, setBanners] = useState<any[]>([]);
   const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const displayName = profile?.full_name?.trim()
+    || String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim()
+    || user?.email?.split('@')[0]
+    || 'öğrenci';
   useEffect(() => {
     const fetchData = async () => {
       const [notesRes, announcementsRes, settingsRes, bannersRes] = await Promise.all([
@@ -304,7 +308,7 @@ const Dashboard = () => {
 
         <div className="flex flex-col items-start justify-between gap-4 pt-2 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-2xl font-bold sm:text-3xl">Merhaba, {profile?.full_name?.split(' ')[0] || 'öğrenci'}</h1>
+            <h1 className="text-2xl font-bold sm:text-3xl">Merhaba, {displayName.split(' ')[0]}</h1>
             <p className="text-muted-foreground mt-1">Bugün küçük bir adım, hedeflerine büyük bir katkı.</p>
           </div>
           {academicWeek.week && (

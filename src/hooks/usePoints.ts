@@ -30,13 +30,23 @@ export const usePoints = (leaderboardLimit = 10) => {
 
   const refresh = useCallback(async () => {
     if (!user) { setLoading(false); return; }
-    const [own, board] = await Promise.all([
-      supabase.from('user_points' as any).select('*').eq('user_id', user.id).maybeSingle(),
-      (supabase as any).rpc('get_leaderboard', { _limit: leaderboardLimit }),
-    ]);
-    if (own.data) setPoints(own.data as unknown as PointsState);
-    if (board.data) setLeaderboard(board.data as LeaderboardRow[]);
-    setLoading(false);
+    setLoading(true);
+    try {
+      const [own, board] = await Promise.all([
+        supabase.from('user_points' as any).select('*').eq('user_id', user.id).maybeSingle(),
+        (supabase as any).rpc('get_leaderboard', { _limit: leaderboardLimit }),
+      ]);
+      if (own.error) console.error('Puan bilgisi yüklenemedi:', own.error);
+      if (board.error) console.error('Liderlik tablosu yüklenemedi:', board.error);
+      setPoints(own.data ? own.data as unknown as PointsState : null);
+      setLeaderboard(board.data || []);
+    } catch (error) {
+      console.error('Puan verileri alınamadı:', error);
+      setPoints(null);
+      setLeaderboard([]);
+    } finally {
+      setLoading(false);
+    }
   }, [user, leaderboardLimit]);
 
   useEffect(() => { refresh(); }, [refresh]);

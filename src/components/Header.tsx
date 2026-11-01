@@ -29,6 +29,10 @@ const Header = () => {
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const flagThemeIds = new Set(['march18', 'october29', 'april23', 'may19']);
+  const displayName = profile?.full_name?.trim()
+    || String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim()
+    || user?.email?.split('@')[0]
+    || 'Öğrenci';
   const navigate = useNavigate();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
@@ -157,10 +161,10 @@ const Header = () => {
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 md:gap-2">
-          {profile && (
+          {user && (
             <div className="mr-1 hidden rounded-xl border border-border/60 bg-background/45 px-3 py-1.5 text-right md:flex md:flex-col">
               <span className="text-[13px] font-semibold leading-4 text-foreground">
-                {getGreeting()}, {profile.full_name}
+                {getGreeting()}, {displayName}
               </span>
               {profile.last_login && (
                 <span className="mt-0.5 text-[10px] text-muted-foreground">Son giriş: {formatLastLogin()}</span>

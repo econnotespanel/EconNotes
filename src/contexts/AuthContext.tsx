@@ -67,13 +67,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string, detectInactivity = false, email?: string, fallbackFullName = '') => {
-    const authUser = user?.id === userId ? user : null;
-    const { data } = await supabase
+  const fetchProfile = async (userId: string, detectInactivity = false, email?: string, fallbackFullName = '', authUserOverride?: User | null) => {
+    const authUser = authUserOverride ?? (user?.id === userId ? user : null);
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
+    if (error && error.code !== 'PGRST116') {
+      console.error('Profil yüklenemedi:', error);
+    }
     if (data) {
       const profileName = data.full_name?.trim() || getOAuthFullName(authUser ?? { user_metadata: { full_name: fallbackFullName }, identities: [], email }, fallbackFullName);
       if (!data.full_name?.trim() && profileName) {
@@ -125,15 +128,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    let mounted = true;
+    let initialized = false;
+    const hydrateSession = async (nextSession: Session | null, detectInactivity = false) => {
+      if (!mounted) return;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      setProfile(null);
+      setIsAdmin(false);
+      if (nextSession?.user) {
+        await fetchProfile(
+          nextSession.user.id,
+          detectInactivity,
+          nextSession.user.email,
+          getOAuthFullName(nextSession.user),
+          nextSession.user,
+        );
+        await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', nextSession.user.id);
+      }
+      if (mounted) setLoading(false);
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+        if (!initialized) return;
+        setLoading(true);
+        window.setTimeout(() => { void hydrateSession(session, _event === 'SIGNED_IN'); }, 0);
         if (session?.user) {
-          setTimeout(async () => {
-            await fetchProfile(session.user.id, _event === 'SIGNED_IN', session.user.email, getOAuthFullName(session.user));
-            await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id);
-          }, 0);
           if (_event === 'SIGNED_IN') {
             import('@/lib/activityLogger').then(({ logActivity }) => {
               logActivity(session.user.id, session.user.user_metadata?.full_name || '', session.user.email || '', 'user_login', 'Panele giriş yaptı');
@@ -152,26 +173,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }, 400);
           }
 
-        } else {
-          setProfile(null);
-          setIsAdmin(false);
         }
-        setLoading(false);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id, false, session.user.email, getOAuthFullName(session.user)).then(() => {
-          supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', session.user.id).then(() => {});
-        });
-      }
-      setLoading(false);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      await hydrateSession(session);
+      initialized = true;
+    }).catch((error) => {
+      console.error('Oturum başlatılamadı:', error);
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
