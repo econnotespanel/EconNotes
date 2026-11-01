@@ -272,6 +272,7 @@ const Notes = () => {
 
       if (editingNote) {
         noteData.edited_at = new Date().toISOString();
+        noteData.edited_by_name = profile?.full_name || user?.user_metadata?.full_name || '';
         const { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
         if (error) { toast.error('Not güncellenemedi.'); return; }
         await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_updated', `"${form.title}" notu güncellendi`, 'note', editingNote.id);
@@ -900,7 +901,10 @@ const Notes = () => {
                             </div>
                             {note.edited_at && (
                               <div className="flex items-center gap-1.5 border-t border-border/50 pt-2 text-muted-foreground">
-                                <Pencil className="h-3 w-3 text-primary/75" /> <span>Düzenlendi</span><span>· {formatDateTime(note.edited_at)}</span>
+                                <Pencil className="h-3 w-3 text-primary/75" />
+                                <span>Düzenleyen</span>
+                                {note.edited_by_name && <span className="truncate">{note.edited_by_name}</span>}
+                                <span>· {formatDateTime(note.edited_at)}</span>
                               </div>
                             )}
                           </div>

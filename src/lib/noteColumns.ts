@@ -19,6 +19,7 @@ export const NOTE_SELECT = [
   'created_at',
   'updated_at',
   'edited_at',
+  'edited_by_name',
   'university',
   'status',
   'approved_at',
