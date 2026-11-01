@@ -96,7 +96,9 @@ const Login = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password;
+    if (!cleanEmail || !cleanPassword) {
       toast.error('Lütfen tüm alanları doldurun.');
       return;
     }
@@ -112,26 +114,50 @@ const Login = () => {
     let error;
     try {
       ({ data, error } = await Promise.race([
-        supabase.auth.signInWithPassword({ email, password }),
+        supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword }),
         new Promise<never>((_, reject) => {
-          window.setTimeout(() => reject(new Error('Giriş sunucusu zaman aşımına uğradı.')), 15000);
+          window.setTimeout(() => reject(new Error('Giriş sunucusu zaman aşımına uğradı.')), 10000);
         }),
       ]));
     } catch (requestError) {
       console.error('Giriş isteği başarısız:', requestError);
       setLoading(false);
       setCaptchaReset((v) => v + 1);
-      toast.error('Giriş sunucusuna ulaşılamadı. Lütfen birkaç saniye sonra tekrar deneyin.');
+      toast.error('Giriş sunucusuna veya veritabanına ulaşılamadı. Lütfen sunucu durumunu kontrol edip tekrar deneyin.');
       return;
     }
     
     if (error) {
       setLoading(false);
       setCaptchaReset((v) => v + 1);
-      if (error.message?.includes('Email not confirmed')) {
-        toast.error('E-posta adresinizi doğrulamanız gerekmektedir. Lütfen mail kutunuzu kontrol edin.');
+      const rawMsg = (error.message || '').toLowerCase();
+      const status = (error as any).status;
+      if (rawMsg.includes('email not confirmed')) {
+        toast.error('E-posta adresinizi doğrulamanız gerekmektedir. Lütfen mail kutunuzu ve spam klasörünüzü kontrol edin.');
+      } else if (
+        rawMsg.includes('failed to fetch') ||
+        rawMsg.includes('network') ||
+        rawMsg.includes('timeout') ||
+        rawMsg.includes('zaman aşımı') ||
+        rawMsg.includes('abort') ||
+        rawMsg.includes('load failed') ||
+        status === 504 ||
+        status === 503 ||
+        status === 502
+      ) {
+        toast.error('Giriş sunucusuna veya veritabanına ulaşılamadı. Supabase sunucusu yanıt vermiyor, lütfen birazdan tekrar deneyin.');
+      } else if (rawMsg.includes('invalid login credentials') || rawMsg.includes('invalid_grant')) {
+        const isGmail = cleanEmail.endsWith('@gmail.com');
+        toast.error('Giriş başarısız. E-posta veya şifre hatalı.', {
+          description: isGmail
+            ? 'Google ile kayıt olduysanız lütfen aşağıdaki "Google ile devam et" butonunu kullanın.'
+            : 'Şifrenizi unuttuysanız "Şifremi Unuttum" bağlantısından sıfırlayabilirsiniz.',
+          duration: 6000,
+        });
+      } else if (rawMsg.includes('too many') || rawMsg.includes('rate limit')) {
+        toast.error('Çok fazla başarısız deneme yapıldı. Güvenlik nedeniyle lütfen birkaç dakika bekleyin.');
       } else {
-        toast.error('Giriş başarısız. E-posta veya şifre hatalı.');
+        toast.error('Giriş başarısız: ' + error.message);
       }
       return;
     }
@@ -383,6 +409,10 @@ const Login = () => {
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   placeholder="ornek@mail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -400,6 +430,7 @@ const Login = () => {
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

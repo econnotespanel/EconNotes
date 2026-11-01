@@ -99,7 +99,7 @@ const Register = () => {
     }
     setLoading(true);
     const { error } = await supabase.auth.signUp({
-      email: formData.email,
+      email: formData.email.trim().toLowerCase(),
       password: formData.password,
       options: {
         data: {
