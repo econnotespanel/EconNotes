@@ -158,25 +158,34 @@ export const SiteConfigProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const { data } = await (supabase as any)
-      .from('site_config')
-      .select('*')
-      .limit(1)
-      .maybeSingle();
-    if (data) {
-      const next: SiteConfig = {
-        id: data.id,
-        brand_name: data.brand_name || 'EconNotes',
-        tagline: data.tagline ?? null,
-        logo_url: data.logo_url ?? null,
-        theme: (data.theme || {}) as SiteTheme,
-        pages: (data.pages || {}) as Record<string, boolean>,
-      };
-      setConfig(next);
-      applyTheme(next.theme);
-      document.title = `${next.brand_name}${next.tagline ? ' — ' + next.tagline : ''}`;
+    try {
+      const { data, error } = await (supabase as any)
+        .from('site_config')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error('Site config yüklenemedi:', error);
+        return;
+      }
+      if (data) {
+        const next: SiteConfig = {
+          id: data.id,
+          brand_name: data.brand_name || 'EconNotes',
+          tagline: data.tagline ?? null,
+          logo_url: data.logo_url ?? null,
+          theme: (data.theme || {}) as SiteTheme,
+          pages: (data.pages || {}) as Record<string, boolean>,
+        };
+        setConfig(next);
+        applyTheme(next.theme);
+        document.title = `${next.brand_name}${next.tagline ? ' — ' + next.tagline : ''}`;
+      }
+    } catch (error) {
+      console.error('Site config isteği başarısız:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {

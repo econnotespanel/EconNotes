@@ -10,6 +10,21 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  global: {
+    fetch: async (input, init = {}) => {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 20000);
+      const callerSignal = init.signal;
+      const abortFromCaller = () => controller.abort();
+      callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+      try {
+        return await fetch(input, { ...init, signal: controller.signal });
+      } finally {
+        window.clearTimeout(timeout);
+        callerSignal?.removeEventListener('abort', abortFromCaller);
+      }
+    },
+  },
   auth: {
     storage: brokeredPreviewStorage(),
     persistSession: true,
