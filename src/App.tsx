@@ -12,6 +12,7 @@ import OfflineBanner from "@/components/OfflineBanner";
 import SplashScreen from "@/components/SplashScreen";
 import RouteLoader, { prefetchRoutes } from "@/components/RouteLoader";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import SystemGate from "@/components/SystemGate";
 
 const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
@@ -65,7 +66,8 @@ const App = () => {
               {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
               <BrowserRouter>
                 <Suspense fallback={<RouteLoader />}>
-                  <Routes>
+                  <SystemGate>
+                    <Routes>
                     <Route path="/" element={<Index />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
@@ -86,7 +88,8 @@ const App = () => {
                     <Route path="/support" element={<Support />} />
                     <Route path="/install" element={<Install />} />
                     <Route path="*" element={<NotFound />} />
-                  </Routes>
+                    </Routes>
+                  </SystemGate>
                 </Suspense>
               </BrowserRouter>
             </TooltipProvider>

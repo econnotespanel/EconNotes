@@ -194,8 +194,21 @@ const AdminPanel = () => {
 
   const toggleSystem = async () => {
     const newState = !systemOpen;
-    await supabase.from('system_settings').update({ is_system_open: newState }).not('id', 'is', null);
+    const patch = newState
+      ? { is_system_open: true }
+      : {
+          is_system_open: false,
+          closure_title: closureTitle || 'EconNotes güncelleniyor',
+          closure_message: closureMessage || 'Sunucu bakım güncellemesi yapılıyor. Lütfen daha sonra tekrar deneyin.',
+          closure_mode: closureMode || 'maintenance',
+        };
+    const { error } = await supabase.from('system_settings').update(patch).not('id', 'is', null);
+    if (error) {
+      toast.error('Sistem durumu güncellenemedi.');
+      return;
+    }
     setSystemOpen(newState);
+    window.dispatchEvent(new Event('econnotes:system-changed'));
     toast.success(newState ? 'Sistem açıldı!' : 'Sistem kapatıldı!');
   };
 
