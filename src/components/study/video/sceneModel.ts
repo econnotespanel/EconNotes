@@ -697,10 +697,10 @@ function buildConversationalSentences(
   ];
 
   const instructorAckBank = [
-    `Aynen öyle Barış!`,
-    `Kesinlikle Barış!`,
-    `Tam 12'den vurdun Barış!`,
-    `Harika bir noktayı yakaladın Barış!`,
+    `Sorunun merkezine geldin Barış;`,
+    `Bu ayrımı kurmak için önce şu çerçeveyi kuralım Barış:`,
+    `Burada belirleyici olan bağlantı şu Barış:`,
+    `Bu soruyu yanıtlarken iki katmanı birlikte düşünelim Barış:`,
   ];
 
   const firstSpeaker = leadSpeaker;
@@ -761,9 +761,9 @@ function buildConversationalSentences(
     (term: string) => `Hocam, hocaların sınavda soru hazırlarken en sevdiği kavram ${term} olabilir mi? Öğrenci nereye odaklanmalı?`,
   ];
   const termAnswerOpeners = [
-    'Hah! Harika bir noktaya parmak bastın Barış; hemen netleştirelim:',
-    'İşin kalbi tam burası Barış; bunu şöyle kafamızda canlandıralım:',
-    'Aynen öyle Barış! Sınavda çeldiriciye düşmemek için formülümüz çok basit:',
+    'Bu kavramı yerli yerine oturtmak için önce tanımını, ardından sonucunu ayıralım:',
+    'Burada iki aşamalı düşünmek gerekir: önce mekanizma, sonra ortaya çıkan etki:',
+    'Sınavda bu kavramı doğru kullanmak için belirleyici ölçüt şudur:',
   ];
 
   unusedTerms.slice(0, 2).forEach((kt, tIdx) => {
@@ -790,10 +790,10 @@ function buildConversationalSentences(
     sentences.push(`O hâlde Deniz hocam, buradaki büyük resmi tek bir cümleyle özetlersek: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
     speakers.push('Barış');
     if (unusedTakeaways[1]) {
-      sentences.push(`Aynen öyle Barış! Üstelik buna paralel olarak ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
+      sentences.push(`Bu çerçeveyi tamamlayan ikinci sonuç ise şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
       speakers.push('Deniz');
     } else {
-      sentences.push(`Tam 12'den vurdun Barış! Konunun omurgası işte tam bu neden-sonuç bağına dayanıyor.`);
+      sentences.push(`Bu nedenle konunun omurgasını neden ile sonuç arasındaki bu bağ oluşturuyor.`);
       speakers.push('Deniz');
     }
   }
@@ -1053,7 +1053,7 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Barış',
-        text: `Harika bir ders bizi bekliyor Deniz hocam! Sınav döneminde öğrencilerin en çok zorlandığı nokta bilgileri parça parça ezberlemeye çalışmak. Oysa ${roadmapStr} o kurucu bağı yakalayınca konu resmen akıp gidiyor. Akıllı tahtadaki kavramsal şemada ilk odaklanmamız gereken kilit zemin nedir?`,
+        text: `Deniz hocam, bu konuyu ezber parçalarına ayırmadan anlamak için ${roadmapStr} hangi kurucu bağı izlemeliyiz? Akıllı tahtadaki kavramsal şemada ilk odaklanmamız gereken zemin nedir?`,
       },
       {
         speaker: 'Deniz',
@@ -1106,11 +1106,11 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Barış',
-        text: `Harika bir tablo Deniz hocam! Özellikle ${lbl0} ile ${lbl1} arasındaki o ince çizgiyi ve ayırt edici farkı nasıl okumalıyız?`,
+        text: `Deniz hocam, tabloda ${lbl0} ile ${lbl1} yan yana duruyor. Bu iki kavramı bir sınav sorusunda ayırt etmek için hangi ölçütü kullanmalıyız?`,
       },
       {
         speaker: 'Deniz',
-        text: `Tam 12'den vurdun Barış! Sınavlarda en çok puan kaybettiren tuzak işte tam bu ikilemdir. Tablomuzun ilk satırındaki ${lbl0}, ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ${lbl1} ise doğrudan ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))} Bu işlevsel farkı yakalayan öğrenci çeldiricilere asla takılmaz!`,
+        text: `Bu ayrımın kritik noktası şu: ${lbl0}, ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ${lbl1}, ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))} Peki bu fark uygulamada hangi sonucu doğurur?`,
       },
       {
         speaker: 'Barış',
@@ -1274,7 +1274,7 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Barış',
-        text: `Harika bir pratik olur Deniz hocam! Karşımızda ${title} sürecinin yaşandığı gerçek bir vaka senaryosu olsa, dört adımda olaylar sahada nasıl gelişir?`,
+        text: `Deniz hocam, ${title} sürecini gerçek bir vaka üzerinden düşünelim. Başlangıç koşulundan nihai sonuca kadar sahada hangi dört adım gerçekleşir?`,
       },
       {
         speaker: 'Deniz',
@@ -1355,7 +1355,7 @@ function ensureRichFiveMinuteCurriculum(
         },
         {
           speaker: 'Deniz',
-          text: `Kesinlikle Barış! Hoca tam bu iki kavramı birbirine dolayarak şıkları hazırlar. Formülümüz şu: ${q1.term} dediğimizde ${ensureSentenceEnd(lowerFirstIfNotProper(q1.definition))} Buna karşılık ${q2.term === q1.term ? q0.term : q2.term} ise ${ensureSentenceEnd(lowerFirstIfNotProper((q2.term === q1.term ? q0 : q2).definition))} Bu iki farkı net koyan öğrenci sınavdan gülerek çıkar!`,
+          text: `Bu iki kavramın ayrımını netleştirelim: ${q1.term} dediğimizde ${ensureSentenceEnd(lowerFirstIfNotProper(q1.definition))} Buna karşılık ${q2.term === q1.term ? q0.term : q2.term} ise ${ensureSentenceEnd(lowerFirstIfNotProper((q2.term === q1.term ? q0 : q2).definition))} Peki bu fark, seçeneklerde nasıl bir çeldiriciye dönüşebilir?`,
         },
       ];
       if (criticalFact) {
@@ -1365,7 +1365,7 @@ function ensureRichFiveMinuteCurriculum(
         });
         turns.push({
           speaker: 'Deniz',
-          text: `Tam isabet Barış! Şimdi video sonundaki interaktif eşleştirme kartları ve mini testle bu noktaları hep birlikte mükemmel şekilde pekiştirelim!`,
+          text: `Bu kritik ayrımı şimdi video sonundaki eşleştirme kartları ve mini testte uygulayarak pekiştirelim.`,
         });
       }
 
@@ -1423,7 +1423,7 @@ function ensureRichFiveMinuteCurriculum(
       },
       {
         speaker: 'Deniz',
-        text: `Çok isabetli bir özet Barış. Sınav hazırlığında özellikle neden ile sonucu ters yüz eden öncüllere dikkat etmeliyiz; nitekim ${ensureSentenceEnd(lowerFirstIfNotProper(fact2))}`,
+        text: `Bu özeti sınav açısından şöyle test edebiliriz Barış: neden ile sonucu ters yüz eden bir öncül verilseydi, ${ensureSentenceEnd(lowerFirstIfNotProper(fact2))} ifadesinin hangi kısmı değişirdi?`,
       },
       {
         speaker: 'Barış',
