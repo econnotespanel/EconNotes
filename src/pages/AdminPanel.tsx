@@ -37,6 +37,8 @@ const AdminPanel = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [notesLoading, setNotesLoading] = useState(true);
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('all');
   const [userEmails, setUserEmails] = useState<Record<string, string>>({});
@@ -118,6 +120,8 @@ const AdminPanel = () => {
   };
 
   const fetchAll = async () => {
+    setUsersLoading(true);
+    setNotesLoading(true);
     const [usersRes, notesRes, announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000),
       supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }).limit(1000),
@@ -140,6 +144,8 @@ const AdminPanel = () => {
     }
     setUsers(usersRes.data || []);
     setNotes((notesRes.data as any[]) || []);
+    setUsersLoading(false);
+    setNotesLoading(false);
     setAnnouncements(announcementsRes.data || []);
     setPenalties(penaltiesRes.data || []);
     setActivityLogs(logsRes.data || []);
@@ -483,8 +489,8 @@ const AdminPanel = () => {
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
-            { label: 'Kullanıcılar', value: users.length, icon: Users, tone: 'from-blue-500/20 to-cyan-500/5' },
-            { label: 'Notlar', value: notes.length, icon: FileText, tone: 'from-violet-500/20 to-fuchsia-500/5' },
+            { label: 'Kullanıcılar', value: usersLoading ? '…' : users.length, icon: Users, tone: 'from-blue-500/20 to-cyan-500/5' },
+            { label: 'Notlar', value: notesLoading ? '…' : notes.length, icon: FileText, tone: 'from-violet-500/20 to-fuchsia-500/5' },
             { label: 'Duyurular', value: announcements.length, icon: Megaphone, tone: 'from-amber-500/20 to-orange-500/5' },
             { label: 'Cezalar', value: penalties.length, icon: AlertTriangle, tone: 'from-rose-500/20 to-red-500/5' },
           ].map(({ label, value, icon: Icon, tone }) => (
@@ -527,12 +533,13 @@ const AdminPanel = () => {
                       <SelectContent><SelectItem value="all">Tüm roller</SelectItem><SelectItem value="student">Öğrenci</SelectItem><SelectItem value="admin">Yönetici</SelectItem></SelectContent>
                     </Select>
                   </div>
-                  <Badge variant="secondary" className="h-7 w-fit rounded-full px-3">{filteredUsers.length} kullanıcı</Badge>
+                  <Badge variant="secondary" className="h-7 w-fit rounded-full px-3">{usersLoading ? 'Kullanıcılar yükleniyor…' : `${filteredUsers.length} kullanıcı`}</Badge>
                 </div>
                 <div className="overflow-x-auto">
                 <table className="min-w-[1360px] w-full text-sm">
                     <thead><tr className="border-b border-border bg-muted/30"><th className="text-left p-3">Ad Soyad</th><th className="text-left p-3">E-posta</th><th className="text-left p-3 hidden md:table-cell">Üniversite</th><th className="text-left p-3 hidden md:table-cell">Bölüm</th><th className="text-left p-3">Rol</th><th className="text-left p-3">Kayıt Tarihi</th><th className="text-left p-3 hidden lg:table-cell">Son Giriş</th><th className="text-left p-3">İşlemler</th></tr></thead>
                     <tbody>
+                      {usersLoading && <tr><td colSpan={8} className="p-10 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />Kullanıcılar yükleniyor…</span></td></tr>}
                       {filteredUsers.map((u) => (
                         <tr key={u.id} className="border-b border-border/50 transition-colors hover:bg-primary/[0.04]">
                           <td className="p-3 font-medium">{u.full_name || '-'}</td>
@@ -555,6 +562,7 @@ const AdminPanel = () => {
                           </td>
                         </tr>
                       ))}
+                      {!usersLoading && filteredUsers.length === 0 && <tr><td colSpan={8} className="p-10 text-center text-muted-foreground">{users.length === 0 ? 'Kullanıcı bulunamadı.' : 'Aramanızla eşleşen kullanıcı yok.'}</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -564,8 +572,10 @@ const AdminPanel = () => {
 
           <TabsContent value="notes">
             <Card className="glass-card"><CardContent className="p-4 space-y-3">
+              {notesLoading && <div className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-muted/20 p-10 text-sm text-muted-foreground"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />Notlar yükleniyor…</div>}
+              {!notesLoading && notes.length === 0 && <p className="p-10 text-center text-muted-foreground">Not bulunamadı.</p>}
               {/* Onay bekleyen notlar */}
-              {notes.filter(n => n.status === 'pending').length > 0 && (
+              {!notesLoading && notes.filter(n => n.status === 'pending').length > 0 && (
                 <div className="space-y-2">
                   <h3 className="text-sm font-semibold flex items-center gap-2 text-warning">
                     <Clock className="h-4 w-4" /> Onay Bekleyen Notlar ({notes.filter(n => n.status === 'pending').length})
@@ -588,8 +598,8 @@ const AdminPanel = () => {
                 </div>
               )}
               {/* Diğer notlar */}
-              <h3 className="text-sm font-semibold pt-2">Tüm Notlar</h3>
-              {notes.filter(n => n.status !== 'pending').map((n) => (
+              {!notesLoading && notes.length > 0 && <h3 className="text-sm font-semibold pt-2">Tüm Notlar</h3>}
+              {!notesLoading && notes.filter(n => n.status !== 'pending').map((n) => (
                 <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
                   <div>
                     <p className="font-medium text-sm">{n.title}
@@ -610,7 +620,6 @@ const AdminPanel = () => {
                   </div>
                 </div>
               ))}
-              {notes.length === 0 && <p className="text-center text-muted-foreground">Not yok.</p>}
             </CardContent></Card>
           </TabsContent>
 
