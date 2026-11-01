@@ -293,7 +293,7 @@
   }
 
   .sticker-card, .glass-card {
-    @apply bg-card text-card-foreground rounded-lg border border-border relative;
+    @apply bg-card text-card-foreground rounded-[var(--radius)] border border-border/70 relative;
     box-shadow: var(--panel-shadow);
     transition: box-shadow .2s ease, border-color .2s ease;
   }
