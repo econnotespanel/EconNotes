@@ -64,20 +64,29 @@ export const useSystemStatus = (): SystemStatus => {
     };
     checkSystem();
     const interval = setInterval(checkSystem, 60000);
-    const channel = supabase
-      .channel('public-system-status')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'system_settings' }, () => {
-        window.dispatchEvent(new Event('econnotes:system-changed'));
-        void checkSystem();
-      })
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase
+        .channel('public-system-status')
+        .on('broadcast', { event: 'system-maintenance' }, () => {
+          window.dispatchEvent(new Event('econnotes:system-changed'));
+          void checkSystem();
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn('Sistem bakım yayını kullanılamıyor; periyodik kontrol sürdürülecek.');
+          }
+        });
+    } catch (error) {
+      console.warn('Sistem bakım yayını başlatılamadı; periyodik kontrol sürdürülecek.', error);
+    }
     const onVisible = () => { if (document.visibilityState === 'visible') checkSystem(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('econnotes:system-changed', checkSystem);
     return () => {
       alive = false;
       clearInterval(interval);
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('econnotes:system-changed', checkSystem);
     };

@@ -209,6 +209,15 @@ const AdminPanel = () => {
     }
     setSystemOpen(newState);
     window.dispatchEvent(new Event('econnotes:system-changed'));
+    try {
+      await supabase.channel('public-system-status').send({
+        type: 'broadcast',
+        event: 'system-maintenance',
+        payload: { is_system_open: newState },
+      });
+    } catch (broadcastError) {
+      console.warn('Sistem bakım yayını gönderilemedi; istemciler periyodik kontrolle durumu alacak.', broadcastError);
+    }
     toast.success(newState ? 'Sistem açıldı!' : 'Sistem kapatıldı!');
   };
 
