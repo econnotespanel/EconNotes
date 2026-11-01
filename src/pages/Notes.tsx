@@ -32,6 +32,21 @@ const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','
 const splitDepartments = (value: string | null | undefined) =>
   (value || '').split('|').map((department) => department.trim()).filter(Boolean);
 
+const normalizeLegacyNoteAttribution = (note: any) => {
+  const fileName = String(note.file_name || '').toLocaleLowerCase('tr-TR');
+  const title = String(note.title || '').toLocaleLowerCase('tr-TR');
+  const isResearchMethodsNote = fileName.includes('araştırma yöntemleri')
+    || (title === 'araştırma yöntemleri' && fileName.includes('29.10.2026'));
+
+  if (!isResearchMethodsNote) return note;
+
+  return {
+    ...note,
+    uploader_name: 'Aylin Kesgin',
+    edited_by_name: note.edited_by_name || 'Kaan Çolakoğulları',
+  };
+};
+
 const Notes = () => {
   const navigate = useNavigate();
   const { theme } = useTheme();
@@ -114,10 +129,11 @@ const Notes = () => {
       ({ data, error } = await supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: sortOrder === 'asc' }));
     }
     if (error) toast.error('Notlar yüklenemedi: ' + error.message);
-    setNotes((data as any[]) || []);
+    const normalizedNotes = ((data as any[]) || []).map(normalizeLegacyNoteAttribution);
+    setNotes(normalizedNotes);
     setLoading(false);
 
-    const noteIds = ((data as any[]) || []).map((note) => note.id).filter(Boolean);
+    const noteIds = normalizedNotes.map((note) => note.id).filter(Boolean);
     if (noteIds.length === 0) {
       setViewCounts({});
       setDownloadCounts({});

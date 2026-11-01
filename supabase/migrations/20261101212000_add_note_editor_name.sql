@@ -7,3 +7,9 @@ FROM public.profiles AS profiles
 WHERE notes.edited_at IS NOT NULL
   AND notes.edited_by_name IS NULL
   AND notes.user_id = profiles.user_id;
+
+UPDATE public.notes
+SET uploader_name = 'Aylin Kesgin',
+    edited_by_name = 'Kaan Çolakoğulları'
+WHERE LOWER(file_name) LIKE '%araştırma yöntemleri%'
+  AND LOWER(file_name) LIKE '%29.10.2026%';
