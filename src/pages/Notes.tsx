@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
@@ -976,8 +976,11 @@ const Notes = () => {
         {/* Preview Modal */}
         {previewUrl && (
           <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); }}>
-            <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:!right-3 [&>button]:!top-3 [&>button]:z-30 [&>button]:h-10 [&>button]:w-10 [&>button]:rounded-lg [&>button]:bg-white/15 [&>button]:p-2 [&>button]:text-white [&>button]:opacity-100 [&>button]:hover:bg-white/25 sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
-              <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-14 text-left sm:px-6 sm:pr-16">
+            <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
+              <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-16 text-left sm:px-6 sm:pr-20">
+                <DialogClose className="absolute right-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-2 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
+                  <span className="text-2xl font-light leading-none" aria-hidden="true">×</span>
+                </DialogClose>
                 <div className="flex min-w-0 items-center gap-3">
                   <EconLogo allWhite className="h-8 w-28 sm:h-9 sm:w-36" />
                   <span className="h-8 w-px bg-white/15" />
@@ -1001,8 +1004,10 @@ const Notes = () => {
                     <p className="text-sm text-slate-300">Bu dosya türü önizlenemez. Lütfen indirin.</p>
                   </div>
                 )}
-                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-[0.12]">
+                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-between px-8 opacity-[0.11] sm:px-16">
+                  <EconLogo allWhite className="h-10 w-40 sm:h-14 sm:w-56" />
                   <EconLogo allWhite className="h-12 w-48 sm:h-16 sm:w-64" />
+                  <EconLogo allWhite className="h-10 w-40 sm:h-14 sm:w-56" />
                 </div>
               </div>
             </DialogContent>
