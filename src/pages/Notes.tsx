@@ -978,8 +978,8 @@ const Notes = () => {
           <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); }}>
             <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
               <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-16 text-left sm:px-6 sm:pr-20">
-                <DialogClose className="absolute right-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-2 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
-                  <span className="text-2xl font-light leading-none" aria-hidden="true">×</span>
+                <DialogClose className="absolute right-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
+                  <X className="h-5 w-5" aria-hidden="true" />
                 </DialogClose>
                 <div className="flex min-w-0 items-center gap-3">
                   <EconLogo allWhite className="h-8 w-28 sm:h-9 sm:w-36" />
@@ -1004,10 +1004,10 @@ const Notes = () => {
                     <p className="text-sm text-slate-300">Bu dosya türü önizlenemez. Lütfen indirin.</p>
                   </div>
                 )}
-                <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-between px-8 opacity-[0.11] sm:px-16">
-                  <EconLogo allWhite className="h-10 w-40 sm:h-14 sm:w-56" />
-                  <EconLogo allWhite className="h-12 w-48 sm:h-16 sm:w-64" />
-                  <EconLogo allWhite className="h-10 w-40 sm:h-14 sm:w-56" />
+                <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-3 grid-rows-3 place-items-center gap-8 px-8 opacity-[0.11] sm:gap-12 sm:px-16">
+                  {Array.from({ length: 9 }).map((_, index) => (
+                    <EconLogo key={index} allWhite className="h-10 w-40 sm:h-14 sm:w-56" />
+                  ))}
                 </div>
               </div>
             </DialogContent>
