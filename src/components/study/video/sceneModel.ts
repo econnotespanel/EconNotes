@@ -455,7 +455,7 @@ const VALID_DIAGRAM_TYPES: DiagramType[] = [
 
 function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   const t = text.toLocaleLowerCase('tr-TR');
-  if (supportsQuantitativeDiagram(t) && /arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh/.test(t)) {
+  if (isGraphDiagramAllowed(t) && /arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh/.test(t)) {
     return /denge|arz|talep|esneklik/.test(t) ? 'curve' : 'chart';
   }
   if (/sultan|hanedan|fetih|tanzimat|antlaşma|yüzyıl|dönem|kronoloji|tarih/.test(t)) return 'timeline';
@@ -463,11 +463,11 @@ function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   if (/aktör|ilişki|etkileşim|ağ|bağlantı|mekanizma/.test(t)) return 'network';
   if (/senaryo|örnek olay|vaka|uygulama|düşünelim|somut örnek/.test(t)) return 'scenario';
   if (/tablo|sınıflandır|türleri|unsurları|kategor|matris/.test(t) && sceneIdx % 3 === 1) return 'table';
-  if (supportsQuantitativeDiagram(t) && /oran|yüzde|artış|düşüş|eğilim|grafik|denge|büyüme|etki düzeyi|dağılım/.test(t)) return 'chart';
+  if (isGraphDiagramAllowed(t) && /oran|yüzde|artış|düşüş|eğilim|grafik|denge|büyüme|etki düzeyi|dağılım/.test(t)) return 'chart';
   if (/karşılaştır|kıyas|fark|karşılık|oysa|aksine/.test(t)) return 'comparison';
   if (/\b(1[0-9]{3}|20[0-9]{2})\b/.test(t) || /kronoloji|yüzyıl|dönem|aşama|süreç/.test(t)) return 'timeline';
 
-  const richCycle: DiagramType[] = supportsQuantitativeDiagram(t)
+  const richCycle: DiagramType[] = isGraphDiagramAllowed(t)
     ? ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison']
     : ['visual', 'shapes', 'table', 'scenario', 'timeline', 'comparison'];
   return richCycle[sceneIdx % richCycle.length];
@@ -480,17 +480,30 @@ function supportsQuantitativeDiagram(text: string): boolean {
   );
 }
 
+function isGraphDiagramAllowed(text: string): boolean {
+  const t = text.toLocaleLowerCase('tr-TR');
+  const hasQuantitativeSignal =
+    /oran|yüzde|artış|düşüş|eğilim|grafik|denge|etki düzeyi|mali|sacayak|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|üretim|gelir|fiyat|miktar|istatistik|veri|formül|fonksiyon|koordinat|ölçüm|regresyon/.test(
+      t,
+    );
+  const isEconomics = /iktisat|iktisadi|ekonomi|piyasa|arz|talep|maliye|para politikası|makroekonomi|mikroekonomi/.test(t);
+  const isScience = /bilim|fizik|kimya|biyoloji|matematik|veri analizi|laboratuvar|deney|formül|fonksiyon|koordinat|ölçüm|regresyon/.test(t);
+  return hasQuantitativeSignal && (isEconomics || isScience);
+}
+
 function chooseDistinctDiagramType(
   preferred: DiagramType,
   text: string,
   sceneIdx: number,
   used: Set<DiagramType>,
 ): DiagramType {
+  const graphAllowed = isGraphDiagramAllowed(text);
+  const safePreferred = !graphAllowed && (preferred === 'chart' || preferred === 'curve') ? 'visual' : preferred;
   const semantic = inferDiagramType(text, sceneIdx);
-  const cycle: DiagramType[] = supportsQuantitativeDiagram(text)
+  const cycle: DiagramType[] = graphAllowed
     ? ['curve', 'chart', 'timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual']
     : ['timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual'];
-  const candidates = [preferred, semantic, ...cycle.slice(sceneIdx % cycle.length), ...cycle];
+  const candidates = [safePreferred, semantic, ...cycle.slice(sceneIdx % cycle.length), ...cycle];
   return candidates.find(type => !used.has(type)) || semantic;
 }
 
@@ -558,7 +571,7 @@ function buildDiagram(
       let type: DiagramType = VALID_DIAGRAM_TYPES.includes(dd.diagramType)
         ? dd.diagramType
         : inferDiagramType(`${title} ${narration}`, sceneIdx);
-      if (!supportsQuantitativeDiagram(`${courseLabel} ${title} ${narration}`) && (type === 'chart' || type === 'curve')) {
+      if (!isGraphDiagramAllowed(`${courseLabel} ${title} ${narration}`) && (type === 'chart' || type === 'curve')) {
         type = inferDiagramType(`${title} ${narration}`, sceneIdx);
       }
       if (type === 'curve') type = 'chart';
@@ -608,7 +621,7 @@ function buildDiagram(
   });
 
   return {
-    type: inferDiagramType(`${title} ${narration}`, sceneIdx),
+    type: inferDiagramType(`${courseLabel} ${title} ${narration}`, sceneIdx),
     visualTheme,
     title,
     rootBadge,
@@ -706,7 +719,7 @@ function buildConversationalSentences(
   const probingQuestionBank = [
     `Deniz hocam, ${focusTerm} başlığında öğrencilerin önce hangi ilişkiyi kurması gerekiyor?`,
     `Bu noktayı ${focusTerm} üzerinden somutlaştırabilir miyiz hocam; neden-sonuç zinciri nasıl ilerliyor?`,
-    `Akıllı tahtadaki ${focusTerm} bağlantısı dikkat çekici. Bu mekanizmanın sınavdaki ayırt edici ipucu nedir?`,
+    `${focusTerm} ile ilgili en çok karıştırılan nokta hangisi hocam? Bunu kısa bir örnekle ayırabilir miyiz?`,
     `Bu sahnede ${focusTerm} kavramını diğerlerinden ayıran temel özellik sizce hangisi, Deniz hocam?`,
   ];
 
@@ -771,7 +784,7 @@ function buildConversationalSentences(
 
   const termQuestionTemplates = [
     (term: string) => `Deniz hocam, araya girip özellikle şunu sormak istiyorum: Notlardaki ${term} kavramını aklımızda nasıl kodlamalıyız?`,
-    (term: string) => `Bekle bir saniye hocam, tam bu noktada öğrencilerin en çok karıştırdığı bir terim var: ${term}. Bunun ayırıcı püf noktası nedir?`,
+    (term: string) => `Tam burada öğrencilerin en çok karıştırdığı bir terim var: ${term}. Bunun ayırıcı püf noktası nedir hocam?`,
     (term: string) => `Hocam, hocaların sınavda soru hazırlarken en sevdiği kavram ${term} olabilir mi? Öğrenci nereye odaklanmalı?`,
   ];
   const termAnswerOpeners = [
@@ -908,6 +921,10 @@ function ensureRichFiveMinuteCurriculum(
   const rootBadge = cleanText(courseLabel) || 'AKADEMİK STÜDYO';
   const corpusText = `${courseLabel} ${title} ${outline} ${coreScenes.map(s => s.narration).join(' ')}`;
   const visualTheme = inferVisualTheme(corpusText);
+  const graphAllowed = isGraphDiagramAllowed(corpusText);
+  const visualAssets = graphAllowed
+    ? 'kavramsal görseller, tablolar, analitik grafikler'
+    : 'kavramsal görseller, tablolar ve karşılaştırmalar';
 
   const domainNoun =
     visualTheme === 'history'
@@ -921,7 +938,7 @@ function ensureRichFiveMinuteCurriculum(
       : 'kuramsal ve toplumsal';
 
   // Eski tekdüze şema tiplerini zengin çok-modlu tiplere yükselt
-  const richPalette: DiagramType[] = supportsQuantitativeDiagram(corpusText)
+  const richPalette: DiagramType[] = isGraphDiagramAllowed(corpusText)
     ? ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison']
     : ['visual', 'shapes', 'table', 'scenario', 'timeline', 'comparison'];
   coreScenes.forEach((sc, idx) => {
@@ -1065,7 +1082,7 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `EconNotes akademik stüdyosuna hepiniz hoş geldiniz arkadaşlar! Bugün ${coursePrefix}${title} konusunu ezber kalıplardan çıkarıp, arkasındaki ${domainNoun} mantık, karşılaştırma tabloları, grafikler ve sınav odaklı püf noktalarıyla çok keyifli bir şekilde ele alacağız. ${framingText}`,
+        text: `Bugün ${coursePrefix}${title} konusunu birlikte açalım. Önce büyük resmi kuralım, sonra ayrıntıları ve sınavda işimize yarayacak ayrımları konuşalım. Bu derste ${visualAssets} kullanacağız. ${framingText}`,
       },
       {
         speaker: 'Barış',
@@ -1210,7 +1227,7 @@ function ensureRichFiveMinuteCurriculum(
   }
 
   // 4) GEÇ-1: Yapısal Ağırlık ve Etki Düzeyi Grafiği ('chart')
-  if (supportsQuantitativeDiagram(corpusText) && (!hasTypeAnywhere('chart') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC)) {
+  if (isGraphDiagramAllowed(corpusText) && (!hasTypeAnywhere('chart') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC)) {
     const cNodes = pickDistinctNodes(3, 4, ['Birincil Belirleyici', 'Yapısal Kaldıraç', 'İstikrar Unsuru', 'Tamamlayıcı Etki']).map(
       (n, idx) => ({
         ...n,
