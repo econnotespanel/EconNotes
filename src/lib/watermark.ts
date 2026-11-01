@@ -218,7 +218,7 @@ const getDownloadKind = (fileName: string, fileType: string | null | undefined) 
 };
 
 export async function downloadWithWatermark(fileUrl: string, fileName: string, fileType: string | null | undefined, fullName: string) {
-  const toastId = toast.loading('Kişiye özel filigran ekleniyor...');
+  const toastId = toast.loading('Not indiriliyor, lütfen bekleyiniz...');
   try {
     let blob: Blob;
     let downloadName = fileName || 'download';
@@ -245,7 +245,7 @@ export async function downloadWithWatermark(fileUrl: string, fileName: string, f
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast.success('Filigranlı dosyanız indirildi.', { id: toastId });
+    toast.success('Not indirildi.', { id: toastId });
   } catch (error) {
     console.error('Watermark error:', error);
     toast.error(error instanceof Error ? error.message : 'Filigran eklenemedi; dosya güvenli biçimde indirilmedi.', { id: toastId });
