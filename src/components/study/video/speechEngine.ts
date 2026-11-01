@@ -342,7 +342,7 @@ function withSpeakerTone(
   return {
     ...assignment,
     pitch: 1.0,
-    baseRate: speaker === 'Deniz' ? 0.97 : 1.03,
+    baseRate: speaker === 'Deniz' ? 1.02 : 1.07,
   };
 }
 
@@ -408,7 +408,7 @@ export function selectVoicesForSpeakers(
         engine: 'vits-neural',
         voice: null,
         vitsVoiceId: 'tr_TR-eren-fluid',
-        lengthScale: 0.87,
+        lengthScale: 0.82,
         pitch: 1.0,
         baseRate: 1.0,
         label: 'Eren · Akademik Anlatıcı',
@@ -421,7 +421,7 @@ export function selectVoicesForSpeakers(
         engine: 'vits-neural',
         voice: null,
         vitsVoiceId: 'tr_TR-fahrettin-medium',
-        lengthScale: 0.96,
+        lengthScale: 0.88,
         pitch: 1.0,
         baseRate: 1.0,
         label: 'Fahrettin · Stüdyo Anlatıcı',
