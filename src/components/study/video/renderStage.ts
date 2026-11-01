@@ -275,6 +275,20 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
   ctx.fill();
   ctx.restore();
 
+  // Tahtanın odak noktasını destekleyen, içeriği kapatmayan sinematik parlama.
+  const focusGlow = ctx.createRadialGradient(
+    x + w * (0.28 + f.progress * 0.44),
+    y + h * 0.5,
+    8,
+    x + w * (0.28 + f.progress * 0.44),
+    y + h * 0.5,
+    Math.min(w, h) * 0.58,
+  );
+  focusGlow.addColorStop(0, `rgba(56, 189, 248, ${0.035 + f.mouthOpen * 0.025})`);
+  focusGlow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+  ctx.fillStyle = focusGlow;
+  ctx.fillRect(x, y, w, h);
+
   const glass = ctx.createLinearGradient(x, y, x, y + h);
   glass.addColorStop(0, 'rgba(56, 189, 248, 0.065)');
   glass.addColorStop(0.38, 'rgba(15, 23, 42, 0)');

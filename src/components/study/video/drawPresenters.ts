@@ -815,6 +815,16 @@ function drawDenizPresenter(
   ctx.arc(bodyX + 14, hy + 46, 250, 0, Math.PI * 2);
   ctx.fill();
 
+  // Konuşmacıyı tahtadan ayıran yumuşak yayın rim ışığı.
+  const rim = ctx.createLinearGradient(bodyX - 150, hy - 90, bodyX + 150, deskY);
+  rim.addColorStop(0, `rgba(34, 211, 238, ${speaking ? 0.2 : 0.07})`);
+  rim.addColorStop(0.5, 'rgba(255,255,255,0)');
+  rim.addColorStop(1, 'rgba(34, 211, 238, 0)');
+  ctx.fillStyle = rim;
+  ctx.beginPath();
+  ctx.ellipse(bodyX, shoulderY + 28, 158, 218, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   // 1. Atletik erkek boynu ve keskin çene altı gölgesi
   const neckGrad = ctx.createLinearGradient(hx - 27, hy + 44, hx + 27, shoulderY + 34);
   neckGrad.addColorStop(0, '#cf9a7c');
@@ -1235,6 +1245,15 @@ function drawBarisPresenter(
   ctx.fillStyle = aura;
   ctx.beginPath();
   ctx.arc(bodyX - 14, hy + 46, 250, 0, Math.PI * 2);
+  ctx.fill();
+
+  const rim = ctx.createLinearGradient(bodyX - 150, hy - 90, bodyX + 150, deskY);
+  rim.addColorStop(0, 'rgba(255,255,255,0)');
+  rim.addColorStop(0.5, `rgba(192, 132, 252, ${speaking ? 0.2 : 0.07})`);
+  rim.addColorStop(1, 'rgba(168, 85, 247, 0)');
+  ctx.fillStyle = rim;
+  ctx.beginPath();
+  ctx.ellipse(bodyX, shoulderY + 28, 158, 218, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // 1. Atletik erkek boynu ve çene altı gölgesi
@@ -1697,6 +1716,9 @@ function drawBroadcastDeskAndLowerThirds(
         roundRectPath(ctx, eqX + i * 7, by + 30 - barH / 2, 4, barH, 2);
         ctx.fill();
       }
+      ctx.fillStyle = accent;
+      ctx.font = `700 9px ${FONT}`;
+      ctx.fillText('● ON AIR', bx + bw - 66, by + 15);
     }
     ctx.restore();
   };

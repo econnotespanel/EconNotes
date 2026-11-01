@@ -689,8 +689,8 @@ export async function previewSpeakerVoice(
     const utter = new SpeechSynthesisUtterance(sampleText);
     utter.lang = assignment.voice?.lang || 'tr-TR';
     if (assignment.voice) utter.voice = assignment.voice;
-    utter.pitch = 1.0;
-    utter.rate = 1.0;
+    utter.pitch = assignment.pitch;
+    utter.rate = assignment.baseRate;
     utter.volume = Math.max(0.1, Math.min(1, volume));
     window.speechSynthesis.speak(utter);
   }
@@ -1015,7 +1015,7 @@ export function playSceneConversationally(opts: PlaySceneSpeechOptions): () => v
     const utter = new SpeechSynthesisUtterance(joinedSpoken);
     utter.lang = chosenVoice?.lang || 'tr-TR';
     if (chosenVoice) utter.voice = chosenVoice;
-    utter.pitch = 1.0;
+    utter.pitch = assignment.pitch;
     utter.rate = Math.max(0.75, Math.min(1.75, assignment.baseRate * playbackSpeed));
     utter.volume = Math.max(0, Math.min(1, volume));
 

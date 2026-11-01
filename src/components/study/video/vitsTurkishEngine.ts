@@ -522,6 +522,7 @@ function masterAndEncodeStudioWav(
   const dcMean = dcSum / totalSamples;
 
   let peak = 0.001;
+  let sumSquares = 0;
   let prev = 0;
   for (let i = 0; i < totalSamples; i++) {
     const centered = merged[i] - dcMean;
@@ -531,11 +532,15 @@ function masterAndEncodeStudioWav(
     merged[i] = warmed;
     const abs = Math.abs(warmed);
     if (abs > peak) peak = abs;
+    sumSquares += warmed * warmed;
   }
 
-  // Tüm ses modellerini dengeli stüdyo yüksekliğine getir (aşırı yükseltmeyi sınırla)
-  const targetPeak = 0.86;
-  const normGain = Math.min(2.2, Math.max(0.55, targetPeak / peak));
+  // Peak + RMS birlikte kullanılır; böylece farklı anlatıcı modelleri aynı algılanan
+  // yüksekliğe gelirken tıkırtı ve aşırı yükseltme engellenir.
+  const rms = Math.sqrt(sumSquares / Math.max(1, totalSamples));
+  const peakGain = 0.84 / peak;
+  const loudnessGain = 0.22 / Math.max(0.001, rms);
+  const normGain = Math.min(2.05, Math.max(0.62, Math.min(peakGain, loudnessGain)));
 
   // 50 Hz (20 ms pencere) RMS konuşma enerjisi zarfı
   const windowSize = Math.max(1, Math.floor(sampleRate / 50));
