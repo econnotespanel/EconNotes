@@ -451,7 +451,7 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
                     <div className="text-[11px] font-bold uppercase tracking-wider text-cyan-300 px-1">
                       Kavramlar
                     </div>
-                    {leftOrder.map(pairIdx => {
+                    {leftOrder.map((pairIdx, displayIdx) => {
                       const item = pairs[pairIdx];
                       const isMatched = matchedPairIds.includes(pairIdx);
                       const isSelected = selectedLeft === pairIdx;
@@ -472,6 +472,9 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
                               : 'border-white/10 bg-white/[0.03] text-slate-100 hover:border-cyan-400/40 hover:bg-white/[0.06]'
                           }`}
                         >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-500/15 text-[10px] font-bold text-cyan-300">
+                            {displayIdx + 1}
+                          </span>
                           <span className="whitespace-normal break-words text-xs sm:text-sm font-semibold leading-snug">
                             {item.term}
                           </span>
@@ -486,7 +489,7 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
                     <div className="text-[11px] font-bold uppercase tracking-wider text-purple-300 px-1">
                       Açıklamalar ve Sınav Karşılıkları
                     </div>
-                    {rightOrder.map(pairIdx => {
+                    {rightOrder.map((pairIdx, displayIdx) => {
                       const item = pairs[pairIdx];
                       const isMatched = matchedPairIds.includes(pairIdx);
                       const isSelected = selectedRight === pairIdx;
@@ -507,6 +510,9 @@ export const LessonWrapUp: React.FC<LessonWrapUpProps> = ({
                               : 'border-white/10 bg-white/[0.03] text-slate-200 hover:border-purple-400/40 hover:bg-white/[0.06]'
                           }`}
                         >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-500/15 text-[10px] font-bold text-purple-300">
+                            {String.fromCharCode(65 + displayIdx)}
+                          </span>
                           <span className="whitespace-normal break-words text-xs sm:text-[13px] leading-relaxed">
                             {item.definition}
                           </span>

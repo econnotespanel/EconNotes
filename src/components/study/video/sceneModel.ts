@@ -1733,6 +1733,32 @@ function collectStudyTerms(scenes: StudioScene[]): Array<KeyTerm & { sceneIndex:
 
 export function buildMatchingPairs(scenes: StudioScene[], raw?: unknown): MatchPair[] {
   const hasTruncation = (s: string) => s.includes('…') || /\.\.\./.test(s);
+  const isUsableDefinition = (definition: string) => {
+    const d = definition.toLocaleLowerCase('tr-TR');
+    return definition.length >= 24
+      && definition.length <= 240
+      && !/^(merhaba|harika|aynen|kesinlikle|tam 12|bugün|şimdi)/i.test(definition)
+      && !/\b(hocam|arkadaşlar|videonun sonunda|akıllı tahtamız)\b/i.test(d);
+  };
+  const normalizePair = (term: string, definition: string, sceneIndex: number): MatchPair | null => {
+    const cleanTerm = cleanLabel(term).replace(/…|\.{2,}/g, '').trim();
+    const cleanDefinition = completeCleanDefinition(definition, cleanTerm, 220);
+    if (!cleanTerm || !isValidConceptTerm(cleanTerm) || !isUsableDefinition(cleanDefinition)) return null;
+    return { term: cleanTerm, definition: cleanDefinition, sceneIndex };
+  };
+  const dedupePairs = (items: Array<MatchPair | null>) => {
+    const seenTerms = new Set<string>();
+    const seenDefinitions = new Set<string>();
+    return items.filter((item): item is MatchPair => {
+      if (!item) return false;
+      const termKey = item.term.toLocaleLowerCase('tr-TR');
+      const definitionKey = textSignature(item.definition);
+      if (seenTerms.has(termKey) || seenDefinitions.has(definitionKey)) return false;
+      seenTerms.add(termKey);
+      seenDefinitions.add(definitionKey);
+      return true;
+    });
+  };
   const fromModel: MatchPair[] = (Array.isArray(raw) ? raw : [])
     .map((p: any) => {
       const term = cleanLabel(p?.term ?? p?.left);
@@ -1740,25 +1766,19 @@ export function buildMatchingPairs(scenes: StudioScene[], raw?: unknown): MatchP
       if (hasTruncation(term) || hasTruncation(rawDef)) {
         return { term: '', definition: '', sceneIndex: 0 };
       }
-      return {
-        term,
-        definition: completeCleanDefinition(rawDef, term),
-        sceneIndex: 0,
-      };
+      return normalizePair(term, rawDef, 0);
     })
-    .filter(p => p.term && isValidConceptTerm(p.term) && p.definition.length > 10);
+    .filter(Boolean) as MatchPair[];
 
   if (fromModel.length >= 3) {
-    return fromModel.slice(0, 6).map(p => ({ ...p, sceneIndex: sceneIndexForText(scenes, p.term) }));
+    return dedupePairs(fromModel.slice(0, 8).map(p => ({ ...p, sceneIndex: sceneIndexForText(scenes, p.term) }))).slice(0, 6);
   }
 
-  return collectStudyTerms(scenes)
-    .slice(0, 6)
-    .map(t => ({
-      term: t.term,
-      definition: completeCleanDefinition(t.definition, t.term),
-      sceneIndex: t.sceneIndex,
-    }));
+  const curated = scenes.flatMap(scene => [
+    ...scene.keyTerms.map(term => normalizePair(term.term, term.definition, scene.index)),
+    ...scene.diagram.nodes.map(node => normalizePair(node.label, node.subtext, scene.index)),
+  ]);
+  return dedupePairs(curated).slice(0, 6);
 }
 
 export function buildExamQuestions(scenes: StudioScene[], raw?: unknown): ExamQuestion[] {
