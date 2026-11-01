@@ -24,6 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import { Progress } from '@/components/ui/progress';
 import { NOTE_SELECT } from '@/lib/noteColumns';
+import LoadingMessage from '@/components/ui/loading-message';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
@@ -676,7 +677,13 @@ const Notes = () => {
                 </Button>
               )}
             </div>
-            {filterUniversity === 'all' ? (
+            {loading ? (
+              <Card className="glass-card">
+                <CardContent className="flex min-h-40 items-center justify-center p-8">
+                  <LoadingMessage />
+                </CardContent>
+              </Card>
+            ) : filterUniversity === 'all' ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {Object.entries(universityGroups).map(([university, universityNotes]) => (
                   <button
@@ -722,7 +729,7 @@ const Notes = () => {
                 ))}
               </div>
             )}
-            {Object.keys(filterUniversity === 'all' ? universityGroups : courseGroups).length === 0 && (
+            {!loading && Object.keys(filterUniversity === 'all' ? universityGroups : courseGroups).length === 0 && (
               <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Henüz paylaşılmış not bulunmuyor.</CardContent></Card>
             )}
           </section>
@@ -738,7 +745,7 @@ const Notes = () => {
           </div>
         )}
 
-        {loading ? (
+        {loading && showingNotes ? (
           <p className="text-center text-muted-foreground">Yükleniyor...</p>
         ) : showingNotes ? (
           displayNotes.length === 0 ? (
