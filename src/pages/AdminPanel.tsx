@@ -478,6 +478,7 @@ const AdminPanel = () => {
                     <SelectItem value="summer">🌴 Yaz Tatili</SelectItem>
                     <SelectItem value="maintenance">🛠️ Bakım</SelectItem>
                     <SelectItem value="announcement">📣 Duyuru</SelectItem>
+                    <SelectItem value="fatal_error">🔴 Sunucu Hatası (Fatal Error)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

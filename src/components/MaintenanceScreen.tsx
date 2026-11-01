@@ -11,17 +11,20 @@ interface MaintenanceScreenProps {
 
 const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: MaintenanceScreenProps) => {
   const isSummer = mode === 'summer';
-  const heading = title || (isSummer ? 'EconNotes Yaz Tatilinde' : 'EconNotes Bakımda');
+  const isFatalError = mode === 'fatal_error';
+  const heading = title || (isSummer ? 'EconNotes Yaz Tatilinde' : isFatalError ? '500 — Sunucu Hatası' : 'EconNotes Bakımda');
   const body =
     message ||
     (isSummer
       ? 'Üniversiteler yaz tatiline girdiği için EconNotes, yeni akademik dönem başlayana kadar dinlenmeye çekildi. Güneşin, denizin ve dinlenmenin tadını çıkar; güz döneminde daha güçlü ve yeni özelliklerle geri döneceğiz. İyi tatiller! 🌊☀️🌴'
-      : "EconNotes'a şu anda bakım çalışmaları nedeniyle geçici olarak erişim sağlanamamaktadır. Yaşanan sorunun en kısa sürede giderilmesi için çalışmalarımız titizlikle sürdürülmektedir. Anlayışınız, sabrınız ve desteğiniz için teşekkür ederiz.");
+      : isFatalError
+        ? 'EconNotes şu anda beklenmeyen bir sunucu hatası nedeniyle kullanılamıyor. Teknik ekip bilgilendirildi ve hizmetin yeniden başlatılması için çalışmalar sürdürülüyor.'
+        : "EconNotes'a şu anda bakım çalışmaları nedeniyle geçici olarak erişim sağlanamamaktadır. Yaşanan sorunun en kısa sürede giderilmesi için çalışmalarımız titizlikle sürdürülmektedir. Anlayışınız, sabrınız ve desteğiniz için teşekkür ederiz.");
 
   return (
     <div
       className={`min-h-screen flex items-center justify-center p-4 relative overflow-hidden ${
-        isSummer ? 'summer-scene' : 'bg-slate-950'
+        isSummer ? 'summer-scene' : isFatalError ? 'bg-[#120b12]' : 'bg-slate-950'
       }`}
     >
       {isSummer && (
@@ -45,13 +48,15 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
         <div className={`rounded-3xl p-8 backdrop-blur-2xl shadow-2xl ${
           isSummer
             ? 'border border-white/60 bg-white/40'
-            : 'border border-white/10 bg-slate-900/60 shadow-black/30'
+            : isFatalError
+              ? 'border border-red-400/30 bg-red-950/40 shadow-red-950/40'
+              : 'border border-white/10 bg-slate-900/60 shadow-black/30'
         }`}>
           <div className="relative mb-8 h-10 w-full sm:h-11">
             <EconLogo allWhite={isSummer ? false : true} className="absolute left-1/2 top-0 h-10 w-56 max-w-full -translate-x-1/2 justify-center sm:h-11 sm:w-64" />
           </div>
 
-          {imageUrl ? (
+          {imageUrl && !isFatalError ? (
             <div className="flex justify-center mb-4">
               <img
                 src={imageUrl}
@@ -65,7 +70,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
                 {isSummer ? (
                   <Sun className="h-12 w-12 text-yellow-500 animate-spin-slow drop-shadow" />
                 ) : (
-                  <AlertTriangle className="h-8 w-8 stroke-[2.5] text-amber-200" />
+                  <AlertTriangle className={`h-8 w-8 stroke-[2.5] ${isFatalError ? 'text-red-200' : 'text-amber-200'}`} />
                 )}
               </div>
             </div>
@@ -75,6 +80,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             {isSummer && <Palmtree className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />}
             {heading}
           </h1>
+          {isFatalError && <p className="mb-2 font-mono text-xs tracking-widest text-red-300/80">FATAL_ERROR · HTTP 500</p>}
           <p className={`mt-3 text-sm leading-relaxed whitespace-pre-line ${isSummer ? 'text-slate-800 dark:text-slate-100' : 'text-slate-300'}`}>
             {body}
           </p>
