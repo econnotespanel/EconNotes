@@ -13,3 +13,15 @@ SET uploader_name = 'Aylin Kesgin',
     edited_by_name = 'Kaan Çolakoğulları'
 WHERE LOWER(file_name) LIKE '%araştırma yöntemleri%'
   AND LOWER(file_name) LIKE '%29.10.2026%';
+
+UPDATE public.notes AS notes
+SET edited_by_name = logs.user_name
+FROM (
+  SELECT DISTINCT ON (entity_id) entity_id, user_name
+  FROM public.activity_logs
+  WHERE entity_type = 'note'
+    AND action = 'note_updated'
+  ORDER BY entity_id, created_at DESC
+) AS logs
+WHERE notes.id::text = logs.entity_id
+  AND notes.edited_at IS NOT NULL;

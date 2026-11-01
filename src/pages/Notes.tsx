@@ -26,6 +26,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Progress } from '@/components/ui/progress';
 import { NOTE_EDITOR_SELECT, NOTE_SELECT } from '@/lib/noteColumns';
 import LoadingMessage from '@/components/ui/loading-message';
+import JSZip from 'jszip';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
@@ -61,6 +62,7 @@ const Notes = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<string | null>(null);
+  const [previewSlides, setPreviewSlides] = useState<string[]>([]);
   const [uploadRestricted, setUploadRestricted] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [departmentInputs, setDepartmentInputs] = useState<string[]>(['']);
@@ -189,11 +191,34 @@ const Notes = () => {
       }
     }
     trackView(note.id);
-    if (isPreviewable(note.file_type, note.file_url)) {
+    if (isPreviewable(note.file_type, note.file_url, note.file_name)) {
       const signed = await signedNoteUrl(note.file_url);
       if (!signed) { toast.error('Dosya bağlantısı oluşturulamadı.'); return; }
       setPreviewUrl(signed);
       setPreviewType(note.file_type);
+      setPreviewSlides([]);
+      if (isPowerPoint(note.file_type, note.file_name)) {
+        try {
+          const response = await fetch(signed);
+          if (!response.ok) throw new Error('Sunum dosyası indirilemedi.');
+          const archive = await JSZip.loadAsync(await response.arrayBuffer());
+          const slidePaths = Object.keys(archive.files)
+            .filter((path) => /^ppt\/slides\/slide\d+\.xml$/i.test(path))
+            .sort((a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]));
+          const slides = await Promise.all(slidePaths.map(async (path) => {
+            const xml = await archive.files[path].async('text');
+            const document = new DOMParser().parseFromString(xml, 'application/xml');
+            return Array.from(document.getElementsByTagNameNS('*', 't'))
+              .map((node) => node.textContent?.trim() || '')
+              .filter(Boolean)
+              .join(' ');
+          }));
+          setPreviewSlides(slides);
+        } catch {
+          setPreviewSlides([]);
+          toast.error('PowerPoint önizlemesi hazırlanamadı. Dosyayı indirerek açabilirsiniz.');
+        }
+      }
     }
   };
 
@@ -453,9 +478,12 @@ const Notes = () => {
     return null;
   };
 
-  const isPreviewable = (fileType: string | null, fileUrl: string | null) => {
+  const isPowerPoint = (fileType: string | null, fileName: string | null) =>
+    fileType?.includes('presentation') === true || /\.pptx?$/i.test(fileName || '');
+
+  const isPreviewable = (fileType: string | null, fileUrl: string | null, fileName: string | null) => {
     if (!fileType || !fileUrl) return false;
-    return fileType.startsWith('image/') || fileType === 'application/pdf';
+    return fileType.startsWith('image/') || fileType === 'application/pdf' || isPowerPoint(fileType, fileName);
   };
 
   const getFileIcon = (fileType: string | null) => {
@@ -943,7 +971,7 @@ const Notes = () => {
                                 <Button size="sm" onClick={() => handleDownloadClick(note)} className="bg-gradient-to-r from-primary to-secondary text-white shadow-sm shadow-primary/20 transition-all hover:brightness-105 hover:shadow-md">
                                   <Download className="h-3 w-3 mr-1" /> İndir
                                 </Button>
-                                {isPreviewable(note.file_type, note.file_url) && (
+                                {isPreviewable(note.file_type, note.file_url, note.file_name) && (
                                   <Button size="sm" variant="outline" onClick={() => handlePreviewClick(note)} className="border-border/70 bg-background/70 hover:border-primary/30 hover:bg-primary/5">
                                     <Eye className="h-3 w-3 mr-1" /> Önizle
                                   </Button>
@@ -1041,7 +1069,7 @@ const Notes = () => {
 
         {/* Preview Modal */}
         {previewUrl && (
-          <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); }}>
+          <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); setPreviewSlides([]); }}>
             <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
               <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-16 text-left sm:px-6 sm:pr-20">
                 <DialogClose className="absolute right-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
@@ -1064,6 +1092,19 @@ const Notes = () => {
                 ) : previewType === 'application/pdf' ? (
                   <div className="h-full w-full overflow-hidden rounded-xl border border-white/10 bg-white shadow-inner">
                     <iframe src={previewUrl} title="EconNotes belge önizlemesi" className="h-full w-full border-0" />
+                  </div>
+                ) : isPowerPoint(previewType, null) ? (
+                  <div className="h-full w-full space-y-4 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-4 shadow-inner sm:p-6">
+                    {previewSlides.length > 0 ? previewSlides.map((slide, index) => (
+                      <article key={index} className="min-h-48 rounded-xl border border-slate-200/20 bg-white p-5 text-left text-slate-900 shadow-lg sm:min-h-64 sm:p-8">
+                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Slayt {index + 1}</p>
+                        <p className="whitespace-pre-wrap text-sm leading-7 sm:text-base">{slide}</p>
+                      </article>
+                    )) : (
+                      <div className="flex h-full items-center justify-center text-sm text-slate-300">
+                        PowerPoint slaytları hazırlanıyor...
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-xl border border-white/10 bg-slate-950/70">
