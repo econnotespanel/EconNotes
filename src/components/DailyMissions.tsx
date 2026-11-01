@@ -9,6 +9,7 @@ import { CheckCircle2, Gift, ListChecks, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { awardPoints } from '@/hooks/usePoints';
 import { missionReason, missionsForWeek, todayKey, weekKey, type MissionDef } from '@/lib/gamification';
+import LoadingMessage from '@/components/ui/loading-message';
 
 interface Progressed extends MissionDef {
   current: number;
@@ -80,6 +81,7 @@ const DailyMissions = () => {
       <CardContent className="space-y-3">
         {loading ? (
           <>
+            <LoadingMessage />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </>

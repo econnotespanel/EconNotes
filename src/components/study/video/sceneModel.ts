@@ -863,7 +863,7 @@ function finalizeSceneObject(params: {
     id,
     index,
     speaker: lead,
-    speakerRole: lead === 'Deniz' ? 'Akademik Hoca' : 'Öğrenci',
+    speakerRole: lead === 'Deniz' ? 'Akademik Anlatıcı' : 'Öğrenci',
     title,
     narration: sentences.join(' '),
     sentences,

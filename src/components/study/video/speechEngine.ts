@@ -341,7 +341,7 @@ function withSpeakerTone(
 ): SpeakerVoiceAssignment {
   return {
     ...assignment,
-    pitch: speaker === 'Deniz' ? 0.96 : 1.04,
+    pitch: 1.0,
     baseRate: speaker === 'Deniz' ? 0.97 : 1.03,
   };
 }

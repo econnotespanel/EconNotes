@@ -5,6 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { Trophy, Flame, Sparkles, Crown } from 'lucide-react';
 import { usePoints } from '@/hooks/usePoints';
 import { useAuth } from '@/contexts/AuthContext';
+import LoadingMessage from '@/components/ui/loading-message';
 
 const rankStyles = [
   'bg-warning/15 text-warning border-warning/40',
@@ -31,6 +32,7 @@ const LeaderboardCard = () => {
         <CardContent className="space-y-4">
           {loading ? (
             <>
+              <LoadingMessage />
               <Skeleton className="h-10 w-28" />
               <Skeleton className="h-2 w-full" />
               <Skeleton className="h-4 w-40" />
@@ -76,7 +78,10 @@ const LeaderboardCard = () => {
         </CardHeader>
         <CardContent className="space-y-2">
           {loading ? (
-            Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)
+            <>
+              <LoadingMessage className="mb-3" />
+              {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full rounded-xl" />)}
+            </>
           ) : leaderboard.length === 0 ? (
             <p className="text-sm text-muted-foreground">Henüz puan toplayan yok. İlk sırayı sen kap.</p>
           ) : (

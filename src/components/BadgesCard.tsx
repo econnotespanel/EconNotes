@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Award, Lock } from 'lucide-react';
 import { buildBadges, type BadgeDef } from '@/lib/gamification';
+import LoadingMessage from '@/components/ui/loading-message';
 
 /** Achievement badges derived from streaks, attempts, goals and uploads. */
 const BadgesCard = () => {
@@ -52,8 +53,11 @@ const BadgesCard = () => {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" />
+          <div className="space-y-3">
+            <LoadingMessage />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Skeleton className="h-28 w-full" /><Skeleton className="h-28 w-full" />
+            </div>
           </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
