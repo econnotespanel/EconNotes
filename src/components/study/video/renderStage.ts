@@ -250,6 +250,13 @@ function drawBroadcastHud(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.textBaseline = 'middle';
   ctx.fillText(chLabel, STAGE_W - 32 - cw / 2, 40.5);
   ctx.textAlign = 'left';
+
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
+  ctx.font = font(700, 10.5);
+  ctx.fillText('ETKİ / ÖNEM', plotX, plotY - 10);
+  ctx.textAlign = 'right';
+  ctx.fillText('KARŞILAŞTIRMA', plotX + plotW, plotY + plotH + 49);
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 }
 

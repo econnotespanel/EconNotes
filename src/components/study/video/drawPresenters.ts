@@ -1747,6 +1747,13 @@ export function drawStudioPresentersAndDesk(
   } = props;
   const deskY = stageH - 132;
 
+  // Sunucular tahtadan ayrışacak kadar büyük, yüz ayrıntıları okunacak kadar yakın
+  // görünür; masanın perspektifi ve alt bilgi kartları sabit kalır.
+  const presenterScale = 1.12;
+  ctx.save();
+  ctx.translate(168, deskY);
+  ctx.scale(presenterScale, presenterScale);
+  ctx.translate(-168, -deskY);
   drawDenizPresenter(
     ctx,
     168,
@@ -1760,6 +1767,12 @@ export function drawStudioPresentersAndDesk(
     boardFocusY,
     now,
   );
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(stageW - 168, deskY);
+  ctx.scale(presenterScale, presenterScale);
+  ctx.translate(-(stageW - 168), -deskY);
   drawBarisPresenter(
     ctx,
     stageW - 168,
@@ -1773,6 +1786,8 @@ export function drawStudioPresentersAndDesk(
     boardFocusY,
     now,
   );
+  ctx.restore();
+
   drawBroadcastDeskAndLowerThirds(
     ctx,
     deskY,
