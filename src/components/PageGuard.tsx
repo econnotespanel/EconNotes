@@ -12,10 +12,18 @@ import { useSiteConfig, MANAGED_PAGES } from '@/contexts/SiteConfigContext';
  */
 const PageGuard = ({ path, children }: { path: string; children: React.ReactNode }) => {
   const { isPageEnabled, loading } = useSiteConfig();
-  const { isAdmin } = useAuth();
+  const { isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  if (loading || isPageEnabled(path)) return <>{children}</>;
+  if (loading || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (isPageEnabled(path)) return <>{children}</>;
 
   const isStudy = path === '/study';
   const pageMeta = MANAGED_PAGES.find(p => p.path === path);

@@ -166,7 +166,7 @@ const Header = () => {
               <span className="text-[13px] font-semibold leading-4 text-foreground">
                 {getGreeting()}, {displayName}
               </span>
-              {profile.last_login && (
+              {profile?.last_login && (
                 <span className="mt-0.5 text-[10px] text-muted-foreground">Son giriş: {formatLastLogin()}</span>
               )}
             </div>

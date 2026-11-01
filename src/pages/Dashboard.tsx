@@ -55,24 +55,29 @@ const Dashboard = () => {
     || 'öğrenci';
   useEffect(() => {
     const fetchData = async () => {
-      const [notesRes, announcementsRes, settingsRes, bannersRes] = await Promise.all([
-        supabase.from('notes').select(NOTE_SELECT, { count: 'exact' }).order('created_at', { ascending: false }),
-        supabase.from('announcements').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
-        supabase.from('public_system_status').select('*').limit(1).maybeSingle(),
-        supabase.from('banners').select('*').eq('is_active', true).order('created_at', { ascending: false }),
-      ]);
-      setStats({ notes: notesRes.count || 0, announcements: announcementsRes.count || 0 });
-      setRecentNotes(notesRes.data || []);
-      setRecentAnnouncements(announcementsRes.data || []);
-      setBanners(bannersRes.data || []);
-      if (settingsRes.data) {
-        setAcademicWeek({
-          week: (settingsRes.data as any).academic_week,
-          label: (settingsRes.data as any).academic_week_label,
-          semester: (settingsRes.data as any).academic_semester,
-        });
+      try {
+        const [notesRes, announcementsRes, settingsRes, bannersRes] = await Promise.all([
+          supabase.from('notes').select(NOTE_SELECT, { count: 'exact' }).order('created_at', { ascending: false }),
+          supabase.from('announcements').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
+          supabase.from('public_system_status').select('*').limit(1).maybeSingle(),
+          supabase.from('banners').select('*').eq('is_active', true).order('created_at', { ascending: false }),
+        ]);
+        setStats({ notes: notesRes.count || 0, announcements: announcementsRes.count || 0 });
+        setRecentNotes(notesRes.data || []);
+        setRecentAnnouncements(announcementsRes.data || []);
+        setBanners(bannersRes.data || []);
+        if (settingsRes.data) {
+          setAcademicWeek({
+            week: (settingsRes.data as any).academic_week,
+            label: (settingsRes.data as any).academic_week_label,
+            semester: (settingsRes.data as any).academic_semester,
+          });
+        }
+      } catch (err) {
+        console.error('Dashboard verileri yüklenirken hata:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     const checkUnreadAnnouncements = async () => {

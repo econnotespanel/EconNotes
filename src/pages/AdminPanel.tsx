@@ -34,7 +34,7 @@ const PENALTY_DURATIONS = [
 ];
 
 const AdminPanel = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
@@ -99,9 +99,10 @@ const AdminPanel = () => {
   }, [users, userEmails, userSearch, userRoleFilter, userRoles]);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAdmin) { navigate('/'); return; }
     fetchAll();
-  }, [isAdmin]);
+  }, [isAdmin, authLoading]);
 
   /** Kayıt e-postalarını yönetici yetkili edge fonksiyonu üzerinden getirir. */
   const fetchUserEmails = async () => {
