@@ -1723,8 +1723,8 @@ function drawBroadcastDeskAndLowerThirds(
     ctx.restore();
   };
 
-  drawBadge(38, stageH - 80, 'Dr. Deniz', 'AKADEMİK ANLATICI', '#22d3ee', denizSpeaking);
-  drawBadge(stageW - 296, stageH - 80, 'Barış', 'ARAŞTIRMACI & SORU SORAN', '#c084fc', barisSpeaking);
+  drawBadge(38, stageH - 80, 'Dr. Deniz', 'AKADEMİK HOCA', '#22d3ee', denizSpeaking);
+  drawBadge(stageW - 296, stageH - 80, 'Barış', 'ÖĞRENCİ', '#c084fc', barisSpeaking);
 
   ctx.restore();
 }
