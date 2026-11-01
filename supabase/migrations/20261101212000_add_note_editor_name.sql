@@ -23,5 +23,5 @@ FROM (
     AND action = 'note_updated'
   ORDER BY entity_id, created_at DESC
 ) AS logs
-WHERE notes.id::text = logs.entity_id
+WHERE notes.id = logs.entity_id::uuid
   AND notes.edited_at IS NOT NULL;
