@@ -59,7 +59,7 @@ const Sidebar = () => {
 
   useEffect(() => {
     fetchUnread();
-    const interval = setInterval(fetchUnread, 15000);
+    const interval = setInterval(fetchUnread, 120000);
     return () => clearInterval(interval);
   }, [fetchUnread]);
 

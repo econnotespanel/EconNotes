@@ -161,9 +161,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         window.setTimeout(() => { void hydrateSession(session, _event === 'SIGNED_IN'); }, 0);
         if (session?.user) {
           if (_event === 'SIGNED_IN') {
-            import('@/lib/activityLogger').then(({ logActivity }) => {
-              logActivity(session.user.id, session.user.user_metadata?.full_name || '', session.user.email || '', 'user_login', 'Panele giriş yaptı');
-            });
+            const activityKey = `econnotes_login_logged_${session.user.id}`;
+            const loggedAt = Number(localStorage.getItem(activityKey) || 0);
+            if (Date.now() - loggedAt > 60 * 60 * 1000) {
+              localStorage.setItem(activityKey, String(Date.now()));
+              import('@/lib/activityLogger').then(({ logActivity }) => {
+                void logActivity(session.user.id, session.user.user_metadata?.full_name || '', session.user.email || '', 'user_login', 'Panele giriş yaptı');
+              });
+            }
             setTimeout(() => {
               (supabase as any).rpc('award_daily_login').then(({ data }: any) => {
                 const result = Array.isArray(data) ? data[0] : data;

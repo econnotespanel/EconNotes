@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 120_000;
 
 const ContentNotificationListener = () => {
   const { user } = useAuth();

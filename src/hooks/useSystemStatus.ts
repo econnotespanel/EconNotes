@@ -63,7 +63,7 @@ export const useSystemStatus = (): SystemStatus => {
       }
     };
     checkSystem();
-    const interval = setInterval(checkSystem, 15000);
+    const interval = setInterval(checkSystem, 60000);
     const onVisible = () => { if (document.visibilityState === 'visible') checkSystem(); };
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('econnotes:system-changed', checkSystem);

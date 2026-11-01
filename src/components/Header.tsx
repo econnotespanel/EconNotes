@@ -63,7 +63,7 @@ const Header = () => {
 
   useEffect(() => {
     fetchUnread();
-    const interval = setInterval(fetchUnread, 60000);
+    const interval = setInterval(fetchUnread, 120000);
     return () => clearInterval(interval);
   }, [fetchUnread]);
 
