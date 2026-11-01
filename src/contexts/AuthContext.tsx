@@ -136,23 +136,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(nextSession?.user ?? null);
       setProfile(null);
       setIsAdmin(false);
-      if (nextSession?.user) {
-        await fetchProfile(
+      if (!nextSession?.user) {
+        setLoading(false);
+        return;
+      }
+
+      // Auth session is enough to render the application. Profile/role data is
+      // hydrated in the background so a slow database cannot lock the whole app.
+      setLoading(false);
+      void fetchProfile(
           nextSession.user.id,
           detectInactivity,
           nextSession.user.email,
           getOAuthFullName(nextSession.user),
           nextSession.user,
-        );
-        await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', nextSession.user.id);
-      }
-      if (mounted) setLoading(false);
+        ).then(() => supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', nextSession.user.id))
+        .catch((error) => console.error('Profil arka planda yüklenemedi:', error));
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (!initialized) return;
-        setLoading(true);
+        setLoading(false);
         window.setTimeout(() => { void hydrateSession(session, _event === 'SIGNED_IN'); }, 0);
         if (session?.user) {
           if (_event === 'SIGNED_IN') {

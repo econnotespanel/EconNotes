@@ -190,7 +190,7 @@ export const SiteConfigProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => {
     void refresh();
-    const interval = setInterval(() => { void refresh(); }, 20000);
+    const interval = setInterval(() => { void refresh(); }, 60000);
     return () => clearInterval(interval);
   }, [refresh]);
 
