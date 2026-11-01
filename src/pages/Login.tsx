@@ -15,6 +15,7 @@ import SecurityCaptcha from '@/components/SecurityCaptcha';
 import { getReturningAccountName, rememberReturningAccount } from '@/lib/returningAccount';
 
 const Login = () => {
+  const AUXILIARY_REQUEST_TIMEOUT = 5000;
   const [email, setEmail] = useState('');
   const [returningName, setReturningName] = useState<string | null>(null);
   const [password, setPassword] = useState('');
@@ -107,7 +108,22 @@ const Login = () => {
     setLoading(true);
     setPenaltyInfo(null);
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    let data;
+    let error;
+    try {
+      ({ data, error } = await Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error('Giriş sunucusu zaman aşımına uğradı.')), 15000);
+        }),
+      ]));
+    } catch (requestError) {
+      console.error('Giriş isteği başarısız:', requestError);
+      setLoading(false);
+      setCaptchaReset((v) => v + 1);
+      toast.error('Giriş sunucusuna ulaşılamadı. Lütfen birkaç saniye sonra tekrar deneyin.');
+      return;
+    }
     
     if (error) {
       setLoading(false);
@@ -121,12 +137,23 @@ const Login = () => {
     }
 
     if (data.user) {
-      const { data: penalties } = await supabase
-        .from('penalties')
-        .select('*')
-        .eq('user_id', data.user.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      let penalties: any[] | null = null;
+      try {
+        const penaltyResult = await Promise.race([
+          supabase
+            .from('penalties')
+            .select('*')
+            .eq('user_id', data.user.id)
+            .order('created_at', { ascending: false })
+            .limit(1),
+          new Promise<never>((_, reject) => {
+            window.setTimeout(() => reject(new Error('Ceza kontrolü zaman aşımına uğradı.')), AUXILIARY_REQUEST_TIMEOUT);
+          }),
+        ]);
+        penalties = penaltyResult.data;
+      } catch (requestError) {
+        console.warn('Ceza kontrolü atlandı:', requestError);
+      }
 
       if (penalties && penalties.length > 0) {
         const latest = penalties[0];
@@ -155,12 +182,22 @@ const Login = () => {
       }
     }
 
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('user_id', data.user!.id)
-      .single();
-    const fullName = profileData?.full_name || data.user!.user_metadata?.full_name || '';
+    let fullName = data.user!.user_metadata?.full_name || data.user!.user_metadata?.name || '';
+    try {
+      const profileResult = await Promise.race([
+        supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', data.user!.id)
+          .single(),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(() => reject(new Error('Profil sorgusu zaman aşımına uğradı.')), AUXILIARY_REQUEST_TIMEOUT);
+        }),
+      ]);
+      fullName = profileResult.data?.full_name || fullName;
+    } catch (requestError) {
+      console.warn('Profil adı yüklenemedi, metadata adı kullanılacak:', requestError);
+    }
     await rememberReturningAccount(data.user!.email || email, fullName);
     
     setLoading(false);
