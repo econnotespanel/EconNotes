@@ -455,7 +455,7 @@ const VALID_DIAGRAM_TYPES: DiagramType[] = [
 
 function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   const t = text.toLocaleLowerCase('tr-TR');
-  if (/arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh/.test(t)) {
+  if (supportsQuantitativeDiagram(t) && /arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh/.test(t)) {
     return /denge|arz|talep|esneklik/.test(t) ? 'curve' : 'chart';
   }
   if (/sultan|hanedan|fetih|tanzimat|antlaşma|yüzyıl|dönem|kronoloji|tarih/.test(t)) return 'timeline';
@@ -463,12 +463,21 @@ function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   if (/aktör|ilişki|etkileşim|ağ|bağlantı|mekanizma/.test(t)) return 'network';
   if (/senaryo|örnek olay|vaka|uygulama|düşünelim|somut örnek/.test(t)) return 'scenario';
   if (/tablo|sınıflandır|türleri|unsurları|kategor|matris/.test(t) && sceneIdx % 3 === 1) return 'table';
-  if (/oran|yüzde|artış|düşüş|eğilim|grafik|denge|büyüme|etki düzeyi|dağılım/.test(t)) return 'chart';
+  if (supportsQuantitativeDiagram(t) && /oran|yüzde|artış|düşüş|eğilim|grafik|denge|büyüme|etki düzeyi|dağılım/.test(t)) return 'chart';
   if (/karşılaştır|kıyas|fark|karşılık|oysa|aksine/.test(t)) return 'comparison';
   if (/\b(1[0-9]{3}|20[0-9]{2})\b/.test(t) || /kronoloji|yüzyıl|dönem|aşama|süreç/.test(t)) return 'timeline';
 
-  const richCycle: DiagramType[] = ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison'];
+  const richCycle: DiagramType[] = supportsQuantitativeDiagram(t)
+    ? ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison']
+    : ['visual', 'shapes', 'table', 'scenario', 'timeline', 'comparison'];
   return richCycle[sceneIdx % richCycle.length];
+}
+
+/** Grafik yalnızca konu gerçekten sayısal ilişki, eğilim veya ekonomik model içeriyorsa kullanılır. */
+function supportsQuantitativeDiagram(text: string): boolean {
+  return /iktisat|ekonomi|piyasa|arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|üretim|gelir|fiyat|oran|yüzde|istatistik|veri|formül|fonksiyon|koordinat|ölçüm|deney|enerji|hız|mesafe|zaman serisi|dağılım|regresyon/.test(
+    text.toLocaleLowerCase('tr-TR'),
+  );
 }
 
 function chooseDistinctDiagramType(
@@ -478,7 +487,9 @@ function chooseDistinctDiagramType(
   used: Set<DiagramType>,
 ): DiagramType {
   const semantic = inferDiagramType(text, sceneIdx);
-  const cycle: DiagramType[] = ['curve', 'chart', 'timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual'];
+  const cycle: DiagramType[] = supportsQuantitativeDiagram(text)
+    ? ['curve', 'chart', 'timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual']
+    : ['timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual'];
   const candidates = [preferred, semantic, ...cycle.slice(sceneIdx % cycle.length), ...cycle];
   return candidates.find(type => !used.has(type)) || semantic;
 }
@@ -547,6 +558,9 @@ function buildDiagram(
       let type: DiagramType = VALID_DIAGRAM_TYPES.includes(dd.diagramType)
         ? dd.diagramType
         : inferDiagramType(`${title} ${narration}`, sceneIdx);
+      if (!supportsQuantitativeDiagram(`${courseLabel} ${title} ${narration}`) && (type === 'chart' || type === 'curve')) {
+        type = inferDiagramType(`${title} ${narration}`, sceneIdx);
+      }
       if (type === 'curve') type = 'chart';
       return {
         type,
@@ -907,7 +921,9 @@ function ensureRichFiveMinuteCurriculum(
       : 'kuramsal ve toplumsal';
 
   // Eski tekdüze şema tiplerini zengin çok-modlu tiplere yükselt
-  const richPalette: DiagramType[] = ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison'];
+  const richPalette: DiagramType[] = supportsQuantitativeDiagram(corpusText)
+    ? ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison']
+    : ['visual', 'shapes', 'table', 'scenario', 'timeline', 'comparison'];
   coreScenes.forEach((sc, idx) => {
     if (sc.diagram.type === 'network' || sc.diagram.type === 'structure') {
       sc.diagram.type = richPalette[idx % richPalette.length];
@@ -1194,7 +1210,7 @@ function ensureRichFiveMinuteCurriculum(
   }
 
   // 4) GEÇ-1: Yapısal Ağırlık ve Etki Düzeyi Grafiği ('chart')
-  if (!hasTypeAnywhere('chart') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC) {
+  if (supportsQuantitativeDiagram(corpusText) && (!hasTypeAnywhere('chart') || totalSecWithExtras() < MIN_LESSON_DURATION_SEC)) {
     const cNodes = pickDistinctNodes(3, 4, ['Birincil Belirleyici', 'Yapısal Kaldıraç', 'İstikrar Unsuru', 'Tamamlayıcı Etki']).map(
       (n, idx) => ({
         ...n,
