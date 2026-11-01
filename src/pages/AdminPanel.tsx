@@ -1,7 +1,7 @@
 import Layout from '@/components/Layout';
 import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import AuditLogPanel from '@/components/admin/AuditLogPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -37,6 +37,8 @@ const AdminPanel = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<any[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('all');
   const [userEmails, setUserEmails] = useState<Record<string, string>>({});
   const [notePasswords, setNotePasswords] = useState<Record<string, string>>({});
   const [userRoles, setUserRoles] = useState<any[]>([]);
@@ -81,6 +83,18 @@ const AdminPanel = () => {
   const [bannerDialog, setBannerDialog] = useState(false);
   const [editingBanner, setEditingBanner] = useState<any>(null);
   const [bannerForm, setBannerForm] = useState({ title: '', content: '', bg_color: 'primary' });
+
+  const filteredUsers = useMemo(() => {
+    const query = userSearch.trim().toLocaleLowerCase('tr-TR');
+    return users.filter((u) => {
+      const role = getUserRole(u.user_id);
+      const searchable = [u.full_name, u.university, u.department, userEmails[u.user_id]]
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleLowerCase('tr-TR');
+      return (!query || searchable.includes(query)) && (userRoleFilter === 'all' || role === userRoleFilter);
+    });
+  }, [users, userEmails, userSearch, userRoleFilter, userRoles]);
 
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
@@ -467,43 +481,68 @@ const AdminPanel = () => {
 
 
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{users.length}</p><p className="text-xs text-muted-foreground">Kullanıcılar</p></CardContent></Card>
-          <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{notes.length}</p><p className="text-xs text-muted-foreground">Notlar</p></CardContent></Card>
-          <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{announcements.length}</p><p className="text-xs text-muted-foreground">Duyurular</p></CardContent></Card>
-          <Card className="glass-card"><CardContent className="p-4 text-center"><p className="text-2xl font-bold">{penalties.length}</p><p className="text-xs text-muted-foreground">Cezalar</p></CardContent></Card>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { label: 'Kullanıcılar', value: users.length, icon: Users, tone: 'from-blue-500/20 to-cyan-500/5' },
+            { label: 'Notlar', value: notes.length, icon: FileText, tone: 'from-violet-500/20 to-fuchsia-500/5' },
+            { label: 'Duyurular', value: announcements.length, icon: Megaphone, tone: 'from-amber-500/20 to-orange-500/5' },
+            { label: 'Cezalar', value: penalties.length, icon: AlertTriangle, tone: 'from-rose-500/20 to-red-500/5' },
+          ].map(({ label, value, icon: Icon, tone }) => (
+            <Card key={label} className={`glass-card overflow-hidden bg-gradient-to-br ${tone}`}>
+              <CardContent className="flex items-center justify-between p-4">
+                <div><p className="text-2xl font-bold tracking-tight">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div>
+                <Icon className="h-5 w-5 text-muted-foreground/70" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         <Tabs defaultValue="users">
-          <TabsList className="flex h-auto w-full max-w-full justify-start overflow-x-auto">
-            <TabsTrigger className="shrink-0" value="users"><Users className="mr-1.5 hidden h-4 w-4 sm:inline" />Kullanıcılar</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="notes"><FileText className="mr-1.5 hidden h-4 w-4 sm:inline" />Notlar</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="announcements"><Megaphone className="mr-1.5 hidden h-4 w-4 sm:inline" />Duyurular</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="banners"><ImageIcon className="mr-1.5 hidden h-4 w-4 sm:inline" />Bannerlar</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="penalties"><AlertTriangle className="mr-1.5 hidden h-4 w-4 sm:inline" />Cezalar</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="reports"><Flag className="mr-1.5 hidden h-4 w-4 sm:inline" />Raporlar{messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">{messageReports.filter(r => r.status === 'pending').length}</span>}</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="activity"><Activity className="mr-1.5 hidden h-4 w-4 sm:inline" />Aktiviteler</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="audit"><Shield className="mr-1.5 hidden h-4 w-4 sm:inline" />Denetim</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="design"><Palette className="mr-1.5 hidden h-4 w-4 sm:inline" />Tasarım</TabsTrigger>
-            <TabsTrigger className="shrink-0" value="study"><Sparkles className="mr-1.5 hidden h-4 w-4 sm:inline" />Stüdyo</TabsTrigger>
+          <TabsList className="flex h-auto w-full max-w-full gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card/80 p-1.5 shadow-sm backdrop-blur-md">
+            <TabsTrigger className="shrink-0 rounded-xl px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm" value="users"><Users className="mr-1.5 hidden h-4 w-4 sm:inline" />Kullanıcılar</TabsTrigger>
+            {[
+              ['notes', FileText, 'Notlar'], ['announcements', Megaphone, 'Duyurular'], ['banners', ImageIcon, 'Bannerlar'],
+              ['penalties', AlertTriangle, 'Cezalar'], ['reports', Flag, 'Raporlar'], ['activity', Activity, 'Aktiviteler'],
+              ['audit', Shield, 'Denetim'], ['design', Palette, 'Tasarım'], ['study', Sparkles, 'Stüdyo'],
+            ].map(([value, Icon, label]) => (
+              <TabsTrigger key={value as string} className="shrink-0 rounded-xl px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm" value={value as string}>
+                <Icon className="mr-1.5 hidden h-4 w-4 sm:inline" />{label}
+                {value === 'reports' && messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">{messageReports.filter(r => r.status === 'pending').length}</span>}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           <TabsContent value="users">
             <Card className="glass-card">
               <CardContent className="p-4">
+                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 md:flex-row md:items-center">
+                  <div className="relative min-w-0 flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Ad, e-posta, üniversite veya bölüm ara..." className="h-10 border-border/60 bg-background pl-9" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+                    <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                      <SelectTrigger className="h-10 w-[150px] bg-background"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="all">Tüm roller</SelectItem><SelectItem value="student">Öğrenci</SelectItem><SelectItem value="admin">Yönetici</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <Badge variant="secondary" className="h-7 w-fit rounded-full px-3">{filteredUsers.length} kullanıcı</Badge>
+                </div>
                 <div className="overflow-x-auto">
-                <table className="min-w-[1180px] w-full text-sm">
-                    <thead><tr className="border-b border-border"><th className="text-left p-2">Ad Soyad</th><th className="text-left p-2">E-posta</th><th className="text-left p-2 hidden md:table-cell">Üniversite</th><th className="text-left p-2 hidden md:table-cell">Bölüm</th><th className="text-left p-2">Rol</th><th className="text-left p-2 hidden lg:table-cell">Son Giriş</th><th className="text-left p-2">İşlemler</th></tr></thead>
+                <table className="min-w-[1360px] w-full text-sm">
+                    <thead><tr className="border-b border-border bg-muted/30"><th className="text-left p-3">Ad Soyad</th><th className="text-left p-3">E-posta</th><th className="text-left p-3 hidden md:table-cell">Üniversite</th><th className="text-left p-3 hidden md:table-cell">Bölüm</th><th className="text-left p-3">Rol</th><th className="text-left p-3">Kayıt Tarihi</th><th className="text-left p-3 hidden lg:table-cell">Son Giriş</th><th className="text-left p-3">İşlemler</th></tr></thead>
                     <tbody>
-                      {users.map((u) => (
-                        <tr key={u.id} className="border-b border-border/50 hover:bg-accent/50">
-                          <td className="p-2 font-medium">{u.full_name || '-'}</td>
-                          <td className="p-2 min-w-[240px] max-w-[300px] align-top text-xs whitespace-normal break-all" title={userEmails[u.user_id] || undefined}>{userEmails[u.user_id] || '—'}</td>
-                          <td className="p-2 min-w-[190px] max-w-[280px] align-top whitespace-normal break-words hidden md:table-cell" title={u.university || undefined}>{u.university || '-'}</td>
-                          <td className="p-2 min-w-[190px] max-w-[300px] align-top whitespace-normal break-words hidden md:table-cell" title={u.department || undefined}>{u.department || '-'}</td>
-                          <td className="p-2"><Badge variant="outline" className="text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge></td>
-                          <td className="p-2 hidden lg:table-cell">{u.last_login ? new Date(u.last_login).toLocaleString('tr-TR') : '-'}</td>
-                          <td className="p-2">
+                      {filteredUsers.map((u) => (
+                        <tr key={u.id} className="border-b border-border/50 transition-colors hover:bg-primary/[0.04]">
+                          <td className="p-3 font-medium">{u.full_name || '-'}</td>
+                          <td className="p-3 min-w-[240px] max-w-[300px] align-top text-xs whitespace-normal break-all" title={userEmails[u.user_id] || undefined}>{userEmails[u.user_id] || '—'}</td>
+                          <td className="p-3 min-w-[190px] max-w-[280px] align-top whitespace-normal break-words hidden md:table-cell" title={u.university || undefined}>{u.university || '-'}</td>
+                          <td className="p-3 min-w-[190px] max-w-[300px] align-top whitespace-normal break-words hidden md:table-cell" title={u.department || undefined}>{u.department || '-'}</td>
+                          <td className="p-3"><Badge variant="outline" className="rounded-full px-2.5 text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge></td>
+                          <td className="p-3 whitespace-nowrap"><span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5 text-primary" />{u.created_at ? new Date(u.created_at).toLocaleString('tr-TR') : '-'}</span></td>
+                          <td className="p-3 hidden lg:table-cell whitespace-nowrap text-xs text-muted-foreground">{u.last_login ? new Date(u.last_login).toLocaleString('tr-TR') : '-'}</td>
+                          <td className="p-3">
                             <div className="flex gap-1">
                               <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name || '', university: u.university || '', department: u.department || '', grade: u.grade || 1 }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol"><UserCog className="h-3 w-3" /></Button>
