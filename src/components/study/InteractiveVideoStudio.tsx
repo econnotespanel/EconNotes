@@ -166,9 +166,9 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
   const [volume, setVolume] = useState(1.0);
   const volumeRef = useRef(1.0);
   volumeRef.current = volume;
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.08);
   const [elapsedSceneTime, setElapsedSceneTime] = useState(0);
-  const [showSubtitles, setShowSubtitles] = useState(true);
+  const [showSubtitles, setShowSubtitles] = useState(false);
   const [hasStartedOnce, setHasStartedOnce] = useState(false);
   const [liveSpeaker, setLiveSpeaker] = useState<Speaker>('Deniz');
 

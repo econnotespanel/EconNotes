@@ -39,9 +39,9 @@ export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
     roleHint: 'Sıcak, akıcı kıdemli akademisyen tonu',
     gender: 'male',
     score: 102,
-    // config.json length_scale=1.2 ile birlikte yaklaşık 0.98 etkin ölçek:
+    // config.json length_scale=1.2 ile birlikte yaklaşık 1.06 etkin ölçek:
     // akademik telaffuzu korurken gereksiz yavaşlamayı önler.
-    defaultLengthScale: 0.82,
+    defaultLengthScale: 0.88,
     noiseScale: 0.4,
     noiseW: 0.3,
     onnxUrl: `${HF_EREN_BASE}/model.onnx`,
@@ -54,7 +54,7 @@ export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
     roleHint: 'Dinamik, berrak araştırmacı tonu',
     gender: 'male',
     score: 101,
-    defaultLengthScale: 0.88,
+    defaultLengthScale: 0.92,
     noiseScale: 0.42,
     noiseW: 0.34,
     onnxUrl: `${HF_PIPER_BASE}/tr/tr_TR/fahrettin/medium/tr_TR-fahrettin-medium.onnx`,
@@ -67,7 +67,7 @@ export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
     roleHint: 'Duru, tane tane kürsü anlatımı',
     gender: 'male',
     score: 99,
-    defaultLengthScale: 0.88,
+    defaultLengthScale: 0.92,
     noiseScale: 0.42,
     noiseW: 0.34,
     onnxUrl: `${HF_PIPER_BASE}/tr/tr_TR/dfki/medium/tr_TR-dfki-medium.onnx`,
@@ -80,7 +80,7 @@ export const VITS_TURKISH_VOICES: VitsVoiceDescriptor[] = [
     roleHint: 'Tok, sakin belgesel anlatımı',
     gender: 'male',
     score: 98,
-    defaultLengthScale: 0.9,
+    defaultLengthScale: 0.94,
     noiseScale: 0.42,
     noiseW: 0.34,
     onnxUrl: `${HF_PIPER_BASE}/tr/tr_TR/fettah/medium/tr_TR-fettah-medium.onnx`,

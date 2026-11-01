@@ -477,10 +477,16 @@ function drawThematicIllustration(
   theme: VisualTheme,
   now: number,
   activeIdx: number,
+  variantKey: string,
 ): Point[] {
   const cx = box.x + box.w / 2;
   const cy = box.y + box.h / 2;
   const slow = now / 2800;
+  let variantHash = 0;
+  for (let i = 0; i < variantKey.length; i++) {
+    variantHash = (variantHash * 31 + variantKey.charCodeAt(i)) | 0;
+  }
+  const variant = Math.abs(variantHash) % 3;
 
   ctx.save();
   rr(ctx, box.x, box.y, box.w, box.h, 24);
@@ -584,7 +590,7 @@ function drawThematicIllustration(
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-  } else if (theme === 'economics') {
+  } else if (theme === 'economics' && variant === 0) {
     // Hassas İktisadi Denge Terazisi + Yükselen Piyasa Çubukları
     const baseY = box.y + box.h - 72;
     const barVals = [0.38, 0.56, 0.48, 0.76, 0.9];
@@ -631,6 +637,89 @@ function drawThematicIllustration(
       ctx.stroke();
     });
     ctx.restore();
+  } else if (theme === 'economics' && variant === 1) {
+    // Arz-talep kesişimi ve hareketli piyasa göstergeleri
+    const axisX = box.x + 52;
+    const axisY = box.y + box.h - 92;
+    const chartW = box.w - 104;
+    const chartH = box.h - 190;
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(axisX, axisY - chartH);
+    ctx.lineTo(axisX, axisY);
+    ctx.lineTo(axisX + chartW, axisY);
+    ctx.stroke();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(axisX, axisY - chartH, chartW, chartH);
+    ctx.clip();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#22d3ee';
+    ctx.beginPath();
+    ctx.moveTo(axisX + 24, axisY - 30);
+    ctx.bezierCurveTo(axisX + chartW * 0.3, axisY - chartH * 0.4, axisX + chartW * 0.62, axisY - chartH * 0.78, axisX + chartW - 20, axisY - chartH + 22);
+    ctx.stroke();
+    ctx.strokeStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.moveTo(axisX + 24, axisY - chartH + 22);
+    ctx.bezierCurveTo(axisX + chartW * 0.3, axisY - chartH * 0.78, axisX + chartW * 0.62, axisY - chartH * 0.4, axisX + chartW - 20, axisY - 30);
+    ctx.stroke();
+    const pulse = (Math.sin(slow * 1.5) + 1) / 2;
+    const eqX = axisX + chartW * (0.48 + pulse * 0.05);
+    const eqY = axisY - chartH * (0.53 + pulse * 0.04);
+    ctx.beginPath();
+    ctx.arc(eqX, eqY, 10, 0, Math.PI * 2);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fill();
+    ctx.strokeStyle = '#a78bfa';
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = font(600, 12);
+    ctx.fillText('Fiyat', axisX - 36, axisY - chartH + 8);
+    ctx.fillText('Miktar', axisX + chartW - 48, axisY + 34);
+  } else if (theme === 'economics') {
+    // Ekonomik aktörler, para akışı ve karar noktaları
+    const center = { x: cx, y: cy + 10 };
+    const orbit = [
+      { x: cx - 132, y: cy - 82, label: 'Hanehalkı', color: '#22d3ee' },
+      { x: cx + 132, y: cy - 82, label: 'Firmalar', color: '#fbbf24' },
+      { x: cx - 132, y: cy + 112, label: 'Devlet', color: '#34d399' },
+      { x: cx + 132, y: cy + 112, label: 'Piyasa', color: '#a78bfa' },
+    ];
+    orbit.forEach((item, index) => {
+      ctx.save();
+      ctx.strokeStyle = `${item.color}88`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(item.x, item.y);
+      ctx.lineTo(center.x, center.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(item.x, item.y, 42 + (index === activeIdx % orbit.length ? 5 : 0), 0, Math.PI * 2);
+      ctx.fillStyle = `${item.color}24`;
+      ctx.fill();
+      ctx.strokeStyle = item.color;
+      ctx.stroke();
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = font(700, 13);
+      ctx.textAlign = 'center';
+      ctx.fillText(item.label, item.x, item.y + 5);
+      ctx.restore();
+    });
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, 58, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(14, 116, 144, 0.85)';
+    ctx.fill();
+    ctx.strokeStyle = '#67e8f9';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(800, 17);
+    ctx.textAlign = 'center';
+    ctx.fillText('DENGE', center.x, center.y + 6);
+    ctx.textAlign = 'left';
   } else if (theme === 'law') {
     // Klasik Kurumsal Alınlık ve 4 Sütunlu Devlet/Hukuk Yapısı
     const baseY = box.y + box.h - 90;
@@ -729,7 +818,8 @@ function drawVisualShowcase(
     w: Math.round(a.w * 0.41),
     h: a.h - 8,
   };
-  const anchors = drawThematicIllustration(ctx, illBox, theme, now, act);
+  const variantKey = `${theme}|${nodes.map(node => `${node.label}:${node.subtext}`).join('|')}`;
+  const anchors = drawThematicIllustration(ctx, illBox, theme, now, act, variantKey);
 
   const rightX = illBox.x + illBox.w + 34;
   const rightW = a.x + a.w - rightX;
