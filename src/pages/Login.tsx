@@ -115,7 +115,7 @@ const Login = () => {
       ({ data, error } = await Promise.race([
         supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword }),
         new Promise<never>((_, reject) => {
-          window.setTimeout(() => reject(new Error('Giriş sunucusu zaman aşımına uğradı.')), 10000);
+          window.setTimeout(() => reject(new Error('Giriş sunucusu zaman aşımına uğradı.')), 30000);
         }),
       ]));
     } catch (requestError) {

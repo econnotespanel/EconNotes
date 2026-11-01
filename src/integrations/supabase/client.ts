@@ -13,7 +13,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   global: {
     fetch: async (input, init = {}) => {
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 12000);
+      const timeout = window.setTimeout(() => controller.abort(), 30000);
       const callerSignal = init.signal;
       const abortFromCaller = () => controller.abort();
       callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
