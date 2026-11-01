@@ -1675,6 +1675,34 @@ function drawBroadcastDeskAndLowerThirds(
   drawDeskMic(308, 1, denizSpeaking, '#22d3ee');
   drawDeskMic(stageW - 308, -1, barisSpeaking, '#c084fc');
 
+  // Barış'ın öğrenci rolünü masadaki açık not defteri ve kalem de destekler.
+  ctx.save();
+  const notebookX = stageW - 430;
+  const notebookY = deskY + 28;
+  ctx.translate(notebookX, notebookY);
+  ctx.rotate(-0.08);
+  roundRectPath(ctx, 0, 0, 112, 62, 7);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(192, 132, 252, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.42)';
+  ctx.lineWidth = 1;
+  for (let row = 0; row < 3; row++) {
+    ctx.beginPath();
+    ctx.moveTo(14, 17 + row * 13);
+    ctx.lineTo(96, 17 + row * 13);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#c084fc';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(84, 70);
+  ctx.lineTo(122, 18);
+  ctx.stroke();
+  ctx.restore();
+
   const drawBadge = (
     bx: number,
     by: number,
@@ -1723,8 +1751,8 @@ function drawBroadcastDeskAndLowerThirds(
     ctx.restore();
   };
 
-  drawBadge(38, stageH - 80, 'Dr. Deniz', 'AKADEMİK HOCA', '#22d3ee', denizSpeaking);
-  drawBadge(stageW - 296, stageH - 80, 'Barış', 'ÖĞRENCİ', '#c084fc', barisSpeaking);
+  drawBadge(38, stageH - 80, 'Dr. Deniz', 'DERSİ ANLATAN HOCA', '#22d3ee', denizSpeaking);
+  drawBadge(stageW - 296, stageH - 80, 'Barış', 'SORU SORAN ÖĞRENCİ', '#c084fc', barisSpeaking);
 
   ctx.restore();
 }

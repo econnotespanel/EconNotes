@@ -342,7 +342,8 @@ function withSpeakerTone(
   return {
     ...assignment,
     pitch: 1.0,
-    baseRate: speaker === 'Deniz' ? 1.02 : 1.07,
+    lengthScale: assignment.engine === 'vits-neural' ? 0.9 : assignment.lengthScale,
+    baseRate: 1.05,
   };
 }
 
