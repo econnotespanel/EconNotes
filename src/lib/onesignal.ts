@@ -40,23 +40,41 @@ export const initOneSignal = () => {
 export const requestOneSignalPermission = async (): Promise<boolean> => {
   if (typeof window === 'undefined') return false;
 
-  return new Promise((resolve) => {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function (OneSignal: any) {
-      try {
-        const result = await OneSignal.Notifications.requestPermission();
-        resolve(result === true || Notification.permission === 'granted');
-      } catch (err) {
-        console.error('OneSignal permission error:', err);
-        if ('Notification' in window) {
-          const perm = await Notification.requestPermission();
-          resolve(perm === 'granted');
+  let granted = false;
+
+  // 1. Direct native browser requestPermission (preserves user click gesture synchronously)
+  if ('Notification' in window) {
+    try {
+      let perm = Notification.permission;
+      if (perm === 'default') {
+        const req = Notification.requestPermission();
+        if (req && typeof req.then === 'function') {
+          perm = await req;
         } else {
-          resolve(false);
+          perm = await new Promise((res) => Notification.requestPermission(res));
         }
       }
-    });
-  });
+      granted = perm === 'granted';
+    } catch (e) {
+      console.warn('Native requestPermission error:', e);
+    }
+  }
+
+  // 2. Trigger OneSignal push registration in background
+  try {
+    if (window.OneSignal?.Notifications) {
+      void window.OneSignal.Notifications.requestPermission();
+    } else {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async function (OneSignal: any) {
+        try {
+          await OneSignal.Notifications.requestPermission();
+        } catch {}
+      });
+    }
+  } catch {}
+
+  return granted;
 };
 
 export const sendOneSignalNotification = async (
