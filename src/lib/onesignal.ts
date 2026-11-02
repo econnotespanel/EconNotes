@@ -6,6 +6,7 @@ declare global {
 }
 
 export const ONESIGNAL_APP_ID = 'ce5179d9-cf07-4115-b29a-a7d73713818d';
+export const ONESIGNAL_SAFARI_WEB_ID = 'web.onesignal.auto.3bb557bb-091e-4595-bac2-e40949e4ba5a';
 
 const getOneSignalRestApiKey = (): string => {
   if (import.meta.env.VITE_ONESIGNAL_REST_API_KEY) {
@@ -26,6 +27,7 @@ export const initOneSignal = () => {
     try {
       await OneSignal.init({
         appId: ONESIGNAL_APP_ID,
+        safari_web_id: ONESIGNAL_SAFARI_WEB_ID,
         notifyButton: {
           enable: false,
         },
