@@ -5,6 +5,25 @@ import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/dev
 
 const POLL_INTERVAL_MS = 12_000;
 
+const playChime = () => {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
+  } catch {}
+};
+
 const ContentNotificationListener = () => {
   const { user } = useAuth();
   const polling = useRef(false);
@@ -18,6 +37,7 @@ const ContentNotificationListener = () => {
       if (typeof window === 'undefined' || !('Notification' in window)) return;
       if (Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
 
+      playChime();
       let delivered = false;
 
       // 1. Try Service Worker showNotification (mandatory on Android Chrome / PWA, highly reliable on Mobile)
