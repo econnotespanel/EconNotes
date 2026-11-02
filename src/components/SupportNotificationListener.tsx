@@ -20,14 +20,34 @@ const SupportNotificationListener = () => {
           const payload = parseSupportMessage(row.content);
           if (!payload || payload.kind !== 'ticket' || row.sender_id === user.id || Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
 
-          const notification = new Notification('Yeni destek talebi', {
-            body: payload.subject,
-            tag: `support-${payload.ticketId}`,
+          const title = 'Yeni destek talebi';
+          const body = payload.subject;
+          const tag = `support-${payload.ticketId}`;
+          const path = '/support';
+
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then((reg) => {
+              reg.showNotification(title, {
+                body,
+                tag,
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-192x192.png',
+                vibrate: [150, 60, 150],
+                data: { url: path },
+                renotify: true,
+              });
+            }).catch(() => {});
+            return;
+          }
+
+          const notification = new Notification(title, {
+            body,
+            tag,
             icon: '/icons/icon-192x192.png',
           });
           notification.onclick = () => {
             window.focus();
-            window.location.assign('/support');
+            window.location.assign(path);
             notification.close();
           };
         },

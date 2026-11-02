@@ -130,6 +130,24 @@ const Header = () => {
       localStorage.setItem(getNotificationCursorKey(user.id, 'announcements'), now);
       setDeviceNotificationsEnabled(true);
       toast.success('Yeni not ve duyuru bildirimleri açıldı.');
+
+      // Dispatch instant test notification to verify mobile/desktop delivery
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then((reg) => {
+          reg.showNotification('EconNotes Bildirimleri Aktif! 🔔', {
+            body: 'Yöneticilerin paylaştığı duyurular artık telefonunuza anlık olarak gelecek.',
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            vibrate: [150, 60, 150],
+            data: { url: '/announcements' },
+          });
+        }).catch(() => {});
+      } else {
+        new Notification('EconNotes Bildirimleri Aktif! 🔔', {
+          body: 'Yöneticilerin paylaştığı duyurular artık telefonunuza anlık olarak gelecek.',
+          icon: '/icons/icon-192x192.png',
+        });
+      }
     } catch (error) {
       console.error('Device notification permission setup failed:', error);
       toast.error('Cihaz bildirimleri etkinleştirilemedi. Lütfen tarayıcı ayarlarınızı kontrol edin.');
@@ -216,7 +234,11 @@ const Header = () => {
               onClick={() => void toggleDeviceNotifications()}
               className="rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
             >
-              <BellRing className={`h-5 w-5 ${deviceNotificationsEnabled ? 'text-primary' : ''}`} />
+              {deviceNotificationsEnabled ? (
+                <BellRing className="h-5 w-5 text-primary animate-pulse" />
+              ) : (
+                <Bell className="h-5 w-5 text-muted-foreground" />
+              )}
             </Button>
           )}
 

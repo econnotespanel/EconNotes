@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 
-const POLL_INTERVAL_MS = 120_000;
+const POLL_INTERVAL_MS = 60_000;
 
 const ContentNotificationListener = () => {
   const { user } = useAuth();
@@ -12,9 +12,25 @@ const ContentNotificationListener = () => {
   useEffect(() => {
     if (!user || !('Notification' in window)) return;
 
-    const notify = (title: string, body: string, tag: string, path: string) => {
+    // Dispatches a notification through the Service Worker (required for mobile PWA/Android/iOS)
+    // with fallback to Desktop window.Notification
+    const notify = async (title: string, body: string, tag: string, path: string) => {
       if (Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
       try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification(title, {
+            body,
+            tag,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            vibrate: [150, 60, 150],
+            data: { url: path },
+            renotify: true,
+          });
+          return;
+        }
+
         const notification = new Notification(title, {
           body,
           tag,
@@ -30,6 +46,48 @@ const ContentNotificationListener = () => {
       }
     };
 
+    // Instant real-time listener: fires with zero delay when an admin inserts a new announcement
+    const channel = supabase
+      .channel('realtime-announcements-push')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'announcements' },
+        (payload) => {
+          const newAnn = payload.new as any;
+          if (newAnn && newAnn.user_id !== user.id) {
+            void notify(
+              `📢 EconNotes Duyuru: ${newAnn.title}`,
+              newAnn.content ? newAnn.content.slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
+              `announcement-${newAnn.id}`,
+              '/announcements'
+            );
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'notes' },
+        (payload) => {
+          const updatedNote = payload.new as any;
+          const oldNote = payload.old as any;
+          if (
+            updatedNote &&
+            updatedNote.status === 'approved' &&
+            oldNote?.status !== 'approved' &&
+            updatedNote.user_id !== user.id
+          ) {
+            void notify(
+              '📚 Yeni Not Yayımlandı',
+              updatedNote.title || 'Yeni ders notu onaylandı.',
+              `note-${updatedNote.id}`,
+              '/notes'
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    // Polling fallback to catch any notifications missed during network offline moments
     const pollForContent = async () => {
       if (polling.current || !isDeviceNotificationEnabled(user.id) || Notification.permission !== 'granted') return;
       polling.current = true;
@@ -46,37 +104,35 @@ const ContentNotificationListener = () => {
         }
 
         const [notesResult, announcementsResult] = await Promise.all([
-          supabase.from('notes')
+          supabase
+            .from('notes')
             .select('id, title, user_id, approved_at')
             .eq('status', 'approved')
             .not('approved_at', 'is', null)
             .gt('approved_at', noteCursor)
             .neq('user_id', user.id)
             .order('approved_at', { ascending: true }),
-          supabase.from('announcements')
+          supabase
+            .from('announcements')
             .select('id, title, user_id, created_at')
             .gt('created_at', announcementCursor)
             .neq('user_id', user.id)
             .order('created_at', { ascending: true }),
         ]);
 
-        if (notesResult.error) {
-          console.error('Published note notification check failed:', notesResult.error);
-        } else {
-          for (const note of notesResult.data || []) {
-            notify('Yeni not yayımlandı', note.title, `note-${note.id}`, '/notes');
+        if (notesResult.data && notesResult.data.length > 0) {
+          for (const note of notesResult.data) {
+            void notify('📚 Yeni not yayımlandı', note.title, `note-${note.id}`, '/notes');
           }
-          const latestApprovedAt = notesResult.data?.at(-1)?.approved_at;
+          const latestApprovedAt = notesResult.data.at(-1)?.approved_at;
           if (latestApprovedAt) localStorage.setItem(noteCursorKey, latestApprovedAt);
         }
 
-        if (announcementsResult.error) {
-          console.error('Announcement notification check failed:', announcementsResult.error);
-        } else {
-          for (const announcement of announcementsResult.data || []) {
-            notify('Yeni duyuru yayımlandı', announcement.title, `announcement-${announcement.id}`, '/announcements');
+        if (announcementsResult.data && announcementsResult.data.length > 0) {
+          for (const announcement of announcementsResult.data) {
+            void notify('📢 Yeni duyuru yayımlandı', announcement.title, `announcement-${announcement.id}`, '/announcements');
           }
-          const latestCreatedAt = announcementsResult.data?.at(-1)?.created_at;
+          const latestCreatedAt = announcementsResult.data.at(-1)?.created_at;
           if (latestCreatedAt) localStorage.setItem(announcementCursorKey, latestCreatedAt);
         }
       } catch (error) {
@@ -88,7 +144,11 @@ const ContentNotificationListener = () => {
 
     void pollForContent();
     const interval = window.setInterval(() => void pollForContent(), POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
+
+    return () => {
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
   }, [user]);
 
   return null;

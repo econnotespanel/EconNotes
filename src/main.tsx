@@ -8,3 +8,12 @@ import "./index.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
+// Register Service Worker for PWA and Mobile Push Notifications
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('EconNotes Service Worker kaydı yapılamadı:', err);
+    });
+  });
+}
+
