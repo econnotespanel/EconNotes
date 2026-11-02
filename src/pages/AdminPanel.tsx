@@ -1,4 +1,4 @@
-import Layout from '@/components/Layout';
+﻿import Layout from '@/components/Layout';
 import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useMemo, useState } from 'react';

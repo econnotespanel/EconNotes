@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+﻿import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
@@ -8,9 +8,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import LoadingMessage from '@/components/ui/loading-message';
 
 const rankStyles = [
-  'bg-warning/15 text-warning border-warning/40',
-  'bg-muted text-foreground border-border',
-  'bg-primary/15 text-primary border-primary/40',
+  'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold',
+  'bg-slate-400/20 text-slate-700 dark:text-slate-300 border-slate-400/30 font-bold',
+  'bg-amber-700/15 text-amber-800 dark:text-amber-500 border-amber-700/30 font-bold',
 ];
 
 const LeaderboardCard = () => {
@@ -89,10 +89,10 @@ const LeaderboardCard = () => {
               <div
                 key={row.user_id}
                 className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors ${
-                  row.user_id === user?.id ? 'border-primary/50 bg-primary/5' : 'border-transparent bg-accent/40 hover:bg-accent'
+                  row.user_id === user?.id ? 'border-primary/50 bg-primary/10 shadow-sm' : 'border-border/50 bg-card hover:bg-muted/50'
                 }`}
               >
-                <span className={`h-7 w-7 shrink-0 rounded-lg border inline-flex items-center justify-center text-xs font-bold ${rankStyles[row.rank - 1] ?? 'bg-accent text-muted-foreground border-border'}`}>
+                <span className={`h-7 w-7 shrink-0 rounded-lg border inline-flex items-center justify-center text-xs font-bold ${rankStyles[row.rank - 1] ?? 'bg-muted text-muted-foreground border-border/50'}`}>
                   {row.rank}
                 </span>
                 <Avatar className="h-8 w-8">
@@ -100,15 +100,15 @@ const LeaderboardCard = () => {
                   <AvatarFallback className="text-xs">{row.full_name?.charAt(0)?.toUpperCase() || 'U'}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">
+                  <p className="text-sm font-semibold text-foreground truncate">
                     {row.full_name}
                     {row.user_id === user?.id && <span className="ml-2 text-[10px] text-primary">sen</span>}
                   </p>
                   <p className="text-[11px] text-muted-foreground truncate">{row.university || 'Üniversite belirtilmemiş'}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-bold">{row.points}</p>
-                  <p className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end"><Flame className="h-3 w-3" /> {row.current_streak}</p>
+                  <p className="text-sm font-bold text-foreground">{row.points}</p>
+                  <p className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end"><Flame className="h-3 w-3 text-amber-500" /> {row.current_streak}</p>
                 </div>
               </div>
             ))
