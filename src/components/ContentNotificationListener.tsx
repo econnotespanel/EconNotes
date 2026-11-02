@@ -5,49 +5,70 @@ import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/dev
 import { toast } from 'sonner';
 import { displayDeviceNotification, playChime } from '@/lib/showNotification';
 
-const POLL_INTERVAL_MS = 6_000;
+const POLL_INTERVAL_MS = 10_000;
+
+// Persistent deduplication cache to prevent duplicate alerts across re-renders & multiple event channels
+const handledNotificationKeys = new Set<string>();
 
 const ContentNotificationListener = () => {
   const { user } = useAuth();
   const polling = useRef(false);
-  const notifiedIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
 
-    // Dispatches a notification reliably across both Mobile PWA/Android (Service Worker showNotification)
-    // and Desktop Windows/Mac (Notification constructor)
-    const notify = async (title: string, body: string, tag: string, path: string) => {
-      if (notifiedIds.current.has(tag)) return;
-      notifiedIds.current.add(tag);
+    // Dispatches a notification reliably and strictly ONCE across the entire app
+    const notifyOnce = async (
+      title: string,
+      body: string,
+      dedupKey: string,
+      path: string,
+      authorId?: string
+    ) => {
+      // 1. If the current user authored the announcement, do not pop an alert on their own screen
+      if (authorId && authorId === user.id) {
+        return;
+      }
 
-      // 1. Play subtle audio chime
+      // 2. Strict deduplication check
+      if (handledNotificationKeys.has(dedupKey)) {
+        return;
+      }
+      handledNotificationKeys.add(dedupKey);
+
+      // Keep cache from growing unbounded
+      if (handledNotificationKeys.size > 200) {
+        const oldest = handledNotificationKeys.values().next().value;
+        if (oldest) handledNotificationKeys.delete(oldest);
+      }
+
+      // 3. Play subtle audio chime (internally throttled to once every 2s)
       playChime();
 
-      // 2. Show in-app interactive toast notification
+      // 4. Show in-app interactive toast notification
       toast(title, {
         description: body,
-        duration: 9000,
+        duration: 8000,
         action: {
           label: 'Görüntüle',
           onClick: () => window.location.assign(path),
         },
       });
 
-      // 3. Dispatch to device operating system notification center (Windows, Mac, Android, iOS PWA)
+      // 5. Dispatch to device operating system notification center (Windows, Mac, Android, iOS PWA)
       if ('Notification' in window && Notification.permission === 'granted' && isDeviceNotificationEnabled(user.id)) {
         await displayDeviceNotification(title, {
           body,
-          tag,
+          tag: dedupKey,
           data: { url: path },
         });
       }
     };
 
-    // Instant real-time listener: broadcast with self: true ensures all tabs and open devices get it
+    // Instant real-time broadcast listener
     const channel = supabase
       .channel('realtime-announcements-push', {
-        config: { broadcast: { self: true } },
+        config: { broadcast: { self: false } },
       })
       .on(
         'broadcast',
@@ -58,12 +79,8 @@ const ContentNotificationListener = () => {
             const cleanMessage = ann.content
               ? String(ann.content).replace(/<[^>]*>/g, '').trim().slice(0, 180)
               : 'Duyurunun detaylarını görmek için tıklayın.';
-            void notify(
-              ann.title,
-              cleanMessage,
-              `announcement-bc-${ann.id || Date.now()}`,
-              '/announcements'
-            );
+            const dedupKey = `ann-${ann.id || ann.title}`;
+            void notifyOnce(ann.title, cleanMessage, dedupKey, '/announcements', ann.user_id);
           }
         }
       )
@@ -107,7 +124,8 @@ const ContentNotificationListener = () => {
 
         if (notesResult.data && notesResult.data.length > 0) {
           for (const note of notesResult.data) {
-            void notify('📚 Yeni not yayımlandı', note.title, `note-${note.id}`, '/notes');
+            const dedupKey = `note-${note.id}`;
+            void notifyOnce('📚 Yeni not yayımlandı', note.title, dedupKey, '/notes', note.user_id);
           }
           const latestApprovedAt = notesResult.data.at(-1)?.approved_at;
           if (latestApprovedAt) localStorage.setItem(noteCursorKey, latestApprovedAt);
@@ -118,11 +136,13 @@ const ContentNotificationListener = () => {
             const cleanMessage = announcement.content
               ? String(announcement.content).replace(/<[^>]*>/g, '').trim().slice(0, 180)
               : 'Duyurunun detaylarını görmek için tıklayın.';
-            void notify(
+            const dedupKey = `ann-${announcement.id || announcement.title}`;
+            void notifyOnce(
               announcement.title || 'Duyuru',
               cleanMessage,
-              `announcement-${announcement.id}`,
-              '/announcements'
+              dedupKey,
+              '/announcements',
+              announcement.user_id
             );
           }
           const latestCreatedAt = announcementsResult.data.at(-1)?.created_at;
@@ -145,27 +165,9 @@ const ContentNotificationListener = () => {
     };
     window.addEventListener('econnotes-device-notification-preference', onPreferenceChanged);
 
-    // Also listen to local announcement events sent from the current tab
-    const onLocalAnnouncement = (e: any) => {
-      const ann = e.detail;
-      if (ann && ann.title) {
-        const cleanMessage = ann.content
-          ? String(ann.content).replace(/<[^>]*>/g, '').trim().slice(0, 180)
-          : 'Duyurunun detaylarını görmek için tıklayın.';
-        void notify(
-          ann.title,
-          cleanMessage,
-          `announcement-local-${ann.id || Date.now()}`,
-          '/announcements'
-        );
-      }
-    };
-    window.addEventListener('econnotes-local-announcement', onLocalAnnouncement);
-
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('econnotes-device-notification-preference', onPreferenceChanged);
-      window.removeEventListener('econnotes-local-announcement', onLocalAnnouncement);
       void supabase.removeChannel(channel);
     };
   }, [user]);

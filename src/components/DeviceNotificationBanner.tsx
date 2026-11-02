@@ -32,9 +32,12 @@ const DeviceNotificationBanner = () => {
       return () => clearTimeout(timer);
     }
 
-    // If notifications are already granted & enabled, do not show banner
-    if ('Notification' in window && Notification.permission === 'granted' && isDeviceNotificationEnabled(user.id)) {
-      return;
+    // If notifications are already granted, ensure OneSignal is opted-in
+    if ('Notification' in window && Notification.permission === 'granted') {
+      void requestOneSignalPermission();
+      if (isDeviceNotificationEnabled(user.id)) {
+        return;
+      }
     }
 
     // Only show if the device has not denied permission and is ready for native prompt

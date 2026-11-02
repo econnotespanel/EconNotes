@@ -108,20 +108,16 @@ const Announcements = () => {
       // 1. OneSignal Cloud Push: Delivers directly to iPhone lock screens & Android devices even when website is closed!
       void sendOneSignalNotification(data.title, data.content);
 
-      // 2. Broadcast announcement notification to all devices in real-time
+      // 2. Broadcast announcement notification to other devices in real-time
       try {
-        window.dispatchEvent(new CustomEvent('econnotes-local-announcement', {
-          detail: { title: data.title, content: data.content },
-        }));
-
         const bc = supabase.channel('realtime-announcements-push', {
-          config: { broadcast: { self: true } },
+          config: { broadcast: { self: false } },
         });
         if (bc.state === 'joined') {
           void bc.send({
             type: 'broadcast',
             event: 'new-announcement',
-            payload: { title: data.title, content: data.content },
+            payload: { title: data.title, content: data.content, user_id: user?.id },
           });
         } else {
           bc.subscribe(async (status) => {
@@ -129,7 +125,7 @@ const Announcements = () => {
               await bc.send({
                 type: 'broadcast',
                 event: 'new-announcement',
-                payload: { title: data.title, content: data.content },
+                payload: { title: data.title, content: data.content, user_id: user?.id },
               });
             }
           });
