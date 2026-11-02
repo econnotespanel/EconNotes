@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import ServiceUnavailableScreen from '@/components/ServiceUnavailableScreen';
 
 /** Active broadcast announcement displayed across the platform during maintenance. */
-const OVERLOAD_ANNOUNCEMENT_ACTIVE = true;
+const OVERLOAD_ANNOUNCEMENT_ACTIVE = false;
 const OVERLOAD_ANNOUNCEMENT_TITLE = 'Altyapı ve Kapasite Güncellemesi';
 const OVERLOAD_ANNOUNCEMENT_MESSAGE = `Sınav haftasının yaklaşmasıyla beraber EconNotes'a anlık olarak çok ciddi bir giriş ve indirme trafiği gerçekleşti. Bu yoğun ilgi sebebiyle bulut sunucularımız aşırı yüklenme (overload) durumuna geçti ve geçici olarak erişim kısıtlandı.
 
