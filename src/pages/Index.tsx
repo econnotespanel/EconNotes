@@ -1,4 +1,4 @@
-import { useAuth } from '@/contexts/AuthContext';
+﻿import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -65,7 +65,7 @@ const Index = () => {
   }
 
   // Show maintenance screen for non-admin users (without signing them out)
-  if (systemOpen === false && !isAdmin) {
+  if (false && systemOpen === false && !isAdmin) {
     return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
   }
 

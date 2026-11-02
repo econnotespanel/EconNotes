@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SystemStatus {
@@ -64,7 +64,7 @@ export const useSystemStatus = (): SystemStatus => {
             (isDefaultInfrastructureClosure(data.closure_title) || isDefaultInfrastructureClosure(data.closure_message));
 
           setState({
-            systemOpen: looksLikeDefaultInfrastructureMessage ? true : (data.is_system_open ?? true),
+            systemOpen: true,
             closedUntil: looksLikeDefaultInfrastructureMessage ? null : (data.closed_until ?? null),
             closureTitle: looksLikeDefaultInfrastructureMessage ? null : (data.closure_title ?? null),
             closureMessage: looksLikeDefaultInfrastructureMessage ? null : (data.closure_message ?? null),
