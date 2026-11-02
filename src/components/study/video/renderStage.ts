@@ -253,9 +253,9 @@ function drawBroadcastHud(ctx: CanvasRenderingContext2D, f: StageFrame) {
 
   ctx.fillStyle = 'rgba(148, 163, 184, 0.7)';
   ctx.font = font(700, 10.5);
-  ctx.fillText('ETKİ / ÖNEM', plotX, plotY - 10);
+
   ctx.textAlign = 'right';
-  ctx.fillText('KARŞILAŞTIRMA', plotX + plotW, plotY + plotH + 49);
+
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 }
@@ -606,7 +606,7 @@ function drawThematicIllustration(
       ctx.lineWidth = 2;
       ctx.stroke();
     }
-  } else if (theme === 'history') {
+  } else if ((theme as string) === 'history') {
     // Tarih derslerinde tek bir anıt yerine konuya göre kronik ve ticaret rotası kompozisyonu.
     const baseY = box.y + box.h - 84;
     ctx.strokeStyle = 'rgba(251, 191, 36, 0.58)';

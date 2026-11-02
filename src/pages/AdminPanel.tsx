@@ -582,11 +582,11 @@ const AdminPanel = () => {
         <Tabs defaultValue="users">
           <TabsList className="flex h-auto w-full max-w-full gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card/80 p-1.5 shadow-sm backdrop-blur-md">
             <TabsTrigger className="shrink-0 rounded-xl px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm" value="users"><Users className="mr-1.5 hidden h-4 w-4 sm:inline" />Kullanıcılar</TabsTrigger>
-            {[
+            {([
               ['notes', FileText, 'Notlar'], ['announcements', Megaphone, 'Duyurular'], ['banners', ImageIcon, 'Bannerlar'],
               ['penalties', AlertTriangle, 'Cezalar'], ['reports', Flag, 'Raporlar'], ['activity', Activity, 'Aktiviteler'],
               ['audit', Shield, 'Denetim'], ['design', Palette, 'Tasarım'], ['study', Sparkles, 'Stüdyo'],
-            ].map(([value, Icon, label]) => (
+            ] as [string, React.ElementType, string][]).map(([value, Icon, label]) => (
               <TabsTrigger key={value as string} className="shrink-0 rounded-xl px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm" value={value as string}>
                 <Icon className="mr-1.5 hidden h-4 w-4 sm:inline" />{label}
                 {value === 'reports' && messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">{messageReports.filter(r => r.status === 'pending').length}</span>}
