@@ -255,31 +255,30 @@ const Header = () => {
 
               {/* Guided Onboarding Arrow Callout for Device Notifications */}
               {showNotificationGuide && !deviceNotificationsEnabled && (
-                <div className="absolute right-0 top-12 z-50 w-72 sm:w-80 rounded-2xl border border-primary/40 bg-card p-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-300">
-                  {/* Pointing Arrow at the top pointing directly to the Bell button */}
-                  <div className="absolute -top-2 right-3 h-4 w-4 rotate-45 border-l border-t border-primary/40 bg-card" />
+                <div className="absolute right-0 top-full mt-2.5 z-50 w-72 sm:w-80 rounded-2xl border border-border/80 bg-popover p-4 shadow-xl text-popover-foreground animate-in fade-in zoom-in-95 duration-200">
+                  {/* Pointing Arrow directly aligned with the Bell button center */}
+                  <div className="absolute -top-1.5 right-[13px] h-3 w-3 rotate-45 border-l border-t border-border/80 bg-popover" />
 
                   <div className="flex items-start gap-3">
-                    <div className="rounded-xl bg-primary/15 p-2 text-primary shrink-0">
-                      <BellRing className="h-5 w-5 animate-bounce" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <BellRing className="h-5 w-5" />
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                        <span>Cihaz Bildirimlerini Açın</span>
-                        <span className="flex h-2 w-2 rounded-full bg-primary animate-ping" />
-                      </p>
-                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <h4 className="text-sm font-semibold text-foreground tracking-tight">
+                        Cihaz Bildirimlerini Açın
+                      </h4>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
                         EconNotes'taki duyurular veya yeni yüklenen notlar hakkında anında haberdar olmak için bildirim tuşuna basarak cihaz bildirimlerini açabilirsiniz.
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-end gap-2 border-t border-border/40 pt-2.5">
+                  <div className="mt-3.5 flex items-center justify-end gap-2 border-t border-border/40 pt-3">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={dismissNotificationGuide}
-                      className="h-7 text-[11px] text-muted-foreground hover:text-foreground px-2"
+                      className="h-8 text-xs font-medium text-muted-foreground hover:text-foreground px-2.5 rounded-lg"
                     >
                       Daha Sonra
                     </Button>
@@ -289,9 +288,9 @@ const Header = () => {
                         dismissNotificationGuide();
                         void toggleDeviceNotifications();
                       }}
-                      className="h-7 text-[11px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 px-3 gap-1 shadow-sm"
+                      className="h-8 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 px-3.5 gap-1.5 rounded-xl shadow-sm"
                     >
-                      <BellRing className="h-3 w-3" />
+                      <BellRing className="h-3.5 w-3.5" />
                       <span>Bildirimleri Aç</span>
                     </Button>
                   </div>
