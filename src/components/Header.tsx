@@ -162,12 +162,8 @@ const Header = () => {
 
     // In-app visual notification toast (visible on all screens immediately)
     toast('🔔 EconNotes Test Bildirimi', {
-      description: 'Cihaz bildirimleriniz başarıyla çalışıyor! (Telefonunuzda yukarıdan aşağı kaydırarak durum çubuğunu kontrol edin).',
+      description: 'Cihaz bildirimleriniz başarıyla aktif! Yeni duyurular bu cihaza anında düşecektir.',
       duration: 8000,
-      action: {
-        label: 'Tamam',
-        onClick: () => {},
-      },
     });
 
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -189,10 +185,26 @@ const Header = () => {
       renotify: true,
     };
 
+    const isMobile = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
     let sent = false;
 
-    // 2. Service Worker showNotification (Android Mobile / PWA / Chrome)
-    if ('serviceWorker' in navigator) {
+    // 1. Desktop (Windows / Mac) Notification constructor (pops up instantly on screen)
+    if (!isMobile) {
+      try {
+        const testNotification = new Notification('EconNotes Test Bildirimi 🔔', options);
+        testNotification.onclick = () => {
+          window.focus();
+          window.location.assign('/announcements');
+          testNotification.close();
+        };
+        sent = true;
+      } catch (desktopErr) {
+        console.warn('Desktop test notification failed:', desktopErr);
+      }
+    }
+
+    // 2. Mobile (Android / iOS PWA) or SW fallback
+    if (!sent && 'serviceWorker' in navigator) {
       try {
         const reg = await Promise.race([
           navigator.serviceWorker.ready,
@@ -217,40 +229,12 @@ const Header = () => {
         } catch {}
       }
     }
-
-    // 3. Desktop Notification constructor (Windows / Mac)
-    if (!sent) {
-      try {
-        const testNotification = new Notification('EconNotes Test Bildirimi 🔔', options);
-        testNotification.onclick = () => {
-          window.focus();
-          window.location.assign('/announcements');
-          testNotification.close();
-        };
-        sent = true;
-      } catch (desktopErr) {
-        console.warn('Desktop test failed:', desktopErr);
-      }
-    }
   };
 
   const requestPermissionAndEnable = async () => {
     if (!user) return;
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      if (isIOSDevice) {
-        toast.error('iPhone / iPad cihazlarda bildirim alabilmek için: Safari alt menüsündeki Paylaş butonuna basıp "Ana Ekrana Ekle" dedikten sonra uygulamayı ana ekrandan açmalısınız.', {
-          duration: 9000,
-        });
-      } else {
-        toast.error('Bu tarayıcı bildirimleri desteklemiyor. Güncel bir tarayıcı (Chrome, Edge vb.) kullanmanızı öneririz.');
-      }
-      return;
-    }
-
-    if (isIOSDevice && !isStandaloneMode) {
-      toast.error('iPhone / iPad cihazlarda bildirim alabilmek için: Safari alt menüsündeki Paylaş (kare ve yukarı ok) butonuna basıp "Ana Ekrana Ekle" dedikten sonra uygulamayı ana ekrandan açmalısınız.', {
-        duration: 9000,
-      });
+      toast.error('Bu tarayıcı bildirimleri desteklemiyor.');
       return;
     }
 
@@ -284,9 +268,10 @@ const Header = () => {
         localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);
         localStorage.setItem(getNotificationCursorKey(user.id, 'announcements'), now);
         setDeviceNotificationsEnabled(true);
+        toast.success('Bildirim izni verildi! Cihaz bildirimleri açıldı 🔔');
         await sendTestNotification();
       } else if (permission === 'denied') {
-        toast.error('Bildirim izni engellendi. Adres çubuğundaki kilit simgesinden izin verip sayfayı yenileyin.', { duration: 8000 });
+        toast.error('Bildirim izni onaylanmadı. Adres çubuğundaki kilit simgesinden izin verip sayfayı yenileyin.', { duration: 8000 });
       }
     } catch (e) {
       console.error('Request permission failed:', e);
@@ -308,6 +293,7 @@ const Header = () => {
         localStorage.setItem(getNotificationCursorKey(user.id, 'announcements'), now);
         setDeviceNotificationsEnabled(true);
         toast.success('Cihaz bildirimleri açıldı!');
+        void sendTestNotification();
       } else {
         void requestPermissionAndEnable();
       }

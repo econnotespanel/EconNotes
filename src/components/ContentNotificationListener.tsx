@@ -61,10 +61,26 @@ const ContentNotificationListener = () => {
         renotify: true,
       };
 
+      const isMobile = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
       let delivered = false;
 
-      // 3. Try Service Worker showNotification (mandatory on Android Chrome / PWA, highly reliable on Mobile)
-      if ('serviceWorker' in navigator) {
+      // 3. Desktop (Windows / Mac) Notification constructor (pops up instantly on screen)
+      if (!isMobile) {
+        try {
+          const notification = new Notification(title, options);
+          notification.onclick = () => {
+            window.focus();
+            window.location.assign(path);
+            notification.close();
+          };
+          delivered = true;
+        } catch (desktopErr) {
+          console.warn('Desktop notification constructor failed:', desktopErr);
+        }
+      }
+
+      // 4. Mobile (Android / iOS) Service Worker showNotification & postMessage
+      if (!delivered && 'serviceWorker' in navigator) {
         try {
           const reg = await Promise.race([
             navigator.serviceWorker.ready,
@@ -89,21 +105,6 @@ const ContentNotificationListener = () => {
           } catch (pmErr) {
             console.warn('SW postMessage error:', pmErr);
           }
-        }
-      }
-
-      // 4. Try Desktop Notification constructor (instant and standard on Windows/Mac browsers)
-      if (!delivered) {
-        try {
-          const notification = new Notification(title, options);
-          notification.onclick = () => {
-            window.focus();
-            window.location.assign(path);
-            notification.close();
-          };
-          delivered = true;
-        } catch (desktopErr) {
-          console.warn('Desktop notification constructor failed:', desktopErr);
         }
       }
     };
