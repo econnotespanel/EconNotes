@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { Plus, Megaphone, Edit, Trash2, Share2, SortAsc, SortDesc, Search, Eye, MessageSquare, Smile, Pencil, Upload, FileIcon, Image as ImageIcon, X } from 'lucide-react';
+import { sendOneSignalNotification } from '@/lib/onesignal';
 
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
 
@@ -104,7 +105,10 @@ const Announcements = () => {
       if (error) { toast.error('Eklenemedi: ' + error.message); return; }
       toast.success('Duyuru eklendi!');
 
-      // Broadcast announcement notification to all devices in real-time
+      // 1. OneSignal Cloud Push: Delivers directly to iPhone lock screens & Android devices even when website is closed!
+      void sendOneSignalNotification(data.title, data.content);
+
+      // 2. Broadcast announcement notification to all devices in real-time
       try {
         window.dispatchEvent(new CustomEvent('econnotes-local-announcement', {
           detail: { title: data.title, content: data.content },

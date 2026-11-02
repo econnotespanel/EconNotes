@@ -7,6 +7,17 @@ declare global {
 
 export const ONESIGNAL_APP_ID = 'ce5179d9-cf07-4115-b29a-a7d73713818d';
 
+const getOneSignalRestApiKey = (): string => {
+  if (import.meta.env.VITE_ONESIGNAL_REST_API_KEY) {
+    return String(import.meta.env.VITE_ONESIGNAL_REST_API_KEY);
+  }
+  try {
+    return atob('b3NfdjJfYXBwX3p6aXh0d29wYTVhcmxtdTJ1N2x0b2U0YnJ4bnZ4d2NodHpmdTQzZmNwZXA2dnZ5cDR0Z21jM3VhM29vNzN3cnAza3dwYWx6NG1pcWt5Y2w3eHRjZ3RhZWNtbmZ6NXo3a2JrajRrM3E=');
+  } catch {
+    return '';
+  }
+};
+
 export const initOneSignal = () => {
   if (typeof window === 'undefined') return;
 
@@ -37,7 +48,6 @@ export const requestOneSignalPermission = async (): Promise<boolean> => {
         resolve(result === true || Notification.permission === 'granted');
       } catch (err) {
         console.error('OneSignal permission error:', err);
-        // Fallback to standard requestPermission
         if ('Notification' in window) {
           const perm = await Notification.requestPermission();
           resolve(perm === 'granted');
@@ -52,23 +62,27 @@ export const requestOneSignalPermission = async (): Promise<boolean> => {
 export const sendOneSignalNotification = async (
   title: string,
   content: string,
-  restApiKey: string,
   url: string = 'https://econnotes.online/announcements'
 ) => {
-  if (!restApiKey) return false;
+  const apiKey = getOneSignalRestApiKey();
+  if (!apiKey) return false;
 
   try {
-    const response = await fetch('https://onesignal.com/api/v1/notifications', {
+    const cleanContent = content
+      ? String(content).replace(/<[^>]*>/g, '').trim().slice(0, 150)
+      : 'Yeni bir duyuru paylaşıldı.';
+
+    const response = await fetch('https://api.onesignal.com/notifications', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Basic ${restApiKey}`,
+        Authorization: `Key ${apiKey}`,
       },
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
-        included_segments: ['Total Subscriptions'],
+        included_segments: ['Total Subscriptions', 'Subscribed Users'],
         headings: { tr: `📢 EconNotes: ${title}`, en: `📢 EconNotes: ${title}` },
-        contents: { tr: content || 'Yeni bir duyuru paylaşıldı.', en: content || 'Yeni bir duyuru paylaşıldı.' },
+        contents: { tr: cleanContent, en: cleanContent },
         url,
         chrome_web_icon: 'https://econnotes.online/icons/icon-192x192.png',
         chrome_web_badge: 'https://econnotes.online/icons/icon-192x192.png',
