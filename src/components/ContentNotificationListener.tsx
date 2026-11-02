@@ -100,7 +100,7 @@ const ContentNotificationListener = () => {
             .order('approved_at', { ascending: true }),
           supabase
             .from('announcements')
-            .select('id, title, user_id, created_at')
+            .select('id, title, content, user_id, created_at')
             .gt('created_at', announcementCursor)
             .order('created_at', { ascending: true }),
         ]);

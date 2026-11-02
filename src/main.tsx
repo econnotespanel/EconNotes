@@ -15,7 +15,7 @@ initOneSignal();
 // Register Service Worker for PWA and Mobile Push Notifications
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   const registerServiceWorker = () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
+    navigator.serviceWorker.register('/OneSignalSDKWorker.js').catch((err) => {
       console.warn('EconNotes Service Worker kaydı yapılamadı:', err);
     });
   };

@@ -33,6 +33,17 @@ export const initOneSignal = () => {
         },
         allowLocalhostAsSecureOrigin: true,
       });
+
+      // Auto-opt in users if notification permission was already granted previously
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          if (OneSignal.User?.PushSubscription?.optIn) {
+            await OneSignal.User.PushSubscription.optIn();
+          }
+        } catch (subErr) {
+          console.warn('OneSignal auto-optIn notice:', subErr);
+        }
+      }
     } catch (err) {
       console.warn('OneSignal init warning:', err);
     }
@@ -62,18 +73,21 @@ export const requestOneSignalPermission = async (): Promise<boolean> => {
     }
   }
 
-  // 2. Trigger OneSignal push registration in background
+  // 2. Trigger OneSignal push registration & subscription opt-in
   try {
-    if (window.OneSignal?.Notifications) {
-      void window.OneSignal.Notifications.requestPermission();
-    } else {
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      window.OneSignalDeferred.push(async function (OneSignal: any) {
-        try {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function (OneSignal: any) {
+      try {
+        if (OneSignal.Notifications?.requestPermission) {
           await OneSignal.Notifications.requestPermission();
-        } catch {}
-      });
-    }
+        }
+        if (OneSignal.User?.PushSubscription?.optIn) {
+          await OneSignal.User.PushSubscription.optIn();
+        }
+      } catch (err) {
+        console.warn('OneSignal subscription opt-in error:', err);
+      }
+    });
   } catch {}
 
   return granted;
@@ -89,7 +103,7 @@ export const sendOneSignalNotification = async (
 
   try {
     const cleanContent = content
-      ? String(content).replace(/<[^>]*>/g, '').trim().slice(0, 150)
+      ? String(content).replace(/<[^>]*>/g, '').trim().slice(0, 180)
       : 'Yeni bir duyuru paylaşıldı.';
 
     const response = await fetch('https://api.onesignal.com/notifications', {
@@ -100,7 +114,7 @@ export const sendOneSignalNotification = async (
       },
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
-        included_segments: ['Total Subscriptions', 'Subscribed Users'],
+        included_segments: ['Total Subscriptions', 'Active Subscriptions'],
         headings: { tr: title, en: title },
         contents: { tr: cleanContent, en: cleanContent },
         url,
