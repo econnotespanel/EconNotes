@@ -6,6 +6,7 @@ import MaintenanceScreen from '@/components/MaintenanceScreen';
 import ForcePasswordChange from '@/components/ForcePasswordChange';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import ServiceUnavailableScreen from '@/components/ServiceUnavailableScreen';
 
 /** Routes that stay reachable during a closure so admins can sign in. */
 const OPEN_PATHS = ['/login', '/admin', '/forgot-password', '/reset-password'];
@@ -48,6 +49,10 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
     }, 1100);
     return () => window.clearTimeout(timer);
   }, [status.systemOpen, isAdmin, user, loading, navigate]);
+
+  if (!status.backendReachable) {
+    return <ServiceUnavailableScreen onRetry={status.retryNow} />;
+  }
 
   if (status.systemOpen === false && !isAdmin && !loading && !OPEN_PATHS.includes(pathname)) {
     return (
