@@ -1,6 +1,6 @@
 import Layout from '@/components/Layout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -25,8 +25,11 @@ import { toast } from 'sonner';
 import { extractFile } from '@/lib/extractFile';
 import { downloadLectureSummary } from '@/lib/liveLectureReport';
 import { signedNoteUrl } from '@/lib/storageUrl';
-import LiveLectureCapture from '@/components/study/LiveLectureCapture';
-import InteractiveVideoStudio from '@/components/study/InteractiveVideoStudio';
+const LiveLectureCaptureLazy = lazy(() => import('@/components/study/LiveLectureCapture'));
+const InteractiveVideoStudioLazy = lazy(() => import('@/components/study/InteractiveVideoStudio'));
+const StudyChunkFallback = () => <div className="h-40 w-full animate-pulse rounded-xl bg-muted" aria-busy="true" />;
+const LiveLectureCapture = (props: any) => <Suspense fallback={<StudyChunkFallback />}><LiveLectureCaptureLazy {...props} /></Suspense>;
+const InteractiveVideoStudio = (props: any) => <Suspense fallback={<StudyChunkFallback />}><InteractiveVideoStudioLazy {...props} /></Suspense>;
 
 type MaterialType = 'flashcards' | 'quiz' | 'summary' | 'video';
 type ExamType = 'test' | 'classic' | 'mixed';

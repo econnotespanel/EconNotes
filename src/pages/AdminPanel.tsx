@@ -15,7 +15,7 @@ import AuditLogPanel from '@/components/admin/AuditLogPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal, KeyRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -341,6 +341,18 @@ const AdminPanel = () => {
   };
 
 
+  const [tempPassword, setTempPassword] = useState<{ email: string; password: string } | null>(null);
+  const createTempPassword = async (userId: string) => {
+    const t = toast.loading('Tek kullanımlık parola oluşturuluyor...');
+    const { data, error } = await supabase.functions.invoke('admin-reset-password', { body: { userId } });
+    toast.dismiss(t);
+    if (error || (data as any)?.error || !(data as any)?.temp_password) {
+      toast.error((data as any)?.error || 'Parola oluşturulamadı.');
+      return;
+    }
+    setTempPassword({ email: (data as any).email || '', password: (data as any).temp_password });
+  };
+
   const getUserRole = (userId: string) => { const role = userRoles.find(r => r.user_id === userId); return role?.role || 'student'; };
   const getRoleLabel = (role: string) => ({ admin: 'Admin', student: 'Öğrenci', akademisyen: 'Akademisyen' }[role] || role);
 
@@ -618,6 +630,10 @@ const AdminPanel = () => {
                               <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name || '', university: u.university || '', department: u.department || '', grade: u.grade || 1, download_quota: u.manual_download_quota ? String(u.manual_download_quota) : '' }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol"><UserCog className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza"><Ban className="h-3 w-3" /></Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild><Button size="sm" variant="outline" title="Tek kullanımlık parola oluştur" aria-label="Tek kullanımlık parola oluştur"><KeyRound className="h-3 w-3" /></Button></AlertDialogTrigger>
+                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Tek kullanımlık parola oluşturulsun mu?</AlertDialogTitle><AlertDialogDescription>Kullanıcının tüm oturumları kapatılır. İlk girişte yeni şifre belirlemesi zorunlu olur.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => createTempPassword(u.user_id)}>Oluştur</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                              </AlertDialog>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
                                 <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Bu kullanıcıyı silmek istediğinize emin misiniz?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => deleteUser(u.user_id)}>Sil</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
@@ -1092,7 +1108,20 @@ const AdminPanel = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
+    <AlertDialog open={!!tempPassword} onOpenChange={(o) => { if (!o) setTempPassword(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tek kullanımlık parola</AlertDialogTitle>
+            <AlertDialogDescription>{tempPassword?.email} için oluşturuldu. Bu parola yalnızca bir kez gösterilir.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-lg border-2 border-border bg-muted p-4 text-center font-mono text-lg tracking-widest select-all">{tempPassword?.password}</div>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => { if (tempPassword) { void navigator.clipboard?.writeText(tempPassword.password); toast.success('Parola kopyalandı.'); } }}>Kopyala</Button>
+            <AlertDialogAction onClick={() => setTempPassword(null)}>Tamam</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </Layout>
   );
 };
 

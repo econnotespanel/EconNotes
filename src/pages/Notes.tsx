@@ -3,7 +3,7 @@ import SignedImage from '@/components/SignedImage';
 import EconLogo from '@/components/EconLogo';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -461,7 +461,22 @@ const Notes = () => {
   }, {});
 
   const showingNotes = Boolean(selectedCourse || searchTerm || filterDepartment !== 'all');
-  const displayNotes = selectedCourse ? (courseGroups[selectedCourse] || []) : (showingNotes ? filteredNotes : []);
+  const allDisplayNotes = selectedCourse ? (courseGroups[selectedCourse] || []) : (showingNotes ? filteredNotes : []);
+  // Windowed rendering: only mount a slice of cards, grow as the sentinel scrolls into view.
+  const PAGE_SIZE = 24;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [selectedCourse, allDisplayNotes.length]);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || visibleCount >= allDisplayNotes.length) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) setVisibleCount((c) => c + PAGE_SIZE);
+    }, { rootMargin: '600px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visibleCount, allDisplayNotes.length]);
+  const displayNotes = allDisplayNotes.slice(0, visibleCount);
   const universityGroups = filteredNotes.reduce<Record<string, any[]>>((acc, note) => {
     const key = (note.university || '').trim() || 'Üniversite bilgisi yok';
     if (!acc[key]) acc[key] = [];
@@ -835,7 +850,7 @@ const Notes = () => {
           displayNotes.length === 0 ? (
             <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Bu klasörde henüz not yok.</CardContent></Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {displayNotes.map((note) => {
                 const thumbnail = getThumbnail(note);
                 const locked = isNoteLocked(note);
@@ -1062,6 +1077,7 @@ const Notes = () => {
                 );
               })}
             </div>
+          {visibleCount < allDisplayNotes.length && <div ref={sentinelRef} aria-hidden className="h-10" />}</>
           )
         ) : !loading && Object.keys(courseGroups).length === 0 ? (
           <Card className="glass-card"><CardContent className="p-8 text-center text-muted-foreground">Henüz not paylaşılmamış.</CardContent></Card>

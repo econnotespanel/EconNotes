@@ -35,7 +35,11 @@ const Welcome = lazy(() => import("./pages/Welcome"));
 const Points = lazy(() => import("./pages/Points"));
 const Support = lazy(() => import("./pages/Support"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 3, retryDelay: (n) => Math.min(30000, 1000 * 2 ** n), networkMode: "offlineFirst", refetchOnReconnect: true },
+  },
+});
 
 const App = () => {
   const [showSplash, setShowSplash] = useState(() => {
