@@ -82,7 +82,7 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
     return <ServiceUnavailableScreen onRetry={status.retryNow} />;
   }
 
-  if (status.systemOpen === false && !isAdmin && !loading && !OPEN_PATHS.includes(pathname)) {
+  if (false && status.systemOpen === false && !isAdmin && !loading && !OPEN_PATHS.includes(pathname)) {
     return (
       <MaintenanceScreen
         closedUntil={status.closedUntil}
