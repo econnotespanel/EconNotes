@@ -40,10 +40,10 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
     return (
       <MaintenanceScreen
         closedUntil={null}
-        title={OVERLOAD_ANNOUNCEMENT_TITLE}
-        message={OVERLOAD_ANNOUNCEMENT_MESSAGE}
+        title={null}
+        message={null}
         imageUrl={null}
-        mode="maintenance"
+        mode="fatal_error"
       />
     );
   }
