@@ -34,6 +34,7 @@ import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 import { displayDeviceNotification, playChime } from '@/lib/showNotification';
+import { requestOneSignalPermission } from '@/lib/onesignal';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
@@ -165,21 +166,11 @@ const Header = () => {
       return;
     }
 
-    // 3. DIRECT NATIVE BROWSER PERMISSION PROMPT
-    // Directly triggers the operating system prompt (Safari iOS, Chrome Android, Windows, Mac)
-    // without any intermediate in-app cards or questionnaire popovers!
+    // 3. OneSignal / Native Browser Permission Prompt
     try {
-      let permission = Notification.permission;
-      if (permission === 'default') {
-        const req = Notification.requestPermission();
-        if (req && typeof req.then === 'function') {
-          permission = await req;
-        } else {
-          permission = await new Promise((resolve) => Notification.requestPermission(resolve));
-        }
-      }
+      const granted = await requestOneSignalPermission();
 
-      if (permission === 'granted') {
+      if (granted) {
         const now = new Date(Date.now() - 30_000).toISOString();
         setDeviceNotificationEnabled(user.id, true);
         localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);

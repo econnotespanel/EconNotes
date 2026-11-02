@@ -5,6 +5,7 @@ import { Bell, BellRing, Smartphone, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 import { displayDeviceNotification, playChime } from '@/lib/showNotification';
+import { requestOneSignalPermission } from '@/lib/onesignal';
 
 const DeviceNotificationBanner = () => {
   const { user } = useAuth();
@@ -59,24 +60,10 @@ const DeviceNotificationBanner = () => {
   const handleRequestPermission = async () => {
     if (!user) return;
 
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      handleIOSHelp();
-      return;
-    }
-
     try {
-      // Direct native browser/device permission prompt (triggers iOS Safari / Android modal)
-      let permission = Notification.permission;
-      if (permission === 'default') {
-        const req = Notification.requestPermission();
-        if (req && typeof req.then === 'function') {
-          permission = await req;
-        } else {
-          permission = await new Promise((resolve) => Notification.requestPermission(resolve));
-        }
-      }
+      const granted = await requestOneSignalPermission();
 
-      if (permission === 'granted') {
+      if (granted) {
         const now = new Date(Date.now() - 30_000).toISOString();
         setDeviceNotificationEnabled(user.id, true);
         localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);
@@ -87,8 +74,8 @@ const DeviceNotificationBanner = () => {
           data: { url: '/announcements' },
         });
         toast.success('Bildirim izni verildi! Cihaz bildirimleriniz aktif 🔔');
-      } else if (permission === 'denied') {
-        toast.error('Bildirim izni onaylanmadı. İstediğiniz zaman tarayıcı kilit simgesinden açabilirsiniz.');
+      } else {
+        toast.error('Bildirim izni onaylanmadı.');
       }
     } catch (e) {
       console.error('Notification permission request error:', e);
