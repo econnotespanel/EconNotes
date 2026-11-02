@@ -81,7 +81,7 @@ export const sendOneSignalNotification = async (
       body: JSON.stringify({
         app_id: ONESIGNAL_APP_ID,
         included_segments: ['Total Subscriptions', 'Subscribed Users'],
-        headings: { tr: `📢 EconNotes: ${title}`, en: `📢 EconNotes: ${title}` },
+        headings: { tr: title, en: title },
         contents: { tr: cleanContent, en: cleanContent },
         url,
         chrome_web_icon: 'https://econnotes.online/icons/icon-192x192.png',

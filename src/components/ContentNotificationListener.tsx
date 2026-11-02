@@ -55,9 +55,12 @@ const ContentNotificationListener = () => {
         (payload) => {
           const ann = payload.payload as any;
           if (ann && ann.title) {
+            const cleanMessage = ann.content
+              ? String(ann.content).replace(/<[^>]*>/g, '').trim().slice(0, 180)
+              : 'Duyurunun detaylarını görmek için tıklayın.';
             void notify(
-              `📢 EconNotes Duyuru: ${ann.title}`,
-              ann.content ? String(ann.content).slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
+              ann.title,
+              cleanMessage,
               `announcement-bc-${ann.id || Date.now()}`,
               '/announcements'
             );
@@ -112,7 +115,15 @@ const ContentNotificationListener = () => {
 
         if (announcementsResult.data && announcementsResult.data.length > 0) {
           for (const announcement of announcementsResult.data) {
-            void notify('📢 Yeni duyuru yayımlandı', announcement.title, `announcement-${announcement.id}`, '/announcements');
+            const cleanMessage = announcement.content
+              ? String(announcement.content).replace(/<[^>]*>/g, '').trim().slice(0, 180)
+              : 'Duyurunun detaylarını görmek için tıklayın.';
+            void notify(
+              announcement.title || 'Duyuru',
+              cleanMessage,
+              `announcement-${announcement.id}`,
+              '/announcements'
+            );
           }
           const latestCreatedAt = announcementsResult.data.at(-1)?.created_at;
           if (latestCreatedAt) localStorage.setItem(announcementCursorKey, latestCreatedAt);
@@ -138,9 +149,12 @@ const ContentNotificationListener = () => {
     const onLocalAnnouncement = (e: any) => {
       const ann = e.detail;
       if (ann && ann.title) {
+        const cleanMessage = ann.content
+          ? String(ann.content).replace(/<[^>]*>/g, '').trim().slice(0, 180)
+          : 'Duyurunun detaylarını görmek için tıklayın.';
         void notify(
-          `📢 EconNotes Duyuru: ${ann.title}`,
-          ann.content ? String(ann.content).slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
+          ann.title,
+          cleanMessage,
           `announcement-local-${ann.id || Date.now()}`,
           '/announcements'
         );
