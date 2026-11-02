@@ -3,27 +3,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 import { toast } from 'sonner';
+import { displayDeviceNotification, playChime } from '@/lib/showNotification';
 
 const POLL_INTERVAL_MS = 12_000;
-
-const playChime = () => {
-  try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.35);
-  } catch {}
-};
 
 const ContentNotificationListener = () => {
   const { user } = useAuth();
@@ -35,10 +17,10 @@ const ContentNotificationListener = () => {
     // Dispatches a notification reliably across both Mobile PWA/Android (Service Worker showNotification)
     // and Desktop Windows/Mac (Notification constructor)
     const notify = async (title: string, body: string, tag: string, path: string) => {
-      // 1. Play chime audio
+      // 1. Play subtle audio chime
       playChime();
 
-      // 2. Show in-app interactive notification banner so mobile & desktop users always see it on screen
+      // 2. Show in-app interactive notification banner so active users immediately see it
       toast(title, {
         description: body,
         duration: 9000,
@@ -51,62 +33,12 @@ const ContentNotificationListener = () => {
       if (typeof window === 'undefined' || !('Notification' in window)) return;
       if (Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
 
-      const options = {
+      // 3. Dispatch to device operating system notification center (Windows, Mac, Android, iOS PWA)
+      await displayDeviceNotification(title, {
         body,
         tag,
-        icon: '/icons/icon-192x192.png',
-        badge: '/icons/icon-192x192.png',
-        vibrate: [200, 100, 200],
         data: { url: path },
-        renotify: true,
-      };
-
-      const isMobile = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
-      let delivered = false;
-
-      // 3. Desktop (Windows / Mac) Notification constructor (pops up instantly on screen)
-      if (!isMobile) {
-        try {
-          const notification = new Notification(title, options);
-          notification.onclick = () => {
-            window.focus();
-            window.location.assign(path);
-            notification.close();
-          };
-          delivered = true;
-        } catch (desktopErr) {
-          console.warn('Desktop notification constructor failed:', desktopErr);
-        }
-      }
-
-      // 4. Mobile (Android / iOS) Service Worker showNotification & postMessage
-      if (!delivered && 'serviceWorker' in navigator) {
-        try {
-          const reg = await Promise.race([
-            navigator.serviceWorker.ready,
-            new Promise<null>((res) => setTimeout(() => res(null), 1500)),
-          ]);
-          if (reg && typeof reg.showNotification === 'function') {
-            await reg.showNotification(title, options);
-            delivered = true;
-          }
-        } catch (swErr) {
-          console.warn('SW showNotification error:', swErr);
-        }
-
-        if (!delivered && navigator.serviceWorker.controller) {
-          try {
-            navigator.serviceWorker.controller.postMessage({
-              type: 'SHOW_NOTIFICATION',
-              title,
-              options,
-            });
-            delivered = true;
-          } catch (pmErr) {
-            console.warn('SW postMessage error:', pmErr);
-          }
-        }
-      }
+      });
     };
 
     // Instant real-time listener: fires with zero delay when an admin inserts a new announcement

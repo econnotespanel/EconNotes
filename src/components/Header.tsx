@@ -33,6 +33,7 @@ import { usePoints } from '@/hooks/usePoints';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
+import { displayDeviceNotification, playChime } from '@/lib/showNotification';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
@@ -114,24 +115,7 @@ const Header = () => {
   };
 
   const sendTestNotification = async () => {
-    // 1. Play subtle chime
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.35);
-      }
-    } catch {}
+    playChime();
 
     // In-app visual notification banner
     toast('🔔 EconNotes Test Bildirimi', {
@@ -142,67 +126,26 @@ const Header = () => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission !== 'granted') return;
 
-    const options = {
+    await displayDeviceNotification('EconNotes Test Bildirimi 🔔', {
       body: 'Cihaz bildirimleriniz başarıyla aktif! Yeni duyurular bu cihaza anında düşecektir.',
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-192x192.png',
-      vibrate: [200, 100, 200],
       data: { url: '/announcements' },
       tag: `econnotes-test-${Date.now()}`,
-      renotify: true,
-    };
-
-    const isMobile = typeof navigator !== 'undefined' && (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
-    let sent = false;
-
-    // 1. Desktop (Windows / Mac) Notification constructor (pops up instantly on screen)
-    if (!isMobile) {
-      try {
-        const testNotification = new Notification('EconNotes Test Bildirimi 🔔', options);
-        testNotification.onclick = () => {
-          window.focus();
-          window.location.assign('/announcements');
-          testNotification.close();
-        };
-        sent = true;
-      } catch (desktopErr) {
-        console.warn('Desktop test notification failed:', desktopErr);
-      }
-    }
-
-    // 2. Mobile (Android / iOS PWA) or SW fallback
-    if (!sent && 'serviceWorker' in navigator) {
-      try {
-        const reg = await Promise.race([
-          navigator.serviceWorker.ready,
-          new Promise<null>((res) => setTimeout(() => res(null), 1500)),
-        ]);
-        if (reg && typeof reg.showNotification === 'function') {
-          await reg.showNotification('EconNotes Test Bildirimi 🔔', options);
-          sent = true;
-        }
-      } catch (e) {
-        console.warn('SW test failed:', e);
-      }
-
-      if (!sent && navigator.serviceWorker.controller) {
-        try {
-          navigator.serviceWorker.controller.postMessage({
-            type: 'SHOW_NOTIFICATION',
-            title: 'EconNotes Test Bildirimi 🔔',
-            options,
-          });
-          sent = true;
-        } catch {}
-      }
-    }
+    });
   };
 
   const handleBellClick = async () => {
     if (!user) return;
 
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      toast.error('Bu cihaz veya tarayıcı bildirimleri desteklemiyor.');
+      const isIOS = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+      if (isIOS) {
+        toast.info(
+          'iPhone Bildirim Kurulumu: Safari Paylaş (kare ve yukarı ok) > "Ana Ekrana Ekle" dedikten sonra uygulamayı ana ekrandan açın. Bildirimler cihazınıza anında düşecektir.',
+          { duration: 9000 }
+        );
+      } else {
+        toast.error('Bu cihaz veya tarayıcı bildirimleri desteklemiyor.');
+      }
       return;
     }
 

@@ -2,12 +2,14 @@ import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import SupportNotificationListener from '@/components/SupportNotificationListener';
 import ContentNotificationListener from '@/components/ContentNotificationListener';
+import DeviceNotificationBanner from '@/components/DeviceNotificationBanner';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
       <SupportNotificationListener />
       <ContentNotificationListener />
+      <DeviceNotificationBanner />
       <Header />
       <Sidebar />
       <main className="relative z-10 min-h-[calc(100vh-4rem)] min-w-0 px-3 py-5 pb-16 sm:px-4 md:ml-64 md:p-8 opacity-100 visible">
@@ -18,7 +20,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <footer className="md:ml-64 text-center md:text-right px-6 py-3 text-xs text-muted-foreground border-t border-border/40">
         EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
       </footer>
-
     </div>
   );
 };
