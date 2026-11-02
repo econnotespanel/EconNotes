@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
+import WelcomeBackCelebration from '@/components/WelcomeBackCelebration';
 
 // 22:00 Turkey time (UTC+3) on 2026-11-02
 const TARGET_REOPEN_TIME = new Date('2026-11-02T22:00:00+03:00').getTime();
@@ -32,7 +33,12 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
 
   // Administrators have full access everywhere
   if (isAdmin) {
-    return <>{children}</>;
+    return (
+      <>
+        <WelcomeBackCelebration />
+        {children}
+      </>
+    );
   }
 
   // Allow admin login page so administrators can authenticate
@@ -51,8 +57,13 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  // Once 22:00 is reached, all users have access
-  return <>{children}</>;
+  // Once 22:00 is reached, all users have access + welcome music & celebration
+  return (
+    <>
+      <WelcomeBackCelebration />
+      {children}
+    </>
+  );
 };
 
 export default SystemGate;
