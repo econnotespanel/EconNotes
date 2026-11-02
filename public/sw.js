@@ -42,6 +42,14 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
+// Handle direct message from page to show notification
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
+    const { title, options } = event.data;
+    event.waitUntil(self.registration.showNotification(title, options));
+  }
+});
+
 // Handle notification click by focusing existing tab or opening a new one
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

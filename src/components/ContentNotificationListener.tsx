@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/deviceNotifications';
+import { toast } from 'sonner';
 
 const POLL_INTERVAL_MS = 12_000;
 
@@ -34,42 +35,67 @@ const ContentNotificationListener = () => {
     // Dispatches a notification reliably across both Mobile PWA/Android (Service Worker showNotification)
     // and Desktop Windows/Mac (Notification constructor)
     const notify = async (title: string, body: string, tag: string, path: string) => {
+      // 1. Play chime audio
+      playChime();
+
+      // 2. Show in-app interactive notification banner so mobile & desktop users always see it on screen
+      toast(title, {
+        description: body,
+        duration: 9000,
+        action: {
+          label: 'Görüntüle',
+          onClick: () => window.location.assign(path),
+        },
+      });
+
       if (typeof window === 'undefined' || !('Notification' in window)) return;
       if (Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
 
-      playChime();
+      const options = {
+        body,
+        tag,
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-192x192.png',
+        vibrate: [200, 100, 200],
+        data: { url: path },
+        renotify: true,
+      };
+
       let delivered = false;
 
-      // 1. Try Service Worker showNotification (mandatory on Android Chrome / PWA, highly reliable on Mobile)
+      // 3. Try Service Worker showNotification (mandatory on Android Chrome / PWA, highly reliable on Mobile)
       if ('serviceWorker' in navigator) {
         try {
-          const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register('/sw.js'));
+          const reg = await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise<null>((res) => setTimeout(() => res(null), 1500)),
+          ]);
           if (reg && typeof reg.showNotification === 'function') {
-            await reg.showNotification(title, {
-              body,
-              tag,
-              icon: '/icons/icon-192x192.png',
-              badge: '/icons/icon-192x192.png',
-              vibrate: [200, 100, 200],
-              data: { url: path },
-              renotify: true,
-            });
+            await reg.showNotification(title, options);
             delivered = true;
           }
         } catch (swErr) {
-          console.warn('SW notification display fallback to window.Notification:', swErr);
+          console.warn('SW showNotification error:', swErr);
+        }
+
+        if (!delivered && navigator.serviceWorker.controller) {
+          try {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'SHOW_NOTIFICATION',
+              title,
+              options,
+            });
+            delivered = true;
+          } catch (pmErr) {
+            console.warn('SW postMessage error:', pmErr);
+          }
         }
       }
 
-      // 2. Try Desktop Notification constructor (instant and standard on Windows/Mac browsers)
+      // 4. Try Desktop Notification constructor (instant and standard on Windows/Mac browsers)
       if (!delivered) {
         try {
-          const notification = new Notification(title, {
-            body,
-            tag,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-192x192.png',
-          });
+          const notification = new Notification(title, options);
           notification.onclick = () => {
             window.focus();
             window.location.assign(path);

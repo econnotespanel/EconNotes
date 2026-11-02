@@ -141,16 +141,6 @@ const Header = () => {
   };
 
   const sendTestNotification = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      toast.error('Bu tarayıcı bildirimleri desteklemiyor.');
-      return;
-    }
-
-    if (Notification.permission !== 'granted') {
-      toast.error('Önce bildirim iznini vermelisiniz.');
-      return;
-    }
-
     // 1. Play subtle chime
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
@@ -170,37 +160,68 @@ const Header = () => {
       }
     } catch {}
 
+    // In-app visual notification toast (visible on all screens immediately)
+    toast('🔔 EconNotes Test Bildirimi', {
+      description: 'Cihaz bildirimleriniz başarıyla çalışıyor! (Telefonunuzda yukarıdan aşağı kaydırarak durum çubuğunu kontrol edin).',
+      duration: 8000,
+      action: {
+        label: 'Tamam',
+        onClick: () => {},
+      },
+    });
+
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return;
+    }
+
+    if (Notification.permission !== 'granted') {
+      toast.error('Önce bildirim iznini vermelisiniz.');
+      return;
+    }
+
+    const options = {
+      body: 'Cihaz bildirimleriniz başarıyla aktif! Yeni duyurular bu cihaza anında düşecektir.',
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-192x192.png',
+      vibrate: [200, 100, 200],
+      data: { url: '/announcements' },
+      tag: `econnotes-test-${Date.now()}`,
+      renotify: true,
+    };
+
     let sent = false;
 
     // 2. Service Worker showNotification (Android Mobile / PWA / Chrome)
     if ('serviceWorker' in navigator) {
       try {
-        const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register('/sw.js'));
+        const reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<null>((res) => setTimeout(() => res(null), 1500)),
+        ]);
         if (reg && typeof reg.showNotification === 'function') {
-          await reg.showNotification('EconNotes Test Bildirimi 🔔', {
-            body: 'Cihaz bildirimleriniz başarıyla aktif! Yeni duyurular bu cihaza anında düşecektir.',
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-192x192.png',
-            vibrate: [200, 100, 200],
-            data: { url: '/announcements' },
-            tag: `econnotes-test-${Date.now()}`,
-          });
+          await reg.showNotification('EconNotes Test Bildirimi 🔔', options);
           sent = true;
         }
       } catch (e) {
         console.warn('SW test failed:', e);
+      }
+
+      if (!sent && navigator.serviceWorker.controller) {
+        try {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: 'EconNotes Test Bildirimi 🔔',
+            options,
+          });
+          sent = true;
+        } catch {}
       }
     }
 
     // 3. Desktop Notification constructor (Windows / Mac)
     if (!sent) {
       try {
-        const testNotification = new Notification('EconNotes Test Bildirimi 🔔', {
-          body: 'Cihaz bildirimleriniz başarıyla aktif! Yeni duyurular bu cihaza anında düşecektir.',
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-192x192.png',
-          tag: `econnotes-test-${Date.now()}`,
-        });
+        const testNotification = new Notification('EconNotes Test Bildirimi 🔔', options);
         testNotification.onclick = () => {
           window.focus();
           window.location.assign('/announcements');
@@ -211,8 +232,6 @@ const Header = () => {
         console.warn('Desktop test failed:', desktopErr);
       }
     }
-
-    toast.success('Test bildirimi cihazınıza başarıyla gönderildi! 🔔');
   };
 
   const requestPermissionAndEnable = async () => {
