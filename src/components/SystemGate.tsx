@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
@@ -7,6 +7,21 @@ import ForcePasswordChange from '@/components/ForcePasswordChange';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import ServiceUnavailableScreen from '@/components/ServiceUnavailableScreen';
+
+/** Active broadcast announcement displayed across the platform during maintenance. */
+const OVERLOAD_ANNOUNCEMENT_ACTIVE = true;
+const OVERLOAD_ANNOUNCEMENT_TITLE = 'Altyapı ve Kapasite Güncellemesi';
+const OVERLOAD_ANNOUNCEMENT_MESSAGE = `Sınav haftasının yaklaşmasıyla beraber EconNotes'a anlık olarak çok ciddi bir giriş ve indirme trafiği gerçekleşti. Bu yoğun ilgi sebebiyle bulut sunucularımız aşırı yüklenme (overload) durumuna geçti ve geçici olarak erişim kısıtlandı.
+
+Öncelikle belirtmek isteriz ki sistemdeki tüm notlar, ders materyalleri ve kullanıcı hesapları eksiksiz şekilde korunmaktadır; herhangi bir veri kaybı söz konusu değildir.
+
+Sınav süreciniz boyunca benzer bir yavaşlama veya kesinti tekrar yaşamamanız adına, altyapımızı şu an daha yüksek kapasiteli ve bağımsız bir sunucu sistemine aktarıyoruz. 
+
+Sınavlara hazırlandığınız bu kritik dönemde böyle bir aksaklıkla karşılaştığınız için anlayışınıza sığınıyoruz. Çalışmalarımızı en kısa sürede tamamlayarak platformu yeniden erişime açacağız.
+
+Anlayışınız ve sabrınız için teşekkür eder, sınavlarınızda başarılar dileriz.
+
+EconNotes Ekibi`;
 
 /** Routes that stay reachable during a closure so admins can sign in. */
 const OPEN_PATHS = ['/login', '/admin', '/forgot-password', '/reset-password'];
@@ -19,6 +34,19 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const previousSystemOpen = useRef<boolean | null>(null);
   const fatalErrorLogged = useRef(false);
+
+  // If the active overload announcement is enabled, show it everywhere
+  if (OVERLOAD_ANNOUNCEMENT_ACTIVE) {
+    return (
+      <MaintenanceScreen
+        closedUntil={null}
+        title={OVERLOAD_ANNOUNCEMENT_TITLE}
+        message={OVERLOAD_ANNOUNCEMENT_MESSAGE}
+        imageUrl={null}
+        mode="maintenance"
+      />
+    );
+  }
 
   useEffect(() => {
     if (status.systemOpen === false && status.closureMode === 'fatal_error' && !fatalErrorLogged.current) {

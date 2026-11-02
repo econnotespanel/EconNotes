@@ -1,5 +1,6 @@
 import { AlertTriangle, Sun, Palmtree, Waves, Sailboat } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
+import { APP_VERSION_LABEL } from '@/lib/version';
 
 interface MaintenanceScreenProps {
   closedUntil: string | null;
@@ -89,13 +90,13 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
         </>
       )}
 
-      <div className="relative z-10 mx-auto w-full max-w-md space-y-5 text-center">
-        <div className={`rounded-3xl p-8 backdrop-blur-2xl shadow-2xl ${
+      <div className="relative z-10 mx-auto w-full max-w-xl sm:max-w-2xl space-y-5 text-center">
+        <div className={`rounded-3xl p-6 sm:p-10 backdrop-blur-2xl shadow-2xl ${
           isSummer
             ? 'border border-white/60 bg-white/40'
             : isFatalError
               ? 'border-2 border-red-500/80 bg-red-950/75 shadow-[0_0_80px_rgba(239,68,68,0.35)]'
-              : 'border border-white/10 bg-slate-900/60 shadow-black/30'
+              : 'border border-white/10 bg-slate-900/75 shadow-black/40'
         }`}>
           <div className="relative mb-8 h-10 w-full sm:h-11">
             <EconLogo allWhite={isSummer ? false : true} className="absolute left-1/2 top-0 h-10 w-56 max-w-full -translate-x-1/2 justify-center sm:h-11 sm:w-64" />
@@ -121,14 +122,14 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             </div>
           )}
 
-          <h1 className={`flex items-center justify-center gap-2 text-3xl font-bold drop-shadow-sm ${isSummer ? 'text-slate-900 dark:text-white' : 'text-white'}`}>
+          <h1 className={`flex items-center justify-center gap-2 text-2xl sm:text-3xl font-bold drop-shadow-sm ${isSummer ? 'text-slate-900 dark:text-white' : 'text-white'}`}>
             {isSummer && <Palmtree className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />}
             {heading}
           </h1>
           {isFatalError && <p className="mb-2 rounded border border-red-400/50 bg-red-500/20 px-3 py-2 font-mono text-xs font-bold tracking-widest text-red-100">FATAL_ERROR · HTTP 500 · SERVICE_UNAVAILABLE</p>}
-          <p className={`mt-3 text-sm leading-relaxed whitespace-pre-line ${isSummer ? 'text-slate-800 dark:text-slate-100' : 'text-slate-300'}`}>
+          <div className={`mt-5 text-sm sm:text-base leading-relaxed whitespace-pre-line text-left rounded-2xl p-4 sm:p-6 border border-white/5 bg-white/[0.03] ${isSummer ? 'text-slate-800 dark:text-slate-100' : 'text-slate-200'}`}>
             {body}
-          </p>
+          </div>
 
           {closedUntil && (
             <p className={`mt-4 text-sm ${isSummer ? 'text-slate-800 dark:text-slate-100' : 'text-slate-300'}`}>
@@ -149,7 +150,7 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             adresi üzerinden bizimle iletişime geçebilirsiniz.
           </p>
           <p className={`mt-3 text-xs ${isSummer ? 'text-slate-600 dark:text-slate-300' : 'text-slate-500'}`}>
-            EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
+            EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir. · {APP_VERSION_LABEL}
           </p>
         </div>
       </div>
