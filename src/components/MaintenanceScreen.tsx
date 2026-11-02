@@ -1,4 +1,5 @@
-import { AlertTriangle, Sun, Palmtree, Waves, Sailboat } from 'lucide-react';
+﻿import { useState } from 'react';
+import { AlertTriangle, Sun, Palmtree, Waves, Sailboat, X } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
 import { APP_VERSION_LABEL } from '@/lib/version';
 
@@ -11,6 +12,8 @@ interface MaintenanceScreenProps {
 }
 
 const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: MaintenanceScreenProps) => {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
   const isSummer = mode === 'summer';
   const isFatalError = mode === 'fatal_error';
   const heading = title || (isSummer ? 'EconNotes Yaz Tatilinde' : isFatalError ? '500 — Sunucu Hatası' : 'EconNotes Bakımda');
@@ -33,7 +36,20 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             <EconLogo allWhite className="h-8 w-40 sm:h-10 sm:w-52" />
             <span className="hidden border-l border-red-200/30 pl-4 text-xs tracking-[0.3em] text-red-100/70 sm:block">SYSTEM STATUS</span>
           </div>
-          <span className="text-xs tracking-widest text-red-200/70">ERR-NX500</span>
+                    <div className="flex items-center gap-3">
+            <span className="text-xs tracking-widest text-red-200/70">ERR-NX500</span>
+            <button
+              onClick={() => {
+                setDismissed(true);
+                if (window.location.hostname.includes('lovable.app')) {
+                  window.location.href = 'https://econnotes.online';
+                }
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-red-400/50 bg-red-600/40 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-600 shadow-md cursor-pointer"
+            >
+              <X className="h-4 w-4" /> Manuel Kapat / Siteye Geç
+            </button>
+          </div>
         </header>
         <main className="relative mx-auto grid min-h-[calc(100vh-145px)] max-w-6xl items-center gap-10 px-6 py-10 sm:px-14 lg:grid-cols-[1fr_1.2fr]">
           <section>
@@ -41,7 +57,20 @@ const MaintenanceScreen = ({ closedUntil, title, message, imageUrl, mode }: Main
             <h1 className="text-6xl font-light tracking-tight text-white sm:text-8xl">500</h1>
             <p className="mt-4 max-w-md text-lg leading-8 text-red-100/85">{heading}</p>
             <div className="mt-8 h-px w-40 bg-red-300/60" />
-            <p className="mt-5 max-w-md font-sans text-sm leading-7 text-red-100/70">{body}</p>
+                        <p className="mt-5 max-w-md font-sans text-sm leading-7 text-red-100/70">{body}</p>
+            <div className="mt-6">
+              <button
+                onClick={() => {
+                  setDismissed(true);
+                  if (window.location.hostname.includes('lovable.app')) {
+                    window.location.href = 'https://econnotes.online';
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-400 bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg transition hover:bg-red-700 cursor-pointer"
+              >
+                ✓ Bu Ekranı Kapat ve Siteye Devam Et
+              </button>
+            </div>
           </section>
           <section className="border-l border-red-200/35 pl-6 sm:pl-10">
             <div className="grid gap-4 text-sm sm:grid-cols-[150px_1fr]">
