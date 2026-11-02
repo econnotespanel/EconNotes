@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { LogOut, Sun, Moon, Bell, BellRing, User, MessageSquare, Sparkles, Flame } from 'lucide-react';
+import { LogOut, Sun, Moon, Bell, BellRing, User, MessageSquare, Sparkles, Flame, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
@@ -37,6 +37,15 @@ const Header = () => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(false);
+  const [showNotificationGuide, setShowNotificationGuide] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('econnotes_notification_guide_dismissed') !== 'true';
+  });
+
+  const dismissNotificationGuide = () => {
+    sessionStorage.setItem('econnotes_notification_guide_dismissed', 'true');
+    setShowNotificationGuide(false);
+  };
   const { points } = usePoints(3);
 
   const fetchUnread = useCallback(async () => {
@@ -217,7 +226,7 @@ const Header = () => {
           </Button>
 
           <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary" onClick={() => navigate('/announcements')}>
-            <Bell className="h-5 w-5" />
+            <Megaphone className="h-5 w-5" />
             {unreadAnnouncements > 0 && (
               <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-[9px] text-destructive-foreground inline-flex items-center justify-center">
                 {unreadAnnouncements}
@@ -226,20 +235,69 @@ const Header = () => {
           </Button>
 
           {user && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={deviceNotificationsEnabled ? 'Cihaz bildirimlerini kapat' : 'Cihaz bildirimlerini aç'}
-              title={deviceNotificationsEnabled ? 'Cihaz bildirimleri açık' : 'Cihaz bildirimlerini aç'}
-              onClick={() => void toggleDeviceNotifications()}
-              className="rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
-            >
-              {deviceNotificationsEnabled ? (
-                <BellRing className="h-5 w-5 text-primary animate-pulse" />
-              ) : (
-                <Bell className="h-5 w-5 text-muted-foreground" />
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={deviceNotificationsEnabled ? 'Cihaz bildirimlerini kapat' : 'Cihaz bildirimlerini aç'}
+                title={deviceNotificationsEnabled ? 'Cihaz bildirimleri açık' : 'Cihaz bildirimlerini aç'}
+                onClick={() => void toggleDeviceNotifications()}
+                className={`rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary ${
+                  showNotificationGuide && !deviceNotificationsEnabled ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''
+                }`}
+              >
+                {deviceNotificationsEnabled ? (
+                  <BellRing className="h-5 w-5 text-primary animate-pulse" />
+                ) : (
+                  <Bell className="h-5 w-5 text-muted-foreground" />
+                )}
+              </Button>
+
+              {/* Guided Onboarding Arrow Callout for Device Notifications */}
+              {showNotificationGuide && !deviceNotificationsEnabled && (
+                <div className="absolute right-0 top-12 z-50 w-72 sm:w-80 rounded-2xl border border-primary/40 bg-card p-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-300">
+                  {/* Pointing Arrow at the top pointing directly to the Bell button */}
+                  <div className="absolute -top-2 right-3 h-4 w-4 rotate-45 border-l border-t border-primary/40 bg-card" />
+
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl bg-primary/15 p-2 text-primary shrink-0">
+                      <BellRing className="h-5 w-5 animate-bounce" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <span>Cihaz Bildirimlerini Açın</span>
+                        <span className="flex h-2 w-2 rounded-full bg-primary animate-ping" />
+                      </p>
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        EconNotes'taki duyurular veya yeni yüklenen notlar hakkında anında haberdar olmak için bildirim tuşuna basarak cihaz bildirimlerini açabilirsiniz.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-end gap-2 border-t border-border/40 pt-2.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={dismissNotificationGuide}
+                      className="h-7 text-[11px] text-muted-foreground hover:text-foreground px-2"
+                    >
+                      Daha Sonra
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        dismissNotificationGuide();
+                        void toggleDeviceNotifications();
+                      }}
+                      className="h-7 text-[11px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 px-3 gap-1 shadow-sm"
+                    >
+                      <BellRing className="h-3 w-3" />
+                      <span>Bildirimleri Aç</span>
+                    </Button>
+                  </div>
+                </div>
               )}
-            </Button>
+            </div>
           )}
 
           <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary">

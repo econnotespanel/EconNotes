@@ -50,11 +50,26 @@ const ContentNotificationListener = () => {
     const channel = supabase
       .channel('realtime-announcements-push')
       .on(
+        'broadcast',
+        { event: 'new-announcement' },
+        (payload) => {
+          const ann = payload.payload as any;
+          if (ann) {
+            void notify(
+              `📢 EconNotes Duyuru: ${ann.title}`,
+              ann.content ? ann.content.slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
+              `announcement-bc-${Date.now()}`,
+              '/announcements'
+            );
+          }
+        }
+      )
+      .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'announcements' },
         (payload) => {
           const newAnn = payload.new as any;
-          if (newAnn && newAnn.user_id !== user.id) {
+          if (newAnn) {
             void notify(
               `📢 EconNotes Duyuru: ${newAnn.title}`,
               newAnn.content ? newAnn.content.slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
@@ -73,8 +88,7 @@ const ContentNotificationListener = () => {
           if (
             updatedNote &&
             updatedNote.status === 'approved' &&
-            oldNote?.status !== 'approved' &&
-            updatedNote.user_id !== user.id
+            oldNote?.status !== 'approved'
           ) {
             void notify(
               '📚 Yeni Not Yayımlandı',
@@ -110,13 +124,11 @@ const ContentNotificationListener = () => {
             .eq('status', 'approved')
             .not('approved_at', 'is', null)
             .gt('approved_at', noteCursor)
-            .neq('user_id', user.id)
             .order('approved_at', { ascending: true }),
           supabase
             .from('announcements')
             .select('id, title, user_id, created_at')
             .gt('created_at', announcementCursor)
-            .neq('user_id', user.id)
             .order('created_at', { ascending: true }),
         ]);
 

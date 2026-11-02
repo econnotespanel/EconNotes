@@ -103,6 +103,23 @@ const Announcements = () => {
       const { error } = await supabase.from('announcements').insert(data);
       if (error) { toast.error('Eklenemedi: ' + error.message); return; }
       toast.success('Duyuru eklendi!');
+
+      // Broadcast announcement notification to all devices in real-time
+      try {
+        const bc = supabase.channel('realtime-announcements-push');
+        bc.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await bc.send({
+              type: 'broadcast',
+              event: 'new-announcement',
+              payload: { title: data.title, content: data.content },
+            });
+            supabase.removeChannel(bc);
+          }
+        });
+      } catch (e) {
+        console.warn('Realtime announcement broadcast could not be sent:', e);
+      }
     }
 
     setDialogOpen(false); setEditingItem(null); setForm({ title: '', content: '' }); setConfirmUpload(false); setAttachmentFile(null); fetchData();
