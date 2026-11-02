@@ -206,7 +206,8 @@ const Sidebar = () => {
         aria-label={open ? 'Menüyü kapat' : 'Menüyü aç'}
         aria-expanded={open}
         aria-controls="mobile-sidebar"
-        className="fixed top-3 left-3 z-[70] inline-flex h-10 w-10 items-center justify-center p-0 md:hidden rounded-lg border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-primary))] transition-all"
+        className="fixed left-3 z-[70] inline-flex h-10 w-10 items-center justify-center p-0 md:hidden rounded-lg border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-primary))] transition-all"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
         onClick={() => setOpen(v => !v)}
       >
         <span className="relative grid h-5 w-5 place-items-center">
@@ -232,7 +233,7 @@ const Sidebar = () => {
         id="mobile-sidebar"
         role="navigation"
         className={cn(
-          'fixed left-0 top-16 z-50 h-[calc(100dvh-4rem)] w-full max-w-none sm:w-[22rem] md:w-64',
+          'fixed left-0 z-50 w-full max-w-none sm:w-[22rem] md:w-64',
           'flex flex-col',
           'bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] shadow-xl',
           'border-r border-[hsl(var(--sidebar-border))]',
@@ -240,6 +241,10 @@ const Sidebar = () => {
           'md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
+        style={{
+          top: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)',
+          height: 'calc(100dvh - env(safe-area-inset-top, 0px) - 4.5rem)',
+        }}
       >
         <div className="flex-1 overflow-y-auto overscroll-contain">
           <NavContent />
