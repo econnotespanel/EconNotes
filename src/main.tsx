@@ -10,10 +10,16 @@ createRoot(document.getElementById("root")!).render(<App />);
 
 // Register Service Worker for PWA and Mobile Push Notifications
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  const registerServiceWorker = () => {
     navigator.serviceWorker.register('/sw.js').catch((err) => {
       console.warn('EconNotes Service Worker kaydı yapılamadı:', err);
     });
-  });
+  };
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    registerServiceWorker();
+  } else {
+    window.addEventListener('load', registerServiceWorker);
+  }
 }
 

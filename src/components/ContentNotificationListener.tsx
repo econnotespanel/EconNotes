@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 12_000;
 
 const ContentNotificationListener = () => {
   const { user } = useAuth();
@@ -12,37 +12,53 @@ const ContentNotificationListener = () => {
   useEffect(() => {
     if (!user || !('Notification' in window)) return;
 
-    // Dispatches a notification through the Service Worker (required for mobile PWA/Android/iOS)
-    // with fallback to Desktop window.Notification
+    // Dispatches a notification reliably across both Mobile PWA/Android (Service Worker showNotification)
+    // and Desktop Windows/Mac (Notification constructor)
     const notify = async (title: string, body: string, tag: string, path: string) => {
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
       if (Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
-      try {
-        if ('serviceWorker' in navigator) {
-          const reg = await navigator.serviceWorker.ready;
-          await reg.showNotification(title, {
+
+      let delivered = false;
+
+      // 1. Try Service Worker showNotification (mandatory on Android Chrome / PWA, highly reliable on Mobile)
+      if ('serviceWorker' in navigator) {
+        try {
+          const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register('/sw.js'));
+          if (reg && typeof reg.showNotification === 'function') {
+            await reg.showNotification(title, {
+              body,
+              tag,
+              icon: '/icons/icon-192x192.png',
+              badge: '/icons/icon-192x192.png',
+              vibrate: [200, 100, 200],
+              data: { url: path },
+              renotify: true,
+            });
+            delivered = true;
+          }
+        } catch (swErr) {
+          console.warn('SW notification display fallback to window.Notification:', swErr);
+        }
+      }
+
+      // 2. Try Desktop Notification constructor (instant and standard on Windows/Mac browsers)
+      if (!delivered) {
+        try {
+          const notification = new Notification(title, {
             body,
             tag,
             icon: '/icons/icon-192x192.png',
             badge: '/icons/icon-192x192.png',
-            vibrate: [150, 60, 150],
-            data: { url: path },
-            renotify: true,
           });
-          return;
+          notification.onclick = () => {
+            window.focus();
+            window.location.assign(path);
+            notification.close();
+          };
+          delivered = true;
+        } catch (desktopErr) {
+          console.warn('Desktop notification constructor failed:', desktopErr);
         }
-
-        const notification = new Notification(title, {
-          body,
-          tag,
-          icon: '/icons/icon-192x192.png',
-        });
-        notification.onclick = () => {
-          window.focus();
-          window.location.assign(path);
-          notification.close();
-        };
-      } catch (error) {
-        console.error('Device notification could not be displayed:', error);
       }
     };
 
@@ -111,10 +127,9 @@ const ContentNotificationListener = () => {
         const noteCursor = localStorage.getItem(noteCursorKey);
         const announcementCursor = localStorage.getItem(announcementCursorKey);
         if (!noteCursor || !announcementCursor) {
-          const now = new Date().toISOString();
-          if (!noteCursor) localStorage.setItem(noteCursorKey, now);
-          if (!announcementCursor) localStorage.setItem(announcementCursorKey, now);
-          return;
+          const thirtySecondsAgo = new Date(Date.now() - 30_000).toISOString();
+          if (!noteCursor) localStorage.setItem(noteCursorKey, thirtySecondsAgo);
+          if (!announcementCursor) localStorage.setItem(announcementCursorKey, thirtySecondsAgo);
         }
 
         const [notesResult, announcementsResult] = await Promise.all([

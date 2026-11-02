@@ -113,49 +113,119 @@ const Header = () => {
 
   const toggleDeviceNotifications = async () => {
     if (!user) return;
-    if (!('Notification' in window)) {
-      toast.error('Bu tarayıcı cihaz bildirimlerini desteklemiyor.');
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      const isIOS = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+      if (isIOS) {
+        toast.error('iPhone / iPad cihazlarda bildirim alabilmek için: Safari alt menüsündeki Paylaş (kare ve yukarı ok) butonuna basıp "Ana Ekrana Ekle" dedikten sonra uygulamayı ana ekrandan açmalısınız.', {
+          duration: 9000,
+        });
+      } else {
+        toast.error('Bu tarayıcı bildirimleri desteklemiyor. Güncel bir tarayıcı (Chrome, Edge vb.) kullanmanızı öneririz.');
+      }
       return;
     }
+
     if (deviceNotificationsEnabled) {
       setDeviceNotificationEnabled(user.id, false);
       setDeviceNotificationsEnabled(false);
       toast.success('Cihaz bildirimleri kapatıldı.');
       return;
     }
+
+    // Check iOS PWA standalone requirement
+    const isIOSDevice = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+    const isStandaloneMode = typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+    if (isIOSDevice && !isStandaloneMode) {
+      toast.error('iPhone / iPad cihazlarda bildirim alabilmek için: Safari alt menüsündeki Paylaş (kare ve yukarı ok) butonuna basıp "Ana Ekrana Ekle" dedikten sonra uygulamayı ana ekrandan açmalısınız.', {
+        duration: 9000,
+      });
+      return;
+    }
+
+    // If permission was previously blocked/denied by user in browser
+    if (Notification.permission === 'denied') {
+      toast.error('Bildirim izni tarayıcınızda veya cihazınızda ENGELLİ durumda. Açmak için: Adres çubuğundaki (URL yanındaki) 🔒 kilit veya ayar simgesine tıklayıp Bildirimler\'i "İzin Ver" yapın.', {
+        duration: 9000,
+      });
+      return;
+    }
+
     try {
-      const permission = Notification.permission === 'default'
-        ? await Notification.requestPermission()
-        : Notification.permission;
+      const wasAlreadyGranted = Notification.permission === 'granted';
+      let permission = Notification.permission;
+
+      if (permission === 'default') {
+        try {
+          const req = Notification.requestPermission();
+          if (req && typeof req.then === 'function') {
+            permission = await req;
+          } else {
+            permission = await new Promise((resolve) => Notification.requestPermission(resolve));
+          }
+        } catch {
+          permission = await new Promise((resolve) => Notification.requestPermission(resolve));
+        }
+      }
+
       if (permission !== 'granted') {
-        toast.error(permission === 'denied'
-          ? 'Bildirim izni tarayıcı ayarlarından engellenmiş. Site ayarlarından izin verip tekrar deneyin.'
-          : 'Bildirim izni verilmedi.');
+        if (permission === 'denied') {
+          toast.error('Bildirim izni engellendi. Adres çubuğundaki (URL yanındaki) kilit simgesinden izin verip tekrar deneyin.', { duration: 8000 });
+        } else {
+          toast.error('Bildirim izni onaylanmadı.');
+        }
         return;
       }
+
       const now = new Date().toISOString();
       setDeviceNotificationEnabled(user.id, true);
       localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);
       localStorage.setItem(getNotificationCursorKey(user.id, 'announcements'), now);
       setDeviceNotificationsEnabled(true);
-      toast.success('Yeni not ve duyuru bildirimleri açıldı.');
 
-      // Dispatch instant test notification to verify mobile/desktop delivery
+      if (wasAlreadyGranted) {
+        toast.success('Bildirim izni zaten verilmiş durumda! Test bildirimi cihazınıza gönderildi 🔔');
+      } else {
+        toast.success('Bildirim izni başarıyla verildi! Test bildirimi cihazınıza gönderildi 🔔');
+      }
+
+      // Dispatch instant test notification across both Mobile (Service Worker) and Desktop (new Notification)
+      let testSent = false;
+
+      // 1. Service Worker showNotification (Android Mobile / PWA / Chrome)
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then((reg) => {
-          reg.showNotification('EconNotes Bildirimleri Aktif! 🔔', {
-            body: 'Yöneticilerin paylaştığı duyurular artık telefonunuza anlık olarak gelecek.',
+        try {
+          const reg = (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.register('/sw.js'));
+          if (reg && typeof reg.showNotification === 'function') {
+            await reg.showNotification('EconNotes Bildirimleri Aktif! 🔔', {
+              body: 'Yöneticilerin paylaştığı duyurular artık cihazınıza anlık bildirim olarak gelecek.',
+              icon: '/icons/icon-192x192.png',
+              badge: '/icons/icon-192x192.png',
+              vibrate: [200, 100, 200],
+              data: { url: '/announcements' },
+            });
+            testSent = true;
+          }
+        } catch (swErr) {
+          console.warn('SW test notification failed:', swErr);
+        }
+      }
+
+      // 2. Desktop Notification constructor (Windows / Mac)
+      if (!testSent) {
+        try {
+          const testNotification = new Notification('EconNotes Bildirimleri Aktif! 🔔', {
+            body: 'Yöneticilerin paylaştığı duyurular artık cihazınıza anlık bildirim olarak gelecek.',
             icon: '/icons/icon-192x192.png',
             badge: '/icons/icon-192x192.png',
-            vibrate: [150, 60, 150],
-            data: { url: '/announcements' },
           });
-        }).catch(() => {});
-      } else {
-        new Notification('EconNotes Bildirimleri Aktif! 🔔', {
-          body: 'Yöneticilerin paylaştığı duyurular artık telefonunuza anlık olarak gelecek.',
-          icon: '/icons/icon-192x192.png',
-        });
+          testNotification.onclick = () => {
+            window.focus();
+            window.location.assign('/announcements');
+            testNotification.close();
+          };
+        } catch (desktopErr) {
+          console.warn('Desktop test notification failed:', desktopErr);
+        }
       }
     } catch (error) {
       console.error('Device notification permission setup failed:', error);

@@ -107,16 +107,23 @@ const Announcements = () => {
       // Broadcast announcement notification to all devices in real-time
       try {
         const bc = supabase.channel('realtime-announcements-push');
-        bc.subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            await bc.send({
-              type: 'broadcast',
-              event: 'new-announcement',
-              payload: { title: data.title, content: data.content },
-            });
-            supabase.removeChannel(bc);
-          }
-        });
+        if (bc.state === 'joined') {
+          void bc.send({
+            type: 'broadcast',
+            event: 'new-announcement',
+            payload: { title: data.title, content: data.content },
+          });
+        } else {
+          bc.subscribe(async (status) => {
+            if (status === 'SUBSCRIBED') {
+              await bc.send({
+                type: 'broadcast',
+                event: 'new-announcement',
+                payload: { title: data.title, content: data.content },
+              });
+            }
+          });
+        }
       } catch (e) {
         console.warn('Realtime announcement broadcast could not be sent:', e);
       }
