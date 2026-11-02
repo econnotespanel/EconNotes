@@ -220,14 +220,14 @@ const Header = () => {
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 md:gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {user && (
-            <div className="mr-1 hidden rounded-xl border border-border/60 bg-background/45 px-3 py-1.5 text-right md:flex md:flex-col">
-              <span className="text-[13px] font-semibold leading-4 text-foreground">
+            <div className="mr-1 hidden rounded-2xl border border-border/60 bg-card/60 px-3.5 py-1 text-right backdrop-blur-sm md:flex md:flex-col justify-center shadow-xs">
+              <span className="text-[12px] font-semibold leading-tight text-foreground truncate max-w-[150px]">
                 {getGreeting()}, {displayName}
               </span>
               {profile?.last_login && (
-                <span className="mt-0.5 text-[10px] text-muted-foreground">Son giriş: {formatLastLogin()}</span>
+                <span className="text-[10px] text-muted-foreground leading-tight">Son: {formatLastLogin()}</span>
               )}
             </div>
           )}
@@ -236,67 +236,98 @@ const Header = () => {
             <button
               onClick={() => navigate('/')}
               title={`${points.points} puan • ${points.current_streak} günlük seri`}
-              className="hidden h-8 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 text-xs font-semibold text-primary shadow-sm shadow-primary/10 transition-colors hover:bg-primary/20 lg:inline-flex"
+              className="hidden h-9 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary shadow-xs backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:bg-primary/20 active:scale-95 lg:inline-flex"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              {points.points}
+              <span>{points.points}</span>
               {points.current_streak > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-warning">
+                <span className="inline-flex items-center gap-0.5 text-warning font-semibold">
                   <Flame className="h-3.5 w-3.5" />{points.current_streak}
                 </span>
               )}
             </button>
           )}
 
-
-          <Button variant="ghost" size="icon" className="relative hidden rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary sm:inline-flex" onClick={() => navigate('/messages')}>
-            <MessageSquare className="h-5 w-5" />
+          <button
+            type="button"
+            title="Mesajlar"
+            aria-label="Mesajlar"
+            onClick={() => navigate('/messages')}
+            className="relative hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95 sm:inline-flex"
+          >
+            <MessageSquare className="h-4 w-4" />
             {unreadMessages > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-[9px] text-destructive-foreground inline-flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-background">
                 {unreadMessages}
               </span>
             )}
-          </Button>
+          </button>
 
-          <Button variant="ghost" size="icon" className="relative rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary" onClick={() => navigate('/announcements')}>
-            <Megaphone className="h-5 w-5" />
+          <button
+            type="button"
+            title="Duyurular"
+            aria-label="Duyurular"
+            onClick={() => navigate('/announcements')}
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95"
+          >
+            <Megaphone className="h-4 w-4" />
             {unreadAnnouncements > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-destructive text-[9px] text-destructive-foreground inline-flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-background">
                 {unreadAnnouncements}
               </span>
             )}
-          </Button>
+          </button>
 
           {user && (
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
+              type="button"
               aria-label={deviceNotificationsEnabled ? 'Cihaz bildirimlerini kapat' : 'Cihaz bildirimlerini aç'}
               title={deviceNotificationsEnabled ? 'Cihaz bildirimleri açık (kapatmak için tıklayın)' : 'Cihaz bildirimlerini aç'}
               onClick={() => void handleBellClick()}
-              className="rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary"
+              className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 active:scale-95 ${
+                deviceNotificationsEnabled
+                  ? 'border-primary/40 bg-primary/15 text-primary shadow-primary/20'
+                  : 'border-border/60 bg-card/60 text-muted-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
+              }`}
             >
               {deviceNotificationsEnabled ? (
-                <BellRing className="h-5 w-5 text-primary animate-pulse" />
+                <BellRing className="h-4 w-4 text-primary animate-pulse" />
               ) : (
-                <Bell className="h-5 w-5 text-muted-foreground" />
+                <Bell className="h-4 w-4" />
               )}
-            </Button>
+            </button>
           )}
 
-          <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary">
-            {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-          </Button>
+          <button
+            type="button"
+            title={theme === 'light' ? 'Karanlık moda geç' : 'Aydınlık moda geç'}
+            aria-label="Tema değiştir"
+            onClick={toggleTheme}
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95"
+          >
+            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          </button>
 
-          <Button variant="ghost" size="icon" className="hidden rounded-xl text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary sm:inline-flex" onClick={() => navigate('/profile')}>
-            <User className="h-5 w-5" />
-          </Button>
+          <button
+            type="button"
+            title="Profilim"
+            aria-label="Profilim"
+            onClick={() => navigate('/profile')}
+            className="relative hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95 sm:inline-flex"
+          >
+            <User className="h-4 w-4" />
+          </button>
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="hidden rounded-xl text-destructive/80 transition-all hover:bg-destructive/10 hover:text-destructive md:inline-flex">
-                <LogOut className="h-5 w-5" />
-              </Button>
+              <button
+                type="button"
+                title="Çıkış Yap"
+                aria-label="Çıkış Yap"
+                className="relative hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-destructive/25 bg-destructive/5 text-destructive/80 backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-destructive/40 hover:bg-destructive/15 hover:text-destructive active:scale-95 md:inline-flex"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
