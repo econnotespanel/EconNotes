@@ -32,30 +32,13 @@ export const initOneSignal = () => {
           enable: false,
         },
         allowLocalhostAsSecureOrigin: true,
-        slidedown: {
-          prompts: [
-            {
-              type: 'push',
-              autoPrompt: true,
-              text: {
-                actionMessage: 'Duyurulardan ve ders notlarından anında haberdar olmak için bildirimleri açın.',
-                acceptButton: 'Bildirimleri Aç',
-                cancelButton: 'Daha Sonra',
-              },
-              delay: {
-                pageViews: 1,
-                timeDelay: 1,
-              },
-            },
-          ],
-        },
       });
 
       // Auto-opt in if native browser permission is already granted
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         try {
           if (OneSignal.User?.PushSubscription?.optIn) {
-            await OneSignal.User.PushSubscription.optIn();
+            void OneSignal.User.PushSubscription.optIn();
           }
         } catch (subErr) {
           console.warn('OneSignal auto-optIn notice:', subErr);
@@ -70,43 +53,50 @@ export const initOneSignal = () => {
 export const requestOneSignalPermission = async (): Promise<boolean> => {
   if (typeof window === 'undefined') return false;
 
-  return new Promise((resolve) => {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function (OneSignal: any) {
-      try {
-        // 1. Try OneSignal native slidedown prompt first
-        if (OneSignal.Slidedown?.promptPush) {
-          await OneSignal.Slidedown.promptPush({ force: true });
-        } else if (OneSignal.Notifications?.requestPermission) {
-          await OneSignal.Notifications.requestPermission();
-        }
+  let granted = false;
 
-        // 2. Opt in to push subscription
-        if (OneSignal.User?.PushSubscription?.optIn) {
-          await OneSignal.User.PushSubscription.optIn();
-        }
-
-        const isGranted = Boolean(
-          OneSignal.User?.PushSubscription?.optedIn ||
-          OneSignal.Notifications?.permission ||
-          (typeof Notification !== 'undefined' && Notification.permission === 'granted')
-        );
-        resolve(isGranted);
-      } catch (err) {
-        console.warn('OneSignal permission prompt error:', err);
-        if ('Notification' in window) {
-          try {
-            const perm = await Notification.requestPermission();
-            resolve(perm === 'granted');
-          } catch {
-            resolve(false);
-          }
+  // 1. Direct synchronous native browser permission request (preserves user tap gesture for iOS & Android)
+  if ('Notification' in window) {
+    try {
+      let perm = Notification.permission;
+      if (perm === 'default') {
+        const req = Notification.requestPermission();
+        if (req && typeof req.then === 'function') {
+          perm = await req;
         } else {
-          resolve(false);
+          perm = await new Promise((res) => Notification.requestPermission(res));
         }
       }
-    });
-  });
+      granted = perm === 'granted';
+    } catch (e) {
+      console.warn('Native requestPermission error:', e);
+    }
+  }
+
+  // 2. Non-blocking OneSignal push subscription sync (runs in background without freezing UI)
+  try {
+    const triggerOptIn = async (OneSignal: any) => {
+      try {
+        if (OneSignal?.Notifications?.requestPermission) {
+          void OneSignal.Notifications.requestPermission();
+        }
+        if (OneSignal?.User?.PushSubscription?.optIn) {
+          await OneSignal.User.PushSubscription.optIn();
+        }
+      } catch (err) {
+        console.warn('OneSignal optIn error:', err);
+      }
+    };
+
+    if (window.OneSignal) {
+      void triggerOptIn(window.OneSignal);
+    } else {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(triggerOptIn);
+    }
+  } catch {}
+
+  return granted || (typeof Notification !== 'undefined' && Notification.permission === 'granted');
 };
 
 export const sendOneSignalNotification = async (

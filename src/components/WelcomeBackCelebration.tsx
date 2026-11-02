@@ -59,22 +59,6 @@ export const WelcomeBackCelebration = () => {
 
   return (
     <>
-      {/* Top Celebratory Announcement Banner (Silent) */}
-      {showBanner && (
-        <div className="relative z-40 bg-gradient-to-r from-primary via-indigo-600 to-primary text-white px-4 py-2 text-xs sm:text-sm font-medium shadow-md flex items-center justify-between">
-          <div className="mx-auto flex flex-wrap items-center justify-center gap-2 text-center">
-            <span>Tekrardan Hoş Geldiniz! Sizleri çok özledik ❤️</span>
-          </div>
-          <button
-            onClick={dismissBanner}
-            className="p-1 rounded hover:bg-white/20 transition shrink-0 ml-2"
-            title="Duyuruyu Kapat"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
       {/* Main Welcoming Modal (Silent, Clean) */}
       <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
         <DialogContent className="max-w-xl p-0 overflow-hidden border border-primary/25 shadow-2xl bg-card">
