@@ -248,100 +248,115 @@ const Header = () => {
             </button>
           )}
 
-          <button
-            type="button"
-            title="Mesajlar"
-            aria-label="Mesajlar"
-            onClick={() => navigate('/messages')}
-            className="relative hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95 sm:inline-flex"
-          >
-            <MessageSquare className="h-4 w-4" />
-            {unreadMessages > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-background">
-                {unreadMessages}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            title="Duyurular"
-            aria-label="Duyurular"
-            onClick={() => navigate('/announcements')}
-            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95"
-          >
-            <Megaphone className="h-4 w-4" />
-            {unreadAnnouncements > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-background">
-                {unreadAnnouncements}
-              </span>
-            )}
-          </button>
-
-          {user && (
+          {/* Unified horizontal capsule toolbar collecting all icons together */}
+          <div className="flex items-center gap-0.5 sm:gap-1 rounded-full border border-border/70 bg-card/75 p-1 shadow-xs backdrop-blur-md">
             <button
               type="button"
-              aria-label={deviceNotificationsEnabled ? 'Cihaz bildirimlerini kapat' : 'Cihaz bildirimlerini aç'}
-              title={deviceNotificationsEnabled ? 'Cihaz bildirimleri açık (kapatmak için tıklayın)' : 'Cihaz bildirimlerini aç'}
-              onClick={() => void handleBellClick()}
-              className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 active:scale-95 ${
-                deviceNotificationsEnabled
-                  ? 'border-primary/40 bg-primary/15 text-primary shadow-primary/20'
-                  : 'border-border/60 bg-card/60 text-muted-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary'
-              }`}
+              title="Mesajlar"
+              aria-label="Mesajlar"
+              onClick={() => navigate('/messages')}
+              className="relative hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-primary/15 hover:text-primary active:scale-90 sm:inline-flex"
             >
-              {deviceNotificationsEnabled ? (
-                <BellRing className="h-4 w-4 text-primary animate-pulse" />
-              ) : (
-                <Bell className="h-4 w-4" />
+              <MessageSquare className="h-4 w-4" />
+              {unreadMessages > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-card">
+                  {unreadMessages}
+                </span>
               )}
             </button>
-          )}
 
-          <button
-            type="button"
-            title={theme === 'light' ? 'Karanlık moda geç' : 'Aydınlık moda geç'}
-            aria-label="Tema değiştir"
-            onClick={toggleTheme}
-            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95"
-          >
-            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-          </button>
+            <button
+              type="button"
+              title="Duyurular"
+              aria-label="Duyurular"
+              onClick={() => navigate('/announcements')}
+              className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-primary/15 hover:text-primary active:scale-90"
+            >
+              <Megaphone className="h-4 w-4" />
+              {unreadAnnouncements > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-card">
+                  {unreadAnnouncements}
+                </span>
+              )}
+            </button>
 
-          <button
-            type="button"
-            title="Profilim"
-            aria-label="Profilim"
-            onClick={() => navigate('/profile')}
-            className="relative hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border/60 bg-card/60 text-muted-foreground backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-95 sm:inline-flex"
-          >
-            <User className="h-4 w-4" />
-          </button>
-
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+            {user && (
               <button
                 type="button"
-                title="Çıkış Yap"
-                aria-label="Çıkış Yap"
-                className="relative hidden h-9 w-9 shrink-0 items-center justify-center rounded-full border border-destructive/25 bg-destructive/5 text-destructive/80 backdrop-blur-sm shadow-xs transition-all duration-200 hover:scale-105 hover:border-destructive/40 hover:bg-destructive/15 hover:text-destructive active:scale-95 md:inline-flex"
+                aria-label={deviceNotificationsEnabled ? 'Cihaz bildirimlerini kapat' : 'Cihaz bildirimlerini aç'}
+                title={deviceNotificationsEnabled ? 'Cihaz bildirimleri açık (kapatmak için tıklayın)' : 'Cihaz bildirimlerini aç'}
+                onClick={() => void handleBellClick()}
+                className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
+                  deviceNotificationsEnabled
+                    ? 'bg-primary/20 text-primary shadow-xs'
+                    : 'text-muted-foreground hover:bg-primary/15 hover:text-primary'
+                }`}
               >
-                <LogOut className="h-4 w-4" />
+                {deviceNotificationsEnabled ? (
+                  <BellRing className="h-4 w-4 text-primary animate-pulse" />
+                ) : (
+                  <Bell className="h-4 w-4" />
+                )}
               </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Çıkış yapmak istediğinize emin misiniz?</AlertDialogTitle>
-                <AlertDialogDescription>Panelden çıkış yapılacaktır.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>İptal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleLogout} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Çıkış Yap
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            )}
+
+            <button
+              type="button"
+              title={theme === 'light' ? 'Karanlık moda geç' : 'Aydınlık moda geç'}
+              aria-label="Tema değiştir"
+              onClick={toggleTheme}
+              className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-primary/15 hover:text-primary active:scale-90"
+            >
+              {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+            </button>
+
+            <button
+              type="button"
+              title="Profilim"
+              aria-label="Profilim"
+              onClick={() => navigate('/profile')}
+              className="relative hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-primary/15 hover:text-primary active:scale-90 sm:inline-flex"
+            >
+              <User className="h-4 w-4" />
+            </button>
+
+            {/* Subtle separator before logout */}
+            <div className="mx-0.5 hidden h-4 w-px bg-border/80 md:block" />
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  type="button"
+                  title="Çıkış Yap"
+                  aria-label="Çıkış Yap"
+                  className="relative hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-destructive/80 transition-all duration-200 hover:bg-destructive/15 hover:text-destructive active:scale-90 md:inline-flex"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-2xl border-border/80 bg-card/95 backdrop-blur-xl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-lg font-bold text-foreground">
+                    EconNotes'tan Çıkış Yapılsın mı?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm text-muted-foreground leading-relaxed">
+                    EconNotes hesabınızdan güvenli bir şekilde çıkış yapılacaktır. Oturumunuzu sonlandırmak istediğinizi onaylıyor musunuz?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="gap-2 sm:gap-0">
+                  <AlertDialogCancel className="rounded-xl border-border/70 hover:bg-muted font-medium">
+                    Vazgeç
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleLogout}
+                    className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 font-medium"
+                  >
+                    Onaylıyorum, Çıkış Yap
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
       </div>
     </header>
