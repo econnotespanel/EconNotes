@@ -1037,6 +1037,7 @@ export const InteractiveVideoStudio: React.FC<InteractiveVideoStudioProps> = ({
     course: material.course || '',
     totalDurationSec,
     layoutMode,
+    accessibilitySettings,
   });
   liveRef.current = {
     currentScene,
