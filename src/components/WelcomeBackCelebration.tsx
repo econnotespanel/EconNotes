@@ -189,11 +189,7 @@ export const WelcomeBackCelebration = () => {
       {showBanner && (
         <div className="relative z-40 bg-gradient-to-r from-primary via-indigo-600 to-primary text-white px-4 py-2 text-xs sm:text-sm font-medium shadow-md flex items-center justify-between">
           <div className="mx-auto flex flex-wrap items-center justify-center gap-2 text-center">
-            <span className="inline-flex items-center gap-1 font-bold">
-              <Zap className="h-4 w-4 text-amber-300 animate-pulse" />
-              Altyapı Güçlendirildi:
-            </span>
-            <span>Cloudflare Geçişi & Performans İyileştirmesi Tamamlandı — Tekrardan Hoş Geldiniz! Sizleri çok özledik ❤️</span>
+            <span>Tekrardan Hoş Geldiniz! Sizleri çok özledik ❤️</span>
             <button
               onClick={startMusic}
               className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full bg-white/20 hover:bg-white/30 text-[11px] font-semibold transition"
@@ -223,7 +219,7 @@ export const WelcomeBackCelebration = () => {
             {/* Sparkles Badge */}
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-primary/15 text-primary border border-primary/30 mb-3 shadow-sm">
               <Sparkles className="h-3.5 w-3.5 text-amber-500 animate-spin" style={{ animationDuration: '4s' }} />
-              Altyapı Güçlendirildi • Cloudflare Geçişi Tamamlandı
+              EconNotes Yeniden Sizlerle
             </div>
 
             <DialogHeader className="space-y-2">

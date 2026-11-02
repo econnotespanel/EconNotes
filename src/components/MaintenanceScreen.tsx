@@ -72,10 +72,6 @@ const MaintenanceScreen = ({
       <header className="relative z-10 mx-auto w-full max-w-6xl px-6 py-6 flex items-center justify-between border-b border-border/40">
         <div className="flex items-center gap-3">
           <EconLogo className="h-8 w-36 sm:h-9 sm:w-44" />
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Altyapı Güçlendirildi
-          </span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -90,12 +86,6 @@ const MaintenanceScreen = ({
 
       {/* Main Content */}
       <main className="relative z-10 mx-auto w-full max-w-4xl px-6 py-12 flex flex-col items-center text-center">
-        {/* Status Badge */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/25 mb-6 shadow-sm">
-          <Zap className="h-3.5 w-3.5" />
-          <span>Cloudflare Geçişi & Performans İyileştirmesi Tamamlandı</span>
-        </div>
-
         {/* Title */}
         <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-foreground max-w-2xl leading-tight">
           {title || "EconNotes Yenilenen Altyapısıyla Saat 22:00'da Açılıyor!"}
