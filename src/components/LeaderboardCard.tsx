@@ -1,4 +1,4 @@
-﻿import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
@@ -23,7 +23,7 @@ const LeaderboardCard = () => {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-      <Card className="glass-card aurora-border">
+      <Card className="glass-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" /> Puanım

@@ -385,7 +385,7 @@ const Dashboard = () => {
         </div>
 
         {quota && !quota.is_admin && (
-          <Card className={`glass-card aurora-border ${!quota.can_download ? 'border-destructive/50' : ''}`}>
+          <Card className={`glass-card ${!quota.can_download ? 'border-destructive/50' : ''}`}>
             <CardContent className="p-5">
               <div className="flex flex-col md:flex-row md:items-center gap-4">
                 <div className={`p-3 rounded-2xl ${quota.can_download ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
