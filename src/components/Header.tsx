@@ -214,7 +214,7 @@ const Header = () => {
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {user && (
             <div className="mr-1 hidden rounded-2xl border border-border/60 bg-card/60 px-3.5 py-1 text-right backdrop-blur-sm md:flex md:flex-col justify-center shadow-xs">
-              <span className="text-[12px] font-semibold leading-tight text-foreground truncate max-w-[150px]">
+              <span className="text-[12px] font-semibold leading-tight text-foreground whitespace-nowrap">
                 {getGreeting()}, {displayName}
               </span>
               {profile?.last_login && (
