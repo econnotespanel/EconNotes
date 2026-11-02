@@ -104,7 +104,7 @@ self.onmessage = async (event: MessageEvent) => {
         const outputTensor = results.output || Object.values(results)[0];
         if (outputTensor?.data) {
           const trimmed = trimAndSmoothClausePcm(outputTensor.data as Float32Array, sampleRate);
-          pcmBuffers.push(trimmed.buffer);
+          pcmBuffers.push(trimmed.buffer as ArrayBuffer);
         }
       }
 

@@ -11,7 +11,7 @@ export const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABL
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   global: {
-    fetch: async (input, init = {}) => {
+    fetch: async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 30000);
       const callerSignal = init.signal;

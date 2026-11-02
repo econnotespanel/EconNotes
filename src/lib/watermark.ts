@@ -108,7 +108,7 @@ export async function addWatermarkToImage(imageUrl: string, fullName: string): P
 
   const stamp = await createAttributionStamp(fullName);
   const stampImage = new Image();
-  stampImage.src = URL.createObjectURL(new Blob([stamp], { type: 'image/png' }));
+  stampImage.src = URL.createObjectURL(new Blob([stamp as BlobPart], { type: 'image/png' }));
   try {
     await new Promise<void>((resolve, reject) => {
       stampImage.onload = () => resolve();
