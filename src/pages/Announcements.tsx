@@ -106,7 +106,13 @@ const Announcements = () => {
 
       // Broadcast announcement notification to all devices in real-time
       try {
-        const bc = supabase.channel('realtime-announcements-push');
+        window.dispatchEvent(new CustomEvent('econnotes-local-announcement', {
+          detail: { title: data.title, content: data.content },
+        }));
+
+        const bc = supabase.channel('realtime-announcements-push', {
+          config: { broadcast: { self: true } },
+        });
         if (bc.state === 'joined') {
           void bc.send({
             type: 'broadcast',

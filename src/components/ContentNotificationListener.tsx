@@ -5,22 +5,26 @@ import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/dev
 import { toast } from 'sonner';
 import { displayDeviceNotification, playChime } from '@/lib/showNotification';
 
-const POLL_INTERVAL_MS = 12_000;
+const POLL_INTERVAL_MS = 6_000;
 
 const ContentNotificationListener = () => {
   const { user } = useAuth();
   const polling = useRef(false);
+  const notifiedIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!user || !('Notification' in window)) return;
+    if (!user || typeof window === 'undefined') return;
 
     // Dispatches a notification reliably across both Mobile PWA/Android (Service Worker showNotification)
     // and Desktop Windows/Mac (Notification constructor)
     const notify = async (title: string, body: string, tag: string, path: string) => {
+      if (notifiedIds.current.has(tag)) return;
+      notifiedIds.current.add(tag);
+
       // 1. Play subtle audio chime
       playChime();
 
-      // 2. Show in-app interactive notification banner so active users immediately see it
+      // 2. Show in-app interactive toast notification
       toast(title, {
         description: body,
         duration: 9000,
@@ -30,85 +34,57 @@ const ContentNotificationListener = () => {
         },
       });
 
-      if (typeof window === 'undefined' || !('Notification' in window)) return;
-      if (Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
-
       // 3. Dispatch to device operating system notification center (Windows, Mac, Android, iOS PWA)
-      await displayDeviceNotification(title, {
-        body,
-        tag,
-        data: { url: path },
-      });
+      if ('Notification' in window && Notification.permission === 'granted' && isDeviceNotificationEnabled(user.id)) {
+        await displayDeviceNotification(title, {
+          body,
+          tag,
+          data: { url: path },
+        });
+      }
     };
 
-    // Instant real-time listener: fires with zero delay when an admin inserts a new announcement
+    // Instant real-time listener: broadcast with self: true ensures all tabs and open devices get it
     const channel = supabase
-      .channel('realtime-announcements-push')
+      .channel('realtime-announcements-push', {
+        config: { broadcast: { self: true } },
+      })
       .on(
         'broadcast',
         { event: 'new-announcement' },
         (payload) => {
           const ann = payload.payload as any;
-          if (ann) {
+          if (ann && ann.title) {
             void notify(
               `📢 EconNotes Duyuru: ${ann.title}`,
-              ann.content ? ann.content.slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
-              `announcement-bc-${Date.now()}`,
+              ann.content ? String(ann.content).slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
+              `announcement-bc-${ann.id || Date.now()}`,
               '/announcements'
-            );
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'announcements' },
-        (payload) => {
-          const newAnn = payload.new as any;
-          if (newAnn) {
-            void notify(
-              `📢 EconNotes Duyuru: ${newAnn.title}`,
-              newAnn.content ? newAnn.content.slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
-              `announcement-${newAnn.id}`,
-              '/announcements'
-            );
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'notes' },
-        (payload) => {
-          const updatedNote = payload.new as any;
-          const oldNote = payload.old as any;
-          if (
-            updatedNote &&
-            updatedNote.status === 'approved' &&
-            oldNote?.status !== 'approved'
-          ) {
-            void notify(
-              '📚 Yeni Not Yayımlandı',
-              updatedNote.title || 'Yeni ders notu onaylandı.',
-              `note-${updatedNote.id}`,
-              '/notes'
             );
           }
         }
       )
       .subscribe();
 
-    // Polling fallback to catch any notifications missed during network offline moments
+    // Polling fallback to catch any notifications across all open devices
     const pollForContent = async () => {
-      if (polling.current || !isDeviceNotificationEnabled(user.id) || Notification.permission !== 'granted') return;
+      if (polling.current || !isDeviceNotificationEnabled(user.id)) return;
       polling.current = true;
       try {
         const noteCursorKey = getNotificationCursorKey(user.id, 'notes');
         const announcementCursorKey = getNotificationCursorKey(user.id, 'announcements');
-        const noteCursor = localStorage.getItem(noteCursorKey);
-        const announcementCursor = localStorage.getItem(announcementCursorKey);
-        if (!noteCursor || !announcementCursor) {
-          const thirtySecondsAgo = new Date(Date.now() - 30_000).toISOString();
-          if (!noteCursor) localStorage.setItem(noteCursorKey, thirtySecondsAgo);
-          if (!announcementCursor) localStorage.setItem(announcementCursorKey, thirtySecondsAgo);
+        
+        let noteCursor = localStorage.getItem(noteCursorKey);
+        let announcementCursor = localStorage.getItem(announcementCursorKey);
+        const defaultCursor = new Date(Date.now() - 30_000).toISOString();
+
+        if (!noteCursor) {
+          noteCursor = defaultCursor;
+          localStorage.setItem(noteCursorKey, defaultCursor);
+        }
+        if (!announcementCursor) {
+          announcementCursor = defaultCursor;
+          localStorage.setItem(announcementCursorKey, defaultCursor);
         }
 
         const [notesResult, announcementsResult] = await Promise.all([
@@ -148,11 +124,34 @@ const ContentNotificationListener = () => {
       }
     };
 
+    // Run initial poll
     void pollForContent();
     const interval = window.setInterval(() => void pollForContent(), POLL_INTERVAL_MS);
 
+    // Also trigger poll immediately when user grants or toggles notification permission
+    const onPreferenceChanged = () => {
+      void pollForContent();
+    };
+    window.addEventListener('econnotes-device-notification-preference', onPreferenceChanged);
+
+    // Also listen to local announcement events sent from the current tab
+    const onLocalAnnouncement = (e: any) => {
+      const ann = e.detail;
+      if (ann && ann.title) {
+        void notify(
+          `📢 EconNotes Duyuru: ${ann.title}`,
+          ann.content ? String(ann.content).slice(0, 120) : 'Yeni bir duyuru paylaşıldı.',
+          `announcement-local-${ann.id || Date.now()}`,
+          '/announcements'
+        );
+      }
+    };
+    window.addEventListener('econnotes-local-announcement', onLocalAnnouncement);
+
     return () => {
       window.clearInterval(interval);
+      window.removeEventListener('econnotes-device-notification-preference', onPreferenceChanged);
+      window.removeEventListener('econnotes-local-announcement', onLocalAnnouncement);
       void supabase.removeChannel(channel);
     };
   }, [user]);

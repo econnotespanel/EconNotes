@@ -22,77 +22,102 @@ export const displayDeviceNotification = async (
   options: {
     body?: string;
     icon?: string;
-    badge?: string;
-    tag?: string;
     data?: { url?: string; [key: string]: any };
-    vibrate?: number[];
-    renotify?: boolean;
+    tag?: string;
   } = {}
 ): Promise<boolean> => {
-  let displayed = false;
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return false;
+  }
 
-  const mergedOptions = {
-    body: options.body || '',
-    icon: options.icon || '/icons/icon-192x192.png',
-    badge: options.badge || '/icons/icon-192x192.png',
-    vibrate: options.vibrate || [200, 100, 200],
-    data: options.data || { url: '/announcements' },
-    tag: options.tag || `econnotes-${Date.now()}`,
-    renotify: options.renotify !== false,
+  if (Notification.permission !== 'granted') {
+    return false;
+  }
+
+  const iconUrl = options.icon || `${window.location.origin}/icons/icon-192x192.png`;
+  const targetUrl = options.data?.url || '/announcements';
+  const tag = options.tag || `econnotes-${Date.now()}`;
+  const body = options.body || '';
+
+  // Minimal, cross-platform options (avoids Android silent failure with badge/vibrate and iOS WebKit errors)
+  const notificationOptions: NotificationOptions = {
+    body,
+    icon: iconUrl,
+    tag,
+    data: { url: targetUrl },
   };
 
-  // 1. Mobile (Android & iOS PWA) via ServiceWorkerRegistration.showNotification
+  let delivered = false;
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+  // 1. DESKTOP (Windows, macOS, Linux): Native browser Notification constructor
+  // This guarantees an instant visible toast bubble on Windows / Mac desktops without depending on SW state
+  if (!isMobile) {
+    try {
+      const n = new Notification(title, notificationOptions);
+      n.onclick = () => {
+        window.focus();
+        window.location.assign(targetUrl);
+        n.close();
+      };
+      delivered = true;
+    } catch (desktopErr) {
+      console.warn('Desktop Notification constructor error:', desktopErr);
+    }
+  }
+
+  // 2. MOBILE (Android Chrome, iOS PWA) & Service Worker
+  // Android Chrome strictly requires ServiceWorkerRegistration.showNotification()
   if ('serviceWorker' in navigator) {
     try {
-      let reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) {
-        reg = await navigator.serviceWorker.register('/sw.js');
-      }
-      if (reg && !reg.active) {
-        reg = await Promise.race([
-          navigator.serviceWorker.ready,
-          new Promise<any>((res) => setTimeout(() => res(reg), 2500)),
-        ]);
-      }
+      // First try immediate ready registration
+      const reg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<any>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+
       if (reg && typeof reg.showNotification === 'function') {
-        await reg.showNotification(title, mergedOptions);
-        displayed = true;
+        await reg.showNotification(title, notificationOptions);
+        delivered = true;
+      } else {
+        // Fallback to getRegistration
+        const fallbackReg = await navigator.serviceWorker.getRegistration();
+        if (fallbackReg && typeof fallbackReg.showNotification === 'function') {
+          await fallbackReg.showNotification(title, notificationOptions);
+          delivered = true;
+        }
       }
-    } catch (e) {
-      console.warn('SW showNotification error:', e);
+    } catch (swErr) {
+      console.warn('Service Worker showNotification error:', swErr);
     }
 
     // Secondary postMessage channel directly to active Service Worker controller
-    if (!displayed && navigator.serviceWorker.controller) {
+    if (navigator.serviceWorker.controller) {
       try {
         navigator.serviceWorker.controller.postMessage({
           type: 'SHOW_NOTIFICATION',
           title,
-          options: mergedOptions,
+          options: notificationOptions,
         });
-        displayed = true;
-      } catch (e) {
-        console.warn('SW postMessage error:', e);
+        delivered = true;
+      } catch (pmErr) {
+        console.warn('Service Worker postMessage error:', pmErr);
       }
     }
   }
 
-  // 2. Desktop (Windows & Mac) or browser Notification constructor
-  if (!displayed && typeof window !== 'undefined' && 'Notification' in window) {
+  // 3. Fallback on mobile if service worker failed but Notification constructor exists
+  if (!delivered && !isMobile) {
     try {
-      const n = new Notification(title, mergedOptions);
-      n.onclick = () => {
+      const fallbackN = new Notification(title, notificationOptions);
+      fallbackN.onclick = () => {
         window.focus();
-        if (mergedOptions.data?.url) {
-          window.location.assign(mergedOptions.data.url);
-        }
-        n.close();
+        window.location.assign(targetUrl);
+        fallbackN.close();
       };
-      displayed = true;
-    } catch (e) {
-      console.warn('Notification constructor error:', e);
-    }
+      delivered = true;
+    } catch {}
   }
 
-  return displayed;
+  return delivered;
 };
