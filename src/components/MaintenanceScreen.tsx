@@ -97,51 +97,20 @@ const MaintenanceScreen = ({
             "Sınav haftası yoğunluğu öncesinde EconNotes'u çok daha hızlı, kesintisiz ve yüksek kapasiteli Cloudflare sunucularına taşıdık. Tüm notlar ve veriler eksiksiz şekilde korundu. Son teknik kontrollerin ardından sistemimiz bu akşam saat 22:00'da tüm öğrencilerin kullanımına açılacaktır."}
         </p>
 
-        {/* Live Countdown Timer */}
-        <div className="mt-10 w-full max-w-lg">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center justify-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-primary animate-spin" style={{ animationDuration: '6s' }} />
-            Canlı Geri Sayım
-          </p>
-
-          {timeLeft.isFinished ? (
-            <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-bold text-lg flex items-center justify-center gap-2 shadow-lg">
-              <CheckCircle2 className="h-6 w-6" />
-              Süre doldu! Sayfa yenileniyor ve sistem açılıyor...
+        {/* Live Status Card */}
+        <div className="mt-8 w-full max-w-lg">
+          <div className="p-6 rounded-2xl border border-primary/30 bg-primary/5 shadow-lg backdrop-blur-sm flex flex-col items-center justify-center gap-2.5">
+            <div className="flex items-center gap-2 text-primary font-bold text-sm sm:text-base">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+              </span>
+              Altyapı Güçlendirme Çalışması Sürüyor
             </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
-              {/* Hours */}
-              <div className="flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border border-border/80 bg-card/90 shadow-lg backdrop-blur-sm">
-                <span className="font-mono text-4xl sm:text-5xl font-black text-foreground tracking-tight">
-                  {pad(timeLeft.hours)}
-                </span>
-                <span className="mt-1 text-[11px] sm:text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-                  Saat
-                </span>
-              </div>
-
-              {/* Minutes */}
-              <div className="flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border border-primary/40 bg-primary/5 shadow-lg backdrop-blur-sm">
-                <span className="font-mono text-4xl sm:text-5xl font-black text-primary tracking-tight">
-                  {pad(timeLeft.minutes)}
-                </span>
-                <span className="mt-1 text-[11px] sm:text-xs font-semibold uppercase text-primary/80 tracking-wider">
-                  Dakika
-                </span>
-              </div>
-
-              {/* Seconds */}
-              <div className="flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border border-border/80 bg-card/90 shadow-lg backdrop-blur-sm">
-                <span className="font-mono text-4xl sm:text-5xl font-black text-foreground tracking-tight">
-                  {pad(timeLeft.seconds)}
-                </span>
-                <span className="mt-1 text-[11px] sm:text-xs font-semibold uppercase text-muted-foreground tracking-wider">
-                  Saniye
-                </span>
-              </div>
-            </div>
-          )}
+            <p className="text-xs text-muted-foreground max-w-md">
+              Teknik optimizasyon tamamlanır tamamlanmaz sistemimiz kesintisiz olarak açılacaktır. Sayfa periyodik olarak kontrol edilmektedir.
+            </p>
+          </div>
         </div>
 
         {/* Feature / Improvement Cards */}

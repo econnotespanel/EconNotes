@@ -46,13 +46,13 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
     return <>{children}</>;
   }
 
-  // Before target time, show the countdown screen for all non-admin visitors
+  // While maintenance is active, show the maintenance screen for all non-admin visitors
   if (isBeforeTarget) {
     return (
       <MaintenanceScreen
-        closedUntil="2026-11-03T20:00:00+03:00"
-        title="EconNotes Sınav Haftası Kapasite Güçlendirmesi"
-        message="Sınav haftasının yaklaşmasıyla oluşan aşırı yoğunluk nedeniyle sunucu altyapımızda kapasite artırımı ve güçlendirme çalışması yapılmaktadır. Tüm ders notlarınız ve hesaplarınız güvendedir, sistemimiz bu akşam saat 20:00'da tüm öğrencilerin kullanımına açılacaktır."
+        closedUntil="2026-11-04T06:00:00+03:00"
+        title="EconNotes Sınav Dönemi Altyapı Güçlendirmesi"
+        message="Sınav döneminin yaklaşmasıyla oluşan anlık yoğunluk nedeniyle sunucu altyapımızda kapasite artırımı ve güçlendirme çalışması yapılmaktadır. Tüm ders notlarınız, materyalleriniz ve hesaplarınız güvendedir. Çalışmalar tamamlanır tamamlanmaz sistemimiz kesintisiz olarak erişime açılacaktır."
       />
     );
   }
