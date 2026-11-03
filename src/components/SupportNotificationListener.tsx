@@ -27,7 +27,7 @@ const SupportNotificationListener = () => {
 
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.ready.then((reg) => {
-              reg.showNotification(title, {
+              const options: NotificationOptions & { vibrate: number[]; renotify: boolean } = {
                 body,
                 tag,
                 icon: '/icons/icon-192x192.png',
@@ -35,7 +35,8 @@ const SupportNotificationListener = () => {
                 vibrate: [150, 60, 150],
                 data: { url: path },
                 renotify: true,
-              });
+              };
+              return reg.showNotification(title, options);
             }).catch(() => {});
             return;
           }
