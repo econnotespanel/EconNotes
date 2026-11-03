@@ -19,6 +19,7 @@
 
 ## Veritabanı dayanıklılığı ve maliyet
 
+- [x] Sunucu kurtarma talebini Lovable ekibine ilet — talep iletildi; kurtarma tamamlandığı doğrulanmadı
 - [ ] Yedek geri yüklemesi sonrası pahalı sorguları ve disk kullanımını ölç — Lovable Cloud erişilemez olduğu için engelli
-- [ ] Mini geçişini maliyet onayıyla tamamla — sohbet içi geçiş aracı yok; Cloud kurtarma ve kullanıcı onayı gerekiyor
+- [ ] Mini geçişini maliyet onayıyla tamamla — sohbet içi geçiş aracı mevcut; önce Cloud kurtarma, ardından maliyet onayı gerekiyor
 - [ ] Ölçülen darboğazları optimize et ve geçiş sonrası ölçümleri karşılaştır — veritabanı erişimi ve başlangıç ölçümü gerekiyor
