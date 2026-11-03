@@ -16,3 +16,9 @@
 - [ ] Çalışma Stüdyosu görünümünü ve mobil kullanımını geliştir
 - [ ] 90 gün sonra dönen kullanıcılar için yenilikler turu ekle
 - [ ] Telefon ve masaüstü görünümlerini doğrula
+
+## Veritabanı dayanıklılığı ve maliyet
+
+- [ ] Yedek geri yüklemesi sonrası pahalı sorguları ve disk kullanımını ölç — Lovable Cloud erişilemez olduğu için engelli
+- [ ] Mini geçişini maliyet onayıyla tamamla — sohbet içi geçiş aracı yok; Cloud kurtarma ve kullanıcı onayı gerekiyor
+- [ ] Ölçülen darboğazları optimize et ve geçiş sonrası ölçümleri karşılaştır — veritabanı erişimi ve başlangıç ölçümü gerekiyor
