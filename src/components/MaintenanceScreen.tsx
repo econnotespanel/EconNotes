@@ -13,7 +13,7 @@ interface MaintenanceScreenProps {
   mode?: string | null;
 }
 
-const DEFAULT_TARGET_TIME = new Date('2026-11-02T22:00:00+03:00').getTime();
+const DEFAULT_TARGET_TIME = new Date('2026-11-03T20:00:00+03:00').getTime();
 
 const MaintenanceScreen = ({
   closedUntil,
