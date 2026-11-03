@@ -3,14 +3,14 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 
-const ACTIVE_SUPABASE_URL = "https://ylhjmchzejvpeaacajxm.supabase.co";
-const ACTIVE_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlsaGptY2h6ZWp2cGVhYWNhanhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MTEzNzMsImV4cCI6MjEwNzM4NzM3M30.SaRpC8H3apyazaZm0Gp1YY17ileMs83vWmgDXhTffuw";
+const ACTIVE_SUPABASE_URL = "https://htjmuzogayyufewirvlp.supabase.co";
+const ACTIVE_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh0am11em9nYXl5dWZld2lydmxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2NDEwOTAsImV4cCI6MjA5MDIxNzA5MH0.IDqFOhUj0CGBjIrz85KGxAJEyXcOR-pS4UhwlZo9Juo";
 
 const envUrl = import.meta.env.VITE_SUPABASE_URL;
 const envKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-export const SUPABASE_URL = (envUrl && !envUrl.includes("htjmuzogayyufewirvlp")) ? envUrl : ACTIVE_SUPABASE_URL;
-export const SUPABASE_PUBLISHABLE_KEY = (envKey && envKey !== "******" && !envKey.includes("htjmuzogayyufewirvlp")) ? envKey : ACTIVE_SUPABASE_KEY;
+export const SUPABASE_URL = (envUrl && envUrl.startsWith("http")) ? envUrl : ACTIVE_SUPABASE_URL;
+export const SUPABASE_PUBLISHABLE_KEY = (envKey && envKey !== "******" && envKey.length > 20) ? envKey : ACTIVE_SUPABASE_KEY;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
