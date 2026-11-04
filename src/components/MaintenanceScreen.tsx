@@ -6,7 +6,6 @@ import {
   RefreshCw,
   LogIn,
   CheckCircle2,
-  AlertTriangle,
   Server,
   Cloud,
   Database,
@@ -60,10 +59,6 @@ const MaintenanceScreen = ({
       <header className="relative z-10 mx-auto w-full max-w-5xl px-4 sm:px-6 py-5 flex items-center justify-between border-b border-border/50 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <EconLogo className="h-8 w-36 sm:h-9 sm:w-44" />
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-            Sistem Durumu (Status)
-          </span>
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -78,15 +73,6 @@ const MaintenanceScreen = ({
 
       {/* Main Content */}
       <main className="relative z-10 mx-auto w-full max-w-4xl px-4 sm:px-6 py-8 sm:py-12 flex flex-col items-center">
-        {/* Live Status Pill */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs sm:text-sm font-semibold mb-5 shadow-sm">
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
-          </span>
-          Altyapı Güçlendirme & Bakım Çalışması Devam Ediyor
-        </div>
-
         {/* Hero Title */}
         <h1 className="text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-foreground text-center max-w-3xl leading-tight">
           {title || "EconNotes Sistem Durumu & Altyapı Kontrol Merkezi"}
@@ -121,10 +107,7 @@ const MaintenanceScreen = ({
                     <Cloud className="h-4 w-4" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                      Cloud & Veritabanı
-                      <span className="text-[10px] text-muted-foreground font-mono">htjmuzog...</span>
-                    </div>
+                    <div className="text-sm font-semibold text-foreground">Cloud & Veritabanı</div>
                     <div className="text-xs text-muted-foreground">Kapasite & WAL kurtarma</div>
                   </div>
                 </div>
@@ -181,7 +164,7 @@ const MaintenanceScreen = ({
                   Altyapı Mühendislik Ekibi İnceleme ve Kurtarma Çalışması
                 </h3>
                 <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                  Lovable ve Cloud altyapı mühendisleriyle resmi eskalasyon tamamlandı. Veritabanı servisleri ayağa kaldırılmakta olup son entegrasyon kontrolleri sürdürülmektedir.
+                  Bulut ve sunucu altyapı mühendisleriyle koordinasyon sağlandı. Veritabanı servisleri ayağa kaldırılmakta olup son entegrasyon kontrolleri sürdürülmektedir.
                 </p>
               </div>
 
@@ -289,10 +272,10 @@ const MaintenanceScreen = ({
               <span>{isRefreshing ? 'Kontrol Ediliyor...' : 'Durumu Yenile'}</span>
             </Button>
 
-            <a href="https://x.com/EconNotes" target="_blank" rel="noopener noreferrer">
+            <a href="https://x.com/econnotess" target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground hover:text-foreground">
                 <ExternalLink className="h-3.5 w-3.5" />
-                Resmi Duyurular (@EconNotes)
+                Resmi Duyurular (@econnotess)
               </Button>
             </a>
 
