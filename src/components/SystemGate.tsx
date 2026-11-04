@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import MaintenanceScreen from '@/components/MaintenanceScreen';
 import WelcomeBackCelebration from '@/components/WelcomeBackCelebration';
 
-// 20:00 Turkey time (UTC+3) on 2026-11-03
-const TARGET_REOPEN_TIME = new Date('2026-11-03T20:00:00+03:00').getTime();
+/**
+ * Maintenance gate for EconNotes platform.
+ * While active, visitors are shielded with the official Status & Incident Control Screen.
+ * Administrators retain full access via /login and /admin routes.
+ */
+const IS_MAINTENANCE_ACTIVE = true;
 
 // Paths that stay open so administrators can sign in and manage
 const ADMIN_ACCESSIBLE_PATHS = ['/login', '/admin'];
@@ -13,14 +17,6 @@ const ADMIN_ACCESSIBLE_PATHS = ['/login', '/admin'];
 const SystemGate = ({ children }: { children: React.ReactNode }) => {
   const { isAdmin, loading } = useAuth();
   const { pathname } = useLocation();
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const isBeforeTarget = now < TARGET_REOPEN_TIME;
 
   // While checking auth state, wait briefly to know if the user is an admin
   if (loading) {
@@ -46,18 +42,12 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
     return <>{children}</>;
   }
 
-  // While maintenance is active, show the maintenance screen for all non-admin visitors
-  if (isBeforeTarget) {
-    return (
-      <MaintenanceScreen
-        closedUntil="2026-11-04T06:00:00+03:00"
-        title="EconNotes Sınav Dönemi Altyapı Güçlendirmesi"
-        message="Sınav döneminin yaklaşmasıyla oluşan anlık yoğunluk nedeniyle sunucu altyapımızda kapasite artırımı ve güçlendirme çalışması yapılmaktadır. Tüm ders notlarınız, materyalleriniz ve hesaplarınız güvendedir. Çalışmalar tamamlanır tamamlanmaz sistemimiz kesintisiz olarak erişime açılacaktır."
-      />
-    );
+  // While maintenance is active, show the incident control screen for all non-admin visitors
+  if (IS_MAINTENANCE_ACTIVE) {
+    return <MaintenanceScreen />;
   }
 
-  // Once 22:00 is reached, all users have access + welcome music & celebration
+  // Once maintenance is deactivated, all users have access
   return (
     <>
       <WelcomeBackCelebration />
