@@ -9,7 +9,7 @@ import WelcomeBackCelebration from '@/components/WelcomeBackCelebration';
  * While active, visitors are shielded with the official Status & Incident Control Screen.
  * Administrators retain full access via /login and /admin routes.
  */
-const IS_MAINTENANCE_ACTIVE = true;
+const IS_MAINTENANCE_ACTIVE = false;
 
 // Paths that stay open so administrators can sign in and manage
 const ADMIN_ACCESSIBLE_PATHS = ['/login', '/admin'];

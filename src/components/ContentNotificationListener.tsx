@@ -5,7 +5,7 @@ import { getNotificationCursorKey, isDeviceNotificationEnabled } from '@/lib/dev
 import { toast } from 'sonner';
 import { displayDeviceNotification, playChime } from '@/lib/showNotification';
 
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 35_000;
 
 // Persistent deduplication cache to prevent duplicate alerts across re-renders & multiple event channels
 const handledNotificationKeys = new Set<string>();

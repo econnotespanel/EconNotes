@@ -1,4 +1,4 @@
 // EconNotes uygulama versiyonu. Her güncellemede otomatik olarak artar.
 // Format: vMAJOR.MINOR.PATCH
-export const APP_VERSION = 'v2.20.76';
+export const APP_VERSION = 'v2.20.77';
 export const APP_VERSION_LABEL = `Versiyon ${APP_VERSION}`;

@@ -43,8 +43,8 @@ export const WelcomeBackCelebration = () => {
     };
 
     checkActivation();
-    const interval = setInterval(checkActivation, 2000);
-    return () => clearInterval(interval);
+    // Only check once on mount, no need to poll every 2 seconds
+    return () => {};
   }, []);
 
   const handleClose = () => {

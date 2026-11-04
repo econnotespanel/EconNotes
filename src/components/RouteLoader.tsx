@@ -77,10 +77,16 @@ export const prefetchRoutes = () => {
   };
 
   idle(() => {
-    void import('@/pages/Dashboard');
-    void import('@/pages/Notes');
-    void import('@/pages/Announcements');
-    void import('@/pages/Messages');
-    void import('@/pages/Profile');
+    // Stagger imports smoothly to keep the main thread fluid and responsive
+    const routes = [
+      () => import('@/pages/Dashboard'),
+      () => import('@/pages/Notes'),
+      () => import('@/pages/Announcements'),
+      () => import('@/pages/Messages'),
+      () => import('@/pages/Profile'),
+    ];
+    routes.forEach((load, index) => {
+      window.setTimeout(() => void load(), index * 250);
+    });
   });
 };
