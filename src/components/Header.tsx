@@ -16,6 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import PlayStationSymbols from '@/components/PlayStationSymbols';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,10 +199,11 @@ const Header = () => {
       className="sticky top-0 z-50 w-full border-b border-border/70 bg-card/90 shadow-[0_8px_24px_hsl(var(--foreground)/0.04)] backdrop-blur-xl"
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/70 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/80 to-transparent" />
       <div className="flex h-[4.5rem] min-w-0 items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
         <div className="ml-14 flex min-w-0 cursor-pointer items-center rounded-xl px-2 py-1.5 transition-colors hover:bg-primary/5 md:ml-0" onClick={() => navigate('/')}>
           <EconLogo className="h-6 w-24 sm:h-7 sm:w-32" />
+          <PlayStationSymbols size="xs" variant="color" animated className="hidden sm:inline-flex ml-2.5 opacity-80 hover:opacity-100 transition-opacity" />
           {seasonalTheme && (
             <span className="ml-2 hidden items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary lg:inline-flex">
               {flagThemeIds.has(seasonalTheme.id) ? (
@@ -216,10 +218,16 @@ const Header = () => {
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {user && (
-            <div className="mr-1 hidden rounded-2xl border border-border/60 bg-card/60 px-3.5 py-1 text-right backdrop-blur-sm md:flex md:flex-col justify-center shadow-xs">
-              <span className="text-[12px] font-semibold leading-tight text-foreground whitespace-nowrap">
-                {getGreeting()}, {displayName}
-              </span>
+            <div
+              onClick={() => navigate('/profile')}
+              className="mr-1 hidden rounded-2xl border border-border/70 bg-card/70 px-3.5 py-1 text-right backdrop-blur-md md:flex md:flex-col justify-center shadow-xs cursor-pointer hover:border-primary/50 hover:bg-card/90 transition-all duration-200"
+            >
+              <div className="flex items-center justify-end gap-1.5">
+                <span className="text-[12px] font-semibold leading-tight text-foreground whitespace-nowrap">
+                  {getGreeting()}, {displayName}
+                </span>
+                <span className="h-1.5 w-1.5 rounded-full bg-[#00e5ff] shadow-[0_0_6px_#00e5ff] animate-pulse" title="PlayStation Network Bağlı" />
+              </div>
               {profile?.last_login && (
                 <span className="text-[10px] text-muted-foreground leading-tight">Son: {formatLastLogin()}</span>
               )}
@@ -228,14 +236,14 @@ const Header = () => {
 
           {points && (
             <button
-              onClick={() => navigate('/')}
-              title={`${points.points} puan • ${points.current_streak} günlük seri`}
-              className="hidden h-9 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary shadow-xs backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:bg-primary/20 active:scale-95 lg:inline-flex"
+              onClick={() => navigate('/points')}
+              title={`${points.points} XP • ${points.current_streak} günlük seri • PlayStation Kupa Sistemi`}
+              className="hidden h-9 items-center gap-1.5 rounded-full border border-primary/35 bg-gradient-to-r from-primary/15 via-primary/10 to-transparent px-3 text-xs font-bold text-primary shadow-xs backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-primary/60 hover:shadow-[0_0_15px_rgba(0,112,209,0.3)] active:scale-95 lg:inline-flex"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>{points.points}</span>
+              <span className="text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]">🏆</span>
+              <span>{points.points} XP</span>
               {points.current_streak > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-warning font-semibold">
+                <span className="inline-flex items-center gap-0.5 text-warning font-bold border-l border-primary/20 pl-1.5 ml-0.5">
                   <Flame className="h-3.5 w-3.5" />{points.current_streak}
                 </span>
               )}

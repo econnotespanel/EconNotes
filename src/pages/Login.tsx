@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import PlayStationSymbols from '@/components/PlayStationSymbols';
 import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck, Megaphone, X, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -272,35 +273,47 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row relative">
-      {/* Left panel - features */}
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden" style={{ background: theme === 'dark' ? 'linear-gradient(135deg, hsl(217, 91%, 12%), hsl(221, 83%, 18%), hsl(213, 80%, 22%))' : 'linear-gradient(135deg, hsl(217, 91%, 20%), hsl(221, 83%, 30%), hsl(213, 80%, 35%))' }}>
+      {/* Left panel - PlayStation aesthetic features */}
+      <div
+        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden"
+        style={{
+          background: theme === 'dark'
+            ? 'linear-gradient(135deg, #070b14 0%, #002566 50%, #004fb8 100%)'
+            : 'linear-gradient(135deg, #001e50 0%, #003791 50%, #0070d1 100%)'
+        }}
+      >
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-6">
             <EconLogo allWhite className="h-12 w-56" />
           </div>
-          <p className="text-white/80 text-lg mb-12">EconNotes ile notların hep yanında!</p>
+          <PlayStationSymbols size="sm" variant="color" animated className="mb-8 opacity-90" />
+          <p className="text-white/90 text-lg mb-10 font-medium">EconNotes PlayStation deneyimiyle tüm ders notların yanında!</p>
 
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white">Platform Özellikleri</h2>
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <span>Platform Özellikleri</span>
+              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/15 text-white font-mono">PS5 VIBE</span>
+            </h2>
             {features.map((f, i) => (
-              <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10">
-                <div className="p-2 rounded-lg bg-white/10">
-                  <f.icon className="h-6 w-6 text-white/90" />
+              <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 transition-all duration-300 hover:bg-white/15 hover:border-white/30 hover:translate-x-1">
+                <div className="p-2.5 rounded-lg bg-white/15 shadow-xs">
+                  <f.icon className="h-6 w-6 text-white" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-white">{f.title}</h3>
-                  <p className="text-sm text-white/70">{f.desc}</p>
+                  <p className="text-sm text-white/75">{f.desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
         <div className="relative z-10 flex items-center justify-between">
-          <p className="text-white/50 text-sm">EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
-          <span className="text-white/30 text-xs">{APP_VERSION}</span>
+          <p className="text-white/60 text-xs">EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
+          <span className="text-white/40 text-xs font-mono">{APP_VERSION}</span>
         </div>
-        {/* Decorative gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/20" />
+        {/* Decorative ambient lighting */}
+        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#00f0ff]/20 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#003791]/30 blur-3xl pointer-events-none" />
       </div>
 
       {/* Right panel - login form */}
@@ -308,7 +321,7 @@ const Login = () => {
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
-          className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-sm hover:shadow-md transition-all duration-300 text-sm font-medium text-muted-foreground hover:text-foreground"
+          className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-xs hover:shadow-md transition-all duration-300 text-sm font-medium text-muted-foreground hover:text-foreground"
           aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
         >
           <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
@@ -316,9 +329,10 @@ const Login = () => {
           <span className="text-xs">{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
         </button>
 
-        {/* Mobile logo */}
-        <div className="lg:hidden flex items-center gap-3 mb-6">
-          <EconLogo className="h-12 w-48" />
+        {/* Mobile logo with PlayStation Symbols */}
+        <div className="lg:hidden flex flex-col items-center gap-2 mb-6">
+          <EconLogo className="h-10 w-44" />
+          <PlayStationSymbols size="xs" variant="color" animated />
         </div>
 
         <div className="w-full max-w-sm space-y-6">

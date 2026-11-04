@@ -19,6 +19,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { APP_VERSION } from '@/lib/version';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
 import EconLogo from '@/components/EconLogo';
+import PlayStationSymbols from '@/components/PlayStationSymbols';
 import { toast } from 'sonner';
 import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 
@@ -250,10 +251,13 @@ const Sidebar = () => {
           <NavContent />
         </div>
 
-        <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
+        <div className="p-3 border-t border-[hsl(var(--sidebar-border))] bg-card/40 backdrop-blur-sm">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
-            <EconLogo className="h-5 w-24" />
-            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)]">Versiyon {APP_VERSION}</span>
+            <div className="flex items-center gap-2">
+              <EconLogo className="h-4 w-20" />
+              <PlayStationSymbols size="xs" variant="color" className="opacity-70" />
+            </div>
+            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)] font-semibold">{APP_VERSION}</span>
           </div>
           <AlertDialog>
             <AlertDialogTrigger asChild>

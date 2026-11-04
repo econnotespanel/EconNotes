@@ -6,6 +6,7 @@ import {
   ShieldCheck, Lock, KeyRound, EyeOff, ServerCog, ArrowRight, Sparkles, Download,
 } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
+import PlayStationSymbols from '@/components/PlayStationSymbols';
 import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '@/lib/version';
 
@@ -32,9 +33,12 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
         <nav className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:px-4">
-          <EconLogo className="h-7 w-28 sm:h-8 sm:w-36" />
+          <div className="flex items-center gap-2">
+            <EconLogo className="h-7 w-28 sm:h-8 sm:w-36" />
+            <PlayStationSymbols size="xs" variant="color" animated className="hidden sm:inline-flex opacity-80" />
+          </div>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               onClick={toggleTheme}
@@ -44,24 +48,28 @@ const Landing = () => {
               <span aria-hidden>{theme === 'dark' ? '☀️' : '🌙'}</span><span className="sr-only sm:not-sr-only sm:ml-1">{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
             </button>
             <Button asChild variant="outline" size="sm"><Link to="/login">Giriş Yap</Link></Button>
-            <Button asChild size="sm" className="hidden min-[390px]:inline-flex"><Link to="/register">Kayıt Ol</Link></Button>
+            <Button asChild size="sm" className="hidden min-[390px]:inline-flex bg-primary hover:bg-primary/90 text-white shadow-xs"><Link to="/register">Kayıt Ol</Link></Button>
           </div>
         </nav>
       </header>
 
       <main className="mx-auto max-w-6xl space-y-12 px-4 py-10 sm:space-y-16 sm:py-12">
         {/* Hero */}
-        <section className="space-y-6 text-center animate-fade-in">
-          <h1 className="mx-auto max-w-3xl font-display text-3xl font-bold leading-tight text-foreground sm:text-4xl md:text-5xl">
-            Daha iyi notlar, <span className="gradient-text">daha güçlü bir sen.</span>
+        <section className="space-y-6 text-center animate-fade-in relative">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 border border-primary/25 text-primary shadow-xs">
+            <span className="h-2 w-2 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
+            <span>PLAYSTATION EXPERIENCE HUB</span>
+            <PlayStationSymbols size="xs" variant="color" />
+          </div>
+          <h1 className="mx-auto max-w-3xl font-display text-3xl font-extrabold leading-tight text-foreground sm:text-4xl md:text-5xl tracking-tight">
+            Daha iyi notlar, <span className="bg-gradient-to-r from-[#003791] via-[#0070d1] to-[#00f0ff] bg-clip-text text-transparent">daha güçlü bir sen.</span>
           </h1>
           <p className="mx-auto max-w-2xl text-base text-muted-foreground md:text-lg">
-            Ders notları, çalışma araçları, sınav hazırlığı ve iletişim. EconNotes, öğrencilerin akademik süreçlerini
-            düzenli, erişilebilir ve etkileşimli hale getirir.
+            Ders notları, interaktif stüdyo, sınav hazırlığı ve üniversite topluluğu. EconNotes PlayStation akıcılığı ve hızıyla akademik hayatını bir üst seviyeye taşır.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg">
-              <Link to="/register">Başlayalım! <ArrowRight className="ml-2 h-4 w-4" /></Link>
+            <Button asChild size="lg" className="bg-gradient-to-r from-[#003791] to-[#0070d1] hover:from-[#002f7a] hover:to-[#005fb8] text-white shadow-md shadow-blue-500/20">
+              <Link to="/register">Hemen Başlayalım <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
             <Button asChild size="lg" variant="outline"><Link to="/login">Zaten Hesabım Var</Link></Button>
           </div>
