@@ -13,8 +13,12 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   global: {
     fetch: async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const controller = new AbortController();
-      // Fast, responsive 12s timeout to prevent freezing on slow/hung requests
-      const timeout = window.setTimeout(() => controller.abort(), 12000);
+      // 30s timeout to prevent freezing on slow/hung requests; abort with a
+      // readable reason so callers see a timeout message, not a bare AbortError
+      const timeout = window.setTimeout(
+        () => controller.abort(new DOMException('İstek zaman aşımına uğradı (30 sn).', 'TimeoutError')),
+        30000,
+      );
       const callerSignal = init.signal;
       const abortFromCaller = () => controller.abort();
       callerSignal?.addEventListener('abort', abortFromCaller, { once: true });

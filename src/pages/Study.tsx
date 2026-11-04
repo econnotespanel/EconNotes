@@ -213,7 +213,7 @@ const Study = () => {
   const load = async () => {
     setLoading(true);
     const [m, own, platform, progress] = await Promise.all([
-      supabase.from('study_materials').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }),
+      supabase.from('study_materials').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(100),
       supabase.from('notes').select('id,title,course,description,department,semester,user_id,status,file_name,file_url,file_type').eq('user_id', user!.id),
       supabase.from('notes').select('id,title,course,description,department,semester,user_id,status,file_name,file_url,file_type').eq('status', 'approved').limit(200),
       supabase.from('study_progress').select('id,material_id,score,total_questions,completed_at').eq('user_id', user!.id).order('completed_at', { ascending: false }),
