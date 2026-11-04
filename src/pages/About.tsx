@@ -1,16 +1,20 @@
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, Users, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone, ShieldCheck } from 'lucide-react';
+import { BookOpen, Users, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone, Sparkles, Monitor, Target, Bot } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
+import { APP_VERSION_LABEL } from '@/lib/version';
 
 const About = () => {
   const features = [
-    { icon: FileText, title: 'Ders Notu Paylaşımı', desc: 'PDF, PNG, JPG, PPTX formatlarında ders notlarınızı paylaşın ve keşfedin.' },
-    { icon: GraduationCap, title: 'Ders Klasörleri', desc: 'Notlar derslerine göre organize edilir, kolayca bulabilirsiniz.' },
-    { icon: MessageSquare, title: 'Mesajlaşma', desc: 'Arkadaşlarınızla güvenli özel mesajlaşma imkanı.' },
-    { icon: Megaphone, title: 'Duyurular', desc: 'Önemli akademik duyuruları anlık olarak takip edin.' },
-    { icon: Shield, title: 'Güvenlik', desc: 'Şifreli not paylaşımı ve gelişmiş moderasyon sistemi.' },
-    { icon: Users, title: 'Topluluk', desc: 'Arkadaşlık sistemi ile akademik ağınızı genişletin.' },
+    { icon: Sparkles, title: 'Çalışma Stüdyosu & Yapay Zeka', desc: 'İnteraktif ikili video dersleri, akıllı tahta şemaları, slayt özetleri ve sınav odaklı bilgi kartları.' },
+    { icon: FileText, title: 'Ders Notu Paylaşımı', desc: 'PDF, slayt ve dokümanları lisanslı ve güvenli görüntüleyici ile kolayca keşfedin.' },
+    { icon: GraduationCap, title: 'Ders & Sınıf Klasörleri', desc: 'Notlar fakülte, bölüm, sınıf ve derslerine göre anında organize edilir.' },
+    { icon: Bot, title: 'Yapay Zeka Akademik Asistan', desc: 'Dersleriniz, formülleriniz ve sınav konularınız için 7/24 akıllı rehberlik.' },
+    { icon: Target, title: 'KPSS & Sınav Hazırlık', desc: 'Hedef belirleme, deneme takibi ve kişiselleştirilmiş soru tekrarları.' },
+    { icon: Monitor, title: 'Masaüstü & Mobil Uygulama', desc: 'Windows kurulumlu masaüstü istemcisi ve akıcı Apple Liquid Glass mobil deneyimi.' },
+    { icon: MessageSquare, title: 'Güvenli Mesajlaşma', desc: 'Öğrenci arkadaşlarınızla anlık, şifreli ve güvenli akademik iletişim.' },
+    { icon: Megaphone, title: 'Akademik Duyurular', desc: 'Bölüm ve ders duyurularını anlık bildirimlerle kaçırmadan takip edin.' },
+    { icon: Shield, title: 'Veri & Lisans Güvenliği', desc: 'Gelişmiş moderasyon, kötüye kullanım filtreleri ve şifreli veri saklama.' },
   ];
 
   return (
@@ -21,26 +25,31 @@ const About = () => {
             <EconLogo className="mx-auto h-14 w-64 max-w-full sm:h-16 sm:w-72" />
           </div>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            EconNotes, üniversite öğrencilerinin ders notlarına daha iyi, hızlı ve pratik bir şekilde ulaşabilmesini sağlayan bir ders notu paylaşım modülüdür.
+            EconNotes, üniversite öğrencilerinin ders notlarına daha hızlı ulaşmasını ve yapay zeka destekli Çalışma Stüdyosu ile sınavlara en verimli şekilde hazırlanmasını sağlayan kapsamlı bir akademik platformdur.
           </p>
         </div>
 
         <Card className="glass-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5 text-primary" /> Hakkımızda
+              <BookOpen className="h-5 w-5 text-primary" /> EconNotes Hakkında
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiş bir akademik platform olup, 
+              EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiş modern bir akademik platform olup, 
               öğrencilerin ders notlarını organize bir şekilde paylaşmalarını, akademik kaynaklara kolayca 
-              erişmelerini ve birbirleriyle iletişim kurmalarını sağlamaktadır.
+              erişmelerini, yapay zeka destekli Çalışma Stüdyosu ile sınavlara hazırlanmalarını ve birbirleriyle güvenle 
+              iletişim kurmalarını sağlamaktadır.
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Platformumuz, ders notlarının sınıf, bölüm ve ders bazında sınıflandırılmasını, 
-              güvenli mesajlaşma sistemini, duyuru takibini ve akademik asistan desteğini 
-              tek bir çatı altında sunmaktadır.
+              Platformumuz; ders notlarının sınıf, bölüm ve ders bazında filtrelenmesini, interaktif video dersleri, 
+              bilgi kartları, kısa sınavlar, KPSS hazırlık paneli, güvenli mesajlaşma sistemini, duyuru takibini ve 
+              7/24 yapay zeka akademik asistan desteğini tek bir çatı altında sunmaktadır.
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Windows masaüstü uygulaması ve iOS / Android tam ekran mobil uyumluluğu (PWA) ile öğrenciler internet 
+              bağlantısı olan her cihazdan kesintisiz bir çalışma deneyimine ulaşabilirler.
             </p>
           </CardContent>
         </Card>
@@ -124,11 +133,16 @@ const About = () => {
           </CardContent>
         </Card>
 
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-2 pt-2 pb-6">
           <p className="text-xs text-muted-foreground">
-            © 2026 EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
+            © 2026 EconNotes — Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
           </p>
-          <p className="text-[10px] text-muted-foreground/60">Versiyon 2.5.0</p>
+          <div className="flex items-center justify-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-xs font-semibold text-primary font-mono shadow-xs">
+              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+              {APP_VERSION_LABEL}
+            </span>
+          </div>
         </div>
       </div>
     </Layout>
