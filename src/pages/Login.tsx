@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
-import PlayStationSymbols from '@/components/PlayStationSymbols';
 import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck, Megaphone, X, Sparkles } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -283,17 +282,13 @@ const Login = () => {
         }}
       >
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-8">
             <EconLogo allWhite className="h-12 w-56" />
           </div>
-          <PlayStationSymbols size="sm" variant="color" animated className="mb-8 opacity-90" />
-          <p className="text-white/90 text-lg mb-10 font-medium">EconNotes PlayStation deneyimiyle tüm ders notların yanında!</p>
+          <p className="text-white/90 text-lg mb-10 font-medium">EconNotes ile tüm ders notların yanında!</p>
 
           <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <span>Platform Özellikleri</span>
-              <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/15 text-white font-mono">PS5 VIBE</span>
-            </h2>
+            <h2 className="text-xl font-bold text-white">Platform Özellikleri</h2>
             {features.map((f, i) => (
               <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 transition-all duration-300 hover:bg-white/15 hover:border-white/30 hover:translate-x-1">
                 <div className="p-2.5 rounded-lg bg-white/15 shadow-xs">
@@ -329,10 +324,9 @@ const Login = () => {
           <span className="text-xs">{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
         </button>
 
-        {/* Mobile logo with PlayStation Symbols */}
-        <div className="lg:hidden flex flex-col items-center gap-2 mb-6">
+        {/* Mobile logo */}
+        <div className="lg:hidden flex items-center gap-3 mb-6">
           <EconLogo className="h-10 w-44" />
-          <PlayStationSymbols size="xs" variant="color" animated />
         </div>
 
         <div className="w-full max-w-sm space-y-6">

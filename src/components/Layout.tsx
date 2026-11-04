@@ -3,7 +3,6 @@ import Sidebar from '@/components/Sidebar';
 import SupportNotificationListener from '@/components/SupportNotificationListener';
 import ContentNotificationListener from '@/components/ContentNotificationListener';
 import DeviceNotificationBanner from '@/components/DeviceNotificationBanner';
-import PlayStationSymbols from '@/components/PlayStationSymbols';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -25,10 +24,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         </div>
       </main>
       <footer className="relative z-10 md:ml-64 flex flex-col sm:flex-row items-center justify-between gap-2 px-6 py-4 text-xs text-muted-foreground border-t border-border/50 bg-card/30 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <PlayStationSymbols size="xs" variant="color" className="opacity-70" />
-          <span>EconNotes PlayStation Experience</span>
-        </div>
+        <span>EconNotes</span>
         <span>Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</span>
       </footer>
     </div>

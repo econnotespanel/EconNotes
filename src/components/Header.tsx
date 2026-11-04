@@ -16,7 +16,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
-import PlayStationSymbols from '@/components/PlayStationSymbols';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -203,7 +202,6 @@ const Header = () => {
       <div className="flex h-[4.5rem] min-w-0 items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
         <div className="ml-14 flex min-w-0 cursor-pointer items-center rounded-xl px-2 py-1.5 transition-colors hover:bg-primary/5 md:ml-0" onClick={() => navigate('/')}>
           <EconLogo className="h-6 w-24 sm:h-7 sm:w-32" />
-          <PlayStationSymbols size="xs" variant="color" animated className="hidden sm:inline-flex ml-2.5 opacity-80 hover:opacity-100 transition-opacity" />
           {seasonalTheme && (
             <span className="ml-2 hidden items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary lg:inline-flex">
               {flagThemeIds.has(seasonalTheme.id) ? (

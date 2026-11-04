@@ -15,7 +15,6 @@ import DailyMissions from '@/components/DailyMissions';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { APP_VERSION } from '@/lib/version';
 import LoadingMessage from '@/components/ui/loading-message';
-import PlayStationSymbols from '@/components/PlayStationSymbols';
 import { cn } from '@/lib/utils';
 
 
@@ -153,31 +152,22 @@ const Dashboard = () => {
       label: 'Toplam Notlar',
       value: stats.notes,
       icon: FileText,
-      trophy: '🏆',
-      trophyTier: 'Platin Kupa',
-      color: 'text-[#0090ff]',
-      badgeBg: 'bg-blue-500/10 border-blue-500/25 text-[#0090ff]',
-      borderHover: 'hover:border-blue-500/50 hover:shadow-[0_12px_32px_rgba(0,144,255,0.2)]',
+      color: 'text-primary',
+      borderHover: 'hover:border-primary/50 hover:shadow-[0_8px_24px_hsl(var(--primary)/0.12)]',
     },
     {
       label: 'Paylaşılan Notlar',
       value: stats.notes,
       icon: Users,
-      trophy: '🥇',
-      trophyTier: 'Altın Kupa',
-      color: 'text-emerald-400',
-      badgeBg: 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400',
-      borderHover: 'hover:border-emerald-500/50 hover:shadow-[0_12px_32px_rgba(16,185,129,0.2)]',
+      color: 'text-emerald-500',
+      borderHover: 'hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(16,185,129,0.12)]',
     },
     {
       label: 'Duyurular',
       value: stats.announcements,
       icon: Megaphone,
-      trophy: '📢',
-      trophyTier: 'Canlı Ağ',
-      color: 'text-amber-400',
-      badgeBg: 'bg-amber-500/10 border-amber-500/25 text-amber-400',
-      borderHover: 'hover:border-amber-500/50 hover:shadow-[0_12px_32px_rgba(245,158,11,0.2)]',
+      color: 'text-amber-500',
+      borderHover: 'hover:border-amber-500/50 hover:shadow-[0_8px_24px_rgba(245,158,11,0.12)]',
     },
   ];
 
@@ -347,39 +337,29 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        {/* PlayStation 5 Control Center Hero Greeting */}
-        <div className="relative overflow-hidden rounded-3xl border border-primary/25 bg-gradient-to-r from-card/95 via-card/85 to-primary/10 p-5 sm:p-7 shadow-lg backdrop-blur-xl">
-          <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-gradient-to-br from-[#003791]/25 via-[#0070d1]/20 to-transparent blur-3xl" />
-          <div className="pointer-events-none absolute right-6 bottom-4 opacity-15 dark:opacity-25 hidden md:block">
-            <PlayStationSymbols size="lg" variant="color" />
-          </div>
+        {/* PlayStation Gradient Hero Header */}
+        <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-card via-card to-primary/10 p-5 sm:p-7 shadow-sm">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-gradient-to-br from-[#003791]/20 via-[#0070d1]/15 to-transparent blur-2xl" />
 
           <div className="relative z-10 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="space-y-1.5">
-              <div className="inline-flex items-center gap-2">
-                <span className="ps-pill shadow-xs">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
-                  PS5 CONTROL HUB
-                </span>
-                <PlayStationSymbols size="xs" variant="color" className="opacity-90" />
-              </div>
-              <h1 className="text-2xl font-extrabold sm:text-3xl text-foreground tracking-tight">
-                Hoş Geldin, {displayName.split(' ')[0]} 🎮
+            <div className="space-y-1">
+              <h1 className="text-2xl font-bold sm:text-3xl text-foreground tracking-tight">
+                Merhaba, {displayName.split(' ')[0]}
               </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground max-w-xl">
-                EconNotes akademik ekosisteminde ders notlarını incele, stüdyoda interaktif çalış ve sınav hedeflerine adım adım ilerle.
+              <p className="text-sm text-muted-foreground max-w-xl">
+                Bugün küçük bir adım, hedeflerine büyük bir katkı. Notlarını keşfet ve verimli çalışmaya devam et.
               </p>
             </div>
 
             {academicWeek.week && (
-              <div className="flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 backdrop-blur-md shadow-xs">
-                <div className="p-2.5 rounded-xl bg-primary/20 text-primary">
+              <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-2.5 backdrop-blur-sm">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
                   <GraduationCap className="h-5 w-5" />
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-foreground">{academicWeek.week}. Hafta</p>
                   <div className="flex items-center gap-1.5 justify-end">
-                    {academicWeek.semester && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/20 text-primary">{academicWeek.semester}</span>}
+                    {academicWeek.semester && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">{academicWeek.semester}</span>}
                     {academicWeek.label && <span className="text-[10px] text-muted-foreground">{academicWeek.label}</span>}
                   </div>
                 </div>
@@ -388,79 +368,63 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* PlayStation 5 Activity Cards (▲ ● ✕ ■) */}
+        {/* PlayStation Gradient Quick Access Cards */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
               label: 'Notları Keşfet',
-              detail: 'Dersine ve sınavına uygun kaynaklara göz at.',
+              detail: 'Dersine uygun kaynaklara göz at.',
               icon: BookOpen,
               path: '/notes',
-              shape: '▲',
-              tag: 'DERS PORTALI',
-              glow: 'hover:border-emerald-500/50 hover:shadow-[0_16px_36px_-10px_rgba(0,230,153,0.3)]',
-              iconClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
-              tagClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25',
+              iconClass: 'bg-primary/10 text-primary',
+              hoverGlow: 'hover:border-primary/40 hover:shadow-[0_8px_24px_hsl(var(--primary)/0.12)]',
             },
             {
               label: 'Çalışma Stüdyosu',
-              detail: 'İnteraktif video dersi ve akıllı tahta araçları.',
+              detail: 'Notlarından yeni çalışma araçları üret.',
               icon: Brain,
               path: '/study',
-              shape: '●',
-              tag: 'İNTERAKTİF STÜDYO',
-              glow: 'hover:border-red-500/50 hover:shadow-[0_16px_36px_-10px_rgba(255,59,92,0.3)]',
-              iconClass: 'bg-red-500/15 text-red-400 border-red-500/25',
-              tagClass: 'text-red-400 bg-red-500/10 border-red-500/25',
+              iconClass: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
+              hoverGlow: 'hover:border-cyan-500/40 hover:shadow-[0_8px_24px_rgba(6,182,212,0.12)]',
             },
             {
               label: 'KPSS Merkezi',
-              detail: 'Testler, denemeler ve sınav soruları.',
+              detail: 'Sorularla sınava hazırlanmaya devam et.',
               icon: Target,
               path: '/kpss',
-              shape: '✕',
-              tag: 'SINAV MODU',
-              glow: 'hover:border-blue-500/50 hover:shadow-[0_16px_36px_-10px_rgba(0,144,255,0.3)]',
-              iconClass: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
-              tagClass: 'text-blue-400 bg-blue-500/10 border-blue-500/25',
+              iconClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+              hoverGlow: 'hover:border-indigo-500/40 hover:shadow-[0_8px_24px_rgba(99,102,241,0.12)]',
             },
             {
-              label: 'Öğrenci Mesajları',
-              detail: 'Arkadaşlarınla anında mesajlaş ve yardımlaş.',
+              label: 'Mesajlar',
+              detail: 'Arkadaşlarınla iletişimde kal.',
               icon: MessageSquare,
               path: '/messages',
-              shape: '■',
-              tag: 'ÖĞRENCİ AĞI',
-              glow: 'hover:border-pink-500/50 hover:shadow-[0_16px_36px_-10px_rgba(255,51,136,0.3)]',
-              iconClass: 'bg-pink-500/15 text-pink-400 border-pink-500/25',
-              tagClass: 'text-pink-400 bg-pink-500/10 border-pink-500/25',
+              iconClass: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+              hoverGlow: 'hover:border-sky-500/40 hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)]',
             },
           ].map((item) => (
             <div
               key={item.path}
               onClick={() => navigate(item.path)}
               className={cn(
-                'group relative flex flex-col justify-between gap-4 p-5 rounded-2xl border border-border/70 bg-card/85 backdrop-blur-md cursor-pointer transition-all duration-300',
-                item.glow,
-                'hover:-translate-y-1 hover:scale-[1.01]'
+                'group relative flex flex-col justify-between gap-3 p-5 rounded-xl border border-border/70 bg-gradient-to-br from-card via-card to-card/90 cursor-pointer transition-all duration-200',
+                item.hoverGlow,
+                'hover:-translate-y-0.5'
               )}
             >
               <div className="flex items-center justify-between">
-                <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border tracking-wider', item.tagClass)}>
-                  <span className="font-mono text-xs">{item.shape}</span>
-                  <span>{item.tag}</span>
-                </span>
-                <span className={cn('p-2.5 rounded-xl border transition-transform duration-300 group-hover:scale-110', item.iconClass)}>
+                <span className={cn('p-2.5 rounded-lg transition-transform duration-200 group-hover:scale-105', item.iconClass)}>
                   <item.icon className="h-5 w-5" />
                 </span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-hover:translate-x-1 group-hover:text-foreground" />
               </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center justify-between font-bold text-foreground group-hover:text-primary transition-colors">
-                  <span>{item.label}</span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:translate-x-1 group-hover:text-primary" />
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+              <div>
+                <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-sm sm:text-base">
+                  {item.label}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {item.detail}
                 </p>
               </div>
@@ -468,7 +432,7 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* PlayStation 5 Stat Hub (Trophies & Real-time Metrics) */}
+        {/* PlayStation Gradient Stat Cards */}
         <div className="grid gap-4 sm:grid-cols-3">
           {loading
             ? (
@@ -494,24 +458,18 @@ const Dashboard = () => {
               <div
                 onClick={() => i < 2 ? navigate('/notes') : navigate('/announcements')}
                 className={cn(
-                  'group relative flex-1 p-5 rounded-2xl border border-border/70 bg-card/85 backdrop-blur-md cursor-pointer transition-all duration-300',
+                  'group relative flex-1 p-5 rounded-xl border border-border/70 bg-gradient-to-br from-card to-card/80 cursor-pointer transition-all duration-200',
                   stat.borderHover,
-                  'hover:-translate-y-1 hover:shadow-lg'
+                  'hover:-translate-y-0.5'
                 )}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border tracking-wide', stat.badgeBg)}>
-                    <span>{stat.trophy}</span>
-                    <span>{stat.trophyTier}</span>
-                  </span>
-                  <div className={cn('p-2.5 rounded-xl bg-muted/60', stat.color)}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-muted-foreground">{stat.label}</span>
+                  <div className={cn('p-2 rounded-lg bg-muted/60', stat.color)}>
                     <stat.icon className="h-5 w-5" />
                   </div>
                 </div>
-                <div className="space-y-0.5">
-                  <p className="text-3xl font-extrabold tracking-tight text-foreground">{stat.value}</p>
-                  <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
-                </div>
+                <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">{stat.value}</p>
               </div>
             </div>
           ))}
