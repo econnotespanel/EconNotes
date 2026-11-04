@@ -1,31 +1,69 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Download, Monitor, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import {
+  Download,
+  Monitor,
+  CheckCircle2,
+  Apple,
+  Smartphone,
+  Share,
+  PlusSquare,
+  MoreVertical,
+  Laptop,
+  Zap,
+  Sparkles,
+  ArrowRight,
+  ShieldCheck,
+  Info,
+  Check,
+  ChevronRight
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import EconLogo from '@/components/EconLogo';
+import EconLogo from "@/components/EconLogo";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
+type PlatformTab = "ios" | "android" | "desktop";
+
 const Install = () => {
   const navigate = useNavigate();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
-  const [showIosGuide, setShowIosGuide] = useState(false);
-  const [showAndroidGuide, setShowAndroidGuide] = useState(false);
+  const [activeTab, setActiveTab] = useState<PlatformTab>("ios");
+  const [detectedPlatform, setDetectedPlatform] = useState<PlatformTab>("desktop");
 
   useEffect(() => {
+    // Cihaz tespiti
+    const ua = navigator.userAgent || "";
+    const isIos = /iPad|iPhone|iPod/.test(ua);
+    const isAndroid = /Android/.test(ua);
+
+    if (isIos) {
+      setActiveTab("ios");
+      setDetectedPlatform("ios");
+    } else if (isAndroid) {
+      setActiveTab("android");
+      setDetectedPlatform("android");
+    } else {
+      setActiveTab("desktop");
+      setDetectedPlatform("desktop");
+    }
+
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
+
     window.addEventListener("beforeinstallprompt", handler);
+
     if (window.matchMedia("(display-mode: standalone)").matches) {
       setIsInstalled(true);
     }
+
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
@@ -33,137 +71,511 @@ const Install = () => {
     if (!deferredPrompt) return;
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") setIsInstalled(true);
+    if (outcome === "accepted") {
+      setIsInstalled(true);
+    }
     setDeferredPrompt(null);
   };
 
-  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const isAndroid = /Android/.test(navigator.userAgent);
-
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-lg space-y-6">
-        <div className="text-center space-y-2">
-          <EconLogo className="h-16 w-64 mx-auto" />
-          <h1 className="text-2xl font-bold text-foreground">EconNotes Uygulamasını İndir</h1>
-          <p className="text-muted-foreground">
-            EconNotes'u telefonuna veya bilgisayarına kurarak hızlı erişim sağla.
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between py-8 px-4 sm:px-6 relative overflow-x-hidden selection:bg-blue-600 selection:text-white">
+      {/* Arka plan yumuşak aydınlatması */}
+      <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-b from-blue-600/20 via-sky-600/10 to-transparent blur-3xl opacity-60 rounded-full" />
+      </div>
+
+      <div className="w-full max-w-3xl mx-auto space-y-8">
+        {/* Başlık ve Logo Alanı */}
+        <div className="text-center space-y-3 pt-2">
+          <div className="flex justify-center items-center">
+            <EconLogo className="h-14 sm:h-16 w-auto drop-shadow-md cursor-pointer transition-transform hover:scale-105" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white">
+            EconNotes Uygulamasını Yükleyin
+          </h1>
+          <p className="text-base sm:text-lg text-slate-300 max-w-xl mx-auto leading-relaxed">
+            Telefonunuza veya bilgisayarınıza saniyeler içinde ekleyin. Mağaza araması ve hafıza kaybı olmadan doğrudan ana ekranınızdan derslerinize çalışın.
           </p>
+
+          {/* Cihaz Algılama Bilgisi */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-950/60 border border-blue-500/30 text-xs sm:text-sm text-blue-300 font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            {detectedPlatform === "ios" && "Cihazınız iPhone / iPad (iOS) olarak algılandı"}
+            {detectedPlatform === "android" && "Cihazınız Android olarak algılandı"}
+            {detectedPlatform === "desktop" && "Cihazınız Bilgisayar (PC / Mac) olarak algılandı"}
+          </div>
         </div>
 
+        {/* Zaten Kurulu Durumu */}
         {isInstalled ? (
-          <Card>
-            <CardContent className="flex flex-col items-center py-8 space-y-3">
-              <CheckCircle2 className="h-12 w-12 text-green-500" />
-              <p className="text-lg font-semibold text-foreground">Uygulama Zaten Kurulu!</p>
-              <p className="text-sm text-muted-foreground text-center">
-                EconNotes uygulaması cihazınıza kurulmuş durumda.
-              </p>
-              <Button onClick={() => navigate("/")} className="mt-2">Panele Dön</Button>
+          <Card className="bg-slate-900/80 border border-emerald-500/30 backdrop-blur-md shadow-2xl">
+            <CardContent className="flex flex-col items-center py-10 px-6 text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-inner">
+                <CheckCircle2 className="h-9 w-9" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold text-white">Uygulama Cihazınızda Zaten Kurulu!</h3>
+                <p className="text-slate-300 text-sm max-w-md">
+                  EconNotes cihazınıza başarıyla eklenmiş durumda. Ana ekranınızdaki veya masaüstünüzdeki uygulama simgesine dokunarak hemen çalışmaya başlayabilirsiniz.
+                </p>
+              </div>
+              <div className="pt-2 flex flex-wrap gap-3 justify-center">
+                <Button
+                  onClick={() => navigate("/")}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 shadow-lg shadow-blue-600/30"
+                >
+                  Ana Sayfaya Git
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => navigate("/dashboard")}
+                  className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200"
+                >
+                  Çalışma Paneli
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : (
           <>
+            {/* Tek Tıkla Hızlı Kurulum (Tarayıcı PWA Prompt Hazırsa) */}
             {deferredPrompt && (
-              <Card className="border-primary">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Download className="h-5 w-5 text-primary" />
-                    Hızlı Kurulum
-                  </CardTitle>
-                  <CardDescription>Tek tıkla cihazına kur</CardDescription>
+              <div className="p-[1px] rounded-2xl bg-gradient-to-r from-blue-500 via-sky-400 to-indigo-500 shadow-xl shadow-blue-500/10">
+                <Card className="bg-slate-900/95 border-0 rounded-2xl overflow-hidden backdrop-blur-md">
+                  <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-5">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-400">
+                        <Download className="h-7 w-7" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                            Önerilen
+                          </span>
+                          <h3 className="text-lg font-bold text-white">Tek Tıkla Hemen Kur</h3>
+                        </div>
+                        <p className="text-sm text-slate-300">
+                          Tarayıcınız EconNotes'u anında yüklemeyi destekliyor. Butona basarak hemen masaüstünüze veya ana ekranınıza ekleyin.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleInstall}
+                      size="lg"
+                      className="w-full sm:w-auto shrink-0 bg-blue-600 hover:bg-blue-500 text-white font-bold px-7 py-6 shadow-lg shadow-blue-600/40 transition-all hover:scale-[1.02]"
+                    >
+                      <Download className="mr-2 h-5 w-5" />
+                      Uygulamayı Şimdi Kur
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Platform Seçim Sekmeleri */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                  Cihazınızı Seçin
+                </span>
+                <span className="text-xs text-slate-400">
+                  Adım adım kurulum kılavuzu
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 p-1.5 rounded-xl bg-slate-900/90 border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("ios")}
+                  className={`flex flex-col sm:flex-row items-center justify-center gap-2 py-3 px-3 rounded-lg font-medium text-xs sm:text-sm transition-all ${
+                    activeTab === "ios"
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                  }`}
+                >
+                  <Apple className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                  <span>iPhone / iPad</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("android")}
+                  className={`flex flex-col sm:flex-row items-center justify-center gap-2 py-3 px-3 rounded-lg font-medium text-xs sm:text-sm transition-all ${
+                    activeTab === "android"
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                  }`}
+                >
+                  <Smartphone className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                  <span>Android</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("desktop")}
+                  className={`flex flex-col sm:flex-row items-center justify-center gap-2 py-3 px-3 rounded-lg font-medium text-xs sm:text-sm transition-all ${
+                    activeTab === "desktop"
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                  }`}
+                >
+                  <Laptop className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                  <span>Bilgisayar</span>
+                </button>
+              </div>
+            </div>
+
+            {/* TAB 1: iOS (iPhone & iPad) */}
+            {activeTab === "ios" && (
+              <Card className="bg-slate-900/90 border border-slate-800/90 shadow-xl overflow-hidden">
+                <CardHeader className="bg-slate-850/50 border-b border-slate-800/80 pb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white">
+                        <Apple className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-bold text-white">
+                          iPhone ve iPad için Kurulum
+                        </CardTitle>
+                        <CardDescription className="text-slate-300 text-sm">
+                          Safari tarayıcısı üzerinden 10 saniyede ana ekranınıza ekleyin.
+                        </CardDescription>
+                      </div>
+                    </div>
+                    {detectedPlatform === "ios" && (
+                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                        <Check className="h-3.5 w-3.5 text-blue-400" />
+                        Cihazınız
+                      </span>
+                    )}
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  <Button onClick={handleInstall} className="w-full" size="lg">
-                    <Download className="mr-2 h-5 w-5" />
-                    Uygulamayı Kur
-                  </Button>
+
+                <CardContent className="p-6 space-y-6">
+                  {/* Önemli Uyarı Kutusu */}
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm flex items-start gap-3">
+                    <Info className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-amber-300">Önemli Hatırlatma:</span> Apple iOS kuralları gereği kurulum işlemi yalnızca <strong>Safari</strong> tarayıcısında çalışır. Eğer şu an Chrome, Instagram veya WhatsApp içinden bu sayfayı görüyorsanız, sağ alttaki menüden <strong>"Safari'de Aç"</strong> seçeneğini seçin.
+                    </div>
+                  </div>
+
+                  {/* Adımlar */}
+                  <div className="space-y-4">
+                    <InstructionStep
+                      stepNumber={1}
+                      title="Safari ile EconNotes'a girin"
+                      description="iPhone veya iPad'inizde Safari tarayıcısını açıp econnotes.online adresinde olduğunuzdan emin olun."
+                      badge="Safari"
+                    />
+
+                    <InstructionStep
+                      stepNumber={2}
+                      title="Alt kısımdaki Paylaş simgesine dokunun"
+                      description="Safari ekranının en altında (iPad'lerde sağ üstte) yer alan, kare içinden yukarı doğru ok çıkan Paylaş simgesine basın."
+                      badge="Paylaş (Share)"
+                      icon={<Share className="h-4 w-4 text-blue-400" />}
+                    />
+
+                    <InstructionStep
+                      stepNumber={3}
+                      title="Açılan menüden 'Ana Ekrana Ekle'yi seçin"
+                      description="Aşağı doğru açılan pencereyi parmağınızla hafifçe yukarı kaydırın. Gri kare içinde '+' işareti olan 'Ana Ekrana Ekle' seçeneğine dokunun."
+                      badge="Ana Ekrana Ekle"
+                      icon={<PlusSquare className="h-4 w-4 text-blue-400" />}
+                    />
+
+                    <InstructionStep
+                      stepNumber={4}
+                      title="Sağ üstteki mavi 'Ekle' butonuna dokunun"
+                      description="Sağ üst köşedeki 'Ekle' yazısına dokunarak işlemi tamamlayın. EconNotes logosu anında ana ekranınıza eklenecektir."
+                      badge="Ekle"
+                    />
+                  </div>
+
+                  {/* Tamamlandı Özeti */}
+                  <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <p className="text-sm text-slate-200">
+                      <strong>Kurulum Tamam!</strong> Artık ana ekrandaki EconNotes simgesine dokunarak, hiçbir tarayıcı çubuğu olmadan tam ekran bir uygulama deneyimiyle notlarınızı okuyabilirsiniz.
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* iOS Guide */}
-            <Card>
-              <CardHeader className="cursor-pointer pb-3" onClick={() => setShowIosGuide(!showIosGuide)}>
-                <CardTitle className="flex items-center justify-between text-lg">
-                  <span>iOS için İndir</span>
-                  {showIosGuide ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </CardTitle>
-                {isIos && (
-                  <CardDescription className="text-primary font-medium">Bu cihaz için önerilen yöntem</CardDescription>
-                )}
-              </CardHeader>
-              {showIosGuide && (
-                <CardContent className="space-y-3 pt-0">
-                  <div className="space-y-2">
-                    <Step number={1} text="Safari tarayıcısında bu sayfayı açın" />
-                    <Step number={2} text='Alt kısımdaki "Paylaş" (Share) butonuna dokunun' />
-                    <Step number={3} text='"Ana Ekrana Ekle" (Add to Home Screen) seçeneğini bulun' />
-                    <Step number={4} text='"Ekle" butonuna dokunarak kurulumu tamamlayın' />
+            {/* TAB 2: Android */}
+            {activeTab === "android" && (
+              <Card className="bg-slate-900/90 border border-slate-800/90 shadow-xl overflow-hidden">
+                <CardHeader className="bg-slate-850/50 border-b border-slate-800/80 pb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white">
+                        <Smartphone className="h-6 w-6 text-emerald-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-bold text-white">
+                          Android Cihazlar için Kurulum
+                        </CardTitle>
+                        <CardDescription className="text-slate-300 text-sm">
+                          Google Chrome, Samsung Internet veya Xiaomi tarayıcısı ile anında ekleyin.
+                        </CardDescription>
+                      </div>
+                    </div>
+                    {detectedPlatform === "android" && (
+                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                        Cihazınız
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Not: iOS'ta yalnızca Safari tarayıcısı üzerinden kurulum yapılabilir.
-                  </p>
-                </CardContent>
-              )}
-            </Card>
+                </CardHeader>
 
-            {/* Android Guide */}
-            <Card>
-              <CardHeader className="cursor-pointer pb-3" onClick={() => setShowAndroidGuide(!showAndroidGuide)}>
-                <CardTitle className="flex items-center justify-between text-lg">
-                  <span>Android için İndir</span>
-                  {showAndroidGuide ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </CardTitle>
-                {isAndroid && (
-                  <CardDescription className="text-primary font-medium">Bu cihaz için önerilen yöntem</CardDescription>
-                )}
-              </CardHeader>
-              {showAndroidGuide && (
-                <CardContent className="space-y-3 pt-0">
-                  <div className="space-y-2">
-                    <Step number={1} text="Chrome tarayıcısında bu sayfayı açın" />
-                    <Step number={2} text="Sağ üst köşedeki üç nokta menüsüne dokunun" />
-                    <Step number={3} text='"Uygulamayı yükle" veya "Ana ekrana ekle" seçeneğine dokunun' />
-                    <Step number={4} text='"Yükle" butonuna dokunarak kurulumu tamamlayın' />
+                <CardContent className="p-6 space-y-6">
+                  {/* Adımlar */}
+                  <div className="space-y-4">
+                    <InstructionStep
+                      stepNumber={1}
+                      title="Google Chrome veya Samsung Internet ile açın"
+                      description="Android cihazınızda web sayfasının Chrome veya Samsung Internet tarayıcısında açık olduğundan emin olun."
+                      badge="Chrome / Samsung"
+                    />
+
+                    <InstructionStep
+                      stepNumber={2}
+                      title="Sağ üstteki Üç Nokta (⋮) menüsüne dokunun"
+                      description="Tarayıcınızın sağ üst köşesinde yer alan alt alta üç nokta simgesine dokunarak ayarlar menüsünü açın."
+                      badge="Seçenekler Menüsü"
+                      icon={<MoreVertical className="h-4 w-4 text-emerald-400" />}
+                    />
+
+                    <InstructionStep
+                      stepNumber={3}
+                      title="'Uygulamayı Yükle' veya 'Ana Ekrana Ekle' seçin"
+                      description="Menü listesinde 'Uygulamayı Yükle' (veya bazı cihazlarda 'Ana Ekrana Ekle') seçeneğine dokunun. (Eğer ekranın altında açılır bir bildirim çıkarsa doğrudan oradan da basabilirsiniz)."
+                      badge="Uygulamayı Yükle"
+                      icon={<Download className="h-4 w-4 text-emerald-400" />}
+                    />
+
+                    <InstructionStep
+                      stepNumber={4}
+                      title="'Yükle' onayına basarak tamamlayın"
+                      description="Ekrana gelen onay penceresinde 'Yükle' butonuna basın. Telefonunuz arka planda uygulamayı ana ekranınıza ve uygulama çekmecenize yerleştirecektir."
+                      badge="Onayla"
+                    />
+                  </div>
+
+                  {/* Tamamlandı Özeti */}
+                  <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <p className="text-sm text-slate-200">
+                      <strong>Kurulum Tamam!</strong> EconNotes telefonunuza yerleşti. Artık tıpkı Play Store'dan indirilmiş gibi bağımsız, hızlı ve kesintisiz çalışır.
+                    </p>
                   </div>
                 </CardContent>
-              )}
-            </Card>
+              </Card>
+            )}
 
-            {/* Desktop Guide */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Monitor className="h-5 w-5" />
-                  Bilgisayar Kurulumu
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Chrome veya Edge tarayıcısında adres çubuğundaki kurulum simgesine tıklayarak
-                  uygulamayı bilgisayarınıza kurabilirsiniz.
-                </p>
-              </CardContent>
-            </Card>
+            {/* TAB 3: Bilgisayar (PC & Mac) */}
+            {activeTab === "desktop" && (
+              <Card className="bg-slate-900/90 border border-slate-800/90 shadow-xl overflow-hidden">
+                <CardHeader className="bg-slate-850/50 border-b border-slate-800/80 pb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white">
+                        <Monitor className="h-6 w-6 text-sky-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-bold text-white">
+                          Bilgisayar (Windows & Mac) için Kurulum
+                        </CardTitle>
+                        <CardDescription className="text-slate-300 text-sm">
+                          Chrome veya Microsoft Edge ile masaüstünüze ayrı bir program olarak kurun.
+                        </CardDescription>
+                      </div>
+                    </div>
+                    {detectedPlatform === "desktop" && (
+                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                        <Check className="h-3.5 w-3.5 text-sky-400" />
+                        Cihazınız
+                      </span>
+                    )}
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-6 space-y-6">
+                  {/* Adımlar */}
+                  <div className="space-y-4">
+                    <InstructionStep
+                      stepNumber={1}
+                      title="Google Chrome veya Microsoft Edge kullanın"
+                      description="Bilgisayarınızda Google Chrome, Microsoft Edge veya Brave tarayıcısı ile EconNotes'u açın."
+                      badge="Chrome / Edge"
+                    />
+
+                    <InstructionStep
+                      stepNumber={2}
+                      title="Adres çubuğundaki Kurulum simgesine tıklayın"
+                      description="Web adresinin yazılı olduğu çubuğun en sağında (sık kullanılanlar yıldız simgesinin yanında) küçük bir bilgisayar ekranı veya aşağı ok şeklinde 'EconNotes Uygulamasını Yükle' simgesi belirir. O simgeye tıklayın."
+                      badge="Adres Çubuğu Simgesi"
+                      icon={<Monitor className="h-4 w-4 text-sky-400" />}
+                    />
+
+                    <InstructionStep
+                      stepNumber={3}
+                      title="Açılan kutuda 'Yükle' butonuna basın"
+                      description="Küçük bir onay kutusu açılır: 'EconNotes uygulaması yüklensin mi?' sorusuna 'Yükle' diyerek onay verin."
+                      badge="Yükle"
+                    />
+
+                    <InstructionStep
+                      stepNumber={4}
+                      title="Alternatif Yöntem (Simgeyi Göremiyorsanız)"
+                      description="Adres çubuğunda simge görmüyorsanız: Tarayıcının sağ üst köşesindeki üç nokta menüsüne tıklayın -> 'Kaydet ve Paylaş' veya 'Uygulamalar' -> 'EconNotes Uygulamasını Yükle' yolunu izleyin."
+                      badge="Üç Nokta Menüsü"
+                      icon={<MoreVertical className="h-4 w-4 text-sky-400" />}
+                    />
+                  </div>
+
+                  {/* Tamamlandı Özeti */}
+                  <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <p className="text-sm text-slate-200">
+                      <strong>Kurulum Tamam!</strong> EconNotes masaüstünüze ve Başlat menünüze (Mac'te Launchpad'e) eklenir. Diğer yüzlerce tarayıcı sekmesi arasında kaybolmadan bağımsız bir pencerede rahatça ders çalışabilirsiniz.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Neden Uygulama Olarak Yüklemelisiniz? - Avantajlar Kartı */}
+            <div className="pt-2">
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <ShieldCheck className="h-5 w-5 text-blue-400" />
+                Neden Uygulama Olarak Yüklemelisiniz?
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <BenefitCard
+                  icon={<Zap className="h-5 w-5 text-amber-400" />}
+                  title="Tek Dokunuşla Hızlı Erişim"
+                  description="Her seferinde tarayıcıyı açıp arama yapmanıza gerek kalmaz; ana ekranınızdan tek tıkla doğrudan notlarınıza ulaşırsınız."
+                />
+
+                <BenefitCard
+                  icon={<Sparkles className="h-5 w-5 text-sky-400" />}
+                  title="Tam Ekran Çalışma Modu"
+                  description="Tarayıcı sekmeleri, butonlar ve adres çubukları kaybolur. Dikkatiniz dağılmadan tam odaklanmış şekilde çalışırsınız."
+                />
+
+                <BenefitCard
+                  icon={<ShieldCheck className="h-5 w-5 text-emerald-400" />}
+                  title="Cihazda Sıfır Hafıza Yükü"
+                  description="Telefonunuzun hafızasını şişirmez (~1 MB'tan az yer kaplar). Ağır dosya indirmeleri olmadan hafif ve hızlı çalışır."
+                />
+
+                <BenefitCard
+                  icon={<CheckCircle2 className="h-5 w-5 text-blue-400" />}
+                  title="Her Zaman En Güncel Sürüm"
+                  description="Uygulama mağazalarından manuel güncelleme beklemezsiniz. Yeni özellikler ve notlar otomatik olarak sisteminize yansır."
+                />
+              </div>
+            </div>
           </>
         )}
 
-        <div className="text-center">
-          <Button variant="ghost" onClick={() => navigate("/login")}>Giriş sayfasına dön</Button>
+        {/* Alt Butonlar */}
+        <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-4 text-center">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/login")}
+            className="w-full sm:w-auto border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200"
+          >
+            Giriş Sayfasına Dön
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/")}
+            className="w-full sm:w-auto text-slate-400 hover:text-white hover:bg-slate-800/50"
+          >
+            Ana Sayfaya Git
+            <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
         </div>
+      </div>
+
+      {/* Alt Bilgi */}
+      <footer className="w-full max-w-3xl mx-auto text-center pt-10 text-xs text-slate-500">
+        EconNotes Akademik Not Paylaşım ve Çalışma Platformu
+      </footer>
+    </div>
+  );
+};
+
+// Adım Adım Açıklama Bileşeni
+interface InstructionStepProps {
+  stepNumber: number;
+  title: string;
+  description: string;
+  badge?: string;
+  icon?: React.ReactNode;
+}
+
+const InstructionStep = ({ stepNumber, title, description, badge, icon }: InstructionStepProps) => {
+  return (
+    <div className="flex items-start gap-4 p-4 rounded-xl bg-slate-950/40 border border-slate-800/80 hover:border-slate-700 transition-colors">
+      <div className="w-8 h-8 rounded-full bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+        {stepNumber}
+      </div>
+      <div className="space-y-1 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="font-semibold text-slate-100 text-sm sm:text-base leading-snug">
+            {title}
+          </h4>
+          {badge && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300">
+              {icon}
+              {badge}
+            </span>
+          )}
+        </div>
+        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+          {description}
+        </p>
       </div>
     </div>
   );
 };
 
-const Step = ({ number, text }: { number: number; text: string }) => (
-  <div className="flex items-start gap-3">
-    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-      {number}
-    </span>
-    <p className="text-sm text-foreground">{text}</p>
-  </div>
-);
+// Avantaj Kartı Bileşeni
+const BenefitCard = ({
+  icon,
+  title,
+  description
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) => {
+  return (
+    <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-start gap-3 hover:border-slate-700/80 transition-colors">
+      <div className="p-2 rounded-lg bg-slate-800 border border-slate-700 shrink-0">
+        {icon}
+      </div>
+      <div className="space-y-1">
+        <h4 className="text-sm font-semibold text-white">{title}</h4>
+        <p className="text-xs text-slate-300 leading-relaxed">{description}</p>
+      </div>
+    </div>
+  );
+};
 
 export default Install;
