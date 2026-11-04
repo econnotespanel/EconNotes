@@ -101,12 +101,14 @@ const MobileBottomNav = () => {
         {/* Apple Sıvı Cam Ana Kapsül (Floating Liquid Glass Dock) */}
         <div
           className={cn(
-            'pointer-events-auto flex items-center justify-around flex-1 max-w-[340px] h-[60px] p-1.5',
+            'pointer-events-auto flex items-center justify-around flex-1 max-w-[340px] h-[62px] p-1.5',
             'rounded-full',
-            'bg-slate-900/40 dark:bg-black/50 backdrop-blur-3xl backdrop-saturate-200',
-            'border border-white/[0.22] dark:border-white/[0.18]',
-            'shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.35),0_12px_40px_-4px_rgba(0,0,0,0.65),0_4px_16px_rgba(0,0,0,0.4)]',
-            isSidebarOpen && 'opacity-85'
+            'bg-white/80 dark:bg-slate-950/75',
+            'backdrop-blur-2xl backdrop-saturate-200',
+            'border border-black/[0.08] dark:border-white/[0.14]',
+            'shadow-[0_12px_36px_-6px_rgba(0,0,0,0.12),0_4px_12px_rgba(0,0,0,0.06),inset_0_1px_1.5px_0_rgba(255,255,255,0.9)] dark:shadow-[0_16px_40px_-6px_rgba(0,0,0,0.7),0_4px_16px_rgba(0,0,0,0.5),inset_0_1px_1px_0_rgba(255,255,255,0.16)]',
+            'transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            isSidebarOpen && 'opacity-80 scale-[0.98]'
           )}
         >
           {navItems.map((item) => {
@@ -127,37 +129,46 @@ const MobileBottomNav = () => {
                 }}
                 className={cn(
                   'relative flex flex-col items-center justify-center flex-1 h-full min-w-0 py-1 px-1 sm:px-2 rounded-full',
-                  'touch-manipulation select-none active:scale-95 transition-all duration-200',
+                  'touch-manipulation select-none active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
                   isActive
-                    ? 'bg-[#007aff]/15 dark:bg-[#007aff]/20 border border-[#007aff]/30 dark:border-[#007aff]/25 text-[#007aff] shadow-sm'
-                    : 'text-white/75 hover:text-white hover:bg-white/[0.06]'
+                    ? cn(
+                        'bg-gradient-to-b from-blue-600/15 via-blue-500/10 to-blue-600/15 dark:from-white/[0.18] dark:via-white/[0.12] dark:to-white/[0.08]',
+                        'border border-blue-500/30 dark:border-white/[0.20]',
+                        'shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_2px_10px_rgba(0,112,209,0.15)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_4px_16px_rgba(0,0,0,0.4)]',
+                        'text-blue-600 dark:text-[#38bdf8]'
+                      )
+                    : cn(
+                        'text-slate-600 dark:text-slate-400',
+                        'hover:text-slate-900 dark:hover:text-white',
+                        'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
+                      )
                 )}
               >
                 <div className="relative">
                   <Icon
                     className={cn(
-                      'h-5 w-5 transition-transform duration-200',
+                      'h-5 w-5 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
                       isActive
-                        ? 'scale-105 text-[#007aff] drop-shadow-[0_2px_8px_rgba(0,122,255,0.7)]'
-                        : 'text-white/80'
+                        ? 'scale-110 text-blue-600 dark:text-[#38bdf8] drop-shadow-[0_2px_6px_rgba(0,112,209,0.35)] dark:drop-shadow-[0_2px_10px_rgba(56,189,248,0.5)]'
+                        : 'text-slate-600 dark:text-slate-400 opacity-90'
                     )}
                     strokeWidth={isActive ? 2.5 : 2}
                   />
                   {item.badge && item.badge > 0 ? (
-                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#ff3b30] px-1 text-[9px] font-bold text-white ring-2 ring-slate-950 animate-in zoom-in-50 shadow-sm">
+                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#ff3b30] px-1 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-950 animate-in zoom-in-50 shadow-sm">
                       {item.badge > 99 ? '99+' : item.badge}
                     </span>
                   ) : null}
                   {item.isHighlight && !isActive && (
-                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.9)] animate-pulse" />
+                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500 dark:bg-sky-400 shadow-[0_0_8px_rgba(0,112,209,0.7)] dark:shadow-[0_0_8px_rgba(56,189,248,0.9)] animate-pulse" />
                   )}
                 </div>
                 <span
                   className={cn(
-                    'text-[10px] sm:text-[10.5px] mt-0.5 tracking-tight truncate max-w-full leading-tight transition-colors',
+                    'text-[10px] sm:text-[10.5px] mt-0.5 tracking-tight truncate max-w-full leading-tight transition-colors duration-200',
                     isActive
-                      ? 'text-[#007aff] font-bold'
-                      : 'text-white/60 font-medium'
+                      ? 'text-blue-600 dark:text-[#38bdf8] font-bold'
+                      : 'text-slate-600 dark:text-slate-400 font-medium'
                   )}
                 >
                   {item.label}
@@ -173,24 +184,29 @@ const MobileBottomNav = () => {
           onClick={toggleMobileSidebar}
           aria-label={isSidebarOpen ? 'Menüyü Kapat' : 'Tüm Menüyü Aç'}
           className={cn(
-            'pointer-events-auto flex items-center justify-center shrink-0 w-[60px] h-[60px]',
-            'rounded-full touch-manipulation select-none active:scale-90 transition-all duration-200',
-            'backdrop-blur-3xl backdrop-saturate-200',
+            'pointer-events-auto flex items-center justify-center shrink-0 w-[62px] h-[62px]',
+            'rounded-full touch-manipulation select-none active:scale-90 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            'backdrop-blur-2xl backdrop-saturate-200',
             isSidebarOpen
-              ? 'bg-blue-600/30 border border-blue-400/60 text-[#007aff] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.45),0_0_24px_rgba(0,122,255,0.5)]'
-              : 'bg-slate-900/40 dark:bg-black/50 border border-white/[0.22] dark:border-white/[0.18] text-white/90 hover:text-white shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.35),0_12px_40px_-4px_rgba(0,0,0,0.65),0_4px_16px_rgba(0,0,0,0.4)]'
+              ? 'bg-blue-600/20 dark:bg-blue-600/30 border border-blue-500/50 dark:border-blue-400/60 text-blue-600 dark:text-[#38bdf8] shadow-[0_0_24px_rgba(0,112,209,0.35),inset_0_1px_1.5px_rgba(255,255,255,0.8)]'
+              : cn(
+                  'bg-white/80 dark:bg-slate-950/75',
+                  'border border-black/[0.08] dark:border-white/[0.14]',
+                  'text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white',
+                  'shadow-[0_12px_36px_-6px_rgba(0,0,0,0.12),0_4px_12px_rgba(0,0,0,0.06),inset_0_1px_1.5px_0_rgba(255,255,255,0.9)] dark:shadow-[0_16px_40px_-6px_rgba(0,0,0,0.7),0_4px_16px_rgba(0,0,0,0.5),inset_0_1px_1px_0_rgba(255,255,255,0.16)]'
+                )
           )}
         >
           <div className="relative flex items-center justify-center">
             <Menu
               className={cn(
-                'h-6 w-6 transition-transform duration-300',
-                isSidebarOpen ? 'scale-110 text-[#007aff] rotate-90' : 'text-white/95'
+                'h-6 w-6 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
+                isSidebarOpen ? 'scale-110 text-blue-600 dark:text-[#38bdf8] rotate-90' : 'text-slate-700 dark:text-slate-200'
               )}
-              strokeWidth={2.2}
+              strokeWidth={2.3}
             />
             {totalBadge > 0 && !isSidebarOpen && (
-              <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-[#ff3b30] ring-2 ring-slate-950 shadow-sm" />
+              <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-[#ff3b30] ring-2 ring-white dark:ring-slate-950 shadow-sm" />
             )}
           </div>
         </button>
