@@ -62,7 +62,7 @@ const Landing = () => {
             Ders notları, interaktif stüdyo, sınav hazırlığı ve üniversite topluluğu. EconNotes akıcı ve hızlı yapısıyla akademik hayatını bir üst seviyeye taşır.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button asChild size="lg" className="bg-gradient-to-r from-[#003791] to-[#0070d1] hover:from-[#002f7a] hover:to-[#005fb8] text-white shadow-md shadow-blue-500/20">
+            <Button asChild size="lg" className="border-0 bg-no-repeat bg-gradient-to-r from-[#003791] to-[#0070d1] hover:from-[#002f7a] hover:to-[#005fb8] text-white shadow-md shadow-blue-500/20">
               <Link to="/register">Hemen Başlayalım <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
             <Button asChild size="lg" variant="outline"><Link to="/login">Zaten Hesabım Var</Link></Button>

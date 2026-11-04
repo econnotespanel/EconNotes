@@ -793,7 +793,7 @@ const Study = () => {
               </Button>
               <Button
                 onClick={() => scrollToUploadCenter()}
-                className="w-full gap-2 rounded-xl border-0 bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-primary-foreground shadow-md shadow-primary/20 transition-all hover:bg-[position:100%_0] sm:w-auto text-xs font-semibold"
+                className="w-full gap-2 rounded-xl border-0 bg-no-repeat bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-primary-foreground shadow-md shadow-primary/20 transition-all hover:bg-[position:100%_0] sm:w-auto text-xs font-semibold"
               >
                 <Plus className="h-4 w-4" /> Yeni Materyal Yükle
               </Button>
@@ -1201,7 +1201,7 @@ const Study = () => {
                       size="lg"
                       onClick={() => void handleQuickStart()}
                       disabled={generating}
-                      className="w-full gap-2 rounded-xl bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-white font-semibold shadow-lg shadow-primary/20 hover:bg-[position:100%_0] transition-all"
+                      className="w-full gap-2 rounded-xl border-0 bg-no-repeat bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-white font-semibold shadow-lg shadow-primary/20 hover:bg-[position:100%_0] transition-all"
                     >
                       {generating ? (
                         <><Loader2 className="h-4 w-4 animate-spin" /> {progressLabel || 'Çözümleniyor...'}</>
@@ -1345,7 +1345,7 @@ const Study = () => {
                     });
                   }}
                   disabled={generating}
-                  className="w-full gap-2 rounded-xl bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-white font-semibold shadow-lg shadow-primary/20 hover:bg-[position:100%_0] transition-all"
+                  className="w-full gap-2 rounded-xl border-0 bg-no-repeat bg-gradient-to-r from-primary via-blue-600 to-primary bg-[length:200%_100%] text-white font-semibold shadow-lg shadow-primary/20 hover:bg-[position:100%_0] transition-all"
                 >
                   {generating ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> {progressLabel || 'Çözümleniyor...'}</>
@@ -1403,7 +1403,7 @@ const Study = () => {
                     aria-pressed={typeFilter === val}
                     className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition-all ${
                       typeFilter === val
-                        ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                        ? 'border-transparent bg-primary text-primary-foreground shadow-sm'
                         : 'border-border/70 bg-card/60 text-muted-foreground hover:border-primary/40 hover:text-foreground'
                     }`}
                   >
@@ -1419,7 +1419,7 @@ const Study = () => {
                     aria-pressed={timeFilter === val}
                     className={`rounded-xl border px-2.5 py-1.5 text-xs font-medium transition-all ${
                       timeFilter === val
-                        ? 'border-secondary bg-secondary text-secondary-foreground shadow-sm'
+                        ? 'border-transparent bg-secondary text-secondary-foreground shadow-sm'
                         : 'border-border/70 bg-card/60 text-muted-foreground hover:border-secondary/40 hover:text-foreground'
                     }`}
                   >

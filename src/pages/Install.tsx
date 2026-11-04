@@ -182,7 +182,7 @@ const Install = () => {
           <>
             {/* Tek Tıkla Hızlı Kurulum (Tarayıcı PWA Prompt Hazırsa) */}
             {deferredPrompt && (
-              <div className="p-[1px] rounded-2xl bg-gradient-to-r from-blue-500 via-sky-400 to-indigo-500 shadow-xl shadow-blue-500/10">
+              <div className="p-[1px] rounded-2xl bg-gradient-to-r from-blue-600/70 via-blue-500/50 to-indigo-600/60 shadow-xl shadow-blue-500/10">
                 <Card className="bg-slate-900/95 border-0 rounded-2xl overflow-hidden backdrop-blur-md">
                   <CardContent className="p-6 flex flex-col sm:flex-row items-center justify-between gap-5">
                     <div className="flex items-start gap-4">
@@ -427,7 +427,7 @@ const Install = () => {
             {activeTab === "desktop" && (
               <div className="space-y-6">
                 {/* 1. ÖNCELİKLİ WINDOWS KURULUM DOSYASI (.EXE) */}
-                <div className="p-[1px] rounded-2xl bg-gradient-to-r from-blue-500 via-sky-400 to-indigo-500 shadow-2xl shadow-blue-500/10">
+                <div className="p-[1px] rounded-2xl bg-gradient-to-r from-blue-600/70 via-blue-500/50 to-indigo-600/60 shadow-2xl shadow-blue-500/10">
                   <Card className="bg-slate-900/95 border-0 rounded-2xl overflow-hidden backdrop-blur-md">
                     <CardHeader className="bg-slate-850/60 border-b border-slate-800/80 pb-5">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
