@@ -5,7 +5,6 @@ import {
   Download,
   Monitor,
   CheckCircle2,
-  Apple,
   Smartphone,
   Share,
   PlusSquare,
@@ -28,6 +27,18 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 type PlatformTab = "ios" | "android" | "desktop";
+
+// Orijinal Apple Logosu (Isırılmış elma simgesi)
+const AppleLogo = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    className={className}
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+  </svg>
+);
 
 const Install = () => {
   const navigate = useNavigate();
@@ -97,12 +108,26 @@ const Install = () => {
             Telefonunuza veya bilgisayarınıza saniyeler içinde ekleyin. Mağaza araması ve hafıza kaybı olmadan doğrudan ana ekranınızdan derslerinize çalışın.
           </p>
 
-          {/* Cihaz Algılama Bilgisi */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-950/60 border border-blue-500/30 text-xs sm:text-sm text-blue-300 font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            {detectedPlatform === "ios" && "Cihazınız iPhone / iPad (iOS) olarak algılandı"}
-            {detectedPlatform === "android" && "Cihazınız Android olarak algılandı"}
-            {detectedPlatform === "desktop" && "Cihazınız Bilgisayar (PC / Mac) olarak algılandı"}
+          {/* Cihaz Bilgisi Rozeti (Efektsiz, Doğal ve Sade) */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-slate-700/80 text-xs sm:text-sm text-slate-300 font-medium">
+            {detectedPlatform === "ios" && (
+              <>
+                <AppleLogo className="h-3.5 w-3.5 text-slate-200" />
+                <span>Kullandığınız Cihaz: <strong className="text-white">iPhone / iPad</strong></span>
+              </>
+            )}
+            {detectedPlatform === "android" && (
+              <>
+                <Smartphone className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Kullandığınız Cihaz: <strong className="text-white">Android</strong></span>
+              </>
+            )}
+            {detectedPlatform === "desktop" && (
+              <>
+                <Laptop className="h-3.5 w-3.5 text-sky-400" />
+                <span>Kullandığınız Cihaz: <strong className="text-white">Bilgisayar</strong></span>
+              </>
+            )}
           </div>
         </div>
 
@@ -194,7 +219,7 @@ const Install = () => {
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
                   }`}
                 >
-                  <Apple className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                  <AppleLogo className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
                   <span>iPhone / iPad</span>
                 </button>
 
@@ -233,7 +258,7 @@ const Install = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white">
-                        <Apple className="h-6 w-6" />
+                        <AppleLogo className="h-6 w-6" />
                       </div>
                       <div>
                         <CardTitle className="text-xl font-bold text-white">
