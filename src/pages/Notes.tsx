@@ -1147,7 +1147,6 @@ const Notes = () => {
                   <span className="h-8 w-px bg-white/15" />
                   <div>
                     <DialogTitle className="text-sm font-semibold text-white sm:text-base">Önizleme</DialogTitle>
-                    <p className="mt-1 text-[10px] text-slate-400 sm:text-[11px]">Güvenli Belge Görüntüleyici • Lisanslı Filigran</p>
                   </div>
                 </div>
               </DialogHeader>
