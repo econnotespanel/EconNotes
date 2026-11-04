@@ -8,14 +8,12 @@ import {
   LogIn,
   ExternalLink,
   Info,
-  Mail,
-  BookOpen
+  Mail
 } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
 import econNotesEMark from '@/assets/econnotes-e-mark.png';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { Button } from '@/components/ui/button';
-import EmergencyNotesArchive from '@/components/EmergencyNotesArchive';
 
 interface MaintenanceScreenProps {
   closedUntil?: string | null;
@@ -102,7 +100,7 @@ const MaintenanceScreen = ({}: MaintenanceScreenProps) => {
       </div>
 
       {/* Main Status Container (PlayStation Overlapping Card Layout) */}
-      <main className="relative z-20 flex-1 -mt-14 sm:-mt-20 mx-auto w-full max-w-4xl px-3 sm:px-6 mb-8 sm:mb-12 space-y-6">
+      <main className="relative z-20 flex-1 -mt-14 sm:-mt-20 mx-auto w-full max-w-3xl px-3 sm:px-6 mb-8 sm:mb-12">
         <div className="bg-card rounded-2xl shadow-xl border border-border p-4 sm:p-8 space-y-5 sm:space-y-6">
           
           {/* Main Status Announcement Header */}
@@ -115,7 +113,7 @@ const MaintenanceScreen = ({}: MaintenanceScreenProps) => {
                 Bazı hizmetlerde kesinti yaşanıyor.
               </h2>
               <p className="text-xs sm:text-sm text-muted-foreground mt-1 leading-relaxed">
-                Yaklaşan üniversite sınavları öncesinde sunucu kapasitesini artırmak ve altyapıyı güçlendirmek amacıyla veritabanı ve oturum açma servisleri bakım modundadır. Ders notları açık erişimle yayındadır.
+                Yaklaşan üniversite sınavları öncesinde sunucu kapasitesini artırmak ve altyapıyı güçlendirmek amacıyla sistemimiz bakım modundadır.
               </p>
             </div>
           </div>
@@ -126,18 +124,18 @@ const MaintenanceScreen = ({}: MaintenanceScreenProps) => {
             {/* Service 1: Lecture Notes & Downloads */}
             <div className="py-3.5 sm:py-4 flex items-start justify-between gap-3">
               <div className="flex items-start gap-2.5 sm:gap-3 min-w-0 flex-1">
-                <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500 shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <h3 className="text-xs sm:text-base font-semibold text-foreground leading-tight">
                     Ders Notları ve İçerik İndirme
                   </h3>
                   <p className="text-[11px] sm:text-sm text-muted-foreground mt-0.5 leading-snug">
-                    Vize sınavları öncesinde 33 ders notunun tamamı aşağıdaki <a href="#acil-notlar" className="font-semibold text-primary underline underline-offset-2">Acil Not Arşivi</a> üzerinden açık erişime sunulmuştur. Giriş yapmadan hemen inceleyebilir veya indirebilirsiniz.
+                    Kapasite genişletme çalışması süresince erişim geçici olarak duraklatılmıştır.
                   </p>
                 </div>
               </div>
-              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 shrink-0 whitespace-nowrap self-start">
-                Açık Erişimde
+              <span className="text-[10px] sm:text-xs font-semibold px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 shrink-0 whitespace-nowrap self-start">
+                Bakımda
               </span>
             </div>
 
@@ -256,11 +254,6 @@ const MaintenanceScreen = ({}: MaintenanceScreenProps) => {
             </div>
           </div>
 
-        </div>
-
-        {/* Emergency Notes Archive Section */}
-        <div id="acil-notlar" className="pt-2">
-          <EmergencyNotesArchive />
         </div>
       </main>
 
