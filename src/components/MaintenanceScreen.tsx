@@ -11,6 +11,7 @@ import {
   Mail
 } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
+import econNotesEMark from '@/assets/econnotes-e-mark.png';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { Button } from '@/components/ui/button';
 
@@ -64,31 +65,25 @@ const MaintenanceScreen = ({}: MaintenanceScreenProps) => {
         </div>
       </header>
 
-      {/* PlayStation-style Bold Hero Banner with Subtle Repeating EconNotes 'E' Brand Watermark */}
+      {/* PlayStation-style Bold Hero Banner with Straight & Upright Repeating EconNotes 'E' Brand Watermark */}
       <div className="relative w-full bg-gradient-to-b from-[#003791] via-[#004bb5] to-[#0066d6] text-white pt-10 pb-24 sm:pt-14 sm:pb-32 px-4 text-center overflow-hidden">
         
-        {/* Subtle, faint, semi-transparent EconNotes 'E' watermark pattern */}
-        <div className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden" aria-hidden="true">
-          <svg className="h-full w-full" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern
-                id="econnotes-e-pattern"
-                width="68"
-                height="68"
-                patternUnits="userSpaceOnUse"
-                patternTransform="rotate(-25)"
-              >
-                <g fill="white" opacity="0.065">
-                  {/* Stylized capital E */}
-                  <path d="M14 18 h19 v7 h-11 v5 h9 v7 h-9 v6 h11 v7 h-19 z" />
-                  {/* Energy badge top-right */}
-                  <circle cx="35" cy="13" r="6" fill="none" stroke="white" stroke-width="1.8" />
-                  <path d="M35.5 8.5 l-3 4.5 h2.5 l-.5 4.5 3.5 -5 h-2.5 z" fill="white" />
-                </g>
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#econnotes-e-pattern)" />
-          </svg>
+        {/* Subtle, straight, upright EconNotes 'E' watermark pattern (No rotation, perfectly level) */}
+        <div
+          className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden"
+          aria-hidden="true"
+        >
+          <div
+            className="w-full h-full"
+            style={{
+              backgroundImage: `url(${econNotesEMark})`,
+              backgroundRepeat: 'repeat',
+              backgroundSize: '46px 46px',
+              backgroundPosition: 'center',
+              filter: 'brightness(0) invert(1)',
+              opacity: 0.065,
+            }}
+          />
         </div>
 
         {/* Content sits cleanly above watermark */}
