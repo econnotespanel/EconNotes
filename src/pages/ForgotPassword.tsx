@@ -10,7 +10,6 @@ import { Mail, CheckCircle, KeyRound, BookOpen, Users, TrendingUp } from 'lucide
 import { supabase } from '@/integrations/supabase/client';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
-import MaintenanceScreen from '@/components/MaintenanceScreen';
 
 
 
@@ -40,10 +39,6 @@ const ForgotPassword = () => {
       toast.success('Şifre sıfırlama bağlantısı e-posta adresinize gönderildi!');
     }
   };
-
-  if (systemOpen === false) {
-    return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
-  }
 
   const features = [
     { icon: BookOpen, title: 'Not Paylaşımı', desc: 'Ders notlarınızı arkadaşlarınızla kolayca paylaşın.' },

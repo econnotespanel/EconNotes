@@ -1,4 +1,4 @@
-﻿import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,7 +6,6 @@ import Dashboard from './Dashboard';
 import Landing from './Landing';
 import { toast } from 'sonner';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
-import MaintenanceScreen from '@/components/MaintenanceScreen';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, ArrowRight } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
@@ -62,11 +61,6 @@ const Index = () => {
         </div>
       </div>
     );
-  }
-
-  // Show maintenance screen for non-admin users (without signing them out)
-  if (false && systemOpen === false && !isAdmin) {
-    return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
   }
 
   if (!user || forceGuest) return <Landing />;

@@ -13,7 +13,6 @@ import EconLogo from '@/components/EconLogo';
 import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
 import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building, ShieldCheck, UserPlus, BookOpen, Users, TrendingUp } from 'lucide-react';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
-import MaintenanceScreen from '@/components/MaintenanceScreen';
 import { useTheme } from '@/contexts/ThemeContext';
 import SecurityCaptcha from '@/components/SecurityCaptcha';
 
@@ -120,10 +119,6 @@ const Register = () => {
       navigate('/login');
     }
   };
-
-  if (systemOpen === false) {
-    return <MaintenanceScreen closedUntil={closedUntil} title={closureTitle} message={closureMessage} imageUrl={closureImageUrl} mode={closureMode} />;
-  }
 
   const features = [
     { icon: BookOpen, title: 'Not Paylaşımı', desc: 'Ders notlarınızı arkadaşlarınızla kolayca paylaşın.' },
