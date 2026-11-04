@@ -16,10 +16,14 @@ import {
   ShieldCheck,
   Info,
   Check,
-  ChevronRight
+  ChevronRight,
+  AppWindow,
+  HardDrive,
+  FolderDown
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import EconLogo from "@/components/EconLogo";
+import { APP_VERSION } from "@/lib/version";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -37,6 +41,18 @@ const AppleLogo = ({ className = "h-5 w-5" }: { className?: string }) => (
     aria-hidden="true"
   >
     <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+  </svg>
+);
+
+// Orijinal Windows Logosu (4 parçalı pencere simgesi)
+const WindowsLogo = ({ className = "h-5 w-5" }: { className?: string }) => (
+  <svg
+    viewBox="0 0 24 24"
+    className={className}
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.802" />
   </svg>
 );
 
@@ -124,8 +140,8 @@ const Install = () => {
             )}
             {detectedPlatform === "desktop" && (
               <>
-                <Laptop className="h-3.5 w-3.5 text-sky-400" />
-                <span>Kullandığınız Cihaz: <strong className="text-white">Bilgisayar</strong></span>
+                <WindowsLogo className="h-3.5 w-3.5 text-sky-400" />
+                <span>Kullandığınız Cihaz: <strong className="text-white">Windows Bilgisayar</strong></span>
               </>
             )}
           </div>
@@ -245,8 +261,8 @@ const Install = () => {
                       : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
                   }`}
                 >
-                  <Laptop className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
-                  <span>Bilgisayar</span>
+                  <WindowsLogo className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+                  <span>Windows (PC)</span>
                 </button>
               </div>
             </div>
@@ -407,78 +423,243 @@ const Install = () => {
               </Card>
             )}
 
-            {/* TAB 3: Bilgisayar (PC & Mac) */}
+            {/* TAB 3: Bilgisayar (Windows & Mac) */}
             {activeTab === "desktop" && (
-              <Card className="bg-slate-900/90 border border-slate-800/90 shadow-xl overflow-hidden">
-                <CardHeader className="bg-slate-850/50 border-b border-slate-800/80 pb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white">
-                        <Monitor className="h-6 w-6 text-sky-400" />
+              <div className="space-y-6">
+                {/* 1. ÖNCELİKLİ WINDOWS KURULUM DOSYASI (.EXE) */}
+                <div className="p-[1px] rounded-2xl bg-gradient-to-r from-blue-500 via-sky-400 to-indigo-500 shadow-2xl shadow-blue-500/10">
+                  <Card className="bg-slate-900/95 border-0 rounded-2xl overflow-hidden backdrop-blur-md">
+                    <CardHeader className="bg-slate-850/60 border-b border-slate-800/80 pb-5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400">
+                            <WindowsLogo className="h-6 w-6" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <CardTitle className="text-xl font-bold text-white">
+                                Windows Masaüstü Kurulumu (.exe)
+                              </CardTitle>
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                Önerilen
+                              </span>
+                            </div>
+                            <CardDescription className="text-slate-300 text-sm mt-0.5">
+                              Doğrudan kurulum dosyası halinde indirin ve Türkçe kurulum sihirbazı ekranları ile bilgisayarınıza ekleyin.
+                            </CardDescription>
+                          </div>
+                        </div>
+
+                        {detectedPlatform === "desktop" && (
+                          <span className="self-start sm:self-auto inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                            <Check className="h-3.5 w-3.5 text-sky-400" />
+                            Cihazınızla %100 Uyumlu
+                          </span>
+                        )}
                       </div>
-                      <div>
-                        <CardTitle className="text-xl font-bold text-white">
-                          Bilgisayar (Windows & Mac) için Kurulum
-                        </CardTitle>
-                        <CardDescription className="text-slate-300 text-sm">
-                          Chrome veya Microsoft Edge ile masaüstünüze ayrı bir program olarak kurun.
-                        </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="p-6 space-y-6">
+                      {/* İndirme Butonu ve Özellikler */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-5 p-5 rounded-xl bg-slate-950/60 border border-slate-800/90">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                            <span className="font-semibold text-white">EconNotes-Kurulum.exe</span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-sky-300 font-medium">Sürüm {APP_VERSION}</span>
+                            <span className="text-slate-500">•</span>
+                            <span>Windows 10 / 11 (64-Bit & 32-Bit)</span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-emerald-400 font-semibold">91 KB (Ultra Hafif)</span>
+                          </div>
+                          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
+                            İndirdiğiniz kurulum dosyası; masaüstü ve Başlat menüsü kısayollarını otomatik oluşturur, EconNotes'u tarayıcı sekmelerinden bağımsız temiz bir pencerede çalıştırır.
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <a
+                            href="/downloads/EconNotes-Kurulum.exe"
+                            download="EconNotes-Kurulum.exe"
+                            className="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02]"
+                          >
+                            <Download className="h-5 w-5" />
+                            <span>Kurulum Dosyasını İndir (.exe)</span>
+                          </a>
+                          <div className="text-center">
+                            <a
+                              href="/downloads/EconNotes-Setup.exe"
+                              download="EconNotes-Setup.exe"
+                              className="text-[11px] text-slate-400 hover:text-sky-300 underline underline-offset-2"
+                            >
+                              Alternatif İndirme: EconNotes-Setup.exe
+                            </a>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    {detectedPlatform === "desktop" && (
-                      <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                        <Check className="h-3.5 w-3.5 text-sky-400" />
-                        Cihazınız
+
+                      {/* 2. ADIM ADIM KURULUM SİHİRBAZI EKRANLARI */}
+                      <div className="space-y-4 pt-1">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                            <AppWindow className="h-4 w-4 text-sky-400" />
+                            Kurulum Sihirbazı Ekranları (Nasıl Kurulur?)
+                          </h3>
+                          <span className="text-xs text-slate-400">4 Hızlı Ekran</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                          {/* 1. Ekran: Karşılama */}
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                              <span className="text-xs font-bold text-sky-400">1. Ekran: Karşılama ve Hoş Geldiniz</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">Sihirbaz Başlangıcı</span>
+                            </div>
+                            <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs space-y-2 text-slate-300 shadow-inner">
+                              <div className="flex items-center gap-2 font-bold text-white">
+                                <WindowsLogo className="h-3.5 w-3.5 text-blue-400" />
+                                <span>EconNotes Kurulum Sihirbazı</span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 leading-relaxed">
+                                "EconNotes İktisat ve Akademik Not Platformu bilgisayarınıza kurulacaktır. Kuruluma devam etmek için İleri butonuna tıklayın."
+                              </p>
+                              <div className="pt-1 flex justify-end">
+                                <span className="px-2.5 py-1 rounded bg-blue-600 text-white font-semibold text-[10px]">İleri &gt;</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-slate-300">
+                              İndirilen <strong>EconNotes-Kurulum.exe</strong> dosyasını çift tıklayın ve hoş geldiniz ekranında <strong>İleri</strong> butonuna basın.
+                            </p>
+                          </div>
+
+                          {/* 2. Ekran: Hedef Dizin & Kısayollar */}
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                              <span className="text-xs font-bold text-sky-400">2. Ekran: Kurulum Konumu & Kısayollar</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">Tercihler</span>
+                            </div>
+                            <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs space-y-2 text-slate-300 shadow-inner">
+                              <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                <span>Hedef:</span>
+                                <span className="text-[10px] text-slate-500 font-mono">AppData\Programs\EconNotes</span>
+                              </div>
+                              <div className="space-y-1 text-[11px]">
+                                <div className="flex items-center gap-1.5 text-emerald-400">
+                                  <Check className="h-3 w-3" />
+                                  <span className="text-slate-200">Masaüstüne EconNotes kısayolu ekle</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-emerald-400">
+                                  <Check className="h-3 w-3" />
+                                  <span className="text-slate-200">Başlat Menüsü'ne EconNotes ekle</span>
+                                </div>
+                              </div>
+                              <div className="pt-1 flex justify-end gap-1.5">
+                                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px]">&lt; Geri</span>
+                                <span className="px-2.5 py-1 rounded bg-blue-600 text-white font-semibold text-[10px]">Kur &gt;</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-slate-300">
+                              Masaüstü ve Başlat menüsü kısayol onayları varsayılan olarak seçilidir. Doğrudan <strong>Kur</strong> butonuna basabilirsiniz.
+                            </p>
+                          </div>
+
+                          {/* 3. Ekran: İlerleme */}
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                              <span className="text-xs font-bold text-sky-400">3. Ekran: Dosyaların Yüklenmesi</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">Yükleniyor</span>
+                            </div>
+                            <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs space-y-2.5 text-slate-300 shadow-inner">
+                              <span className="text-[11px] text-slate-300">EconNotes masaüstü istemcisi yükleniyor...</span>
+                              <div className="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                                <div className="bg-gradient-to-r from-blue-500 to-emerald-400 h-2.5 rounded-full w-full" />
+                              </div>
+                              <div className="flex justify-between text-[10px] text-slate-400">
+                                <span>Kısayollar ve simgeler hazırlandı</span>
+                                <span className="text-emerald-400 font-semibold">%100</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-slate-300">
+                              Kurulum 2-3 saniye içinde tamamlanır; sisteminize ayrı kaldırma aracı (Uninstall) ve masaüstü simgeleri yerleştirilir.
+                            </p>
+                          </div>
+
+                          {/* 4. Ekran: Tamamlandı */}
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3">
+                            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                              <span className="text-xs font-bold text-emerald-400">4. Ekran: Kurulum Tamamlandı</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Tamamlandı</span>
+                            </div>
+                            <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs space-y-2 text-slate-300 shadow-inner">
+                              <div className="flex items-center gap-1.5 font-bold text-emerald-400">
+                                <CheckCircle2 className="h-4 w-4" />
+                                <span>Kurulum Başarıyla Tamamlandı!</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 text-[11px] text-sky-300">
+                                <Check className="h-3 w-3 text-emerald-400" />
+                                <span>EconNotes uygulamasını şimdi başlat</span>
+                              </div>
+                              <div className="pt-1 flex justify-end">
+                                <span className="px-3 py-1 rounded bg-emerald-600 text-white font-semibold text-[10px]">Bitir</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-slate-300">
+                              <strong>Bitir</strong> butonuna tıkladığınızda uygulama bağımsız pencerede anında açılır ve hemen çalışmaya başlayabilirsiniz.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. WINDOWS DEFENDER / SMARTSCREEN GÜVENLİK BİLGİLENDİRMESİ */}
+                      <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start gap-3.5 text-xs sm:text-sm text-slate-300">
+                        <ShieldCheck className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <span className="font-semibold text-white">Windows Defender / Mavi Koruma Bildirimi Görürseniz:</span>
+                          <p className="text-slate-300 text-xs leading-relaxed">
+                            İnternetten yeni indirilen tüm kurulum dosyalarında Windows Defender SmartScreen "Windows kişisel bilgisayarınızı korudu" şeklinde mavi bir güvenlik uyarısı gösterebilir. Bu durumda penceredeki <strong>"Ek Bilgi"</strong> (More info) linkine tıklayıp ardından açılan <strong>"Yine de Çalıştır"</strong> (Run anyway) butonuna basmanız yeterlidir. Kurulum dosyası tamamen güvenlidir ve yönetici şifresi gerektirmeden kurulur.
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* 2. ALTERNATİF: TARAYICIDAN KURULUM (MAC & PWA) */}
+                <Card className="bg-slate-900/80 border border-slate-800/80 shadow-md overflow-hidden">
+                  <CardHeader className="bg-slate-850/40 border-b border-slate-800/80 pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300">
+                          <Monitor className="h-5 w-5 text-slate-300" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base font-semibold text-white">
+                            Alternatif Yöntem: Tarayıcı Üzerinden Ekleme (Mac & Tarayıcı Modu)
+                          </CardTitle>
+                          <CardDescription className="text-slate-400 text-xs">
+                            Kurulum dosyası indirmeden Google Chrome veya Microsoft Edge adres çubuğundaki yükleme simgesiyle ekleyin.
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                        Mac / Web
                       </span>
-                    )}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="p-6 space-y-6">
-                  {/* Adımlar */}
-                  <div className="space-y-4">
-                    <InstructionStep
-                      stepNumber={1}
-                      title="Google Chrome veya Microsoft Edge kullanın"
-                      description="Bilgisayarınızda Google Chrome, Microsoft Edge veya Brave tarayıcısı ile EconNotes'u açın."
-                      badge="Chrome / Edge"
-                    />
-
-                    <InstructionStep
-                      stepNumber={2}
-                      title="Adres çubuğundaki Kurulum simgesine tıklayın"
-                      description="Web adresinin yazılı olduğu çubuğun en sağında (sık kullanılanlar yıldız simgesinin yanında) küçük bir bilgisayar ekranı veya aşağı ok şeklinde 'EconNotes Uygulamasını Yükle' simgesi belirir. O simgeye tıklayın."
-                      badge="Adres Çubuğu Simgesi"
-                      icon={<Monitor className="h-4 w-4 text-sky-400" />}
-                    />
-
-                    <InstructionStep
-                      stepNumber={3}
-                      title="Açılan kutuda 'Yükle' butonuna basın"
-                      description="Küçük bir onay kutusu açılır: 'EconNotes uygulaması yüklensin mi?' sorusuna 'Yükle' diyerek onay verin."
-                      badge="Yükle"
-                    />
-
-                    <InstructionStep
-                      stepNumber={4}
-                      title="Alternatif Yöntem (Simgeyi Göremiyorsanız)"
-                      description="Adres çubuğunda simge görmüyorsanız: Tarayıcının sağ üst köşesindeki üç nokta menüsüne tıklayın -> 'Kaydet ve Paylaş' veya 'Uygulamalar' -> 'EconNotes Uygulamasını Yükle' yolunu izleyin."
-                      badge="Üç Nokta Menüsü"
-                      icon={<MoreVertical className="h-4 w-4 text-sky-400" />}
-                    />
-                  </div>
-
-                  {/* Tamamlandı Özeti */}
-                  <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
-                      <Sparkles className="h-5 w-5" />
                     </div>
-                    <p className="text-sm text-slate-200">
-                      <strong>Kurulum Tamam!</strong> EconNotes masaüstünüze ve Başlat menünüze (Mac'te Launchpad'e) eklenir. Diğer yüzlerce tarayıcı sekmesi arasında kaybolmadan bağımsız bir pencerede rahatça ders çalışabilirsiniz.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardHeader>
+                  <CardContent className="p-5 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="p-3 rounded-lg bg-slate-950/40 border border-slate-800/70 space-y-1">
+                        <span className="font-semibold text-white">1. Adres Çubuğundaki Simge:</span>
+                        <p className="text-slate-300">Tarayıcı adres çubuğunun sağındaki bilgisayar veya aşağı ok simgesine tıklayın.</p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-slate-950/40 border border-slate-800/70 space-y-1">
+                        <span className="font-semibold text-white">2. Onayla ve Yükle:</span>
+                        <p className="text-slate-300">"EconNotes uygulaması yüklensin mi?" sorusuna "Yükle" diyerek masaüstünüze ekleyin.</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             {/* Neden Uygulama Olarak Yüklemelisiniz? - Avantajlar Kartı */}

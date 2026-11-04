@@ -7,6 +7,7 @@
     "predev": "node scripts/generate-sitemap.js",
     "prebuild": "node scripts/generate-sitemap.js",
     "prebuild:dev": "node scripts/generate-sitemap.js",
+    "build:windows": "node scripts/build-windows-installer.cjs",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
