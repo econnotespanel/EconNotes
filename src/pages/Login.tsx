@@ -286,11 +286,6 @@ const Login = () => {
             <EconLogo allWhite className="h-8 w-36 sm:h-9 sm:w-40" />
           </div>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-white/90 text-xs font-medium mb-3 backdrop-blur-md shadow-xs">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_8px_#00f0ff] animate-pulse" />
-            <span>Akademik Öğrenci Platformu</span>
-          </div>
-
           <h2 className="text-white text-xl xl:text-2xl font-bold tracking-tight mb-8 leading-snug">
             EconNotes ile tüm ders notların yanında!
           </h2>
@@ -384,7 +379,7 @@ const Login = () => {
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">EconNotes hesabınıza giriş yaparak çalışmalarınıza devam edin.</p>
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mt-2.5 shadow-xs">
               <ShieldCheck className="h-3.5 w-3.5" />
-              <span>Güvenli Oturum</span>
+              <span>Güvenli Giriş</span>
             </div>
           </div>
 

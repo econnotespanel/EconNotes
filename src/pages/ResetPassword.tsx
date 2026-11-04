@@ -70,7 +70,7 @@ const ResetPassword = () => {
         <Card className="w-full max-w-md glass-card animate-fade-in relative z-10">
           <CardHeader className="text-center space-y-3">
             <div className="flex justify-center">
-              <EconLogo className="h-16 w-64" />
+              <EconLogo className="h-8 w-36" />
             </div>
             <CardTitle className="text-2xl font-bold">Geçersiz Bağlantı</CardTitle>
             <CardDescription>Bu şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.</CardDescription>
@@ -91,8 +91,8 @@ const ResetPassword = () => {
       <Card className="w-full max-w-md glass-card animate-fade-in relative z-10">
         <CardHeader className="text-center space-y-3">
           <div className="flex justify-center">
-               <EconLogo className="h-16 w-64" />
-            </div>
+            <EconLogo className="h-8 w-36" />
+          </div>
             <CardTitle className="text-2xl font-bold">Yeni Şifre Belirle</CardTitle>
           <CardDescription>Yeni şifrenizi girin</CardDescription>
         </CardHeader>

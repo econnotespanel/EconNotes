@@ -25,7 +25,9 @@ Deno.serve(async (req) => {
     const changedRecently = me.user.updated_at && Date.now() - new Date(me.user.updated_at).getTime() < 10 * 60 * 1000;
     if (!changedRecently) return json({ error: 'Önce yeni şifre belirleyin.' }, 400);
     meta.must_change_password = false;
-    const { error: upErr } = await admin.auth.admin.updateUserById(me.user.id, { app_metadata: meta });
+    const userMeta = { ...(me.user.user_metadata || {}) } as Record<string, unknown>;
+    userMeta.must_change_password = false;
+    const { error: upErr } = await admin.auth.admin.updateUserById(me.user.id, { app_metadata: meta, user_metadata: userMeta });
     if (upErr) return json({ error: 'İşlem tamamlanamadı.', details: upErr.message }, 500);
     return json({ ok: true });
   } catch (e) {

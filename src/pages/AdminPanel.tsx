@@ -1,4 +1,4 @@
-﻿import Layout from '@/components/Layout';
+import Layout from '@/components/Layout';
 import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useMemo, useState } from 'react';
@@ -15,7 +15,7 @@ import AuditLogPanel from '@/components/admin/AuditLogPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal, KeyRound } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal, KeyRound, Copy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -341,16 +341,28 @@ const AdminPanel = () => {
   };
 
 
-  const [tempPassword, setTempPassword] = useState<{ email: string; password: string } | null>(null);
-  const createTempPassword = async (userId: string) => {
-    const t = toast.loading('Tek kullanımlık parola oluşturuluyor...');
-    const { data, error } = await supabase.functions.invoke('admin-reset-password', { body: { userId } });
-    toast.dismiss(t);
-    if (error || (data as any)?.error || !(data as any)?.temp_password) {
-      toast.error((data as any)?.error || 'Parola oluşturulamadı.');
-      return;
+  const [tempPassword, setTempPassword] = useState<{ email: string; password: string; name?: string } | null>(null);
+  const createTempPassword = async (userId: string, userName?: string, userEmail?: string) => {
+    const t = toast.loading('Geçici anahtar şifre oluşturuluyor...');
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+        body: { userId, user_id: userId }
+      });
+      toast.dismiss(t);
+      if (error || (data as any)?.error || !(data as any)?.temp_password) {
+        toast.error((data as any)?.error || error?.message || 'Geçici anahtar şifre oluşturulamadı.');
+        return;
+      }
+      setTempPassword({
+        name: userName || '',
+        email: (data as any).email || userEmail || '',
+        password: (data as any).temp_password,
+      });
+      toast.success('Geçici anahtar şifre başarıyla oluşturuldu!');
+    } catch (err: any) {
+      toast.dismiss(t);
+      toast.error('Bağlantı hatası: ' + (err.message || 'Hata oluştu.'));
     }
-    setTempPassword({ email: (data as any).email || '', password: (data as any).temp_password });
   };
 
   const getUserRole = (userId: string) => { const role = userRoles.find(r => r.user_id === userId); return role?.role || 'student'; };
@@ -631,8 +643,35 @@ const AdminPanel = () => {
                               <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol"><UserCog className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza"><Ban className="h-3 w-3" /></Button>
                               <AlertDialog>
-                                <AlertDialogTrigger asChild><Button size="sm" variant="outline" title="Tek kullanımlık parola oluştur" aria-label="Tek kullanımlık parola oluştur"><KeyRound className="h-3 w-3" /></Button></AlertDialogTrigger>
-                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Tek kullanımlık parola oluşturulsun mu?</AlertDialogTitle><AlertDialogDescription>Kullanıcının tüm oturumları kapatılır. İlk girişte yeni şifre belirlemesi zorunlu olur.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => createTempPassword(u.user_id)}>Oluştur</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="outline" className="hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors" title="Geçici Giriş Anahtarı / Şifresi Oluştur" aria-label="Geçici Giriş Anahtarı / Şifresi Oluştur">
+                                    <KeyRound className="h-3.5 w-3.5 text-primary" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="rounded-2xl">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle className="flex items-center gap-2 text-primary">
+                                      <KeyRound className="h-5 w-5" /> Geçici Giriş Anahtarı Oluştur
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription className="text-sm leading-relaxed space-y-2">
+                                      <span>
+                                        <strong>{u.full_name || 'Bu kullanıcı'}</strong> ({userEmails[u.user_id] || '—'}) şifresini unuttuğu için tek kullanımlık geçici bir giriş anahtarı üretilecek.
+                                      </span>
+                                      <span className="block text-xs text-muted-foreground">
+                                        Kullanıcı bu geçici şifre ile sisteme giriş yaptığında, güvenliği sağlamak için ilk adımda kendi yeni şifresini belirleyecektir.
+                                      </span>
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel className="rounded-xl">Vazgeç</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+                                      onClick={() => createTempPassword(u.user_id, u.full_name || '', userEmails[u.user_id] || '')}
+                                    >
+                                      Anahtar Şifre Oluştur
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
                               </AlertDialog>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
@@ -1109,18 +1148,41 @@ const AdminPanel = () => {
         </Dialog>
       </div>
     <AlertDialog open={!!tempPassword} onOpenChange={(o) => { if (!o) setTempPassword(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Tek kullanımlık parola</AlertDialogTitle>
-            <AlertDialogDescription>{tempPassword?.email} için oluşturuldu. Bu parola yalnızca bir kez gösterilir.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="rounded-lg border-2 border-border bg-muted p-4 text-center font-mono text-lg tracking-widest select-all">{tempPassword?.password}</div>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={() => { if (tempPassword) { void navigator.clipboard?.writeText(tempPassword.password); toast.success('Parola kopyalandı.'); } }}>Kopyala</Button>
-            <AlertDialogAction onClick={() => setTempPassword(null)}>Tamam</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <AlertDialogContent className="rounded-2xl max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-primary">
+            <KeyRound className="h-5 w-5" /> Geçici Giriş Anahtarı Hazır
+          </AlertDialogTitle>
+          <AlertDialogDescription className="text-sm">
+            {tempPassword?.name ? <strong>{tempPassword.name}</strong> : null} ({tempPassword?.email}) için üretilen tek kullanımlık geçici giriş şifresi:
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 text-center font-mono text-xl font-bold tracking-wider text-primary select-all shadow-inner">
+            {tempPassword?.password}
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Bu şifreyi kullanıcıya iletin. Kullanıcı giriş yaptığında sistem otomatik olarak yeni şifre belirleme ekranına yönlendirecektir.
+          </p>
+        </div>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+          <Button
+            variant="outline"
+            className="rounded-xl font-medium"
+            onClick={() => {
+              if (tempPassword) {
+                const messageText = `Merhaba ${tempPassword.name || ''},\nEconNotes hesabınız için geçici giriş anahtarınız: ${tempPassword.password}\n\nBu şifre ile giriş yaptıktan sonra kendinize ait yeni şifrenizi belirleyebilirsiniz.`;
+                void navigator.clipboard?.writeText(messageText);
+                toast.success('Kullanıcı mesajı ve anahtar şifre kopyalandı!');
+              }
+            }}
+          >
+            <Copy className="mr-1.5 h-4 w-4" /> Mesajı & Şifreyi Kopyala
+          </Button>
+          <AlertDialogAction className="rounded-xl" onClick={() => setTempPassword(null)}>Tamam</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
       </Layout>
   );
 };

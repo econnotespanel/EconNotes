@@ -32,8 +32,9 @@ Deno.serve(async (req) => {
     if (!isAdmin) return json({ error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
 
     const body = await req.json().catch(() => ({}));
-    const userId = typeof body?.user_id === 'string' ? body.user_id : '';
-    if (!UUID.test(userId)) return json({ error: 'Geçersiz kullanıcı.' }, 400);
+    const rawUserId = typeof body?.user_id === 'string' ? body.user_id : (typeof body?.userId === 'string' ? body.userId : '');
+    const userId = rawUserId.trim();
+    if (!UUID.test(userId)) return json({ error: 'Geçersiz kullanıcı kimliği.' }, 400);
 
     const { data: target, error: tErr } = await admin.auth.admin.getUserById(userId);
     if (tErr || !target.user) return json({ error: 'Kullanıcı bulunamadı.' }, 404);
@@ -42,6 +43,7 @@ Deno.serve(async (req) => {
     const { error: upErr } = await admin.auth.admin.updateUserById(userId, {
       password: tempPassword,
       app_metadata: { ...(target.user.app_metadata || {}), must_change_password: true },
+      user_metadata: { ...(target.user.user_metadata || {}), must_change_password: true },
     });
     if (upErr) return json({ error: 'Parola oluşturulamadı.', details: upErr.message }, 500);
 

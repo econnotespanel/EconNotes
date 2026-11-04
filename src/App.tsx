@@ -4,7 +4,8 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import ForcePasswordChange from "@/components/ForcePasswordChange";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { SiteConfigProvider } from "@/contexts/SiteConfigContext";
 import PageGuard from "@/components/PageGuard";
@@ -41,6 +42,18 @@ const queryClient = new QueryClient({
   },
 });
 
+const PasswordChangeGate = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <>{children}</>;
+  const mustChange = Boolean(
+    user && (user.app_metadata?.must_change_password || user.user_metadata?.must_change_password)
+  );
+  if (mustChange) {
+    return <ForcePasswordChange />;
+  }
+  return <>{children}</>;
+};
+
 const App = () => {
   const [showSplash, setShowSplash] = useState(() => {
     const shown = sessionStorage.getItem('econotes_splash_shown');
@@ -71,28 +84,30 @@ const App = () => {
               <BrowserRouter>
                 <Suspense fallback={<RouteLoader />}>
                   <SystemGate>
-                    <Routes>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/forgot-password" element={<ForgotPassword />} />
-                    <Route path="/reset-password" element={<ResetPassword />} />
-                    <Route path="/notes" element={<PageGuard path="/notes"><Notes /></PageGuard>} />
-                    <Route path="/announcements" element={<PageGuard path="/announcements"><Announcements /></PageGuard>} />
-                    <Route path="/profile" element={<PageGuard path="/profile"><Profile /></PageGuard>} />
-                    <Route path="/messages" element={<PageGuard path="/messages"><Messages /></PageGuard>} />
-                    <Route path="/admin" element={<AdminPanel />} />
-                    <Route path="/about" element={<PageGuard path="/about"><About /></PageGuard>} />
-                    <Route path="/assistant" element={<PageGuard path="/assistant"><AcademicAssistant /></PageGuard>} />
-                    <Route path="/study" element={<PageGuard path="/study"><Study /></PageGuard>} />
-                    <Route path="/kpss" element={<PageGuard path="/kpss"><Kpss /></PageGuard>} />
-                    <Route path="/welcome" element={<Welcome />} />
-                    <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
-                    <Route path="/live-class" element={<PageGuard path="/live-class"><LiveClass /></PageGuard>} />
-                    <Route path="/support" element={<Support />} />
-                    <Route path="/install" element={<Install />} />
-                    <Route path="*" element={<NotFound />} />
-                    </Routes>
+                    <PasswordChangeGate>
+                      <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/register" element={<Register />} />
+                      <Route path="/forgot-password" element={<ForgotPassword />} />
+                      <Route path="/reset-password" element={<ResetPassword />} />
+                      <Route path="/notes" element={<PageGuard path="/notes"><Notes /></PageGuard>} />
+                      <Route path="/announcements" element={<PageGuard path="/announcements"><Announcements /></PageGuard>} />
+                      <Route path="/profile" element={<PageGuard path="/profile"><Profile /></PageGuard>} />
+                      <Route path="/messages" element={<PageGuard path="/messages"><Messages /></PageGuard>} />
+                      <Route path="/admin" element={<AdminPanel />} />
+                      <Route path="/about" element={<PageGuard path="/about"><About /></PageGuard>} />
+                      <Route path="/assistant" element={<PageGuard path="/assistant"><AcademicAssistant /></PageGuard>} />
+                      <Route path="/study" element={<PageGuard path="/study"><Study /></PageGuard>} />
+                      <Route path="/kpss" element={<PageGuard path="/kpss"><Kpss /></PageGuard>} />
+                      <Route path="/welcome" element={<Welcome />} />
+                      <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
+                      <Route path="/live-class" element={<PageGuard path="/live-class"><LiveClass /></PageGuard>} />
+                      <Route path="/support" element={<Support />} />
+                      <Route path="/install" element={<Install />} />
+                      <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </PasswordChangeGate>
                   </SystemGate>
                 </Suspense>
               </BrowserRouter>
