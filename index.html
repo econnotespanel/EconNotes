@@ -13,9 +13,11 @@
     <meta name="theme-color" content="#070b16" />
     <meta name="color-scheme" content="dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="EconNotes" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
     
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 
@@ -27,6 +29,26 @@
   <meta name="twitter:description" content="Üniversite öğrencileri için tasarlanan not paylaşım platformu.">
   <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/cd9e2b2e-4782-48cf-9ceb-2e3b6a06d15f/id-preview-e9bc0e18--7432bddc-106c-4b45-abe7-13c3647245ff.lovable.app-1774646135766.png">
   <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/cd9e2b2e-4782-48cf-9ceb-2e3b6a06d15f/id-preview-e9bc0e18--7432bddc-106c-4b45-abe7-13c3647245ff.lovable.app-1774646135766.png">
+  <script>
+    // iOS Standalone PWA Persistent Fullscreen Engine
+    (function() {
+      if (('standalone' in window.navigator) && window.navigator.standalone) {
+        var curnode, location = document.location;
+        document.addEventListener('click', function(e) {
+          curnode = e.target;
+          while (curnode && curnode.nodeName !== 'A' && curnode.nodeName !== 'HTML') {
+            curnode = curnode.parentNode;
+          }
+          if (curnode && curnode.nodeName === 'A' && curnode.href && !curnode.getAttribute('download') && curnode.getAttribute('target') !== '_blank') {
+            if (curnode.href.indexOf(location.host) !== -1) {
+              e.preventDefault();
+              window.location.href = curnode.href;
+            }
+          }
+        }, false);
+      }
+    })();
+  </script>
 </head>
 
   <body>

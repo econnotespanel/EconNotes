@@ -63,6 +63,20 @@ const MobileBottomNav = () => {
     };
   }, []);
 
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    const checkStandalone = () => {
+      const standalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true;
+      setIsStandalone(standalone);
+    };
+    checkStandalone();
+    window.addEventListener('resize', checkStandalone);
+    return () => window.removeEventListener('resize', checkStandalone);
+  }, []);
+
   const totalBadge = unreadMessages + unreadAnnouncements;
 
   const navItems = [
@@ -76,21 +90,23 @@ const MobileBottomNav = () => {
     <nav
       role="navigation"
       aria-label="Mobil Apple Liquid Glass Menü"
-      className="fixed bottom-3 inset-x-0 z-40 md:hidden pointer-events-none select-none transition-all duration-300"
+      className="fixed inset-x-0 z-40 md:hidden pointer-events-none select-none transition-all duration-300"
       style={{
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.15rem)',
+        bottom: isStandalone
+          ? 'calc(env(safe-area-inset-bottom, 0px) + 0.35rem)'
+          : 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
       }}
     >
-      <div className="flex items-center justify-center gap-2 sm:gap-2.5 px-3 max-w-md mx-auto">
+      <div className="flex items-center justify-center gap-2.5 px-3 max-w-md mx-auto">
         {/* Apple Sıvı Cam Ana Kapsül (Floating Liquid Glass Dock) */}
         <div
           className={cn(
-            'pointer-events-auto flex items-center justify-around flex-1 max-w-[340px] h-[58px] sm:h-[62px] p-1.5',
+            'pointer-events-auto flex items-center justify-around flex-1 max-w-[340px] h-[60px] p-1.5',
             'rounded-full',
-            'bg-slate-950/80 dark:bg-black/80 backdrop-blur-2xl backdrop-saturate-150',
-            'border border-white/[0.14] dark:border-white/[0.12]',
-            'shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.22),0_12px_36px_-6px_rgba(0,0,0,0.55),0_4px_16px_rgba(0,0,0,0.35)]',
-            isSidebarOpen && 'opacity-90'
+            'bg-slate-900/40 dark:bg-black/50 backdrop-blur-3xl backdrop-saturate-200',
+            'border border-white/[0.22] dark:border-white/[0.18]',
+            'shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.35),0_12px_40px_-4px_rgba(0,0,0,0.65),0_4px_16px_rgba(0,0,0,0.4)]',
+            isSidebarOpen && 'opacity-85'
           )}
         >
           {navItems.map((item) => {
@@ -113,8 +129,8 @@ const MobileBottomNav = () => {
                   'relative flex flex-col items-center justify-center flex-1 h-full min-w-0 py-1 px-1 sm:px-2 rounded-full',
                   'touch-manipulation select-none active:scale-95 transition-all duration-200',
                   isActive
-                    ? 'bg-white/[0.12] dark:bg-white/[0.14] border border-white/20 dark:border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_2px_8px_rgba(0,0,0,0.2)] text-[#0a84ff]'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+                    ? 'bg-white/[0.18] dark:bg-white/[0.20] border border-white/30 dark:border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_2px_12px_rgba(0,0,0,0.3)] text-[#007aff]'
+                    : 'text-white/75 hover:text-white hover:bg-white/[0.06]'
                 )}
               >
                 <div className="relative">
@@ -122,10 +138,10 @@ const MobileBottomNav = () => {
                     className={cn(
                       'h-5 w-5 transition-transform duration-200',
                       isActive
-                        ? 'scale-105 text-[#0a84ff] drop-shadow-[0_2px_8px_rgba(10,132,255,0.55)]'
-                        : 'text-slate-400 dark:text-slate-300/80'
+                        ? 'scale-105 text-[#007aff] drop-shadow-[0_2px_8px_rgba(0,122,255,0.7)]'
+                        : 'text-white/80'
                     )}
-                    strokeWidth={isActive ? 2.4 : 1.9}
+                    strokeWidth={isActive ? 2.5 : 2}
                   />
                   {item.badge && item.badge > 0 ? (
                     <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#ff3b30] px-1 text-[9px] font-bold text-white ring-2 ring-slate-950 animate-in zoom-in-50 shadow-sm">
@@ -140,8 +156,8 @@ const MobileBottomNav = () => {
                   className={cn(
                     'text-[10px] sm:text-[10.5px] mt-0.5 tracking-tight truncate max-w-full leading-tight transition-colors',
                     isActive
-                      ? 'text-[#0a84ff] font-bold'
-                      : 'text-slate-400 dark:text-slate-400 font-medium'
+                      ? 'text-[#007aff] font-bold'
+                      : 'text-white/60 font-medium'
                   )}
                 >
                   {item.label}
@@ -157,34 +173,26 @@ const MobileBottomNav = () => {
           onClick={toggleMobileSidebar}
           aria-label={isSidebarOpen ? 'Menüyü Kapat' : 'Tüm Menüyü Aç'}
           className={cn(
-            'pointer-events-auto flex flex-col items-center justify-center shrink-0 w-[58px] h-[58px] sm:w-[62px] sm:h-[62px]',
+            'pointer-events-auto flex items-center justify-center shrink-0 w-[60px] h-[60px]',
             'rounded-full touch-manipulation select-none active:scale-90 transition-all duration-200',
-            'backdrop-blur-2xl backdrop-saturate-150',
+            'backdrop-blur-3xl backdrop-saturate-200',
             isSidebarOpen
-              ? 'bg-blue-600/25 border border-blue-400/50 text-[#0a84ff] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.3),0_0_20px_rgba(10,132,255,0.4)]'
-              : 'bg-slate-950/80 dark:bg-black/80 border border-white/[0.14] dark:border-white/[0.12] text-slate-300 hover:text-white shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.22),0_12px_36px_-6px_rgba(0,0,0,0.55),0_4px_16px_rgba(0,0,0,0.35)]'
+              ? 'bg-blue-600/30 border border-blue-400/60 text-[#007aff] shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.45),0_0_24px_rgba(0,122,255,0.5)]'
+              : 'bg-slate-900/40 dark:bg-black/50 border border-white/[0.22] dark:border-white/[0.18] text-white/90 hover:text-white shadow-[inset_0_1px_1px_0_rgba(255,255,255,0.35),0_12px_40px_-4px_rgba(0,0,0,0.65),0_4px_16px_rgba(0,0,0,0.4)]'
           )}
         >
-          <div className="relative">
+          <div className="relative flex items-center justify-center">
             <Menu
               className={cn(
-                'h-5 w-5 transition-transform duration-200',
-                isSidebarOpen ? 'scale-110 text-[#0a84ff] rotate-90' : 'text-slate-300'
+                'h-6 w-6 transition-transform duration-300',
+                isSidebarOpen ? 'scale-110 text-[#007aff] rotate-90' : 'text-white/95'
               )}
-              strokeWidth={isSidebarOpen ? 2.4 : 2}
+              strokeWidth={2.2}
             />
             {totalBadge > 0 && !isSidebarOpen && (
-              <span className="absolute -top-1 -right-1.5 h-2.5 w-2.5 rounded-full bg-[#ff3b30] ring-2 ring-slate-950 shadow-sm" />
+              <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-[#ff3b30] ring-2 ring-slate-950 shadow-sm" />
             )}
           </div>
-          <span
-            className={cn(
-              'text-[9.5px] mt-0.5 tracking-tight truncate max-w-full leading-tight transition-colors',
-              isSidebarOpen ? 'text-[#0a84ff] font-bold' : 'text-slate-400 font-medium'
-            )}
-          >
-            Menü
-          </span>
         </button>
       </div>
     </nav>
