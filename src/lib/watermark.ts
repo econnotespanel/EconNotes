@@ -5,7 +5,7 @@ import logoUrl from '@/assets/econnotes-brand-light.png';
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 const WATERMARK_COLUMNS = 3;
-const WATERMARK_ROWS = 8;
+const WATERMARK_ROWS = 3;
 const STAMP_WIDTH = 1000;
 const STAMP_HEIGHT = 200;
 const STAMP_ASPECT_RATIO = STAMP_WIDTH / STAMP_HEIGHT;

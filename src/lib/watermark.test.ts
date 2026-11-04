@@ -30,17 +30,17 @@ describe('PowerPoint personal watermarking', () => {
       expect(slide).toContain('r:embed="rId1"');
       expect(slide).toContain('<a:alphaModFix amt="14000"/>');
       expect(slide).not.toContain('<a:alphaModFix amt="30000"/>');
-      expect((slide?.match(/<p:pic>/g) ?? []).length).toBe(24);
+      expect((slide?.match(/<p:pic>/g) ?? []).length).toBe(9);
 
       const positions = [...(slide?.matchAll(/<a:off x="(\d+)" y="(\d+)"\/>/g) ?? [])]
         .map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
       const columns = [...new Set(positions.map(({ x }) => x))];
       const rows = [...new Set(positions.map(({ y }) => y))];
       expect(columns).toHaveLength(3);
-      expect(rows).toHaveLength(8);
+      expect(rows).toHaveLength(3);
       expect(columns[1] - columns[0]).toBe(columns[2] - columns[1]);
-      expect(rows[1] - rows[0]).toBe(rows[7] - rows[6]);
-      expect(positions[0]).toEqual({ x: 274320, y: 178689 });
+      expect(rows[1] - rows[0]).toBe(rows[2] - rows[1]);
+      expect(positions[0]).toEqual({ x: 274320, y: 893064 });
       expect(slide).toContain('<a:ext cx="2499360" cy="499872"/>');
       expect(relationships).toContain('Target="../media/econnotes-personal-watermark.png"');
     }

@@ -906,7 +906,7 @@ const Notes = () => {
                             {previewLoadingId === note.id && (
                               <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-sm text-white">
                                 <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                                <span className="mt-2 text-xs font-medium">Filigran hazırlanıyor...</span>
+                                <span className="mt-2 text-xs font-medium">Önizleme yükleniyor...</span>
                               </div>
                             )}
                             <div className="absolute left-3 top-3">
@@ -924,7 +924,7 @@ const Notes = () => {
                             {previewLoadingId === note.id && (
                               <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-sm text-white">
                                 <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                                <span className="mt-2 text-xs font-medium">Filigran hazırlanıyor...</span>
+                                <span className="mt-2 text-xs font-medium">Önizleme yükleniyor...</span>
                               </div>
                             )}
                             <div className="absolute -left-10 -top-16 h-40 w-40 rounded-full bg-primary/20 blur-3xl transition-all duration-500 group-hover:bg-primary/30" />
@@ -1182,38 +1182,6 @@ const Notes = () => {
                     <p className="text-sm text-slate-300">Bu dosya türü önizlenemez. Lütfen indirin.</p>
                   </div>
                 )}
-
-                {/* EconNotes Guaranteed High-Contrast Visible Watermark Layer */}
-                <div
-                  className="pointer-events-none absolute inset-0 z-30 select-none overflow-hidden p-3 sm:p-6"
-                  aria-hidden="true"
-                >
-                  <div className="grid h-full w-full grid-cols-2 sm:grid-cols-3 grid-rows-3 sm:grid-rows-4 place-items-center gap-4 sm:gap-8">
-                    {Array.from({ length: 12 }).map((_, index) => (
-                      <div
-                        key={index}
-                        className="-rotate-12 select-none rounded-xl border border-blue-500/30 bg-white/85 dark:bg-slate-900/85 px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg backdrop-blur-[2px] flex items-center gap-2.5 transition-all"
-                      >
-                        <div className="flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 text-white shadow-sm font-bold text-xs sm:text-sm">
-                          E
-                        </div>
-                        <div className="flex flex-col text-left leading-tight">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] sm:text-xs font-bold tracking-tight text-slate-900 dark:text-white">
-                              EconNotes
-                            </span>
-                            <span className="rounded bg-blue-500/15 px-1 py-0.5 text-[8px] sm:text-[9px] font-semibold text-blue-600 dark:text-blue-400">
-                              Önizleme
-                            </span>
-                          </div>
-                          <span className="text-[9px] sm:text-[10px] font-medium text-slate-600 dark:text-slate-300 truncate max-w-[120px] sm:max-w-[160px]">
-                            {profile?.full_name?.trim() || String(user?.user_metadata?.full_name || '').trim() || user?.email?.split('@')[0] || 'Öğrenci Önizleme'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             </DialogContent>
           </Dialog>
