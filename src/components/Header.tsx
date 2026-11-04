@@ -235,11 +235,11 @@ const Header = () => {
           {points && (
             <button
               onClick={() => navigate('/points')}
-              title={`${points.points} XP • ${points.current_streak} günlük seri • PlayStation Kupa Sistemi`}
+              title={`${points.points} Puan • ${points.current_streak} günlük seri`}
               className="hidden h-9 items-center gap-1.5 rounded-full border border-primary/35 bg-gradient-to-r from-primary/15 via-primary/10 to-transparent px-3 text-xs font-bold text-primary shadow-xs backdrop-blur-md transition-all duration-200 hover:scale-105 hover:border-primary/60 hover:shadow-[0_0_15px_rgba(0,112,209,0.3)] active:scale-95 lg:inline-flex"
             >
-              <span className="text-amber-400 drop-shadow-[0_0_6px_rgba(251,191,36,0.5)]">🏆</span>
-              <span>{points.points} XP</span>
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span>{points.points} Puan</span>
               {points.current_streak > 0 && (
                 <span className="inline-flex items-center gap-0.5 text-warning font-bold border-l border-primary/20 pl-1.5 ml-0.5">
                   <Flame className="h-3.5 w-3.5" />{points.current_streak}

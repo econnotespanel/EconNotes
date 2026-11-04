@@ -152,22 +152,28 @@ const Dashboard = () => {
       label: 'Toplam Notlar',
       value: stats.notes,
       icon: FileText,
-      color: 'text-primary',
-      borderHover: 'hover:border-primary/50 hover:shadow-[0_8px_24px_hsl(var(--primary)/0.12)]',
+      color: 'text-blue-500 dark:text-blue-400',
+      iconBg: 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20',
+      lineGradient: 'from-blue-600 via-blue-500 to-cyan-400',
+      borderHover: 'hover:border-blue-500/50 hover:shadow-[0_8px_24px_rgba(59,130,246,0.15)]',
     },
     {
       label: 'Paylaşılan Notlar',
       value: stats.notes,
       icon: Users,
-      color: 'text-emerald-500',
-      borderHover: 'hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(16,185,129,0.12)]',
+      color: 'text-emerald-500 dark:text-emerald-400',
+      iconBg: 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
+      lineGradient: 'from-emerald-600 via-emerald-500 to-teal-400',
+      borderHover: 'hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(16,185,129,0.15)]',
     },
     {
       label: 'Duyurular',
       value: stats.announcements,
       icon: Megaphone,
-      color: 'text-amber-500',
-      borderHover: 'hover:border-amber-500/50 hover:shadow-[0_8px_24px_rgba(245,158,11,0.12)]',
+      color: 'text-amber-500 dark:text-amber-400',
+      iconBg: 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20',
+      lineGradient: 'from-amber-600 via-amber-500 to-orange-400',
+      borderHover: 'hover:border-amber-500/50 hover:shadow-[0_8px_24px_rgba(245,158,11,0.15)]',
     },
   ];
 
@@ -458,17 +464,24 @@ const Dashboard = () => {
               <div
                 onClick={() => i < 2 ? navigate('/notes') : navigate('/announcements')}
                 className={cn(
-                  'group relative flex-1 p-5 rounded-xl border border-border/70 bg-gradient-to-br from-card to-card/80 cursor-pointer transition-all duration-200',
+                  'group relative flex-1 p-5 pt-6 rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-card/90 cursor-pointer transition-all duration-200 overflow-hidden shadow-xs',
                   stat.borderHover,
                   'hover:-translate-y-0.5'
                 )}
               >
+                {/* Üst Vurgu Çizgisi (Top Accent Line) */}
+                <span className={cn('absolute top-0 inset-x-0 h-1 bg-gradient-to-r transition-all duration-300 group-hover:h-1.5', stat.lineGradient)} />
+
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-muted-foreground">{stat.label}</span>
-                  <div className={cn('p-2 rounded-lg bg-muted/60', stat.color)}>
-                    <stat.icon className="h-5 w-5" />
+                  <span className="text-xs font-semibold text-muted-foreground">{stat.label}</span>
+                  <div className={cn('p-2 rounded-xl transition-transform duration-200 group-hover:scale-110', stat.iconBg)}>
+                    <stat.icon className="h-4 w-4" />
                   </div>
                 </div>
+
+                {/* Şık ayırıcı çizgi */}
+                <div className="my-2.5 h-px bg-gradient-to-r from-border/80 via-border/40 to-transparent" />
+
                 <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">{stat.value}</p>
               </div>
             </div>
