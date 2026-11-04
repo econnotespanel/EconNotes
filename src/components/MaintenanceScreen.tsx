@@ -146,81 +146,110 @@ const MaintenanceScreen = ({
               <span className="text-xs font-medium text-primary">Canlı Akış</span>
             </div>
 
-            {/* Timeline Items */}
-            <div className="space-y-6 pt-2">
+            {/* Continuous Connected Timeline */}
+            <div className="relative pt-2">
               
               {/* Event 1: Currently In Progress */}
-              <div className="relative pl-7 border-l-2 border-amber-500/70 space-y-1.5">
-                <span className="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
-                </span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                    Devam Ediyor (In Progress)
-                  </span>
-                  <span className="text-xs text-muted-foreground">4 Kasım 2026, Çarşamba (Sabah)</span>
+              <div className="relative flex gap-4 pb-7">
+                {/* Column: Centered Dot + Line down to next dot */}
+                <div className="flex flex-col items-center">
+                  <div className="relative z-10 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-background border-2 border-amber-500">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  </div>
+                  <div className="w-[2px] grow bg-amber-500/70" />
                 </div>
-                <h3 className="text-sm font-semibold text-foreground">
-                  Altyapı Mühendislik Ekibi İnceleme ve Kurtarma Çalışması
-                </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                  Bulut ve sunucu altyapı mühendisleriyle koordinasyon sağlandı. Veritabanı servisleri ayağa kaldırılmakta olup son entegrasyon kontrolleri sürdürülmektedir.
-                </p>
+                {/* Content */}
+                <div className="space-y-1 -mt-0.5 pb-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                      Devam Ediyor (In Progress)
+                    </span>
+                    <span className="text-xs text-muted-foreground">4 Kasım 2026, Çarşamba (Sabah)</span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Altyapı Mühendislik Ekibi İnceleme ve Kurtarma Çalışması
+                  </h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    Bulut ve sunucu altyapı mühendisleriyle koordinasyon sağlandı. Veritabanı servisleri ayağa kaldırılmakta olup son entegrasyon kontrolleri sürdürülmektedir.
+                  </p>
+                </div>
               </div>
 
               {/* Event 2: Complete */}
-              <div className="relative pl-7 border-l-2 border-emerald-500/70 space-y-1.5">
-                <span className="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                </span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                    Tamamlandı (Complete)
-                  </span>
-                  <span className="text-xs text-muted-foreground">3 Kasım 2026, Salı</span>
+              <div className="relative flex gap-4 pb-7">
+                {/* Column: Centered Dot + Line down to next dot */}
+                <div className="flex flex-col items-center">
+                  <div className="relative z-10 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-background border-2 border-emerald-500">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  </div>
+                  <div className="w-[2px] grow bg-emerald-500/70" />
                 </div>
-                <h3 className="text-sm font-semibold text-foreground">
-                  Ön Bellekleme ve Veri Koruma Kalkanı Devreye Alındı
-                </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                  Ziyaretçi trafiği bakım ve koruma moduna yönlendirildi. Yedek veritabanı şemaları hazırlandı; ders notları ve kullanıcı bakiyelerinin eksiksiz korunduğu doğrulandı.
-                </p>
+                {/* Content */}
+                <div className="space-y-1 -mt-0.5 pb-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                      Tamamlandı (Complete)
+                    </span>
+                    <span className="text-xs text-muted-foreground">3 Kasım 2026, Salı</span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Ön Bellekleme ve Veri Koruma Kalkanı Devreye Alındı
+                  </h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    Ziyaretçi trafiği bakım ve koruma moduna yönlendirildi. Yedek veritabanı şemaları hazırlandı; ders notları ve kullanıcı bakiyelerinin eksiksiz korunduğu doğrulandı.
+                  </p>
+                </div>
               </div>
 
               {/* Event 3: Started (Night of Nov 2) */}
-              <div className="relative pl-7 border-l-2 border-border/80 space-y-1.5">
-                <span className="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-muted border-2 border-muted-foreground/60 flex items-center justify-center" />
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-muted text-muted-foreground">
-                    Olay Başlangıcı (Incident Started)
-                  </span>
-                  <span className="text-xs text-muted-foreground">2 Kasım 2026, Gece Yarısı</span>
+              <div className="relative flex gap-4 pb-7">
+                {/* Column: Centered Dot + Line down to next dot */}
+                <div className="flex flex-col items-center">
+                  <div className="relative z-10 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-background border-2 border-muted-foreground/60">
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
+                  </div>
+                  <div className="w-[2px] grow bg-border/90" />
                 </div>
-                <h3 className="text-sm font-semibold text-foreground">
-                  Sınav Dönemi Kaynak Aşımı ve Otomatik Kurtarma Durumu
-                </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                  Sınav haftası öncesi yaşanan yoğun talep nedeniyle Cloud veritabanı disk IOPS limitine ulaşmış ve sistem otomatik kurtarma durumuna geçmiştir.
-                </p>
+                {/* Content */}
+                <div className="space-y-1 -mt-0.5 pb-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-muted text-muted-foreground">
+                      Olay Başlangıcı (Incident Started)
+                    </span>
+                    <span className="text-xs text-muted-foreground">2 Kasım 2026, Gece Yarısı</span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Sınav Dönemi Kaynak Aşımı ve Otomatik Kurtarma Durumu
+                  </h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    Sınav haftası öncesi yaşanan yoğun talep nedeniyle Cloud veritabanı disk IOPS limitine ulaşmış ve sistem otomatik kurtarma durumuna geçmiştir.
+                  </p>
+                </div>
               </div>
 
-              {/* Target: Scheduled */}
-              <div className="relative pl-7 border-l-2 border-primary/50 space-y-1.5">
-                <span className="absolute -left-[9px] top-1 h-4 w-4 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center">
-                  <Calendar className="h-2.5 w-2.5 text-primary" />
-                </span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-primary/20 text-primary">
-                    Planlanan Hedef (Target)
-                  </span>
-                  <span className="text-xs text-muted-foreground">En Geç Cuma (Sınavlardan Önce)</span>
+              {/* Target: Scheduled (Last item, line ends exactly at this dot) */}
+              <div className="relative flex gap-4">
+                {/* Column: Final Node */}
+                <div className="flex flex-col items-center">
+                  <div className="relative z-10 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-background border-2 border-primary">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  </div>
                 </div>
-                <h3 className="text-sm font-semibold text-foreground">
-                  Üniversite Sınavları Öncesi Tam Kapasite Yeniden Açılış
-                </h3>
-                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                  Cumartesi günü başlayacak üniversite sınavları öncesinde tüm ders notları öğrencilerin kesintisiz erişimine açılacaktır.
-                </p>
+                {/* Content */}
+                <div className="space-y-1 -mt-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-primary/20 text-primary">
+                      Planlanan Hedef (Target)
+                    </span>
+                    <span className="text-xs text-muted-foreground">En Geç Cuma (Sınavlardan Önce)</span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Üniversite Sınavları Öncesi Tam Kapasite Yeniden Açılış
+                  </h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                    Cumartesi günü başlayacak üniversite sınavları öncesinde tüm ders notları öğrencilerin kesintisiz erişimine açılacaktır.
+                  </p>
+                </div>
               </div>
 
             </div>
