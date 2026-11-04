@@ -67,9 +67,37 @@
 @layer base {
   * { @apply border-border; }
 
-  html { font-family: 'Inter', system-ui, sans-serif; }
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
 
-  body { @apply bg-background text-foreground antialiased; font-family: 'Inter', system-ui, sans-serif; overflow-x: hidden; transition: background-color .7s ease, color .7s ease; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+    overflow-x: hidden;
+    transition: background-color .7s ease, color .7s ease;
+  }
+
+  @media (max-width: 768px) {
+    /* Buton ve bağlantı dokunmalarındaki 300ms gecikmeyi ve gri parlamayı kaldırır */
+    a, button, input, select, textarea, [role="button"] {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* iOS Safari'de metin alanına odaklanınca gereksiz yakınlaşmayı (auto-zoom) engeller */
+    input, select, textarea {
+      font-size: 16px;
+    }
+
+    /* Mobilde gezinirken aşırı kaydırma ve titremeyi önler */
+    body {
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
 
   input:-webkit-autofill,
   input:-webkit-autofill:hover, 

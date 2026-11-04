@@ -75,6 +75,26 @@ const Sidebar = () => {
   useEffect(() => { setOpen(false); }, [location.pathname]);
 
   useEffect(() => {
+    const handleToggle = () => setOpen(v => !v);
+    const handleClose = () => setOpen(false);
+    const handleOpen = () => setOpen(true);
+
+    window.addEventListener('econnotes:toggle-sidebar', handleToggle);
+    window.addEventListener('econnotes:close-sidebar', handleClose);
+    window.addEventListener('econnotes:open-sidebar', handleOpen);
+
+    return () => {
+      window.removeEventListener('econnotes:toggle-sidebar', handleToggle);
+      window.removeEventListener('econnotes:close-sidebar', handleClose);
+      window.removeEventListener('econnotes:open-sidebar', handleOpen);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('econnotes:sidebar-state', { detail: { open } }));
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -250,7 +270,7 @@ const Sidebar = () => {
           <NavContent />
         </div>
 
-        <div className="p-3 border-t border-[hsl(var(--sidebar-border))] bg-card/40 backdrop-blur-sm">
+        <div className="p-3 pb-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] md:pb-3 border-t border-[hsl(var(--sidebar-border))] bg-card/40 backdrop-blur-sm">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
             <EconLogo className="h-4 w-20" />
             <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)] font-semibold">Versiyon {APP_VERSION}</span>
