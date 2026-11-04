@@ -8,7 +8,6 @@ import {
   LogIn,
   ExternalLink,
   Info,
-  Calendar,
   Mail
 } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
@@ -47,7 +46,7 @@ const MaintenanceScreen = ({}: MaintenanceScreenProps) => {
     <div className="min-h-screen bg-muted/30 dark:bg-background flex flex-col justify-between font-sans text-foreground">
       
       {/* Top Header Navigation */}
-      <header className="w-full bg-[#003791] border-b border-white/10">
+      <header className="w-full bg-[#003791] border-b border-white/10 relative z-20">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <EconLogo className="h-7 w-32 sm:h-8 sm:w-36 brightness-0 invert" />
@@ -65,18 +64,46 @@ const MaintenanceScreen = ({}: MaintenanceScreenProps) => {
         </div>
       </header>
 
-      {/* PlayStation-style Bold Hero Banner */}
-      <div className="w-full bg-gradient-to-b from-[#003791] via-[#004bb5] to-[#0066d6] text-white pt-10 pb-24 sm:pt-14 sm:pb-32 px-4 text-center">
-        <h1 className="text-3xl sm:text-5xl font-bold tracking-tight">
-          EconNotes
-        </h1>
-        <p className="mt-2 text-base sm:text-lg text-white/80 font-medium">
-          Hizmet ve Sunucu Durumu
-        </p>
+      {/* PlayStation-style Bold Hero Banner with Subtle Repeating EconNotes 'E' Brand Watermark */}
+      <div className="relative w-full bg-gradient-to-b from-[#003791] via-[#004bb5] to-[#0066d6] text-white pt-10 pb-24 sm:pt-14 sm:pb-32 px-4 text-center overflow-hidden">
+        
+        {/* Subtle, faint, semi-transparent EconNotes 'E' watermark pattern */}
+        <div className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden" aria-hidden="true">
+          <svg className="h-full w-full" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern
+                id="econnotes-e-pattern"
+                width="68"
+                height="68"
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(-25)"
+              >
+                <g fill="white" opacity="0.065">
+                  {/* Stylized capital E */}
+                  <path d="M14 18 h19 v7 h-11 v5 h9 v7 h-9 v6 h11 v7 h-19 z" />
+                  {/* Energy badge top-right */}
+                  <circle cx="35" cy="13" r="6" fill="none" stroke="white" stroke-width="1.8" />
+                  <path d="M35.5 8.5 l-3 4.5 h2.5 l-.5 4.5 3.5 -5 h-2.5 z" fill="white" />
+                </g>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#econnotes-e-pattern)" />
+          </svg>
+        </div>
+
+        {/* Content sits cleanly above watermark */}
+        <div className="relative z-10">
+          <h1 className="text-3xl sm:text-5xl font-bold tracking-tight drop-shadow-sm">
+            EconNotes
+          </h1>
+          <p className="mt-2 text-base sm:text-lg text-white/85 font-medium tracking-wide">
+            Hizmet ve Sunucu Durumu
+          </p>
+        </div>
       </div>
 
       {/* Main Status Container (PlayStation Overlapping Card Layout) */}
-      <main className="flex-1 -mt-16 sm:-mt-20 mx-auto w-full max-w-3xl px-4 sm:px-6 mb-12">
+      <main className="relative z-20 flex-1 -mt-16 sm:-mt-20 mx-auto w-full max-w-3xl px-4 sm:px-6 mb-12">
         <div className="bg-card rounded-2xl shadow-xl border border-border p-6 sm:p-8 space-y-6">
           
           {/* Main Status Announcement Header */}
