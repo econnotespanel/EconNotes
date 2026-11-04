@@ -29,7 +29,7 @@ const getWatermarkTiles = (width: number, height: number) => {
   });
 };
 
-const createAttributionStamp = async (fullName: string): Promise<Uint8Array> => {
+export const createAttributionStamp = async (fullName: string, actionText?: string): Promise<Uint8Array> => {
   const canvas = document.createElement('canvas');
   canvas.width = STAMP_WIDTH;
   canvas.height = STAMP_HEIGHT;
@@ -49,7 +49,7 @@ const createAttributionStamp = async (fullName: string): Promise<Uint8Array> => 
 
   context.fillStyle = '#172033';
   context.textBaseline = 'middle';
-  const attribution = `Bu not ${fullName} tarafından indirilmiştir`;
+  const attribution = actionText || `Bu not ${fullName} tarafından indirilmiştir`;
   const textX = 405;
   const maxTextWidth = canvas.width - textX - 24;
   let fontSize = 24;
@@ -69,13 +69,13 @@ const createAttributionStamp = async (fullName: string): Promise<Uint8Array> => 
   return new Uint8Array(await blob.arrayBuffer());
 };
 
-export async function addWatermarkToPdf(pdfUrl: string, fullName: string): Promise<Blob> {
+export async function addWatermarkToPdf(pdfUrl: string, fullName: string, actionText?: string): Promise<Blob> {
   const response = await fetch(pdfUrl);
   if (!response.ok) throw new Error(`PDF indirilemedi (${response.status}).`);
 
   const pdfDoc = await PDFDocument.load(await response.arrayBuffer(), { ignoreEncryption: true });
   const pages = pdfDoc.getPages();
-  const attributionStamp = await createAttributionStamp(fullName);
+  const attributionStamp = await createAttributionStamp(fullName, actionText);
   const stamp = await pdfDoc.embedPng(attributionStamp);
 
   for (const page of pages) {
@@ -89,7 +89,7 @@ export async function addWatermarkToPdf(pdfUrl: string, fullName: string): Promi
   return new Blob([new Uint8Array(watermarkedBytes)], { type: 'application/pdf' });
 }
 
-export async function addWatermarkToImage(imageUrl: string, fullName: string): Promise<Blob> {
+export async function addWatermarkToImage(imageUrl: string, fullName: string, actionText?: string): Promise<Blob> {
   const img = new Image();
   img.crossOrigin = 'anonymous';
   await new Promise<void>((resolve, reject) => {
@@ -106,7 +106,7 @@ export async function addWatermarkToImage(imageUrl: string, fullName: string): P
 
   ctx.drawImage(img, 0, 0);
 
-  const stamp = await createAttributionStamp(fullName);
+  const stamp = await createAttributionStamp(fullName, actionText);
   const stampImage = new Image();
   stampImage.src = URL.createObjectURL(new Blob([stamp as BlobPart], { type: 'image/png' }));
   try {
@@ -203,7 +203,7 @@ const createPptxWatermarkPicture = (
   opacity: number,
 ) => `<p:pic><p:nvPicPr><p:cNvPr id="${shapeId}" name="EconNotes kişisel filigranı"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${relationId}"><a:alphaModFix amt="${opacity}"/></a:blip><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${width}" cy="${height}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
 
-const getDownloadKind = (fileName: string, fileType: string | null | undefined) => {
+export const getDownloadKind = (fileName: string, fileType: string | null | undefined) => {
   const type = String(fileType || '').trim().toLowerCase().split(';', 1)[0];
   const extension = fileName.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] || '';
 
@@ -216,6 +216,28 @@ const getDownloadKind = (fileName: string, fileType: string | null | undefined) 
   ) return 'pptx';
   return null;
 };
+
+export async function prepareWatermarkedPreview(
+  fileUrl: string,
+  fileName: string,
+  fileType: string | null | undefined,
+  fullName: string,
+): Promise<string> {
+  const kind = getDownloadKind(fileName, fileType);
+  const actionText = `EconNotes • ${fullName || 'Kullanıcı'}`;
+  try {
+    if (kind === 'pdf') {
+      const blob = await addWatermarkToPdf(fileUrl, fullName, actionText);
+      return URL.createObjectURL(blob);
+    } else if (kind === 'image') {
+      const blob = await addWatermarkToImage(fileUrl, fullName, actionText);
+      return URL.createObjectURL(blob);
+    }
+  } catch (error) {
+    console.warn('Önizleme dosya filigranlama uyarısı (orijinal dosya gösteriliyor):', error);
+  }
+  return fileUrl;
+}
 
 export async function downloadWithWatermark(fileUrl: string, fileName: string, fileType: string | null | undefined, fullName: string) {
   const toastId = toast.loading('Not indiriliyor, lütfen bekleyiniz...');

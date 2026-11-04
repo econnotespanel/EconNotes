@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
-import { addPersonalWatermarkToPresentation } from './watermark';
+import { addPersonalWatermarkToPresentation, getDownloadKind, prepareWatermarkedPreview } from './watermark';
 
 describe('PowerPoint personal watermarking', () => {
   it('tiles small translucent personal stamps in a regular grid across every slide', async () => {
@@ -48,5 +48,19 @@ describe('PowerPoint personal watermarking', () => {
     expect(await watermarked.file('ppt/media/econnotes-personal-watermark.png')?.async('uint8array'))
       .toEqual(new Uint8Array([137, 80, 78, 71]));
     expect(await watermarked.file('[Content_Types].xml')?.async('string')).toContain('Extension="png"');
+  });
+
+  it('correctly identifies document download and preview kinds', () => {
+    expect(getDownloadKind('lecture_notes.pdf', 'application/pdf')).toBe('pdf');
+    expect(getDownloadKind('scan.png', 'image/png')).toBe('image');
+    expect(getDownloadKind('photo.jpg', 'image/jpeg')).toBe('image');
+    expect(getDownloadKind('presentation.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation')).toBe('pptx');
+    expect(getDownloadKind('archive.zip', 'application/zip')).toBeNull();
+  });
+
+  it('safely handles preview watermark fallback for non-previewable formats or fetch errors', async () => {
+    const rawUrl = 'https://example.com/notes.zip';
+    const result = await prepareWatermarkedPreview(rawUrl, 'notes.zip', 'application/zip', 'Ali Yılmaz');
+    expect(result).toBe(rawUrl);
   });
 });

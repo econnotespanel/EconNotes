@@ -17,9 +17,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Loader2 } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
-import { downloadWithWatermark } from '@/lib/watermark';
+import { downloadWithWatermark, prepareWatermarkedPreview } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -63,6 +63,7 @@ const Notes = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<string | null>(null);
   const [previewSlides, setPreviewSlides] = useState<string[]>([]);
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
   const [uploadRestricted, setUploadRestricted] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [departmentInputs, setDepartmentInputs] = useState<string[]>(['']);
@@ -192,33 +193,51 @@ const Notes = () => {
     }
     trackView(note.id);
     if (isPreviewable(note.file_type, note.file_url, note.file_name)) {
-      const signed = await signedNoteUrl(note.file_url);
-      if (!signed) { toast.error('Dosya bağlantısı oluşturulamadı.'); return; }
-      setPreviewUrl(signed);
-      setPreviewType(note.file_type);
-      setPreviewSlides([]);
-      if (isPowerPoint(note.file_type, note.file_name)) {
-        try {
-          const response = await fetch(signed);
-          if (!response.ok) throw new Error('Sunum dosyası indirilemedi.');
-          const archive = await JSZip.loadAsync(await response.arrayBuffer());
-          const slidePaths = Object.keys(archive.files)
-            .filter((path) => /^ppt\/slides\/slide\d+\.xml$/i.test(path))
-            .sort((a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]));
-          const slides = await Promise.all(slidePaths.map(async (path) => {
-            const xml = await archive.files[path].async('text');
-            const document = new DOMParser().parseFromString(xml, 'application/xml');
-            return Array.from(document.getElementsByTagNameNS('*', 't'))
-              .map((node) => node.textContent?.trim() || '')
-              .filter(Boolean)
-              .join(' ');
-          }));
-          setPreviewSlides(slides);
-        } catch {
-          setPreviewSlides([]);
-          toast.error('PowerPoint önizlemesi hazırlanamadı. Dosyayı indirerek açabilirsiniz.');
+      setPreviewLoadingId(note.id);
+      try {
+        const signed = await signedNoteUrl(note.file_url);
+        if (!signed) { toast.error('Dosya bağlantısı oluşturulamadı.'); return; }
+
+        const viewerName = profile?.full_name?.trim()
+          || String(user.user_metadata?.full_name || '').trim()
+          || user.email?.split('@')[0]
+          || 'EconNotes kullanıcısı';
+
+        // Önizleme için EconNotes filigranını dosyaya ekle
+        const displayUrl = await prepareWatermarkedPreview(signed, note.file_name, note.file_type, viewerName);
+        setPreviewUrl(displayUrl);
+        setPreviewType(note.file_type);
+        setPreviewSlides([]);
+        if (isPowerPoint(note.file_type, note.file_name)) {
+          try {
+            const response = await fetch(signed);
+            if (!response.ok) throw new Error('Sunum dosyası indirilemedi.');
+            const archive = await JSZip.loadAsync(await response.arrayBuffer());
+            const slidePaths = Object.keys(archive.files)
+              .filter((path) => /^ppt\/slides\/slide\d+\.xml$/i.test(path))
+              .sort((a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]));
+            const slides = await Promise.all(slidePaths.map(async (path) => {
+              const xml = await archive.files[path].async('text');
+              const document = new DOMParser().parseFromString(xml, 'application/xml');
+              return Array.from(document.getElementsByTagNameNS('*', 't'))
+                .map((node) => node.textContent?.trim() || '')
+                .filter(Boolean)
+                .join(' ');
+            }));
+            setPreviewSlides(slides);
+          } catch {
+            setPreviewSlides([]);
+            toast.error('PowerPoint önizlemesi hazırlanamadı. Dosyayı indirerek açabilirsiniz.');
+          }
         }
+      } catch (err) {
+        console.error('Önizleme açma hatası:', err);
+        toast.error('Önizleme hazırlanırken bir hata oluştu.');
+      } finally {
+        setPreviewLoadingId(null);
       }
+    } else {
+      toast.info('Bu dosya türü önizlenemez. İndirme butonunu kullanabilirsiniz.');
     }
   };
 
@@ -884,6 +903,12 @@ const Notes = () => {
                           <div className="relative h-44 w-full cursor-pointer overflow-hidden bg-muted" onClick={() => handlePreviewClick(note)}>
                             <SignedImage source={thumbnail} alt={note.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
                             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/10 to-transparent" />
+                            {previewLoadingId === note.id && (
+                              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-sm text-white">
+                                <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                                <span className="mt-2 text-xs font-medium">Filigran hazırlanıyor...</span>
+                              </div>
+                            )}
                             <div className="absolute left-3 top-3">
                               <span className="rounded-full border border-white/20 bg-slate-950/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur-md">
                                 {note.file_type?.includes('pdf') ? 'PDF notu' : 'Görsel not'}
@@ -896,6 +921,12 @@ const Notes = () => {
                           </div>
                         ) : note.file_url ? (
                           <div className="relative flex h-44 w-full cursor-pointer items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/20" onClick={() => handlePreviewClick(note)}>
+                            {previewLoadingId === note.id && (
+                              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/70 backdrop-blur-sm text-white">
+                                <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                                <span className="mt-2 text-xs font-medium">Filigran hazırlanıyor...</span>
+                              </div>
+                            )}
                             <div className="absolute -left-10 -top-16 h-40 w-40 rounded-full bg-primary/20 blur-3xl transition-all duration-500 group-hover:bg-primary/30" />
                             <div className="absolute -bottom-20 -right-8 h-44 w-44 rounded-full bg-secondary/20 blur-3xl transition-all duration-500 group-hover:bg-secondary/30" />
                             <div className="relative flex max-w-[85%] flex-col items-center text-center">
@@ -987,8 +1018,18 @@ const Notes = () => {
                                   <Download className="h-3 w-3 mr-1" /> İndir
                                 </Button>
                                 {isPreviewable(note.file_type, note.file_url, note.file_name) && (
-                                  <Button size="sm" variant="outline" onClick={() => handlePreviewClick(note)} className="border-border/70 bg-background/70 hover:border-primary/30 hover:bg-primary/5">
-                                    <Eye className="h-3 w-3 mr-1" /> Önizle
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={previewLoadingId === note.id}
+                                    onClick={() => handlePreviewClick(note)}
+                                    className="border-border/70 bg-background/70 hover:border-primary/30 hover:bg-primary/5"
+                                  >
+                                    {previewLoadingId === note.id ? (
+                                      <Loader2 className="h-3 w-3 mr-1 animate-spin text-primary" />
+                                    ) : (
+                                      <Eye className="h-3 w-3 mr-1" />
+                                    )} Önizle
                                   </Button>
                                 )}
                               </>
@@ -1085,10 +1126,20 @@ const Notes = () => {
 
         {/* Preview Modal */}
         {previewUrl && (
-          <Dialog open={!!previewUrl} onOpenChange={() => { setPreviewUrl(null); setPreviewType(null); setPreviewSlides([]); }}>
+          <Dialog
+            open={!!previewUrl}
+            onOpenChange={() => {
+              if (previewUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(previewUrl);
+              }
+              setPreviewUrl(null);
+              setPreviewType(null);
+              setPreviewSlides([]);
+            }}
+          >
             <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
               <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-16 text-left sm:px-6 sm:pr-20">
-                <DialogClose className="absolute right-3 top-3 z-30 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
+                <DialogClose className="absolute right-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
                   <X className="h-5 w-5" aria-hidden="true" />
                 </DialogClose>
                 <div className="flex min-w-0 items-center gap-3">
@@ -1096,7 +1147,7 @@ const Notes = () => {
                   <span className="h-8 w-px bg-white/15" />
                   <div>
                     <DialogTitle className="text-sm font-semibold text-white sm:text-base">Önizleme</DialogTitle>
-                    <p className="mt-1 text-[10px] text-slate-400 sm:text-[11px]">Belge görüntüleyici</p>
+                    <p className="mt-1 text-[10px] text-slate-400 sm:text-[11px]">Güvenli Belge Görüntüleyici • Lisanslı Filigran</p>
                   </div>
                 </div>
               </DialogHeader>
@@ -1112,7 +1163,11 @@ const Notes = () => {
                 ) : isPowerPoint(previewType, null) ? (
                   <div className="h-full w-full space-y-4 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-4 shadow-inner sm:p-6">
                     {previewSlides.length > 0 ? previewSlides.map((slide, index) => (
-                      <article key={index} className="min-h-48 rounded-xl border border-slate-200/20 bg-white p-5 text-left text-slate-900 shadow-lg sm:min-h-64 sm:p-8">
+                      <article key={index} className="relative min-h-48 overflow-hidden rounded-xl border border-slate-200/20 bg-white p-5 text-left text-slate-900 shadow-lg sm:min-h-64 sm:p-8">
+                        <div className="pointer-events-none absolute right-4 top-4 select-none opacity-40 flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-blue-700">EconNotes</span>
+                          <span className="text-[10px] text-slate-600">• {profile?.full_name?.trim() || String(user?.user_metadata?.full_name || '').trim() || user?.email?.split('@')[0] || 'Öğrenci'}</span>
+                        </div>
                         <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Slayt {index + 1}</p>
                         <p className="whitespace-pre-wrap text-sm leading-7 sm:text-base">{slide}</p>
                       </article>
@@ -1127,10 +1182,37 @@ const Notes = () => {
                     <p className="text-sm text-slate-300">Bu dosya türü önizlenemez. Lütfen indirin.</p>
                   </div>
                 )}
-                <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-3 grid-rows-3 place-items-center gap-8 px-8 opacity-[0.11] sm:gap-12 sm:px-16">
-                  {Array.from({ length: 9 }).map((_, index) => (
-                    <EconLogo key={index} allWhite className="h-10 w-40 sm:h-14 sm:w-56" />
-                  ))}
+
+                {/* EconNotes Guaranteed High-Contrast Visible Watermark Layer */}
+                <div
+                  className="pointer-events-none absolute inset-0 z-30 select-none overflow-hidden p-3 sm:p-6"
+                  aria-hidden="true"
+                >
+                  <div className="grid h-full w-full grid-cols-2 sm:grid-cols-3 grid-rows-3 sm:grid-rows-4 place-items-center gap-4 sm:gap-8">
+                    {Array.from({ length: 12 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className="-rotate-12 select-none rounded-xl border border-blue-500/30 bg-white/85 dark:bg-slate-900/85 px-3 py-1.5 sm:px-4 sm:py-2 shadow-lg backdrop-blur-[2px] flex items-center gap-2.5 transition-all"
+                      >
+                        <div className="flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 text-white shadow-sm font-bold text-xs sm:text-sm">
+                          E
+                        </div>
+                        <div className="flex flex-col text-left leading-tight">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] sm:text-xs font-bold tracking-tight text-slate-900 dark:text-white">
+                              EconNotes
+                            </span>
+                            <span className="rounded bg-blue-500/15 px-1 py-0.5 text-[8px] sm:text-[9px] font-semibold text-blue-600 dark:text-blue-400">
+                              Önizleme
+                            </span>
+                          </div>
+                          <span className="text-[9px] sm:text-[10px] font-medium text-slate-600 dark:text-slate-300 truncate max-w-[120px] sm:max-w-[160px]">
+                            {profile?.full_name?.trim() || String(user?.user_metadata?.full_name || '').trim() || user?.email?.split('@')[0] || 'Öğrenci Önizleme'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </DialogContent>
