@@ -274,41 +274,51 @@ const Login = () => {
     <div className="min-h-screen flex flex-col lg:flex-row relative">
       {/* Left panel - PlayStation aesthetic features */}
       <div
-        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 relative overflow-hidden"
+        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 xl:p-14 relative overflow-hidden"
         style={{
           background: theme === 'dark'
-            ? 'linear-gradient(135deg, #070b14 0%, #002566 50%, #004fb8 100%)'
-            : 'linear-gradient(135deg, #001e50 0%, #003791 50%, #0070d1 100%)'
+            ? 'linear-gradient(145deg, #070b14 0%, #001f5c 50%, #003791 100%)'
+            : 'linear-gradient(145deg, #001845 0%, #002d7a 45%, #00439c 100%)'
         }}
       >
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-8">
-            <EconLogo allWhite className="h-12 w-56" />
+          <div className="flex items-center gap-3 mb-6">
+            <EconLogo allWhite className="h-8 w-36 sm:h-9 sm:w-40" />
           </div>
-          <p className="text-white/90 text-lg mb-10 font-medium">EconNotes ile tüm ders notların yanında!</p>
 
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white">Platform Özellikleri</h2>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-white/90 text-xs font-medium mb-3 backdrop-blur-md shadow-xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#00f0ff] shadow-[0_0_8px_#00f0ff] animate-pulse" />
+            <span>Akademik Öğrenci Platformu</span>
+          </div>
+
+          <h2 className="text-white text-xl xl:text-2xl font-bold tracking-tight mb-8 leading-snug">
+            EconNotes ile tüm ders notların yanında!
+          </h2>
+
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60 mb-2">Platform Özellikleri</p>
             {features.map((f, i) => (
-              <div key={i} className="flex items-center gap-4 p-4 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 transition-all duration-300 hover:bg-white/15 hover:border-white/30 hover:translate-x-1">
-                <div className="p-2.5 rounded-lg bg-white/15 shadow-xs">
-                  <f.icon className="h-6 w-6 text-white" />
+              <div key={i} className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 transition-all duration-300 hover:bg-white/15 hover:border-white/25 hover:translate-x-1 shadow-sm">
+                <div className="p-2.5 rounded-xl bg-white/10 text-white shadow-xs shrink-0">
+                  <f.icon className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-white">{f.title}</h3>
-                  <p className="text-sm text-white/75">{f.desc}</p>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-white text-sm">{f.title}</h3>
+                  <p className="text-xs text-white/70 leading-relaxed mt-0.5">{f.desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <div className="relative z-10 flex items-center justify-between">
+
+        <div className="relative z-10 flex items-center justify-between pt-6 border-t border-white/10">
           <p className="text-white/60 text-xs">EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
           <span className="text-white/40 text-xs font-mono">{APP_VERSION}</span>
         </div>
+
         {/* Decorative ambient lighting */}
-        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#00f0ff]/20 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#003791]/30 blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#00f0ff]/15 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#003791]/35 blur-3xl pointer-events-none" />
       </div>
 
       {/* Right panel - login form */}
@@ -316,20 +326,20 @@ const Login = () => {
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
-          className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border shadow-xs hover:shadow-md transition-all duration-300 text-sm font-medium text-muted-foreground hover:text-foreground"
+          className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md shadow-xs hover:shadow-sm transition-all duration-200 text-xs font-semibold text-muted-foreground hover:text-foreground"
           aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
         >
           <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
           <span className={`transition-transform duration-300 ${theme === 'light' ? 'rotate-0' : 'rotate-90 scale-0 absolute'}`}>🌙</span>
-          <span className="text-xs">{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
+          <span>{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
         </button>
 
         {/* Mobile logo */}
         <div className="lg:hidden flex items-center gap-3 mb-6">
-          <EconLogo className="h-10 w-44" />
+          <EconLogo className="h-8 w-36" />
         </div>
 
-        <div className="w-full max-w-sm space-y-6">
+        <div className="w-full max-w-sm space-y-5">
           {/* Login banners */}
           {loginBanners.length > 0 && (
             <div className="space-y-2">
@@ -370,14 +380,11 @@ const Login = () => {
           )}
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground">{getGreeting()}</h2>
-            <p className="text-sm text-primary font-medium mt-1">EconNotes'a Hoş Geldiniz.</p>
-            <p className="text-sm text-muted-foreground mt-1">Hesabınıza giriş yapmak için bilgilerinizi girin.</p>
-            <div className="flex items-center gap-2 mt-3">
-              <div className="p-1.5 rounded-full bg-primary/10">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-              </div>
-              <span className="text-sm text-muted-foreground font-medium">Güvenli Giriş</span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">{getGreeting()}</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">EconNotes hesabınıza giriş yaparak çalışmalarınıza devam edin.</p>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold mt-2.5 shadow-xs">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>Güvenli Oturum</span>
             </div>
           </div>
 
@@ -410,9 +417,9 @@ const Login = () => {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">E-posta</Label>
+              <Label htmlFor="email" className="text-xs font-semibold text-foreground/90">E-posta</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="email"
                   type="email"
@@ -423,17 +430,17 @@ const Login = () => {
                   placeholder="ornek@mail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-11 rounded-xl bg-card/60 border-border/80 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-all text-sm"
                 />
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <Label htmlFor="password">Şifre</Label>
-                <Link to="/forgot-password" className="text-xs text-primary hover:underline">Şifremi Unuttum</Link>
+                <Label htmlFor="password" className="text-xs font-semibold text-foreground/90">Şifre</Label>
+                <Link to="/forgot-password" className="text-xs text-primary hover:underline font-medium">Şifremi Unuttum</Link>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -441,15 +448,19 @@ const Login = () => {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10"
+                  className="pl-10 pr-10 h-11 rounded-xl bg-card/60 border-border/80 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-all text-sm"
                 />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-3 text-muted-foreground hover:text-foreground">
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-3.5 text-muted-foreground hover:text-foreground transition-colors">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
             <SecurityCaptcha onVerifiedChange={setCaptchaOk} resetKey={captchaReset} />
-            <Button type="submit" className="w-full" disabled={loading} style={{ background: 'hsl(221, 83%, 53%)', color: 'white' }}>
+            <Button
+              type="submit"
+              className="w-full h-11 rounded-xl bg-gradient-to-r from-[#003791] via-[#004fb8] to-[#0070d1] hover:from-[#002f7a] hover:via-[#0043a0] hover:to-[#005fb8] text-white font-semibold shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all duration-200 cursor-pointer"
+              disabled={loading}
+            >
               {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
             </Button>
           </form>
@@ -487,12 +498,12 @@ const Login = () => {
           </p>
 
           <div className="space-y-2 pt-2 border-t border-border/40">
-            <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/install')}>
+            <Button variant="outline" size="sm" className="w-full h-10 rounded-xl border-border/80 hover:bg-muted/50 font-medium transition-all" onClick={() => navigate('/install')}>
               <Download className="mr-2 h-4 w-4" />
               Uygulamayı İndir
             </Button>
             <p className="text-xs text-muted-foreground text-center">
-              Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
+              Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline font-medium">destek@econnotes.online</a>
             </p>
             <p className="text-xs text-muted-foreground/60 text-center lg:hidden">EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
             <p className="text-xs text-muted-foreground/40 text-center lg:hidden">{APP_VERSION}</p>
