@@ -11,6 +11,7 @@ async function generateBanners() {
   // Destination folder: public/ and artifacts folder
   const artifactDir = 'C:/Users/Kaan Çolakoğlu/.gemini/antigravity/brain/8f0db737-00b8-444c-b568-4d7f2f1ad397';
   const publicDir = 'public';
+  const downloadsDir = 'C:/Users/Kaan Çolakoğlu/Downloads';
 
   // 1. Minimal Pattern Banner (1500x500)
   const page1 = await browser.newPage({ viewport: { width: 1500, height: 500 } });
@@ -66,11 +67,13 @@ async function generateBanners() {
 
   const minPath1 = path.join(publicDir, 'econnotes-x-banner-minimal.png');
   const minPathArt = path.join(artifactDir, 'econnotes-x-banner-minimal.png');
+  const minPathDl = path.join(downloadsDir, 'EconNotes-X-Banner-Minimal.png');
   await page1.screenshot({ path: minPath1, type: 'png' });
   await page1.screenshot({ path: minPathArt, type: 'png' });
-  console.log('Saved minimal banner to:', minPath1);
+  await page1.screenshot({ path: minPathDl, type: 'png' });
+  console.log('Saved minimal banner');
 
-  // 2. Branded Banner (1500x500) with logo on the right side
+  // 2. Branded Banner (1500x500) with updated tagline
   const page2 = await browser.newPage({ viewport: { width: 1500, height: 500 } });
   await page2.setContent(`
     <!DOCTYPE html>
@@ -121,15 +124,15 @@ async function generateBanners() {
             gap: 14px;
           }
           .logo-img {
-            height: 72px;
+            height: 74px;
             filter: brightness(0) invert(1);
             object-fit: contain;
           }
           .tagline {
-            color: rgba(255, 255, 255, 0.90);
+            color: rgba(255, 255, 255, 0.92);
             font-size: 21px;
             font-weight: 500;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
           }
           .badge {
             background: rgba(255, 255, 255, 0.15);
@@ -150,7 +153,7 @@ async function generateBanners() {
           <div class="ambient-glow"></div>
           <div class="brand-box">
             <img class="logo-img" src="data:image/png;base64,${brandLogoBase64}" alt="EconNotes" />
-            <div class="tagline">Düzce Üniversitesi Öğrenci Platformu</div>
+            <div class="tagline">Yeni nesil not paylaşım ve çalışma platformu.</div>
             <div class="badge">econnotes.online</div>
           </div>
         </div>
@@ -160,9 +163,11 @@ async function generateBanners() {
 
   const brandPath2 = path.join(publicDir, 'econnotes-x-banner-branded.png');
   const brandPathArt = path.join(artifactDir, 'econnotes-x-banner-branded.png');
+  const brandPathDl = path.join(downloadsDir, 'EconNotes-X-Banner-Branded.png');
   await page2.screenshot({ path: brandPath2, type: 'png' });
   await page2.screenshot({ path: brandPathArt, type: 'png' });
-  console.log('Saved branded banner to:', brandPath2);
+  await page2.screenshot({ path: brandPathDl, type: 'png' });
+  console.log('Saved branded banner with updated tagline');
 
   await browser.close();
 }
