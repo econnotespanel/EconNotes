@@ -224,7 +224,7 @@ const Header = () => {
                 <span className="text-[12px] font-semibold leading-tight text-foreground whitespace-nowrap">
                   {getGreeting()}, {displayName}
                 </span>
-                <span className="h-1.5 w-1.5 rounded-full bg-[#00e5ff] shadow-[0_0_6px_#00e5ff] animate-pulse" title="PlayStation Network Bağlı" />
+                <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" title="Aktif" />
               </div>
               {profile?.last_login && (
                 <span className="text-[10px] text-muted-foreground leading-tight">Son: {formatLastLogin()}</span>
