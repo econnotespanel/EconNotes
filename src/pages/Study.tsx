@@ -108,6 +108,163 @@ const formatRelativeTime = (isoString?: string) => {
   return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
 };
 
+const AiCustomizationChatBox = ({
+  summaryLength,
+  setSummaryLength,
+  noteStyle,
+  setNoteStyle,
+  customPrompt,
+  setCustomPrompt,
+}: {
+  summaryLength: 'short' | 'balanced' | 'detailed';
+  setSummaryLength: (val: 'short' | 'balanced' | 'detailed') => void;
+  noteStyle: 'academic' | 'exam_focused' | 'instructor_traps' | 'formula_concepts' | 'solved_cases';
+  setNoteStyle: (val: 'academic' | 'exam_focused' | 'instructor_traps' | 'formula_concepts' | 'solved_cases') => void;
+  customPrompt: string;
+  setCustomPrompt: React.Dispatch<React.SetStateAction<string>>;
+}) => {
+  return (
+    <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/5 via-card to-background p-4 sm:p-5 space-y-4 text-left shadow-sm">
+      <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 text-white shadow-sm">
+            <MessageCircle className="h-4 w-4" />
+          </div>
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-2">
+              <span>Yapay Zekaya Not Talimatı Ver (Chat & Özelleştirme)</span>
+              <span className="hidden sm:inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-semibold text-primary">
+                Akademik AI
+              </span>
+            </h4>
+            <p className="text-[11px] text-muted-foreground">
+              Notunuzun uzunluğunu, pedagojik stilini belirleyin ve yapay zekaya özel isteklerinizi iletin.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 1. Özet / Not Uzunluğu */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-[11px] font-semibold text-foreground/90 flex items-center gap-1.5">
+            <span>İstenen Not Uzunluğu:</span>
+            <span className="text-primary font-normal">
+              {summaryLength === 'short' ? 'Kısa & Öz (Sınav Öncesi Hızlı Tekrar)' : summaryLength === 'detailed' ? 'Kapsamlı & Uzun (Tüm Detaylar & İspatlar)' : 'Dengeli (Standart Akademik Özet)'}
+            </span>
+          </Label>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { id: 'short', label: '⚡ Kısa & Öz', desc: 'Hızlı hap bilgiler & kilit noktalar' },
+            { id: 'balanced', label: '⚖️ Dengeli', desc: 'Standart ders & konu anlatımı' },
+            { id: 'detailed', label: '📚 Kapsamlı & Uzun', desc: 'Derinlemesine, tüm ispatlar & detaylar' },
+          ].map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setSummaryLength(opt.id as any)}
+              className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-all text-left ${
+                summaryLength === opt.id
+                  ? 'border-primary bg-primary/15 text-primary shadow-sm ring-1 ring-primary/40'
+                  : 'border-border/70 bg-card/70 hover:bg-muted/40 text-muted-foreground'
+              }`}
+            >
+              <p className="truncate text-foreground font-bold">{opt.label}</p>
+              <p className="text-[10px] text-muted-foreground font-normal truncate mt-0.5">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. Ne Türde Not İstiyorsunuz? */}
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-semibold text-foreground/90">Ne Türde Bir Not İstiyorsunuz?</Label>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {[
+            { id: 'exam_focused', label: '🎯 Sınav Odaklı Soru-Cevap', desc: 'Vize/Final soru kalıpları' },
+            { id: 'instructor_traps', label: '⚠️ Hoca Vurguları & Tuzaklar', desc: 'En çok karıştırılan noktalar' },
+            { id: 'formula_concepts', label: '📊 Formül & Grafik Mantığı', desc: 'Eğrilerin kayma nedenleri' },
+            { id: 'solved_cases', label: '💡 Örnek Olay & Vaka Çözümü', desc: 'Uygulamalı senaryo soruları' },
+            { id: 'academic', label: '🎓 Klasik Akademik Özet', desc: 'Teori ve tam terminoloji' },
+          ].map(opt => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setNoteStyle(opt.id as any)}
+              className={`p-2.5 rounded-xl border text-xs font-semibold transition-all text-left ${
+                noteStyle === opt.id
+                  ? 'border-primary bg-primary/15 text-primary shadow-sm ring-1 ring-primary/40'
+                  : 'border-border/70 bg-card/70 hover:bg-muted/40 text-muted-foreground'
+              }`}
+            >
+              <p className="truncate text-foreground font-bold text-[11px]">{opt.label}</p>
+              <p className="text-[10px] text-muted-foreground font-normal truncate mt-0.5">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. Chat / Özel Talimat Giriş Kutusu */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label className="text-[11px] font-semibold text-foreground/90 flex items-center gap-1.5">
+            <MessageCircle className="h-3.5 w-3.5 text-primary" />
+            <span>Yapay Zekaya Özel İstek ve Talimatınız (Chat)</span>
+          </Label>
+          {customPrompt && (
+            <button
+              type="button"
+              onClick={() => setCustomPrompt('')}
+              className="text-[10px] text-muted-foreground hover:text-destructive transition"
+            >
+              Temizle
+            </button>
+          )}
+        </div>
+        <div className="relative">
+          <Textarea
+            value={customPrompt}
+            onChange={e => setCustomPrompt(e.target.value)}
+            rows={2}
+            placeholder="Yapay zekaya notunuzla ilgili özel talimatınızı yazın (örn: 'Vizeye yönelik hocanın en çok takıldığı tuzak soruları öne çıkar', 'Grafiklerin neden-sonuç mantığını adım adım açıkla', 'Kısa ve madde madde olsun')..."
+            className="text-xs resize-none bg-background/80 pr-10 focus:ring-primary/40 rounded-xl"
+          />
+          <div className="absolute right-3 bottom-3 text-muted-foreground/60 pointer-events-none">
+            <Send className="h-3.5 w-3.5" />
+          </div>
+        </div>
+
+        {/* Hızlı Tıkla-Doldur Çipleri */}
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1">
+            <Sparkles className="h-2.5 w-2.5 text-primary" /> Hızlı Talimatlar:
+          </span>
+          {[
+            { label: '🎯 Hocanın Klasik Soruları', text: 'Hocanın vizede ve finalde sorabileceği klasik soru tiplerine ve tam puanlık cevap anahtarına ağırlık ver.' },
+            { label: '⚡ 10 Dk. Hızlı Sınav Tekrarı', text: 'Sınavdan hemen önce 10 dakikada okunabilecek en kritik hap bilgilere ve kavramlara odaklan.' },
+            { label: '⚠️ Sınav Tuzakları & Çeldiriciler', text: 'Öğrencilerin sınavda en çok düştüğü yanılgıları, çeldirici ayrımları ve hocaların soru tuzaklarını açıkla.' },
+            { label: '📊 Grafik & Formül Mantığı', text: 'Formüllerin ezber değil sezgisel mantığını, grafik eğrilerinin kayma nedenlerini adım adım açıkla.' },
+            { label: '🏆 Puan Getiren Anahtar Kelimeler', text: 'Sınav kağıdında yazıldığında hocanın tam puan vereceği kilit kavramları ve kuramsal ifadeleri öne çıkar.' },
+          ].map((chip, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                if (customPrompt.includes(chip.text)) return;
+                setCustomPrompt(prev => prev ? `${prev} ${chip.text}` : chip.text);
+              }}
+              className="text-[10px] rounded-lg border border-border/70 bg-card/60 px-2 py-0.5 text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition"
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Study = () => {
   const { user, isAdmin } = useAuth();
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
@@ -152,6 +309,11 @@ const Study = () => {
   const [quickType, setQuickType] = useState<MaterialType>('summary');
   const [quickPageCount, setQuickPageCount] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Not Özelleştirme & Chat İstasyonu State
+  const [summaryLength, setSummaryLength] = useState<'short' | 'balanced' | 'detailed'>('balanced');
+  const [noteStyle, setNoteStyle] = useState<'academic' | 'exam_focused' | 'instructor_traps' | 'formula_concepts' | 'solved_cases'>('exam_focused');
+  const [customPrompt, setCustomPrompt] = useState('');
 
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -348,7 +510,19 @@ const Study = () => {
       materialType: activeType,
       difficulty,
       count: safeCount,
-      examProfile: { examType, totalQuestions: safeCount, examDate, focus, level: difficulty },
+      summaryLength,
+      noteStyle,
+      customPrompt: customPrompt.trim() || undefined,
+      examProfile: {
+        examType,
+        totalQuestions: safeCount,
+        examDate,
+        focus,
+        level: difficulty,
+        summaryLength,
+        noteStyle,
+        customPrompt: customPrompt.trim() || undefined,
+      },
     };
     let titleForMaterial = '';
     let courseForMaterial: string | null = null;
@@ -909,6 +1083,16 @@ const Study = () => {
                       </div>
                     </div>
 
+                    {/* AI Chat & Not Özelleştirme İstasyonu */}
+                    <AiCustomizationChatBox
+                      summaryLength={summaryLength}
+                      setSummaryLength={setSummaryLength}
+                      noteStyle={noteStyle}
+                      setNoteStyle={setNoteStyle}
+                      customPrompt={customPrompt}
+                      setCustomPrompt={setCustomPrompt}
+                    />
+
                     {/* Gelişmiş Sınav Ayarları Akordeon */}
                     <div className="rounded-xl border border-border/70 bg-card/50 overflow-hidden transition-all text-left">
                       <button
@@ -1102,6 +1286,16 @@ const Study = () => {
                     })}
                   </div>
                 </div>
+
+                {/* AI Chat & Not Özelleştirme İstasyonu */}
+                <AiCustomizationChatBox
+                  summaryLength={summaryLength}
+                  setSummaryLength={setSummaryLength}
+                  noteStyle={noteStyle}
+                  setNoteStyle={setNoteStyle}
+                  customPrompt={customPrompt}
+                  setCustomPrompt={setCustomPrompt}
+                />
 
                 <Button
                   size="lg"
@@ -1837,9 +2031,11 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
                   <p className="text-sm whitespace-pre-wrap">{q.sampleAnswer || '-'}</p>
                 </div>
                 {q.explanation && (
-                  <div className="p-3 rounded-lg bg-muted/50 border border-border">
-                    <p className="text-xs font-semibold text-muted-foreground mb-1">DEĞERLENDİRME REHBERİ</p>
-                    <p className="text-sm whitespace-pre-wrap">{q.explanation}</p>
+                  <div className="p-3.5 rounded-xl bg-muted/60 border border-border">
+                    <p className="text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
+                      <GraduationCap className="h-4 w-4 text-primary" /> HOCANIN PUANLAMA KRİTERİ VE DEĞERLENDİRME REHBERİ
+                    </p>
+                    <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">{q.explanation}</p>
                   </div>
                 )}
               </div>
@@ -1866,9 +2062,14 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
               );
             })}
             {isRevealed && q.explanation && (
-              <div className={`mt-3 p-3 rounded-lg border animate-fade-in ${userChoice === q.correctIndex ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
-                <p className="text-xs font-semibold mb-1">{userChoice === q.correctIndex ? '✓ DOĞRU — NEDEN?' : '✗ NEDEN YANLIŞ?'}</p>
-                <p className="text-sm">{q.explanation}</p>
+              <div className={`mt-3.5 p-4 rounded-xl border animate-fade-in ${userChoice === q.correctIndex ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                <div className="flex items-center gap-2 text-xs font-bold mb-2">
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                  <span className="text-foreground">{userChoice === q.correctIndex ? '✓ DOĞRU YANIT — HOCANIN AKADEMİK ÇÖZÜM ANALİZİ' : '✗ NEDEN YANLIŞ? — HOCANIN SINAV VE ÇELDİRİCİ ANALİZİ'}</span>
+                </div>
+                <div className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
+                  {q.explanation}
+                </div>
               </div>
             )}
           </div>
