@@ -227,7 +227,7 @@ const Header = () => {
                 <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" title="Aktif" />
               </div>
               {profile?.last_login && (
-                <span className="text-[10px] text-muted-foreground leading-tight">Son: {formatLastLogin()}</span>
+                <span className="text-[10px] text-muted-foreground leading-tight">Son Giriş: {formatLastLogin()}</span>
               )}
             </div>
           )}
