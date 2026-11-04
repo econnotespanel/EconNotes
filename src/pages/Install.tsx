@@ -543,8 +543,8 @@ const Install = () => {
                             </div>
                             <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs space-y-2 text-slate-300 shadow-inner">
                               <div className="flex items-center gap-2 font-bold text-white">
-                                <WindowsLogo className="h-3.5 w-3.5 text-blue-400" />
-                                <span>EconNotes Kurulum Sihirbazı</span>
+                                <img src="/icons/icon-192x192.png" className="h-5 w-5 rounded-md shadow-xs shrink-0" alt="EconNotes Logo" />
+                                <EconLogo className="h-4 w-auto" />
                               </div>
                               <p className="text-[11px] text-slate-400 leading-relaxed">
                                 "EconNotes İktisat ve Akademik Not Platformu bilgisayarınıza kurulacaktır. Kuruluma devam etmek için İleri butonuna tıklayın."
@@ -617,8 +617,8 @@ const Install = () => {
                               <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Tamamlandı</span>
                             </div>
                             <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs space-y-2 text-slate-300 shadow-inner">
-                              <div className="flex items-center gap-1.5 font-bold text-emerald-400">
-                                <CheckCircle2 className="h-4 w-4" />
+                              <div className="flex items-center gap-2 font-bold text-emerald-400">
+                                <img src="/icons/icon-192x192.png" className="h-5 w-5 rounded-md shadow-xs shrink-0" alt="EconNotes Logo" />
                                 <span>Kurulum Başarıyla Tamamlandı!</span>
                               </div>
                               <div className="flex items-center gap-1.5 text-[11px] text-sky-300">

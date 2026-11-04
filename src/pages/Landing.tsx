@@ -32,7 +32,10 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md">
+      <header
+        className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-md"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+      >
         <nav className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:px-4">
           <EconLogo className="h-7 w-28 sm:h-8 sm:w-36" />
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

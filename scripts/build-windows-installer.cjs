@@ -244,6 +244,13 @@ const uninstallerBytes = fs.readFileSync(uninstallerExePath);
 const launcherBase64 = launcherBytes.toString('base64');
 const uninstallerBase64 = uninstallerBytes.toString('base64');
 
+// Read app icon and brand logo PNGs for setup wizard screens
+const iconPngPath = path.join(iconsDir, 'icon-192x192.png');
+const iconPngBase64 = fs.existsSync(iconPngPath) ? fs.readFileSync(iconPngPath).toString('base64') : '';
+
+const brandDarkPath = path.join(rootDir, 'src', 'assets', 'econnotes-brand-dark.png');
+const brandDarkBase64 = fs.existsSync(brandDarkPath) ? fs.readFileSync(brandDarkPath).toString('base64') : '';
+
 // 4. Generate Installer with Wizard Screens (EconNotes-Kurulum.exe)
 console.log('Compiling EconNotes-Kurulum.exe (Installation Wizard)...');
 const installerCsPath = path.join(tempDir, 'Installer.cs');
@@ -280,6 +287,26 @@ namespace EconNotes.Installer
         private static readonly string LauncherPayload = "${launcherBase64}";
         private static readonly string UninstallerPayload = "${uninstallerBase64}";
         private static readonly string IconPayload = "${icoBase64}";
+        private static readonly string AppIconPngPayload = "${iconPngBase64}";
+        private static readonly string BrandDarkPngPayload = "${brandDarkBase64}";
+        private static readonly string AppVersion = "${appVersion}";
+
+        private Image appIconImg;
+        private Image brandDarkImg;
+
+        private static Image LoadBitmapFromBase64(string b64)
+        {
+            if (string.IsNullOrEmpty(b64)) return null;
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(b64);
+                using (MemoryStream ms = new MemoryStream(bytes))
+                {
+                    return new Bitmap(ms);
+                }
+            }
+            catch { return null; }
+        }
 
         public InstallerForm()
         {
@@ -293,7 +320,7 @@ namespace EconNotes.Installer
             this.ForeColor = Color.White;
             this.Font = new Font("Segoe UI", 9.25f, FontStyle.Regular);
 
-            // Set Form Icon
+            // Set Form Icon & Branding Images
             try
             {
                 byte[] icoData = Convert.FromBase64String(IconPayload);
@@ -301,6 +328,13 @@ namespace EconNotes.Installer
                 {
                     this.Icon = new Icon(ms);
                 }
+            }
+            catch { }
+
+            try
+            {
+                appIconImg = LoadBitmapFromBase64(AppIconPngPayload);
+                brandDarkImg = LoadBitmapFromBase64(BrandDarkPngPayload);
             }
             catch { }
 
@@ -385,35 +419,63 @@ namespace EconNotes.Installer
                 btnNext.Visible = true;
                 btnCancel.Text = "İptal";
 
-                // Step 1: Welcome Screen
+                // Step 1: Welcome Screen with EconNotes Logo
+                if (appIconImg != null)
+                {
+                    PictureBox picIcon = new PictureBox
+                    {
+                        Image = appIconImg,
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Location = new Point(30, 20),
+                        Size = new Size(54, 54),
+                        BackColor = Color.Transparent
+                    };
+                    contentPanel.Controls.Add(picIcon);
+                }
+
                 Label lblTitle = new Label
                 {
                     Text = "EconNotes Kurulum Sihirbazı",
-                    Font = new Font("Segoe UI", 16f, FontStyle.Bold),
+                    Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
                     ForeColor = Color.White,
-                    Location = new Point(30, 25),
-                    Size = new Size(480, 36)
+                    Location = new Point(appIconImg != null ? 96 : 30, 22),
+                    Size = new Size(420, 30)
                 };
                 contentPanel.Controls.Add(lblTitle);
 
                 Label lblSubtitle = new Label
                 {
-                    Text = "İktisat ve Akademik Not Platformu (Windows Sürümü ${appVersion})",
+                    Text = "İktisat ve Akademik Not Platformu (Windows Sürümü " + AppVersion + ")",
                     Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
                     ForeColor = Color.FromArgb(96, 165, 250), // blue-400
-                    Location = new Point(32, 62),
-                    Size = new Size(480, 24)
+                    Location = new Point(appIconImg != null ? 98 : 32, 52),
+                    Size = new Size(420, 22)
                 };
                 contentPanel.Controls.Add(lblSubtitle);
 
                 Panel card = new Panel
                 {
-                    Location = new Point(30, 95),
-                    Size = new Size(500, 200),
+                    Location = new Point(30, 88),
+                    Size = new Size(505, 215),
                     BackColor = Color.FromArgb(30, 41, 59),
-                    Padding = new Padding(20)
+                    Padding = new Padding(18)
                 };
                 contentPanel.Controls.Add(card);
+
+                int descTop = 16;
+                if (brandDarkImg != null)
+                {
+                    PictureBox picBrand = new PictureBox
+                    {
+                        Image = brandDarkImg,
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Location = new Point(18, 14),
+                        Size = new Size(130, 26),
+                        BackColor = Color.Transparent
+                    };
+                    card.Controls.Add(picBrand);
+                    descTop = 46;
+                }
 
                 Label lblDesc = new Label
                 {
@@ -426,7 +488,8 @@ namespace EconNotes.Installer
                            "Kuruluma devam etmek için lütfen 'İleri' butonuna tıklayın.",
                     Font = new Font("Segoe UI", 9.25f, FontStyle.Regular),
                     ForeColor = Color.FromArgb(226, 232, 240),
-                    Dock = DockStyle.Fill
+                    Location = new Point(18, descTop),
+                    Size = new Size(470, 205 - descTop)
                 };
                 card.Controls.Add(lblDesc);
             }
@@ -438,13 +501,26 @@ namespace EconNotes.Installer
                 btnCancel.Text = "İptal";
 
                 // Step 2: Destination & Shortcuts
+                if (appIconImg != null)
+                {
+                    PictureBox picIcon2 = new PictureBox
+                    {
+                        Image = appIconImg,
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Location = new Point(30, 20),
+                        Size = new Size(46, 46),
+                        BackColor = Color.Transparent
+                    };
+                    contentPanel.Controls.Add(picIcon2);
+                }
+
                 Label lblTitle = new Label
                 {
                     Text = "Kurulum Konumu ve Seçenekler",
                     Font = new Font("Segoe UI", 14f, FontStyle.Bold),
                     ForeColor = Color.White,
-                    Location = new Point(30, 25),
-                    Size = new Size(480, 32)
+                    Location = new Point(appIconImg != null ? 88 : 30, 20),
+                    Size = new Size(430, 26)
                 };
                 contentPanel.Controls.Add(lblTitle);
 
@@ -453,8 +529,8 @@ namespace EconNotes.Installer
                     Text = "EconNotes aşağıdaki hedef klasöre kurulacaktır:",
                     Font = new Font("Segoe UI", 9.25f, FontStyle.Regular),
                     ForeColor = Color.FromArgb(148, 163, 184),
-                    Location = new Point(30, 65),
-                    Size = new Size(480, 22)
+                    Location = new Point(appIconImg != null ? 90 : 30, 48),
+                    Size = new Size(430, 20)
                 };
                 contentPanel.Controls.Add(lblPathHelp);
 
@@ -547,13 +623,26 @@ namespace EconNotes.Installer
                 btnCancel.Enabled = false;
 
                 // Step 3: Installation Progress
+                if (appIconImg != null)
+                {
+                    PictureBox picIcon3 = new PictureBox
+                    {
+                        Image = appIconImg,
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Location = new Point(30, 24),
+                        Size = new Size(48, 48),
+                        BackColor = Color.Transparent
+                    };
+                    contentPanel.Controls.Add(picIcon3);
+                }
+
                 Label lblTitle = new Label
                 {
                     Text = "EconNotes Kuruluyor...",
                     Font = new Font("Segoe UI", 14f, FontStyle.Bold),
                     ForeColor = Color.White,
-                    Location = new Point(30, 40),
-                    Size = new Size(480, 32)
+                    Location = new Point(appIconImg != null ? 90 : 30, 26),
+                    Size = new Size(430, 26)
                 };
                 contentPanel.Controls.Add(lblTitle);
 
@@ -562,8 +651,8 @@ namespace EconNotes.Installer
                     Text = "Kurulum dosyaları hazırlanıyor...",
                     Font = new Font("Segoe UI", 9.25f, FontStyle.Regular),
                     ForeColor = Color.FromArgb(148, 163, 184),
-                    Location = new Point(30, 85),
-                    Size = new Size(480, 24)
+                    Location = new Point(appIconImg != null ? 92 : 30, 54),
+                    Size = new Size(430, 20)
                 };
                 contentPanel.Controls.Add(lblStatus);
 
@@ -588,25 +677,63 @@ namespace EconNotes.Installer
                 btnNext.Enabled = true;
                 btnNext.Text = "Bitir";
 
-                // Step 4: Finished Screen
+                // Step 4: Finished Screen with EconNotes Brand
+                if (appIconImg != null)
+                {
+                    PictureBox picIcon4 = new PictureBox
+                    {
+                        Image = appIconImg,
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Location = new Point(30, 20),
+                        Size = new Size(54, 54),
+                        BackColor = Color.Transparent
+                    };
+                    contentPanel.Controls.Add(picIcon4);
+                }
+
                 Label lblTitle = new Label
                 {
                     Text = "Kurulum Başarıyla Tamamlandı!",
-                    Font = new Font("Segoe UI", 16f, FontStyle.Bold),
+                    Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
                     ForeColor = Color.FromArgb(52, 211, 153), // emerald-400
-                    Location = new Point(30, 30),
-                    Size = new Size(480, 36)
+                    Location = new Point(appIconImg != null ? 96 : 30, 22),
+                    Size = new Size(420, 28)
                 };
                 contentPanel.Controls.Add(lblTitle);
 
+                Label lblSubtitle4 = new Label
+                {
+                    Text = "EconNotes masaüstü istemcisi kullanıma hazır",
+                    Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
+                    ForeColor = Color.FromArgb(148, 163, 184),
+                    Location = new Point(appIconImg != null ? 98 : 32, 52),
+                    Size = new Size(420, 22)
+                };
+                contentPanel.Controls.Add(lblSubtitle4);
+
                 Panel finishCard = new Panel
                 {
-                    Location = new Point(30, 80),
-                    Size = new Size(500, 180),
+                    Location = new Point(30, 88),
+                    Size = new Size(505, 175),
                     BackColor = Color.FromArgb(30, 41, 59),
-                    Padding = new Padding(20)
+                    Padding = new Padding(18)
                 };
                 contentPanel.Controls.Add(finishCard);
+
+                int finishDescTop = 16;
+                if (brandDarkImg != null)
+                {
+                    PictureBox picBrand4 = new PictureBox
+                    {
+                        Image = brandDarkImg,
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Location = new Point(18, 14),
+                        Size = new Size(130, 26),
+                        BackColor = Color.Transparent
+                    };
+                    finishCard.Controls.Add(picBrand4);
+                    finishDescTop = 46;
+                }
 
                 Label lblFinishDesc = new Label
                 {
@@ -615,7 +742,8 @@ namespace EconNotes.Installer
                            "Kurulum Sihirbazı'ndan çıkmak için 'Bitir' butonuna tıklayın.",
                     Font = new Font("Segoe UI", 9.25f, FontStyle.Regular),
                     ForeColor = Color.FromArgb(226, 232, 240),
-                    Dock = DockStyle.Fill
+                    Location = new Point(18, finishDescTop),
+                    Size = new Size(470, 165 - finishDescTop)
                 };
                 finishCard.Controls.Add(lblFinishDesc);
 

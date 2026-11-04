@@ -220,24 +220,23 @@ const Sidebar = () => {
   return (
     <>
       {/* Hamburger — mobile */}
-      <Button
-        variant="ghost"
-        size="icon"
+      <button
+        type="button"
         aria-label={open ? 'Menüyü kapat' : 'Menüyü aç'}
         aria-expanded={open}
         aria-controls="mobile-sidebar"
-        className="fixed left-3 z-[70] inline-flex h-10 w-10 items-center justify-center p-0 md:hidden rounded-lg border border-[hsl(var(--sidebar-border))] bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] hover:bg-[hsl(var(--sidebar-accent))] hover:text-[hsl(var(--sidebar-primary))] transition-all"
-        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+        className="fixed left-3 z-[70] flex h-10 w-10 items-center justify-center p-0 md:hidden rounded-xl border border-border/80 bg-card/95 text-foreground shadow-sm backdrop-blur-md hover:bg-accent active:scale-95 transition-all touch-manipulation"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1.5rem)' }}
         onClick={() => setOpen(v => !v)}
       >
-        <span className="relative grid h-5 w-5 place-items-center">
-          <Menu className={cn('absolute left-0 top-0 block h-5 w-5 transition-all duration-300', open ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100')} />
-          <X className={cn('absolute left-0 top-0 block h-5 w-5 transition-all duration-300', open ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75')} />
-        </span>
+        <div className="relative flex h-5 w-5 items-center justify-center">
+          <Menu className={cn('h-5 w-5 transition-all duration-300', open ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100')} />
+          <X className={cn('absolute inset-0 m-auto h-5 w-5 transition-all duration-300', open ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75')} />
+        </div>
         {!open && totalBadge > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-[hsl(var(--neon-cyan))] shadow-[0_0_8px_hsl(var(--neon-cyan))]" />
+          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[hsl(var(--neon-cyan))] shadow-[0_0_8px_hsl(var(--neon-cyan))]" />
         )}
-      </Button>
+      </button>
 
       {/* Backdrop */}
       <div
@@ -262,8 +261,8 @@ const Sidebar = () => {
           open ? 'translate-x-0' : '-translate-x-full',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)',
-          height: 'calc(100dvh - env(safe-area-inset-top, 0px) - 4.5rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 5rem)',
+          height: 'calc(100dvh - env(safe-area-inset-top, 0px) - 5rem)',
         }}
       >
         <div className="flex-1 overflow-y-auto overscroll-contain">
