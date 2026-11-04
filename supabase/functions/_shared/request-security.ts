@@ -19,6 +19,18 @@ export const isTrustedOrigin = (origin: string | null): boolean => {
 
   try {
     const url = new URL(origin);
+    if (
+      url.hostname.endsWith('econnotes.online') ||
+      url.hostname.endsWith('.lovable.app') ||
+      url.hostname.endsWith('.lovableproject.com') ||
+      url.hostname.endsWith('.vercel.app') ||
+      url.hostname === 'localhost' ||
+      url.hostname === '127.0.0.1' ||
+      /^192\.168\.\d+\.\d+$/.test(url.hostname) ||
+      /^10\.\d+\.\d+\.\d+$/.test(url.hostname)
+    ) {
+      return true;
+    }
     return (url.protocol === 'http:' || url.protocol === 'https:')
       && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
   } catch {

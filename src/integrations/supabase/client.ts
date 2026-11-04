@@ -12,12 +12,19 @@ export const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABL
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   global: {
     fetch: async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const urlStr = typeof input === 'string'
+        ? input
+        : (input instanceof URL ? input.toString() : (input?.url || ''));
+
+      // AI Edge Function çağrıları için 120 saniye, normal veritabanı sorguları için 35 saniye
+      const isFunctionCall = urlStr.includes('/functions/v1/');
+      const timeoutMs = isFunctionCall ? 120000 : 35000;
+
       const controller = new AbortController();
-      // 30s timeout to prevent freezing on slow/hung requests; abort with a
-      // readable reason so callers see a timeout message, not a bare AbortError
+      // Timeout to prevent freezing on hung requests
       const timeout = window.setTimeout(
-        () => controller.abort(new DOMException('İstek zaman aşımına uğradı (30 sn).', 'TimeoutError')),
-        30000,
+        () => controller.abort(new DOMException(`İstek zaman aşımına uğradı (${timeoutMs / 1000} sn).`, 'TimeoutError')),
+        timeoutMs,
       );
       const callerSignal = init.signal;
       const abortFromCaller = () => controller.abort();

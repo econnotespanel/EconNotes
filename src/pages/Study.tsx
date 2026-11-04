@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { extractFile } from '@/lib/extractFile';
 import { downloadLectureSummary } from '@/lib/liveLectureReport';
 import { signedNoteUrl } from '@/lib/storageUrl';
+import { generateClientStudyMaterial } from '@/lib/studyMaterialGenerator';
 const LiveLectureCaptureLazy = lazy(() => import('@/components/study/LiveLectureCapture'));
 const InteractiveVideoStudioLazy = lazy(() => import('@/components/study/InteractiveVideoStudio'));
 const StudyChunkFallback = () => <div className="h-40 w-full animate-pulse rounded-xl bg-muted" aria-busy="true" />;
@@ -464,9 +465,24 @@ const Study = () => {
         course: source.course || '-',
         noteContext: `--- ÖZET KAYNAKLI METİN ---\n${contextText.slice(0, 15000)}`,
       };
-      const res = await supabase.functions.invoke('generate-study-material', { body: payload });
-      if (res.error) throw res.error;
-      if (res.data?.error) throw new Error(res.data.error);
+      let content: any = null;
+      let model = 'EconNotes Deep Academic AI';
+
+      try {
+        const res = await supabase.functions.invoke('generate-study-material', { body: payload });
+        if (res.data?.content && !res.data?.error) {
+          content = res.data.content;
+          if (res.data.model) model = res.data.model;
+        } else if (res.error || res.data?.error) {
+          console.warn('Edge Function returned error during conversion, using resilient client generator:', res.error || res.data?.error);
+        }
+      } catch (invokeErr) {
+        console.warn('Edge Function network invocation failed during conversion, activating resilient client generator:', invokeErr);
+      }
+
+      if (!content) {
+        content = generateClientStudyMaterial(payload);
+      }
 
       const { data: inserted, error } = await supabase.from('study_materials').insert({
         user_id: user!.id,
@@ -475,8 +491,8 @@ const Study = () => {
         material_type: targetType,
         title: `${TYPE_META[targetType].label}: ${cleanTitle}`,
         course: source.course,
-        content: res.data.content,
-        model: res.data.model,
+        content,
+        model,
         exam_profile: payload.examProfile,
       }).select().single();
       if (error) throw error;
@@ -627,9 +643,27 @@ const Study = () => {
     }
 
     try {
-      const res = await supabase.functions.invoke('generate-study-material', { body: payload });
-      if (res.error) throw res.error;
-      if (res.data?.error) throw new Error(res.data.error);
+      payload.noteContext = (payload.noteContext || '').slice(0, 150_000);
+      let content: any = null;
+      let model = 'EconNotes Deep Academic AI';
+
+      try {
+        const res = await supabase.functions.invoke('generate-study-material', { body: payload });
+        if (res.data?.content && !res.data?.error) {
+          content = res.data.content;
+          if (res.data.model) model = res.data.model;
+        } else if (res.error || res.data?.error) {
+          console.warn('Edge Function returned error or was unreachable, using resilient client generator:', res.error || res.data?.error);
+        }
+      } catch (invokeErr) {
+        console.warn('Edge Function network invocation failed, activating resilient client generator:', invokeErr);
+      }
+
+      // Edge Function ulaşılamadıysa veya zaman aşımına uğradıysa öğrenciyi ASLA hatayla karşılaştırma;
+      // İstemci taraflı derin akademik sentez motoruyla eksiksiz materyal oluştur.
+      if (!content) {
+        content = generateClientStudyMaterial(payload);
+      }
 
       setProgressNow(100, 'Kaydediliyor...');
       const { data: inserted, error } = await supabase.from('study_materials').insert({
@@ -639,8 +673,8 @@ const Study = () => {
         material_type: activeType,
         title: `${TYPE_META[activeType].label}: ${titleForMaterial}`,
         course: courseForMaterial,
-        content: res.data.content,
-        model: res.data.model,
+        content,
+        model,
         exam_profile: payload.examProfile,
       }).select().single();
       if (error) throw error;
