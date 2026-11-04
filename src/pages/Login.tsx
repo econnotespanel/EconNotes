@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
-import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck, Megaphone, X, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertTriangle, Download, BookOpen, Users, TrendingUp, ShieldCheck, Megaphone, X, Sparkles, Ban, Clock, CheckCircle, Info } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
@@ -20,7 +20,16 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [penaltyInfo, setPenaltyInfo] = useState<{ reason: string; until: string | null; is_permanent: boolean; expired?: boolean } | null>(null);
+  const [penaltyInfo, setPenaltyInfo] = useState<{
+    reason: string;
+    until: string | null;
+    is_permanent: boolean;
+    warning_number?: number;
+    created_at?: string;
+    expired?: boolean;
+    evicted?: boolean;
+  } | null>(null);
+  const [remainingTimeStr, setRemainingTimeStr] = useState<string>('');
   const [penaltyCountdown, setPenaltyCountdown] = useState(0);
   const [loginBanners, setLoginBanners] = useState<any[]>([]);
   const [dismissedLoginBanners, setDismissedLoginBanners] = useState<Set<string>>(new Set());
@@ -29,6 +38,53 @@ const Login = () => {
   const [captchaReset, setCaptchaReset] = useState(0);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+
+  // Load evicted penalty notification from session if user was just kicked out
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('econnotes_active_penalty');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setPenaltyInfo(parsed);
+        sessionStorage.removeItem('econnotes_active_penalty');
+      }
+    } catch (e) {
+      console.warn('Penalty parse error:', e);
+    }
+  }, []);
+
+  // Real-time live countdown timer for penalty
+  useEffect(() => {
+    if (!penaltyInfo || penaltyInfo.is_permanent || !penaltyInfo.until || penaltyInfo.expired) {
+      setRemainingTimeStr('');
+      return;
+    }
+
+    const updateTimer = () => {
+      const targetTime = new Date(penaltyInfo.until!).getTime();
+      const diff = targetTime - Date.now();
+      if (diff <= 0) {
+        setRemainingTimeStr('Süre doldu');
+        setPenaltyInfo((prev) => prev ? { ...prev, expired: true } : null);
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / (1000 * 60)) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      const parts: string[] = [];
+      if (days > 0) parts.push(`${days} gün`);
+      if (hours > 0 || days > 0) parts.push(`${hours} saat`);
+      if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes} dk`);
+      parts.push(`${seconds} sn`);
+      setRemainingTimeStr(parts.join(' ') + ' kaldı');
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [penaltyInfo?.until, penaltyInfo?.is_permanent, penaltyInfo?.expired]);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,7 +244,13 @@ const Login = () => {
 
         if (isPermanent || (penaltyUntil && penaltyUntil > now)) {
           await supabase.auth.signOut();
-          setPenaltyInfo({ reason: latest.reason, until: latest.penalty_until, is_permanent: latest.is_permanent });
+          setPenaltyInfo({
+            reason: latest.reason || 'Topluluk kurallarına aykırı işlem',
+            until: latest.penalty_until,
+            is_permanent: isPermanent,
+            warning_number: latest.warning_number || 1,
+            created_at: latest.created_at,
+          });
           setLoading(false);
           return;
         }
@@ -396,18 +458,109 @@ const Login = () => {
           )}
 
           {penaltyInfo && !penaltyInfo.expired && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Hesabınız Cezalı</AlertTitle>
-              <AlertDescription className="space-y-1">
-                <p><strong>Sebep:</strong> {penaltyInfo.reason}</p>
-                {penaltyInfo.is_permanent ? (
-                  <p><strong>Süre:</strong> Süresiz uzaklaştırma</p>
-                ) : penaltyInfo.until ? (
-                  <p><strong>Ceza Bitiş:</strong> {new Date(penaltyInfo.until).toLocaleString('tr-TR')}</p>
-                ) : null}
-              </AlertDescription>
-            </Alert>
+            <div className="rounded-2xl border border-rose-500/30 bg-gradient-to-b from-rose-500/15 via-rose-500/10 to-rose-500/5 p-4 sm:p-5 shadow-lg space-y-3.5 backdrop-blur-md animate-fade-in">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-rose-500/20 text-rose-500 shrink-0">
+                  <Ban className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-sm sm:text-base font-bold text-rose-500 leading-tight">
+                      {penaltyInfo.is_permanent ? 'Hesap Kalıcı Olarak Kapatıldı' : 'Hesap Erişimi Geçici Olarak Kısıtlandı'}
+                    </h2>
+                    {penaltyInfo.warning_number && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                        Uyarı #{penaltyInfo.warning_number}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    EconNotes güvenlik ve topluluk kuralları gereği hesabınıza kısıtlama uygulanmıştır.
+                  </p>
+                </div>
+              </div>
+
+              {/* Ceza Sebebi */}
+              <div className="rounded-xl border border-rose-500/20 bg-background/60 p-3 space-y-1">
+                <span className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5" /> Ceza Sebebi
+                </span>
+                <p className="text-xs font-medium text-foreground leading-relaxed pl-1">
+                  "{penaltyInfo.reason || 'Kurallara uygun olmayan işlem'}"
+                </p>
+              </div>
+
+              {/* Süre Bilgileri */}
+              <div className="rounded-xl border border-border/60 bg-background/40 p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Kısıtlama Türü:</span>
+                  <span className="font-semibold text-foreground">
+                    {penaltyInfo.is_permanent ? 'Süresiz Uzaklaştırma (Kalıcı Ban)' : 'Süreli Erişim Engeli'}
+                  </span>
+                </div>
+                {penaltyInfo.until && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Ceza Bitiş:</span>
+                    <span className="font-semibold text-foreground">
+                      {new Date(penaltyInfo.until).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </span>
+                  </div>
+                )}
+                {!penaltyInfo.is_permanent && remainingTimeStr && (
+                  <div className="flex items-center justify-between pt-1 border-t border-border/40">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5 text-amber-500 animate-pulse" /> Kalan Süre:
+                    </span>
+                    <span className="font-bold text-amber-500 font-mono">
+                      {remainingTimeStr}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Platform Bilgilendirme Notu */}
+              <div className="text-[11px] text-muted-foreground/90 space-y-1 pl-1 leading-relaxed">
+                <p>• Kısıtlama süresi boyunca not indirme, paylaşım ve mesajlaşma özellikleri kapalıdır.</p>
+                <p>• Ceza süreniz dolduğunda hesabınız otomatik olarak tekrar açılacaktır.</p>
+              </div>
+
+              {/* İtiraz & Destek Butonu */}
+              <div className="pt-1">
+                <a
+                  href={`mailto:destek@econnotes.online?subject=${encodeURIComponent(`EconNotes Hesap Cezası İtirazı - ${email || 'Kullanıcı'}`)}&body=${encodeURIComponent(`Kullanıcı E-posta: ${email}\nCeza Sebebi: ${penaltyInfo.reason}\n\nİtiraz Açıklamam: `)}`}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-xs font-semibold transition-colors text-center"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  Cezaya İtiraz Et (destek@econnotes.online)
+                </a>
+              </div>
+            </div>
+          )}
+
+          {penaltyInfo?.expired && (
+            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-lg space-y-3 backdrop-blur-md animate-fade-in">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-500 shrink-0">
+                  <CheckCircle className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-sm font-bold text-emerald-500 leading-tight">
+                    Ceza Süreniz Sona Erdi!
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                    Hesabınız üzerindeki kısıtlama kalktı. Artık bilgilerinizi girerek EconNotes'a giriş yapabilirsiniz.
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full rounded-xl border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10 text-xs font-semibold"
+                onClick={() => setPenaltyInfo(null)}
+              >
+                Giriş Yapmaya Devam Et
+              </Button>
+            </div>
           )}
 
           <form onSubmit={handleLogin} className="space-y-4">

@@ -284,7 +284,17 @@ const AdminPanel = () => {
       user_id: selectedUser.user_id, issued_by: user!.id, reason: penaltyReason,
       warning_number: level, penalty_until: penaltyUntil, is_permanent: isPermanent,
     });
-    if (error) { toast.error('Ceza verilemedi.'); return; }
+    if (error) { toast.error('Ceza verilemedi: ' + error.message); return; }
+
+    // Instant eviction broadcast to kick out the user immediately if online
+    try {
+      const evictChannel = supabase.channel(`penalty-monitor-${selectedUser.user_id}`);
+      await evictChannel.subscribe();
+      await evictChannel.send({ type: 'broadcast', event: 'evict', payload: { reason: penaltyReason } });
+      await supabase.removeChannel(evictChannel);
+    } catch (broadcastErr) {
+      console.warn('Eviction broadcast error:', broadcastErr);
+    }
     await logActivity(user!.id, 'Admin', user!.email || '', 'penalty_issued', `${selectedUser.full_name} - ${duration?.label}. Sebep: ${penaltyReason}`, 'penalty');
     toast.success(`Ceza verildi: ${duration?.label}`);
     setPenaltyDialog(false); setPenaltyReason(''); fetchAll();

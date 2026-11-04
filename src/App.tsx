@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ForcePasswordChange from "@/components/ForcePasswordChange";
+import UserPenaltyMonitor from "@/components/UserPenaltyMonitor";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { SiteConfigProvider } from "@/contexts/SiteConfigContext";
 import PageGuard from "@/components/PageGuard";
@@ -76,6 +77,7 @@ const App = () => {
         <ThemeProvider>
           <SiteConfigProvider>
           <AuthProvider>
+            <UserPenaltyMonitor />
             <TooltipProvider>
               <Toaster />
               <Sonner />
