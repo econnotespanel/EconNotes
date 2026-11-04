@@ -811,17 +811,60 @@ const setupExePath = path.join(downloadsDir, 'EconNotes-Setup.exe');
 fs.copyFileSync(installerExePath, setupExePath);
 console.log('Copied to EconNotes-Setup.exe');
 
-// Cleanup temp files
+// Apply Authenticode signature
 try {
-  fs.unlinkSync(launcherCsPath);
-  fs.unlinkSync(launcherExePath);
-  fs.unlinkSync(uninstallerCsPath);
-  fs.unlinkSync(uninstallerExePath);
-  fs.unlinkSync(installerCsPath);
-  fs.rmdirSync(tempDir);
-} catch (e) {}
+  console.log('Applying Authenticode signature...');
+  const signScriptPath = path.join(rootDir, 'scripts', 'sign-executables.ps1');
+  if (fs.existsSync(signScriptPath)) {
+    cp.execSync(`powershell -ExecutionPolicy Bypass -File "${signScriptPath}"`, { stdio: 'ignore' });
+    console.log('Authenticode signature applied to executables.');
+  }
+} catch (e) {
+  console.warn('Signature step skipped:', e.message);
+}
 
-console.log('=== BUILD COMPLETE ===');
-console.log('Artifacts created in public/downloads:');
-console.log(' - EconNotes-Kurulum.exe (' + (fs.statSync(installerExePath).size / 1024).toFixed(1) + ' KB)');
-console.log(' - EconNotes-Setup.exe (' + (fs.statSync(setupExePath).size / 1024).toFixed(1) + ' KB)');
+// Generate ZIP package
+const JSZip = require('jszip');
+const zip = new JSZip();
+zip.file('EconNotes-Kurulum.exe', fs.readFileSync(installerExePath));
+zip.file(
+  'EconNotes-Hizli-Baslat.bat',
+  '@echo off\r\ntitle EconNotes Baslatiliyor...\r\necho EconNotes Platformu Masaustunde Aciliyor...\r\nstart "" "https://econnotes.online"\r\n'
+);
+zip.file(
+  'Kurulum-Rehberi.txt',
+  `EconNotes Desktop Kurulum ve Calistirma Rehberi (${appVersion})
+
+1. 'EconNotes-Kurulum.exe' dosyasina cift tiklayarak kurulum sihirbazini calistirin.
+2. Acilan pencerede 'Ileri' ve 'Kur' butonlarina basarak kurulumu 5 saniyede tamamlayin.
+3. Masaustunuze ve Baslat menunuze 'EconNotes' kisayolu eklenecektir.
+
+Alternatif Olarak:
+- Kurulum yapmadan dogrudan 'EconNotes-Hizli-Baslat.bat' dosyasina cift tiklayarak da uygulamayi baslatabilirsiniz.
+
+Destek ve Yardim: https://econnotes.online/support
+`
+);
+
+const zipPath = path.join(downloadsDir, 'EconNotes-Kurulum.zip');
+zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 9 } })
+  .then((zipBuf) => {
+    fs.writeFileSync(zipPath, zipBuf);
+    console.log('ZIP package created successfully:', (zipBuf.length / 1024).toFixed(1), 'KB');
+
+    // Cleanup temp files
+    try {
+      fs.unlinkSync(launcherCsPath);
+      fs.unlinkSync(launcherExePath);
+      fs.unlinkSync(uninstallerCsPath);
+      fs.unlinkSync(uninstallerExePath);
+      fs.unlinkSync(installerCsPath);
+      fs.rmdirSync(tempDir);
+    } catch (e) {}
+
+    console.log('=== BUILD COMPLETE ===');
+    console.log('Artifacts created in public/downloads:');
+    console.log(' - EconNotes-Kurulum.exe (' + (fs.statSync(installerExePath).size / 1024).toFixed(1) + ' KB)');
+    console.log(' - EconNotes-Setup.exe (' + (fs.statSync(setupExePath).size / 1024).toFixed(1) + ' KB)');
+    console.log(' - EconNotes-Kurulum.zip (' + (fs.statSync(zipPath).size / 1024).toFixed(1) + ' KB)');
+  });

@@ -460,39 +460,65 @@ const Install = () => {
                     </CardHeader>
 
                     <CardContent className="p-6 space-y-6">
-                      {/* İndirme Butonu ve Özellikler */}
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-5 p-5 rounded-xl bg-slate-950/60 border border-slate-800/90">
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
-                            <span className="font-semibold text-white">EconNotes-Kurulum.exe</span>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-sky-300 font-medium">Sürüm {APP_VERSION}</span>
-                            <span className="text-slate-500">•</span>
-                            <span>Windows 10 / 11 (64-Bit & 32-Bit)</span>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-emerald-400 font-semibold">91 KB (Ultra Hafif)</span>
-                          </div>
-                          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-xl">
-                            İndirdiğiniz kurulum dosyası; masaüstü ve Başlat menüsü kısayollarını otomatik oluşturur, EconNotes'u tarayıcı sekmelerinden bağımsız temiz bir pencerede çalıştırır.
-                          </p>
+                      {/* İndirme Butonları ve Özellikler */}
+                      <div className="flex flex-col gap-4 p-5 rounded-xl bg-slate-950/60 border border-slate-800/90">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                          <span className="font-semibold text-white">EconNotes Desktop</span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-sky-300 font-medium">Sürüm {APP_VERSION}</span>
+                          <span className="text-slate-500">•</span>
+                          <span>Windows 10 / 11 (64-Bit & 32-Bit)</span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-emerald-400 font-semibold">Dijital İmzalı & Hafif</span>
                         </div>
+                        <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
+                          Kurulum sihirbazı; masaüstü ve Başlat menüsü kısayollarını otomatik oluşturur, EconNotes'u tarayıcı sekmelerinden bağımsız hızlı bir masaüstü penceresinde çalıştırır.
+                        </p>
 
-                        <div className="flex flex-col gap-2 shrink-0">
-                          <a
-                            href="/downloads/EconNotes-Kurulum.exe"
-                            download="EconNotes-Kurulum.exe"
-                            className="inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm sm:text-base shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02]"
-                          >
-                            <Download className="h-5 w-5" />
-                            <span>Kurulum Dosyasını İndir (.exe)</span>
-                          </a>
-                          <div className="text-center">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          {/* 1. SEÇENEK: ZIP PAKETİ (UYARISIZ) */}
+                          <div className="flex flex-col justify-between p-4 rounded-xl bg-slate-900 border border-emerald-500/30 space-y-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-white">Windows ZIP Paketi (.zip)</span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                  Uyarısız İndirme
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-400 leading-relaxed">
+                                Tarayıcı güvenlik uyarısına takılmaz. İndirip arşivden çıkararak kurulum sihirbazını hemen çalıştırabilirsiniz.
+                              </p>
+                            </div>
                             <a
-                              href="/downloads/EconNotes-Setup.exe"
-                              download="EconNotes-Setup.exe"
-                              className="text-[11px] text-slate-400 hover:text-sky-300 underline underline-offset-2"
+                              href="/downloads/EconNotes-Kurulum.zip"
+                              download="EconNotes-Kurulum.zip"
+                              className="inline-flex items-center justify-center gap-2 w-full px-5 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-emerald-600/30 transition-all"
                             >
-                              Alternatif İndirme: EconNotes-Setup.exe
+                              <Download className="h-4 w-4" />
+                              <span>ZIP Olarak İndir (Önerilen)</span>
+                            </a>
+                          </div>
+
+                          {/* 2. SEÇENEK: DOĞRUDAN SETUP (.EXE) */}
+                          <div className="flex flex-col justify-between p-4 rounded-xl bg-slate-900 border border-blue-500/30 space-y-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-white">Kurulum Dosyası (.exe)</span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                  Tek Dosya
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-400 leading-relaxed">
+                                Doğrudan çalıştırılabilir kurulum dosyası. Çift tıklayarak Türkçe kurulum sihirbazı ekranlarını açabilirsiniz.
+                              </p>
+                            </div>
+                            <a
+                              href="/downloads/EconNotes-Kurulum.exe"
+                              download="EconNotes-Kurulum.exe"
+                              className="inline-flex items-center justify-center gap-2 w-full px-5 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-600/30 transition-all"
+                            >
+                              <Download className="h-4 w-4" />
+                              <span>Kurulum Dosyasını İndir (.exe)</span>
                             </a>
                           </div>
                         </div>
@@ -610,14 +636,38 @@ const Install = () => {
                         </div>
                       </div>
 
-                      {/* 3. WINDOWS DEFENDER / SMARTSCREEN GÜVENLİK BİLGİLENDİRMESİ */}
-                      <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start gap-3.5 text-xs sm:text-sm text-slate-300">
-                        <ShieldCheck className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
-                        <div className="space-y-1">
-                          <span className="font-semibold text-white">Windows Defender / Mavi Koruma Bildirimi Görürseniz:</span>
-                          <p className="text-slate-300 text-xs leading-relaxed">
-                            İnternetten yeni indirilen tüm kurulum dosyalarında Windows Defender SmartScreen "Windows kişisel bilgisayarınızı korudu" şeklinde mavi bir güvenlik uyarısı gösterebilir. Bu durumda penceredeki <strong>"Ek Bilgi"</strong> (More info) linkine tıklayıp ardından açılan <strong>"Yine de Çalıştır"</strong> (Run anyway) butonuna basmanız yeterlidir. Kurulum dosyası tamamen güvenlidir ve yönetici şifresi gerektirmeden kurulur.
-                          </p>
+                      {/* 3. İNDİRME VE DEFENDER GÜVENLİK REHBERİ */}
+                      <div className="space-y-3 pt-1">
+                        {/* Edge / Chrome Uyarısı Çözümü */}
+                        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3.5 text-xs sm:text-sm text-amber-200">
+                          <Info className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+                          <div className="space-y-2">
+                            <span className="font-semibold text-white">
+                              Edge veya Chrome'da "Yaygın olarak indirilen bir dosya değil" Uyarısı Çıkarsa:
+                            </span>
+                            <p className="text-amber-200/90 text-xs leading-relaxed">
+                              Microsoft Edge ve Chrome, yeni yayımlanan bağımsız kurulum dosyalarında bu güvenlik uyarısını gösterir. Dosyayı 2 saniyede açmak için:
+                            </p>
+                            <ol className="list-decimal list-inside space-y-1 text-xs text-amber-100 font-medium">
+                              <li>İndirilen dosya satırının üzerine gelip sağdaki <strong>üç nokta (···)</strong> simgesine tıklayın.</li>
+                              <li>Menüden <strong>"Sakla" (Keep)</strong> seçeneğini seçin.</li>
+                              <li>Açılan pencerede <strong>"Daha fazla göster" ➔ "Yine de sakla"</strong> butonuna basın.</li>
+                            </ol>
+                            <p className="text-[11px] text-amber-300">
+                              💡 <em>İpucu: Bu adımlarla karşılaşmak istemiyorsanız yukarıdaki yeşil <strong>"Windows ZIP Paketi (.zip)"</strong> butonunu kullanabilirsiniz; ZIP dosyaları hiçbir güvenlik uyarısına takılmadan doğrudan iner.</em>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Windows SmartScreen Mavi Ekran Çözümü */}
+                        <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start gap-3.5 text-xs sm:text-sm text-slate-300">
+                          <ShieldCheck className="h-5 w-5 text-sky-400 shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <span className="font-semibold text-white">Windows "Kişisel bilgisayarınızı korudu" Mavi Ekranı Görürseniz:</span>
+                            <p className="text-slate-300 text-xs leading-relaxed">
+                              Dosyayı açtığınızda Windows SmartScreen mavi ekranı belirirse: Ekrandaki <strong>"Ek Bilgi"</strong> (More info) linkine tıklayıp açılan <strong>"Yine de Çalıştır"</strong> (Run anyway) butonuna basmanız yeterlidir. Kurulum sihirbazı güvenle açılacaktır.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
