@@ -27,3 +27,5 @@ dist-ssr
 node_modules
 supabase/.temp/
 backup/
+scratch/
+public/storage/

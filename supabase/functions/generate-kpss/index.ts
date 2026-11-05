@@ -7,6 +7,10 @@ import {
   readJsonBody,
   RequestError,
 } from '../_shared/request-security.ts';
+import {
+  createChatCompletion,
+  OpenAIGatewayError,
+} from '../_shared/openai-gateway.ts';
 
 type KpssType = 'topics' | 'summary' | 'quiz' | 'flashcards';
 
@@ -186,57 +190,33 @@ Deno.serve(async (req) => {
       throw new RequestError('İstek içeriği geçersiz.', 400);
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      return jsonResponse(req, { error: 'AI yapılandırılmamış.' }, 500);
-    }
-
     const { system, userText } = buildPrompt(body);
-    const model = 'google/gemini-2.5-pro';
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: userText },
-        ],
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'emit_kpss_material',
-            description: 'KPSS çalışma materyalini yapılandırılmış biçimde döndür',
-            parameters: schemas[body.type],
-          },
-        }],
-        tool_choice: { type: 'function', function: { name: 'emit_kpss_material' } },
-      }),
+    const result = await createChatCompletion({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userText },
+      ],
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'emit_kpss_material',
+          description: 'KPSS çalışma materyalini yapılandırılmış biçimde döndür',
+          parameters: schemas[body.type],
+        },
+      }],
+      tool_choice: { type: 'function', function: { name: 'emit_kpss_material' } },
     });
 
-    if (response.status === 429) {
-      return jsonResponse(req, { error: 'Yoğunluk var: birazdan tekrar deneyin.' }, 429);
-    }
-    if (response.status === 402) {
-      return jsonResponse(req, { error: 'AI kredisi tükendi.' }, 402);
-    }
-    if (!response.ok) {
-      const detail = await response.text();
-      console.error(`AI gateway hata [${response.status}]: ${detail}`);
-      return jsonResponse(req, { error: 'AI servisi yanıt vermedi.' }, 502);
-    }
-
-    const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) {
+    if (!result.parsedJson) {
       return jsonResponse(req, { error: 'Materyal üretilemedi, tekrar deneyin.' }, 502);
     }
 
-    const content = JSON.parse(toolCall.function.arguments);
-    return jsonResponse(req, { content, model });
+    return jsonResponse(req, { content: result.parsedJson, model: result.model });
   } catch (error) {
     if (error instanceof RequestError) return jsonResponse(req, { error: error.message }, error.status);
+    if (error instanceof OpenAIGatewayError) return jsonResponse(req, { error: error.message }, error.status);
     console.error('generate-kpss request failed:', error);
     return jsonResponse(req, { error: 'İstek işlenemedi.' }, 500);
   }

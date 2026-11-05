@@ -29,7 +29,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Makro İktisat II - 5. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "518 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774652182401.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDY1MjE4MjQwMS5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQyLCJleHAiOjE4MjUzNDMwNDJ9.n-v7rIeyyavxC7Bf0B0OpWzZzTxxKac6-ecxm1kOLdw",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774652182401.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-27T22:56:25.405029+00:00"
   },
@@ -44,7 +44,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İstatistik II - 5. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "292 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774652830093.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDY1MjgzMDA5My5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQyLCJleHAiOjE4MjUzNDMwNDJ9.xiVN02Vii0hnTkcU8-RpK3KC7Vih8R9aWQ63zkcBAms",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774652830093.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-27T23:07:13.393429+00:00"
   },
@@ -59,7 +59,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Makro İktisat II - 6. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "444 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774653762664.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDY1Mzc2MjY2NC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQyLCJleHAiOjE4MjUzNDMwNDJ9.99kTeh3MxnTazsgAvweE5J8XK2Ozjk6i8fA-AsQMMEU",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774653762664.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-27T23:22:46.173648+00:00"
   },
@@ -74,7 +74,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Mikro İktisat II - 5. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "363 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774697073838.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDY5NzA3MzgzOC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.SwAH7aXGCa3OVHLHKMmliOwaid-MeVQetc9E6uHDpF8",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774697073838.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-28T11:24:36.74251+00:00"
   },
@@ -89,7 +89,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İktisadi Düşünceler Tarihi - 5. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "4.3 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774698667479.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDY5ODY2NzQ3OS5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.3y1eTlMNcie_0DDGragmybOHq4PTX2u3VbtV9QjCRgU",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774698667479.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-28T11:51:11.874795+00:00"
   },
@@ -104,7 +104,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Mikro İktisat II - 6. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "209 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774700085516.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDcwMDA4NTUxNi5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.HtGYvOgIi5pWusQEJjPxa3F8Bs3qHHXLiQ14Xk0dzSQ",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774700085516.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-28T12:14:48.167844+00:00"
   },
@@ -119,7 +119,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İstatistik II - 6. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "947 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774701189195.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDcwMTE4OTE5NS5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.36a7KZZIB5h45H0kr3P-PI1RPYcmrEyrupRCl0edPSE",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774701189195.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-28T12:33:13.038095+00:00"
   },
@@ -134,7 +134,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İstatistik II - 4. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "1.8 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774709122686.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDcwOTEyMjY4Ni5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.qSIfLPA3w86J4qKg5TNA__gQiiA-hl5yvI5QzWXer_M",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774709122686.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-28T14:45:26.130064+00:00"
   },
@@ -149,7 +149,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Makro İktisat II - 4. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.3 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774713576595.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDcxMzU3NjU5NS5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.ziGcc38SI3B8kmH8xHn6kro_279iE2ul1djLNoL8mx8",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774713576595.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-28T15:59:39.970896+00:00"
   },
@@ -164,7 +164,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İstatistik II - 3. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.2 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774779477037.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDc3OTQ3NzAzNy5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.7GnRFaCtszNHedCKdxX599PTKRcSvyRwj0sGQu7O6XM",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774779477037.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-29T10:17:59.081966+00:00"
   },
@@ -179,7 +179,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Mikro İktisat II - 3. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "449 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774780795387.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDc4MDc5NTM4Ny5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.2Y0t15mbX6VxNDqAc-wWzmWzUaDjqggt4Bvx11H3vd8",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774780795387.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-29T10:39:56.650257+00:00"
   },
@@ -194,7 +194,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Makro İktisat II - 7. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "1.4 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774905506818.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDkwNTUwNjgxOC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQzLCJleHAiOjE4MjUzNDMwNDN9.gBRd_9zlH90H4BmyVvcrGSkmVwANdPzJwhBIBbE6kuQ",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774905506818.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-30T21:18:32.447949+00:00"
   },
@@ -209,7 +209,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Doğrusal Cebir - 7. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "88 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774949867221.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NDk0OTg2NzIyMS5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ0LCJleHAiOjE4MjUzNDMwNDR9.XYT5JGnnQ2RmnC9zL1PRjhDl5xqupTpoM4jixtudxK4",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1774949867221.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-03-31T09:37:49.178372+00:00"
   },
@@ -224,7 +224,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İstatistik II - 7. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.3 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1775200302194.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NTIwMDMwMjE5NC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ0LCJleHAiOjE4MjUzNDMwNDR9.mTJVrGIV8wMxhE1H6XSRX60RWZGOJhqeHzpyvO3nbAw",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1775200302194.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-04-03T07:11:43.851199+00:00"
   },
@@ -239,7 +239,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İstatistik II - 1. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "3.1 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1775202342429.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NTIwMjM0MjQyOS5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ0LCJleHAiOjE4MjUzNDMwNDR9.ob-2TQkTzXjHCUcQU9SljlbCWjUrz4L3-4K198xYEeE",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1775202342429.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-04-03T07:45:44.292542+00:00"
   },
@@ -254,7 +254,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Mikro İktisat II - 2. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.5 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1775204060528.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3NTIwNDA2MDUyOC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ0LCJleHAiOjE4MjUzNDMwNDR9.kMFY4xCC1ewLgjUSqVwD9S8_aVNd-DvpAaksDrcLHM8",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1775204060528.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-04-03T08:14:22.650609+00:00"
   },
@@ -269,7 +269,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Makro İktisat II - 12. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "5.9 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1777995256227.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3Nzk5NTI1NjIyNy5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ0LCJleHAiOjE4MjUzNDMwNDR9.UfQ_vBpZ2IOT7nDxy4wgxXucqt_rnC407_id2t7KAPg",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1777995256227.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-05-05T15:34:19.037646+00:00"
   },
@@ -284,7 +284,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İstatistik II - 12. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.2 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1778000543643.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3ODAwMDU0MzY0My5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ0LCJleHAiOjE4MjUzNDMwNDR9.BTDKK_C868_PKoWjcNgkK4S4nhKKoTVROLwpD0GOfgw",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1778000543643.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-05-05T17:02:25.513433+00:00"
   },
@@ -299,7 +299,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İstatistik II - 12. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "4.9 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1778097067053.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc3ODA5NzA2NzA1My5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ0LCJleHAiOjE4MjUzNDMwNDR9.T_eap_an_kjLcu0jcArFFNhVv5tScxeo53_1jRHQIJQ",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1778097067053.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-05-06T19:51:11.429381+00:00"
   },
@@ -314,7 +314,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Hukukun Temel Kavramları – Kısa Özet (2024).pdf",
     "fileType": "application/pdf",
     "fileSize": "2.3 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1791218728936.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MTIxODcyODkzNi5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ0LCJleHAiOjE4MjUzNDMwNDR9.XW52V2AAMXMER8d6ofvrXQHWyLprx5u04H15gQTIBuw",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1791218728936.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-05T16:45:47.601473+00:00"
   },
@@ -329,7 +329,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Osmanlı İktisat Tarihi - 3. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "1.3 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1791408543253.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MTQwODU0MzI1My5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ1LCJleHAiOjE4MjUzNDMwNDV9.rE8zXScSHB7AwiwMRf6fYtA3o8icjWat6hDIkCGGdgA",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1791408543253.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-07T21:29:12.140974+00:00"
   },
@@ -344,7 +344,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İktisat Tarihi - 3. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.8 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1791409150818.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MTQwOTE1MDgxOC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ1LCJleHAiOjE4MjUzNDMwNDV9.lTWAED7BqZAdtTEBkCu9-fgAkP4Se-fWlMuoiOh5GSI",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1791409150818.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-07T21:39:26.584416+00:00"
   },
@@ -359,7 +359,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Para Teorisi - 3. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "11.7 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1791541269813.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MTU0MTI2OTgxMy5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ1LCJleHAiOjE4MjUzNDMwNDV9.i9DIhtq12AxBPsHvsp_5s5lz4oCrHPoXE_Bhrg69T4g",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1791541269813.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-09T10:23:29.5787+00:00"
   },
@@ -374,7 +374,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Osmanlı İktisat Tarihi - 4. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "3.9 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1792008977948.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MjAwODk3Nzk0OC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ1LCJleHAiOjE4MjUzNDMwNDV9.wf6eJ3rbiIxrWM2JWN9N_giifgGdWN-duHvbkaTqnyM",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1792008977948.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-14T20:17:30.587374+00:00"
   },
@@ -389,7 +389,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İktisat Tarihi - 4. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "5.1 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1792009711962.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MjAwOTcxMTk2Mi5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ1LCJleHAiOjE4MjUzNDMwNDV9.D3kz1utENzvSEET9m-UH6UNLun8vMk8OejX3AG6RgoY",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1792009711962.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-14T20:30:03.253694+00:00"
   },
@@ -404,7 +404,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Ekonometri I - 4. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.6 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1792336626754.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MjMzNjYyNjc1NC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ1LCJleHAiOjE4MjUzNDMwNDV9.dcXq8bi_N-x8icfW90oSK90wUcxqpDkH8bMeZ6ssuTc",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1792336626754.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-18T15:17:10.348545+00:00"
   },
@@ -419,7 +419,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Para Teorisi - 4. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.7 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1792337179237.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MjMzNzE3OTIzNy5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ1LCJleHAiOjE4MjUzNDMwNDV9.6IW4fDI8B16bBydL6vxjsZ7rbcoODWuGC5Tm52RgZpc",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1792337179237.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-18T15:26:23.079329+00:00"
   },
@@ -434,7 +434,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Osmanlı İktisat Tarihi - 5. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "23.2 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793278807218.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MzI3ODgwNzIxOC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ1LCJleHAiOjE4MjUzNDMwNDV9.W0vjA6IfyziVov8QvTaXpnqdxz5qYfSI26UKtgLsv3M",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793278807218.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-29T13:00:15.28538+00:00"
   },
@@ -449,7 +449,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "İktisat Tarihi - 5. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "2.7 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793279466438.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MzI3OTQ2NjQzOC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ2LCJleHAiOjE4MjUzNDMwNDZ9.EHMvXDgK7uU9EhO60OfPmLjGKDeQBTziOirnNXnbZqc",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793279466438.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-29T13:11:10.212658+00:00"
   },
@@ -464,7 +464,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Ekonometri I - 5. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "3.2 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793280383798.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MzI4MDM4Mzc5OC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ2LCJleHAiOjE4MjUzNDMwNDZ9.jXkuacwkfrl7kL1xytGeMdfXzuxgcNbxZjNlx4Is_0c",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793280383798.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-29T13:26:27.453706+00:00"
   },
@@ -479,7 +479,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Para Teorisi - 5. Hafta.pdf",
     "fileType": "application/pdf",
     "fileSize": "3.5 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793280965200.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MzI4MDk2NTIwMC5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ2LCJleHAiOjE4MjUzNDMwNDZ9.5do5hMaAXdCCHfhGzWOuxc3ajbRUqNFaEMssefvDFn4",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793280965200.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-29T13:36:10.500049+00:00"
   },
@@ -494,7 +494,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "Ekonometri I - 5. Hafta - (Telafi).pdf",
     "fileType": "application/pdf",
     "fileSize": "2.7 MB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793281871252.pdf?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9hMDhiY2U4ZS01YzI1LTQxYjYtYTgwYS1lYmVmNjYzNGQ3YmEvMTc5MzI4MTg3MTI1Mi5wZGYiLCJzY29wZSI6ImRvd25sb2FkIiwiaWF0IjoxNzkzODA3MDQ2LCJleHAiOjE4MjUzNDMwNDZ9.fg09VGR98gLFBvlS7J7oTdiwvvg2vWYggUKXBKxJvYY",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/a08bce8e-5c25-41b6-a80a-ebef6634d7ba/1793281871252.pdf",
     "uploaderName": "Kaan Çolakoğlu",
     "createdAt": "2026-10-29T13:51:15.735797+00:00"
   },
@@ -509,7 +509,7 @@ export const EMERGENCY_NOTES: EmergencyNote[] = [
     "fileName": "ARAŞTIRMA YÖNTEMLERİ 29.10.2026.pptx",
     "fileType": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "fileSize": "196 KB",
-    "downloadUrl": "https://htjmuzogayyufewirvlp.supabase.co/storage/v1/object/sign/notes/dd556325-0abd-4f30-a1ea-a765471b0fb2/1793555671937.pptx?token=eyJraWQiOiI2MGM3ZWMyOC1kMjY4LTQwNjYtYjMxNS1mOWNkY2JiODUyMTEiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJub3Rlcy9kZDU1NjMyNS0wYWJkLTRmMzAtYTFlYS1hNzY1NDcxYjBmYjIvMTc5MzU1NTY3MTkzNy5wcHR4Iiwic2NvcGUiOiJkb3dubG9hZCIsImlhdCI6MTc5MzgwNzA0NiwiZXhwIjoxODI1MzQzMDQ2fQ.O-mf-kqYNdQrDNSKLXgC2YA2BcCfqYSQy-kmTuYktkQ",
+    "downloadUrl": "https://sfgbftkteezptmvjgxrs.supabase.co/storage/v1/object/public/notes/dd556325-0abd-4f30-a1ea-a765471b0fb2/1793555671937.pptx",
     "uploaderName": "Kaan Çolakoğulları",
     "createdAt": "2026-11-01T17:54:33.019429+00:00"
   }

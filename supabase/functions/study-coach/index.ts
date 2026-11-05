@@ -7,6 +7,11 @@ import {
   readJsonBody,
   RequestError,
 } from '../_shared/request-security.ts';
+import {
+  createChatCompletion,
+  createSpeech,
+  OpenAIGatewayError,
+} from '../_shared/openai-gateway.ts';
 
 interface ChatMsg { role: 'user' | 'assistant'; content: string }
 
@@ -338,29 +343,23 @@ KURALLAR:
 - Ders: ${body.course ?? '-'}
 - İçerik (JSON): ${contextJson}`;
 
-    const messages = [
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: system },
-      ...body.messages.slice(-12),
+      ...body.messages.slice(-12).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     ];
 
-    const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'google/gemini-2.5-pro', messages }),
+    const result = await createChatCompletion({
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0.3,
+      max_tokens: 3000,
     });
 
-    if (r.status === 429) return jsonResponse(req, { error: 'Yoğunluk: Birazdan tekrar deneyin.' }, 429);
-    if (r.status === 402) return jsonResponse(req, { error: 'AI kredisi tükendi.' }, 402);
-    if (!r.ok) {
-      console.error(`study-coach gateway error: ${r.status}`);
-      return jsonResponse(req, { error: 'AI servisi yanıt vermedi.' }, 502);
-    }
-
-    const data = await r.json();
-    const reply = data.choices?.[0]?.message?.content ?? 'Yanıt üretilemedi.';
-    return jsonResponse(req, { reply });
+    const reply = result.content ?? 'Yanıt üretilemedi.';
+    return jsonResponse(req, { reply, model: result.model });
   } catch (error) {
     if (error instanceof RequestError) return jsonResponse(req, { error: error.message }, error.status);
+    if (error instanceof OpenAIGatewayError) return jsonResponse(req, { error: error.message }, error.status);
     console.error('study-coach request failed:', error);
     return jsonResponse(req, { error: 'İstek işlenemedi.' }, 500);
   }

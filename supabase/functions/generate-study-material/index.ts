@@ -7,6 +7,10 @@ import {
   readJsonBody,
   RequestError,
 } from '../_shared/request-security.ts';
+import {
+  createChatCompletion,
+  OpenAIMessage,
+} from '../_shared/openai-gateway.ts';
 
 interface ExamProfile {
   examType?: 'test' | 'classic' | 'mixed';
@@ -683,79 +687,47 @@ Deno.serve(async (req) => {
 
     let content: any = null;
 
-    if (LOVABLE_API_KEY) {
-      // Candidate models tried in sequence for zero-crash stability
-      const candidateModels = [
-        'google/gemini-2.5-pro',
-        'google/gemini-2.5-flash',
-        'openai/gpt-4o-mini',
-      ];
+    const candidateModels: Array<'gpt-4o' | 'gpt-4o-mini'> = [
+      (body.materialType === 'video' || body.materialType === 'summary') ? 'gpt-4o' : 'gpt-4o-mini',
+      'gpt-4o-mini',
+    ];
 
-      for (const currentModel of candidateModels) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 45000);
+    for (const currentModel of candidateModels) {
+      try {
+        const messages: OpenAIMessage[] = [
+          { role: 'system', content: system },
+          { role: 'user', content: userContent },
+        ];
 
-          const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              'Content-Type': 'application/json',
+        const result = await createChatCompletion({
+          model: currentModel,
+          temperature: (body.materialType === 'summary' || body.materialType === 'video') ? 0.15 : 0.2,
+          max_tokens: body.materialType === 'video' ? 16000 : body.materialType === 'summary' ? 6500 : 4000,
+          messages,
+          tools: [{
+            type: 'function',
+            function: {
+              name: 'emit_material',
+              description: 'Çalışma materyalini yapılandırılmış biçimde döndür',
+              parameters: schema,
             },
-            body: JSON.stringify({
-              model: currentModel,
-              temperature: (body.materialType === 'summary' || body.materialType === 'video') ? 0.15 : 0.2,
-              max_tokens: body.materialType === 'video' ? 24000 : body.materialType === 'summary' ? 6500 : 4000,
-              messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: userContent },
-              ],
-              tools: [{
-                type: 'function',
-                function: {
-                  name: 'emit_material',
-                  description: 'Çalışma materyalini yapılandırılmış biçimde döndür',
-                  parameters: schema,
-                },
-              }],
-              tool_choice: { type: 'function', function: { name: 'emit_material' } },
-            }),
-          });
+          }],
+          tool_choice: { type: 'function', function: { name: 'emit_material' } },
+        });
 
-          clearTimeout(timeoutId);
-
-          if (!response.ok) {
-            console.warn(`Gateway model ${currentModel} returned ${response.status}, trying fallback...`);
-            continue;
+        if (result.parsedJson && typeof result.parsedJson === 'object') {
+          content = result.parsedJson;
+          break;
+        } else if (result.content) {
+          const match = result.content.match(/\{[\s\S]*\}/);
+          if (match) {
+            const clean = match[0].replace(/```json\s*|\s*```/g, '').trim();
+            content = JSON.parse(clean);
+            if (content) break;
           }
-
-          const data = await response.json();
-          const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-          let rawArgs = toolCall?.function?.arguments;
-
-          if (!rawArgs && data.choices?.[0]?.message?.content) {
-            const rawContent = data.choices[0].message.content;
-            const match = rawContent.match(/\{[\s\S]*\}/);
-            if (match) rawArgs = match[0];
-          }
-
-          if (rawArgs) {
-            try {
-              // Sanitize if markdown ticks or trailing commas exist
-              const cleanArgs = rawArgs.replace(/```json\s*|\s*```/g, '').trim();
-              const parsed = JSON.parse(cleanArgs);
-              if (parsed && typeof parsed === 'object') {
-                content = parsed;
-                break; // Model returned valid material!
-              }
-            } catch (pErr) {
-              console.warn(`JSON parse error on ${currentModel}:`, pErr);
-            }
-          }
-        } catch (fetchErr) {
-          console.warn(`Fetch error on model ${currentModel}:`, fetchErr);
         }
+      } catch (err) {
+        console.warn(`OpenAI candidate model ${currentModel} error:`, err);
       }
     }
 

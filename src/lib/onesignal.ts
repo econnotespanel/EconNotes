@@ -1,3 +1,5 @@
+import { supabase } from '@/integrations/supabase/client';
+
 declare global {
   interface Window {
     OneSignalDeferred?: Array<(OneSignal: any) => void | Promise<void>>;
@@ -7,17 +9,6 @@ declare global {
 
 export const ONESIGNAL_APP_ID = 'ce5179d9-cf07-4115-b29a-a7d73713818d';
 export const ONESIGNAL_SAFARI_WEB_ID = 'web.onesignal.auto.3bb557bb-091e-4595-bac2-e40949e4ba5a';
-
-const getOneSignalRestApiKey = (): string => {
-  if (import.meta.env.VITE_ONESIGNAL_REST_API_KEY) {
-    return String(import.meta.env.VITE_ONESIGNAL_REST_API_KEY);
-  }
-  try {
-    return atob('b3NfdjJfYXBwX3p6aXh0d29wYTVhcmxtdTJ1N2x0b2U0YnJ4bnZ4d2NodHpmdTQzZmNwZXA2dnZ5cDR0Z21jM3VhM29vNzN3cnAza3dwYWx6NG1pcWt5Y2w3eHRjZ3RhZWNtbmZ6NXo3a2JrajRrM3E=');
-  } catch {
-    return '';
-  }
-};
 
 export const initOneSignal = () => {
   if (typeof window === 'undefined') return;
@@ -103,35 +94,18 @@ export const sendOneSignalNotification = async (
   title: string,
   content: string,
   url: string = 'https://econnotes.online/announcements'
-) => {
-  const apiKey = getOneSignalRestApiKey();
-  if (!apiKey) return false;
-
+): Promise<boolean> => {
   try {
-    const cleanContent = content
-      ? String(content).replace(/<[^>]*>/g, '').trim().slice(0, 180)
-      : 'Yeni bir duyuru paylaşıldı.';
-
-    const response = await fetch('https://api.onesignal.com/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Key ${apiKey}`,
-      },
-      body: JSON.stringify({
-        app_id: ONESIGNAL_APP_ID,
-        included_segments: ['Total Subscriptions', 'Active Subscriptions'],
-        headings: { tr: title, en: title },
-        contents: { tr: cleanContent, en: cleanContent },
-        url,
-        chrome_web_icon: 'https://econnotes.online/icons/icon-192x192.png',
-        chrome_web_badge: 'https://econnotes.online/icons/icon-192x192.png',
-        firefox_icon: 'https://econnotes.online/icons/icon-192x192.png',
-      }),
+    const { data, error } = await supabase.functions.invoke('send-notification', {
+      body: { title, content, url },
     });
 
-    const data = await response.json();
-    return Boolean(data && !data.errors);
+    if (error) {
+      console.warn('send-notification edge function error:', error);
+      return false;
+    }
+
+    return Boolean(data?.success);
   } catch (error) {
     console.error('OneSignal push dispatch error:', error);
     return false;
