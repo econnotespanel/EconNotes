@@ -91,7 +91,8 @@ const AdminPanel = () => {
     const query = userSearch.trim().toLocaleLowerCase('tr-TR');
     return users.filter((u) => {
       const role = userRoles.find((item) => item.user_id === u.user_id)?.role || 'student';
-      const searchable = [u.full_name, u.university, u.department, userEmails[u.user_id]]
+      const email = userEmails[u.user_id] || '';
+      const searchable = [u.full_name, u.university, u.department, email]
         .filter(Boolean)
         .join(' ')
         .toLocaleLowerCase('tr-TR');
@@ -105,13 +106,48 @@ const AdminPanel = () => {
     fetchAll();
   }, [isAdmin, authLoading]);
 
-  /** Kayıt e-postalarını yönetici yetkili edge fonksiyonu üzerinden getirir. */
-  const fetchUserEmails = async () => {
-    const { data, error } = await supabase.functions.invoke('admin-user-emails');
-    if (error) { console.error('admin-user-emails', error); return; }
-    const map: Record<string, string> = {};
-    for (const u of (data as any)?.users || []) if (u.email) map[u.id] = u.email;
-    setUserEmails(map);
+  /** Kayıt e-postalarını yönetici yetkili edge fonksiyonu üzerinden getirir ve eksik profilleri tamamlar. */
+  const fetchUserEmails = async (currentProfiles?: any[]) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-user-emails');
+      if (error) {
+        console.error('admin-user-emails hatası:', error);
+        return;
+      }
+      const map: Record<string, string> = {};
+      const authUsers: Array<{ id: string; email: string | null; created_at: string; confirmed: boolean }> = (data as any)?.users || [];
+      for (const u of authUsers) {
+        if (u.email) map[u.id] = u.email;
+      }
+      setUserEmails(map);
+
+      // Auth tablosunda olup profiles tablosunda henüz kaydı olmayan kullanıcıları otomatik görünür kıl
+      if (Array.isArray(authUsers) && authUsers.length > 0) {
+        setUsers((prev) => {
+          const list = currentProfiles && currentProfiles.length > 0 ? currentProfiles : prev;
+          const existingUserIds = new Set(list.map((p) => p.user_id));
+          const missingProfiles = authUsers
+            .filter((au) => !existingUserIds.has(au.id))
+            .map((au) => ({
+              id: au.id,
+              user_id: au.id,
+              full_name: au.email ? au.email.split('@')[0] : 'Kayıtlı Kullanıcı',
+              university: '—',
+              department: '—',
+              grade: 1,
+              created_at: au.created_at,
+              approval_status: au.confirmed ? 'approved' : 'pending',
+              last_login: null,
+            }));
+          if (missingProfiles.length > 0) {
+            return [...list, ...missingProfiles];
+          }
+          return list;
+        });
+      }
+    } catch (e) {
+      console.error('fetchUserEmails istisnası:', e);
+    }
   };
 
   /** Şifreli notun şifresini yalnızca yönetici için sunucudan çeker. */
@@ -126,6 +162,7 @@ const AdminPanel = () => {
     setNotesLoading(true);
     const usersPromise = supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000);
     const notesPromise = supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }).limit(1000);
+    const emailsPromise = fetchUserEmails();
     setStudyLoading(true);
     const secondaryPromise = Promise.all([
       supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(500),
@@ -144,8 +181,10 @@ const AdminPanel = () => {
         console.error('Kullanıcı veya not verileri yüklenemedi:', usersRes.error || notesRes.error);
         toast.error('Kullanıcı veya not listesi yüklenemedi.');
       }
-      setUsers(usersRes.data || []);
+      const fetchedProfiles = usersRes.data || [];
+      setUsers(fetchedProfiles);
       setNotes((notesRes.data as any[]) || []);
+      void emailsPromise.then(() => fetchUserEmails(fetchedProfiles));
     } catch (error) {
       console.error('Kullanıcı ve not sorguları başarısız:', error);
       toast.error('Kullanıcı ve not listesi yüklenemedi.');
@@ -639,7 +678,7 @@ const AdminPanel = () => {
                     <tbody>
                       {usersLoading && <tr><td colSpan={8} className="p-10 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />Kullanıcılar yükleniyor…</span></td></tr>}
                       {filteredUsers.map((u) => (
-                        <tr key={u.id} className="border-b border-border/50 transition-colors hover:bg-primary/[0.04]">
+                        <tr key={u.user_id || u.id} className="border-b border-border/50 transition-colors hover:bg-primary/[0.04]">
                           <td className="p-3 font-medium">{u.full_name || '-'}</td>
                           <td className="p-3 min-w-[240px] max-w-[300px] align-top text-xs whitespace-normal break-all" title={userEmails[u.user_id] || undefined}>{userEmails[u.user_id] || '—'}</td>
                           <td className="p-3 min-w-[190px] max-w-[280px] align-top whitespace-normal break-words hidden md:table-cell" title={u.university || undefined}>{u.university || '-'}</td>
