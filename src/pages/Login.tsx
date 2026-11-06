@@ -868,8 +868,6 @@ const Login = () => {
             >
               destek@econnotes.online
             </a>
-            {' · '}
-            <span className="font-mono opacity-75">{APP_VERSION}</span>
           </p>
         </div>
       </div>
