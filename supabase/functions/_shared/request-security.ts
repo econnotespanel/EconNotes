@@ -72,9 +72,12 @@ export const getAuthenticatedUser = async (req: Request) => {
   const supabase = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error) return null;
-  return data.user;
+  const { data, error } = await supabase.auth.getClaims(token);
+  if (error || !data?.claims?.sub) {
+    console.warn('Auth token rejected:', error?.message);
+    return null;
+  }
+  return { id: data.claims.sub as string, email: data.claims.email as string | undefined };
 };
 
 export const readJsonBody = async <T>(req: Request, maxBytes: number): Promise<T> => {
