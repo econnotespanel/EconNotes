@@ -220,7 +220,6 @@ async function handleStudioTts(req: Request, body: CoachReq, apiKey: string): Pr
 
   // 4. Lovable AI Gateway TTS denemesi (Gemini TTS üzerinde mp3 zorlamadan doğal WAV/PCM kabul eder)
   const gatewayAttempts: Array<{ model: string; voice: string; format?: string }> = [
-    { model: 'google/gemini-2.5-flash-tts', voice: speaker === 'Deniz' ? 'Charon' : 'Orus' },
     { model: 'openai/gpt-4o-mini-tts', voice: speaker === 'Deniz' ? 'onyx' : 'ash', format: 'mp3' },
   ];
 
@@ -232,6 +231,9 @@ async function handleStudioTts(req: Request, body: CoachReq, apiKey: string): Pr
         voice: attempt.voice,
       };
       if (attempt.format) payload.response_format = attempt.format;
+      payload.instructions = speaker === 'Deniz'
+        ? 'Deneyimli, sıcak ve sakin bir Türk üniversite hocası gibi konuş. Kusursuz İstanbul Türkçesi diksiyonuyla, net ve anlaşılır, orta hızda anlat. Önemli kavramları hafifçe vurgula, cümle sonlarında doğal duraksamalar yap.'
+        : 'Meraklı, enerjik ve samimi genç bir Türk üniversite öğrencisi gibi konuş. Kusursuz Türkçe diksiyonla, doğal ve akıcı bir tonda, sorularda merakını hissettir.';
 
       const r = await fetch('https://ai.gateway.lovable.dev/v1/audio/speech', {
         method: 'POST',
@@ -240,7 +242,7 @@ async function handleStudioTts(req: Request, body: CoachReq, apiKey: string): Pr
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(3200),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (!r.ok) continue;

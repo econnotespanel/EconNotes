@@ -439,6 +439,9 @@ KATI AKADEMİK VE DİKSİYON KURALLARI:
    - keyTakeaways (sahne başına 3-4 zengin madde), keyTerms (sahne başına 3-4 terim ve eksiksiz tanımı), examTip (somut sınav çeldirici uyarısı), keyFacts (tüm dersten 8-10 üst düzey hap bilgi), outline (3 cümlelik kapsamlı akademik çerçeve), suggestedSearches (5 ileri okuma başlığı).
 5. ÖĞRENCİ ANLAŞILIRLIĞI VE HOCANIN SORABİLECEĞİ NOKTALAR:
    - Her sahnede önce kavramı sade ve anlaşılır bir dille açıkla, sonra akademik derinliğe in; öğrenci konuyu ilk dinleyişte kavrayabilmeli.
+   - Konuşma dili sade ve kulağa göre yazılsın: cümleler kısa (en fazla 20 kelime), tek fikirli ve akıcı olsun; ağır terimler ilk geçtiğinde günlük dille hemen açıklansın.
+   - Her sahnede en az bir somut örnek veya gündelik benzetme kullan ("bunu şöyle düşünelim..."), sahneyi tek cümlelik bir "kısacası" özetiyle bitir.
+   - Deniz konuşurken anlatımı adım adım kur: önce "ne", sonra "neden", sonra "sonucu ne oldu" sırasını izle.
    - Her sahnede Barış en az bir kez "Hoca bunu sınavda nasıl sorar?" bakışıyla soru sorsun, Deniz doğru cevabın nasıl kurulacağını açıklasın.
    - Son bölümlerden biri tamamen "Hocanın Sorabileceği Sorular" olsun: tanım, ayırt etme ve neden-sonuç soru tiplerini cevaplarıyla işle.
 6. DERS SONU DEĞERLENDİRME:

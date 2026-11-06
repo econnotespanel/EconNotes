@@ -540,12 +540,9 @@ async function fetchStudioNeuralTts(spokenText: string, speaker: Speaker): Promi
 
       if (error || !data || data.fallback || typeof data.audioBase64 !== 'string') {
         // Sunucu açıkça fallback döndürdüyse doğrudan yerel 22.05kHz VITS Neural motoruna kilitlen
-        if (data?.fallback) {
-          cloudTtsState = 'unavailable';
-        } else {
-          cloudTtsFailures += 1;
-          if (cloudTtsFailures >= 2) cloudTtsState = 'unavailable';
-        }
+        // Tek bir hata yüzünden kalıcı olarak robotik sese düşme; art arda 4 hatadan sonra bırak.
+        cloudTtsFailures += 1;
+        if (cloudTtsFailures >= 4) cloudTtsState = 'unavailable';
         return null;
       }
 
@@ -556,7 +553,7 @@ async function fetchStudioNeuralTts(spokenText: string, speaker: Speaker): Promi
       return url;
     } catch {
       cloudTtsFailures += 1;
-      if (cloudTtsFailures >= 2) cloudTtsState = 'unavailable';
+      if (cloudTtsFailures >= 4) cloudTtsState = 'unavailable';
       return null;
     } finally {
       cloudInflight.delete(cacheKey);
