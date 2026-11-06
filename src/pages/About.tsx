@@ -1,8 +1,7 @@
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BookOpen, Users, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone, Sparkles, Monitor, Target, Bot } from 'lucide-react';
+import { BookOpen, Shield, Zap, GraduationCap, MessageSquare, FileText, Megaphone, Sparkles, Monitor, Target, Bot } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
-import { APP_VERSION_LABEL } from '@/lib/version';
 
 const About = () => {
   const features = [
@@ -133,16 +132,10 @@ const About = () => {
           </CardContent>
         </Card>
 
-        <div className="text-center space-y-2 pt-2 pb-6">
+        <div className="text-center pt-2 pb-4">
           <p className="text-xs text-muted-foreground">
             © 2026 EconNotes — Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
           </p>
-          <div className="flex items-center justify-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/25 text-xs font-semibold text-primary font-mono shadow-xs">
-              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-              {APP_VERSION_LABEL}
-            </span>
-          </div>
         </div>
       </div>
     </Layout>

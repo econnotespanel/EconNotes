@@ -27,9 +27,8 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           {children}
         </div>
       </main>
-      <footer className="relative z-10 md:ml-64 flex flex-col sm:flex-row items-center justify-between gap-2 px-6 py-4 pb-24 sm:pb-28 md:pb-4 text-xs text-muted-foreground border-t border-border/50 bg-card/30 backdrop-blur-sm">
-        <span>EconNotes</span>
-        <span>Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</span>
+      <footer className="relative z-10 md:ml-64 flex items-center justify-center px-6 py-4 pb-24 sm:pb-28 md:pb-4 text-center text-xs text-muted-foreground border-t border-border/50 bg-card/30 backdrop-blur-sm">
+        <span>EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</span>
       </footer>
       <MobileBottomNav />
     </div>
