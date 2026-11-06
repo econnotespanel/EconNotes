@@ -15,7 +15,7 @@ import AuditLogPanel from '@/components/admin/AuditLogPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal, KeyRound, Copy } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal, KeyRound, Copy, Smartphone, RotateCcw, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -23,6 +23,15 @@ import { Badge } from '@/components/ui/badge';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import SiteDesignPanel from '@/components/admin/SiteDesignPanel';
 import { downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
+import { parseLoginLogDevice } from '@/lib/deviceInfo';
+import { buildLoginAnalytics, formatRelativeLoginTime, type AuthAdminUserMeta } from '@/lib/adminLoginAnalytics';
+import {
+  AdminLoginLogTab,
+  DeviceCategoryIcon,
+  UserDevicesCell,
+  UserLastLoginCell,
+  UserLoginHistoryDialog,
+} from '@/components/admin/UserLoginInsights';
 
 const PENALTY_DURATIONS = [
   { warning: 1, label: '1. Uyarı - 5 Dakika', minutes: 5 },
@@ -86,19 +95,95 @@ const AdminPanel = () => {
   const [bannerDialog, setBannerDialog] = useState(false);
   const [editingBanner, setEditingBanner] = useState<any>(null);
   const [bannerForm, setBannerForm] = useState({ title: '', content: '', bg_color: 'primary' });
+  // Giriş & Cihaz analitiği state
+  const [authMetaByUserId, setAuthMetaByUserId] = useState<Record<string, AuthAdminUserMeta>>({});
+  const [loginLogs, setLoginLogs] = useState<any[]>([]);
+  const [userPointsRows, setUserPointsRows] = useState<any[]>([]);
+  const [userSortBy, setUserSortBy] = useState<'last_login' | 'created_at' | 'name'>('last_login');
+  const [historyModalUserId, setHistoryModalUserId] = useState<string | null>(null);
+
+  const { summariesByUserId, allEvents } = useMemo(
+    () =>
+      buildLoginAnalytics({
+        users,
+        userEmails,
+        authMetaByUserId,
+        loginLogs,
+        activityLogs,
+        userPoints: userPointsRows,
+        currentUserId: user?.id,
+      }),
+    [users, userEmails, authMetaByUserId, loginLogs, activityLogs, userPointsRows, user?.id],
+  );
+
+  const activeTodayCount = useMemo(() => {
+    let count = 0;
+    for (const u of users) {
+      const iso = summariesByUserId[u.user_id]?.effectiveLastLogin;
+      if (iso && formatRelativeLoginTime(iso).isToday) count += 1;
+    }
+    return count;
+  }, [users, summariesByUserId]);
+
+  const trackedDeviceUsersCount = useMemo(() => {
+    let count = 0;
+    for (const u of users) {
+      if ((summariesByUserId[u.user_id]?.devices?.length || 0) > 0) count += 1;
+    }
+    return count;
+  }, [users, summariesByUserId]);
+
+  const historyModalProfile = useMemo(() => {
+    if (!historyModalUserId) return null;
+    const found = users.find((u) => u.user_id === historyModalUserId);
+    if (found) return found;
+    const summary = summariesByUserId[historyModalUserId];
+    const firstEv = summary?.events?.[0];
+    return {
+      user_id: historyModalUserId,
+      full_name: firstEv?.userName || 'Kullanıcı',
+      created_at: firstEv?.createdAt || null,
+    };
+  }, [historyModalUserId, users, summariesByUserId]);
 
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLocaleLowerCase('tr-TR');
-    return users.filter((u) => {
+    const filtered = users.filter((u) => {
       const role = userRoles.find((item) => item.user_id === u.user_id)?.role || 'student';
       const email = userEmails[u.user_id] || '';
-      const searchable = [u.full_name, u.university, u.department, email]
+      const summary = summariesByUserId[u.user_id];
+      const deviceTokens = (summary?.devices || [])
+        .flatMap((d) => [d.deviceLabel, d.os, d.browser, d.isPwa ? 'pwa uygulama' : ''])
+        .filter(Boolean)
+        .join(' ');
+      const providerTokens = (summary?.providers || []).join(' ');
+      const searchable = [u.full_name, u.university, u.department, email, deviceTokens, providerTokens]
         .filter(Boolean)
         .join(' ')
         .toLocaleLowerCase('tr-TR');
       return (!query || searchable.includes(query)) && (userRoleFilter === 'all' || role === userRoleFilter);
     });
-  }, [users, userEmails, userSearch, userRoleFilter, userRoles]);
+
+    return filtered.sort((a, b) => {
+      if (userSortBy === 'name') {
+        return String(a.full_name || '').localeCompare(String(b.full_name || ''), 'tr-TR');
+      }
+      if (userSortBy === 'created_at') {
+        const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
+        const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+        return bCreated - aCreated;
+      }
+      // Varsayılan: en son giriş yapan kullanıcılar en üstte
+      const aLoginIso = summariesByUserId[a.user_id]?.effectiveLastLogin || a.last_login;
+      const bLoginIso = summariesByUserId[b.user_id]?.effectiveLastLogin || b.last_login;
+      const aLoginMs = aLoginIso ? new Date(aLoginIso).getTime() : 0;
+      const bLoginMs = bLoginIso ? new Date(bLoginIso).getTime() : 0;
+      if (bLoginMs !== aLoginMs) return bLoginMs - aLoginMs;
+      const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
+      const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+      return bCreated - aCreated;
+    });
+  }, [users, userEmails, userSearch, userRoleFilter, userRoles, summariesByUserId, userSortBy]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -106,47 +191,74 @@ const AdminPanel = () => {
     fetchAll();
   }, [isAdmin, authLoading]);
 
-  /** Kayıt e-postalarını yönetici yetkili edge fonksiyonu üzerinden getirir ve eksik profilleri tamamlar. */
-  const fetchUserEmails = async (currentProfiles?: any[]) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('admin-user-emails');
-      if (error) {
-        console.error('admin-user-emails hatası:', error);
-        return;
+  useEffect(() => {
+    if (authLoading || !isAdmin) return;
+    const handleLoginRecorded = async () => {
+      const [loginRes, profilesRes] = await Promise.all([
+        supabase
+          .from('activity_logs')
+          .select('*')
+          .eq('action', 'user_login')
+          .order('created_at', { ascending: false })
+          .limit(1000),
+        supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000),
+      ]);
+      if (!loginRes.error && loginRes.data) {
+        setLoginLogs(loginRes.data);
       }
-      const map: Record<string, string> = {};
-      const authUsers: Array<{ id: string; email: string | null; created_at: string; confirmed: boolean }> = (data as any)?.users || [];
-      for (const u of authUsers) {
-        if (u.email) map[u.id] = u.email;
-      }
-      setUserEmails(map);
-
-      // Auth tablosunda olup profiles tablosunda henüz kaydı olmayan kullanıcıları otomatik görünür kıl
-      if (Array.isArray(authUsers) && authUsers.length > 0) {
+      if (!profilesRes.error && profilesRes.data) {
         setUsers((prev) => {
-          const list = currentProfiles && currentProfiles.length > 0 ? currentProfiles : prev;
-          const existingUserIds = new Set(list.map((p) => p.user_id));
-          const missingProfiles = authUsers
-            .filter((au) => !existingUserIds.has(au.id))
-            .map((au) => ({
-              id: au.id,
-              user_id: au.id,
-              full_name: au.email ? au.email.split('@')[0] : 'Kayıtlı Kullanıcı',
-              university: '—',
-              department: '—',
-              grade: 1,
-              created_at: au.created_at,
-              approval_status: au.confirmed ? 'approved' : 'pending',
-              last_login: null,
-            }));
-          if (missingProfiles.length > 0) {
-            return [...list, ...missingProfiles];
-          }
-          return list;
+          const freshIds = new Set(profilesRes.data.map((p: any) => p.user_id));
+          const merged = profilesRes.data.map((p: any) => {
+            const au = authMetaByUserId[p.user_id];
+            return !p.last_login && au?.last_sign_in_at ? { ...p, last_login: au.last_sign_in_at } : p;
+          });
+          const extraFromPrev = prev.filter((p) => !freshIds.has(p.user_id));
+          return extraFromPrev.length > 0 ? [...merged, ...extraFromPrev] : merged;
         });
       }
-    } catch (e) {
-      console.error('fetchUserEmails istisnası:', e);
+    };
+    window.addEventListener('econnotes:login-recorded', handleLoginRecorded);
+    return () => window.removeEventListener('econnotes:login-recorded', handleLoginRecorded);
+  }, [isAdmin, authLoading, authMetaByUserId]);
+
+  /** Kayıt e-postalarını, son giriş zamanlarını ve OAuth sağlayıcılarını yönetici edge fonksiyonundan eşler. */
+  const applyAuthUsers = (authUsers: AuthAdminUserMeta[]) => {
+    const emailMap: Record<string, string> = {};
+    const metaMap: Record<string, AuthAdminUserMeta> = {};
+    for (const u of authUsers) {
+      if (!u?.id) continue;
+      metaMap[u.id] = u;
+      if (u.email) emailMap[u.id] = u.email;
+    }
+    setUserEmails(emailMap);
+    setAuthMetaByUserId(metaMap);
+
+    if (Array.isArray(authUsers) && authUsers.length > 0) {
+      setUsers((prev) => {
+        const existingUserIds = new Set(prev.map((p) => p.user_id));
+        const enrichedPrev = prev.map((p) => {
+          const au = metaMap[p.user_id];
+          if (!p.last_login && au?.last_sign_in_at) {
+            return { ...p, last_login: au.last_sign_in_at };
+          }
+          return p;
+        });
+        const missingProfiles = authUsers
+          .filter((au) => !existingUserIds.has(au.id))
+          .map((au) => ({
+            id: au.id,
+            user_id: au.id,
+            full_name: au.email ? au.email.split('@')[0] : 'Kayıtlı Kullanıcı',
+            university: '—',
+            department: '—',
+            grade: 1,
+            created_at: au.created_at,
+            approval_status: au.confirmed ? 'approved' : 'pending',
+            last_login: au.last_sign_in_at ?? null,
+          }));
+        return missingProfiles.length > 0 ? [...enrichedPrev, ...missingProfiles] : enrichedPrev;
+      });
     }
   };
 
@@ -162,13 +274,17 @@ const AdminPanel = () => {
     setNotesLoading(true);
     const usersPromise = supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000);
     const notesPromise = supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }).limit(1000);
-    const emailsPromise = fetchUserEmails();
+    const emailsInvokePromise = supabase.functions
+      .invoke('admin-user-emails')
+      .catch((err) => ({ data: null, error: err }));
     setStudyLoading(true);
     const secondaryPromise = Promise.all([
       supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('penalties').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('system_settings').select('*').limit(1).maybeSingle(),
-      supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(300),
+      supabase.from('activity_logs').select('*').eq('action', 'user_login').order('created_at', { ascending: false }).limit(1000),
+      supabase.from('user_points').select('user_id, last_login_date, total_logins, updated_at').limit(1000),
       supabase.from('user_roles').select('*'),
       supabase.from('message_reports').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('banners').select('*').order('created_at', { ascending: false }).limit(500),
@@ -181,10 +297,15 @@ const AdminPanel = () => {
         console.error('Kullanıcı veya not verileri yüklenemedi:', usersRes.error || notesRes.error);
         toast.error('Kullanıcı veya not listesi yüklenemedi.');
       }
-      const fetchedProfiles = usersRes.data || [];
-      setUsers(fetchedProfiles);
+      setUsers(usersRes.data || []);
       setNotes((notesRes.data as any[]) || []);
-      void emailsPromise.then(() => fetchUserEmails(fetchedProfiles));
+      void emailsInvokePromise.then(({ data, error }) => {
+        if (error) {
+          console.error('admin-user-emails hatası:', error);
+          return;
+        }
+        applyAuthUsers(((data as any)?.users as AuthAdminUserMeta[]) || []);
+      });
     } catch (error) {
       console.error('Kullanıcı ve not sorguları başarısız:', error);
       toast.error('Kullanıcı ve not listesi yüklenemedi.');
@@ -196,7 +317,7 @@ const AdminPanel = () => {
     }
 
     try {
-      const [announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes] = await secondaryPromise;
+      const [announcementsRes, penaltiesRes, settingsRes, logsRes, loginLogsRes, pointsRes, rolesRes, reportsRes, bannersRes, studyRes] = await secondaryPromise;
       const failedLoads = [announcementsRes, penaltiesRes, settingsRes, logsRes, rolesRes, reportsRes, bannersRes, studyRes].filter((result) => result.error);
       if (failedLoads.length > 0) {
         console.error('Yönetici paneli ek verileri yüklenemedi:', failedLoads.map(({ error }) => error));
@@ -205,6 +326,8 @@ const AdminPanel = () => {
       setAnnouncements(announcementsRes.data || []);
       setPenalties(penaltiesRes.data || []);
       setActivityLogs(logsRes.data || []);
+      if (!loginLogsRes.error) setLoginLogs(loginLogsRes.data || []);
+      if (!pointsRes.error) setUserPointsRows(pointsRes.data || []);
       setUserRoles(rolesRes.data || []);
       setMessageReports(reportsRes.data || []);
       setBanners(bannersRes.data || []);
@@ -228,7 +351,6 @@ const AdminPanel = () => {
     } finally {
       setStudyLoading(false);
     }
-    void fetchUserEmails();
   };
 
   const toggleSystem = async () => {
@@ -637,14 +759,18 @@ const AdminPanel = () => {
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
-            { label: 'Kullanıcılar', value: usersLoading ? '…' : users.length, icon: Users, tone: 'from-blue-500/20 to-cyan-500/5' },
+            { label: 'Kullanıcılar', sub: !usersLoading && activeTodayCount > 0 ? `Bugün ${activeTodayCount} aktif` : undefined, value: usersLoading ? '…' : users.length, icon: Users, tone: 'from-blue-500/20 to-cyan-500/5' },
             { label: 'Notlar', value: notesLoading ? '…' : notes.length, icon: FileText, tone: 'from-violet-500/20 to-fuchsia-500/5' },
             { label: 'Duyurular', value: announcements.length, icon: Megaphone, tone: 'from-amber-500/20 to-orange-500/5' },
             { label: 'Cezalar', value: penalties.length, icon: AlertTriangle, tone: 'from-rose-500/20 to-red-500/5' },
-          ].map(({ label, value, icon: Icon, tone }) => (
+          ].map(({ label, sub, value, icon: Icon, tone }) => (
             <Card key={label} className={`glass-card overflow-hidden bg-gradient-to-br ${tone}`}>
               <CardContent className="flex items-center justify-between p-4">
-                <div><p className="text-2xl font-bold tracking-tight">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div>
+                <div>
+                  <p className="text-2xl font-bold tracking-tight">{value}</p>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  {sub && <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">{sub}</p>}
+                </div>
                 <Icon className="h-5 w-5 text-muted-foreground/70" />
               </CardContent>
             </Card>
@@ -655,6 +781,7 @@ const AdminPanel = () => {
           <TabsList className="flex h-auto w-full max-w-full gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-card/80 p-1.5 shadow-sm backdrop-blur-md">
             <TabsTrigger className="shrink-0 rounded-xl px-3 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm" value="users"><Users className="mr-1.5 hidden h-4 w-4 sm:inline" />Kullanıcılar</TabsTrigger>
             {([
+              ['logins', Smartphone, 'Giriş & Cihazlar'],
               ['notes', FileText, 'Notlar'], ['announcements', Megaphone, 'Duyurular'], ['banners', ImageIcon, 'Bannerlar'],
               ['penalties', AlertTriangle, 'Cezalar'], ['reports', Flag, 'Raporlar'], ['activity', Activity, 'Aktiviteler'],
               ['audit', Shield, 'Denetim'], ['design', Palette, 'Tasarım'], ['study', Sparkles, 'Stüdyo'],
@@ -669,36 +796,104 @@ const AdminPanel = () => {
           <TabsContent value="users">
             <Card className="glass-card">
               <CardContent className="p-4">
-                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 md:flex-row md:items-center">
-                  <div className="relative min-w-0 flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Ad, e-posta, üniversite veya bölüm ara..." className="h-10 border-border/60 bg-background pl-9" />
+                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                    <div className="relative min-w-0 flex-1">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        value={userSearch}
+                        onChange={(e) => setUserSearch(e.target.value)}
+                        placeholder="Ad, e-posta, cihaz (iPhone, Android, Windows, Safari), üniversite ara..."
+                        className="h-10 border-border/60 bg-background pl-9"
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <SlidersHorizontal className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                          <SelectTrigger className="h-10 w-[140px] bg-background"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tüm roller</SelectItem>
+                            <SelectItem value="student">Öğrenci</SelectItem>
+                            <SelectItem value="akademisyen">Akademisyen</SelectItem>
+                            <SelectItem value="admin">Yönetici</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <Select value={userSortBy} onValueChange={(v) => setUserSortBy(v as any)}>
+                          <SelectTrigger className="h-10 w-[195px] bg-background"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="last_login">Son Giriş (En Yeni)</SelectItem>
+                            <SelectItem value="created_at">Kayıt Tarihi (En Yeni)</SelectItem>
+                            <SelectItem value="name">Ad Soyad (A–Z)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={fetchAll} className="h-10 rounded-xl gap-1.5" title="Listeyi ve giriş kayıtlarını yenile">
+                        <RotateCcw className="h-3.5 w-3.5" /> Yenile
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-                    <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
-                      <SelectTrigger className="h-10 w-[150px] bg-background"><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="all">Tüm roller</SelectItem><SelectItem value="student">Öğrenci</SelectItem><SelectItem value="admin">Yönetici</SelectItem></SelectContent>
-                    </Select>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="h-7 rounded-full px-3">
+                      {usersLoading ? 'Kullanıcılar yükleniyor…' : `${filteredUsers.length} kullanıcı`}
+                    </Badge>
+                    {!usersLoading && (
+                      <>
+                        <Badge variant="outline" className="h-7 rounded-full border-emerald-500/35 bg-emerald-500/10 px-3 text-emerald-600 dark:text-emerald-400">
+                          Bugün aktif: {activeTodayCount}
+                        </Badge>
+                        <Badge variant="outline" className="h-7 rounded-full border-primary/30 bg-primary/[0.08] px-3 text-primary">
+                          Cihazı kayıtlı: {trackedDeviceUsersCount}
+                        </Badge>
+                      </>
+                    )}
                   </div>
-                  <Badge variant="secondary" className="h-7 w-fit rounded-full px-3">{usersLoading ? 'Kullanıcılar yükleniyor…' : `${filteredUsers.length} kullanıcı`}</Badge>
                 </div>
                 <div className="overflow-x-auto">
-                <table className="min-w-[1360px] w-full text-sm">
-                    <thead><tr className="border-b border-border bg-muted/30"><th className="text-left p-3">Ad Soyad</th><th className="text-left p-3">E-posta</th><th className="text-left p-3 hidden md:table-cell">Üniversite</th><th className="text-left p-3 hidden md:table-cell">Bölüm</th><th className="text-left p-3">Rol</th><th className="text-left p-3">Kayıt Tarihi</th><th className="text-left p-3 hidden lg:table-cell">Son Giriş</th><th className="text-left p-3">İşlemler</th></tr></thead>
+                <table className="min-w-[1440px] w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className="text-left p-3">Ad Soyad</th>
+                        <th className="text-left p-3">E-posta</th>
+                        <th className="text-left p-3">Son Giriş</th>
+                        <th className="text-left p-3">Giriş Cihazları</th>
+                        <th className="text-left p-3 hidden md:table-cell">Üniversite</th>
+                        <th className="text-left p-3 hidden md:table-cell">Bölüm</th>
+                        <th className="text-left p-3">Rol</th>
+                        <th className="text-left p-3">Kayıt Tarihi</th>
+                        <th className="text-left p-3">İşlemler</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {usersLoading && <tr><td colSpan={8} className="p-10 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />Kullanıcılar yükleniyor…</span></td></tr>}
-                      {filteredUsers.map((u) => (
+                      {usersLoading && <tr><td colSpan={9} className="p-10 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />Kullanıcılar yükleniyor…</span></td></tr>}
+                      {filteredUsers.map((u) => {
+                        const userSummary = summariesByUserId[u.user_id];
+                        return (
                         <tr key={u.user_id || u.id} className="border-b border-border/50 transition-colors hover:bg-primary/[0.04]">
-                          <td className="p-3 font-medium">{u.full_name || '-'}</td>
-                          <td className="p-3 min-w-[240px] max-w-[300px] align-top text-xs whitespace-normal break-all" title={userEmails[u.user_id] || undefined}>{userEmails[u.user_id] || '—'}</td>
-                          <td className="p-3 min-w-[190px] max-w-[280px] align-top whitespace-normal break-words hidden md:table-cell" title={u.university || undefined}>{u.university || '-'}</td>
-                          <td className="p-3 min-w-[190px] max-w-[300px] align-top whitespace-normal break-words hidden md:table-cell" title={u.department || undefined}>{u.department || '-'}</td>
-                          <td className="p-3"><Badge variant="outline" className="rounded-full px-2.5 text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge></td>
-                          <td className="p-3 whitespace-nowrap"><span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5 text-primary" />{u.created_at ? new Date(u.created_at).toLocaleString('tr-TR') : '-'}</span></td>
-                          <td className="p-3 hidden lg:table-cell whitespace-nowrap text-xs text-muted-foreground">{u.last_login ? new Date(u.last_login).toLocaleString('tr-TR') : '-'}</td>
-                          <td className="p-3">
+                          <td className="p-3 font-medium align-top">{u.full_name || '-'}</td>
+                          <td className="p-3 min-w-[210px] max-w-[270px] align-top text-xs whitespace-normal break-all" title={userEmails[u.user_id] || undefined}>{userEmails[u.user_id] || '—'}</td>
+                          <td className="p-3 min-w-[165px] align-top whitespace-nowrap">
+                            <UserLastLoginCell
+                              summary={userSummary}
+                              onOpenHistory={() => setHistoryModalUserId(u.user_id)}
+                            />
+                          </td>
+                          <td className="p-3 min-w-[230px] align-top">
+                            <UserDevicesCell
+                              summary={userSummary}
+                              onOpenHistory={() => setHistoryModalUserId(u.user_id)}
+                            />
+                          </td>
+                          <td className="p-3 min-w-[170px] max-w-[240px] align-top whitespace-normal break-words hidden md:table-cell" title={u.university || undefined}>{u.university || '-'}</td>
+                          <td className="p-3 min-w-[170px] max-w-[250px] align-top whitespace-normal break-words hidden md:table-cell" title={u.department || undefined}>{u.department || '-'}</td>
+                          <td className="p-3 align-top"><Badge variant="outline" className="rounded-full px-2.5 text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge></td>
+                          <td className="p-3 align-top whitespace-nowrap"><span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5 text-primary" />{u.created_at ? new Date(u.created_at).toLocaleString('tr-TR') : '-'}</span></td>
+                          <td className="p-3 align-top">
                             <div className="flex gap-1">
+                              <Button size="sm" variant="outline" onClick={() => setHistoryModalUserId(u.user_id)} title="Giriş ve Cihaz Geçmişi" className="hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors"><Smartphone className="h-3.5 w-3.5 text-primary" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name || '', university: u.university || '', department: u.department || '', grade: u.grade || 1, download_quota: u.manual_download_quota ? String(u.manual_download_quota) : '' }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol"><UserCog className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza"><Ban className="h-3 w-3" /></Button>
@@ -740,13 +935,26 @@ const AdminPanel = () => {
                             </div>
                           </td>
                         </tr>
-                      ))}
-                      {!usersLoading && filteredUsers.length === 0 && <tr><td colSpan={8} className="p-10 text-center text-muted-foreground">{users.length === 0 ? 'Kullanıcı bulunamadı.' : 'Aramanızla eşleşen kullanıcı yok.'}</td></tr>}
+                        );
+                      })}
+                      {!usersLoading && filteredUsers.length === 0 && <tr><td colSpan={9} className="p-10 text-center text-muted-foreground">{users.length === 0 ? 'Kullanıcı bulunamadı.' : 'Aramanızla eşleşen kullanıcı yok.'}</td></tr>}
                     </tbody>
                   </table>
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="logins">
+            <AdminLoginLogTab
+              users={users}
+              summariesByUserId={summariesByUserId}
+              allEvents={allEvents}
+              loading={usersLoading && loginLogs.length === 0}
+              getRoleLabelForUser={(uid) => getRoleLabel(getUserRole(uid))}
+              onRefresh={fetchAll}
+              onInspectUser={(uid) => setHistoryModalUserId(uid)}
+            />
           </TabsContent>
 
           <TabsContent value="notes">
@@ -943,30 +1151,65 @@ const AdminPanel = () => {
 
           <TabsContent value="activity">
             <Card className="glass-card"><CardContent className="p-4">
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-2">
+              <ScrollArea className="h-[520px]">
+                <div className="space-y-2 pr-2">
                   {activityLogs.map((log) => {
                     const actionLabels: Record<string, { label: string; color: string }> = {
-                      note_created: { label: 'Not Paylaşıldı', color: 'bg-green-500/10 text-green-500' },
-                      note_updated: { label: 'Not Güncellendi', color: 'bg-blue-500/10 text-blue-500' },
-                      note_deleted: { label: 'Not Silindi', color: 'bg-red-500/10 text-red-500' },
-                      user_login: { label: 'Giriş', color: 'bg-gray-500/10 text-gray-500' },
-                      penalty_issued: { label: 'Ceza', color: 'bg-red-500/10 text-red-500' },
+                      note_created: { label: 'Not Paylaşıldı', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25' },
+                      note_updated: { label: 'Not Güncellendi', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25' },
+                      note_deleted: { label: 'Not Silindi', color: 'bg-red-500/10 text-red-500 border-red-500/25' },
+                      user_login: { label: 'Oturum Açtı', color: 'bg-primary/10 text-primary border-primary/25' },
+                      user_registered: { label: 'Kayıt Oldu', color: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/25' },
+                      profile_updated: { label: 'Profil Güncelledi', color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/25' },
+                      avatar_updated: { label: 'Fotoğraf Güncelledi', color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/25' },
+                      password_changed: { label: 'Şifre Değiştirdi', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25' },
+                      announcement_created: { label: 'Duyuru Yayınladı', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25' },
+                      announcement_deleted: { label: 'Duyuru Sildi', color: 'bg-red-500/10 text-red-500 border-red-500/25' },
+                      user_deleted: { label: 'Kullanıcı Silindi', color: 'bg-red-500/10 text-red-500 border-red-500/25' },
+                      penalty_issued: { label: 'Ceza Verildi', color: 'bg-red-500/10 text-red-500 border-red-500/25' },
                     };
-                    const actionInfo = actionLabels[log.action] || { label: log.action, color: 'bg-gray-500/10 text-gray-500' };
+                    const actionInfo = actionLabels[log.action] || { label: log.action, color: 'bg-muted text-muted-foreground' };
+                    const parsedLoginDevice = log.action === 'user_login' ? parseLoginLogDevice(log) : null;
+                    const resolvedName =
+                      users.find((u) => u.user_id === log.user_id)?.full_name ||
+                      log.user_name ||
+                      (log.user_email ? log.user_email.split('@')[0] : '?');
+                    const resolvedEmail = userEmails[log.user_id] || log.user_email || '';
                     return (
-                      <div key={log.id} className="flex items-start justify-between p-3 rounded-lg bg-accent/50">
+                      <div
+                        key={log.id}
+                        onClick={log.action === 'user_login' && log.user_id ? () => setHistoryModalUserId(log.user_id) : undefined}
+                        className={`flex items-start justify-between gap-3 p-3 rounded-xl border border-border/50 bg-accent/40 ${
+                          log.action === 'user_login' && log.user_id ? 'cursor-pointer hover:bg-primary/[0.05] hover:border-primary/30 transition-colors' : ''
+                        }`}
+                      >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm">{log.user_name || '?'}</span>
+                            <span className="font-medium text-sm">{resolvedName}</span>
+                            {resolvedEmail && <span className="text-[11px] text-muted-foreground">({resolvedEmail})</span>}
                             <Badge variant="outline" className={`text-[10px] ${actionInfo.color}`}>{actionInfo.label}</Badge>
                           </div>
-                          {log.details && <p className="text-xs text-muted-foreground mt-1">{log.details}</p>}
+                          {parsedLoginDevice ? (
+                            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/[0.06] px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                <DeviceCategoryIcon type={parsedLoginDevice.deviceType} className="h-3 w-3 text-primary" />
+                                {parsedLoginDevice.deviceLabel}
+                                {parsedLoginDevice.os ? ` · ${parsedLoginDevice.os}` : ''}
+                              </span>
+                              <Badge variant="outline" className="text-[10px] rounded-md">{parsedLoginDevice.browser}</Badge>
+                              {parsedLoginDevice.isPwa && (
+                                <Badge className="bg-primary/15 text-primary hover:bg-primary/20 border-primary/30 text-[10px] rounded-md">PWA Uygulama</Badge>
+                              )}
+                            </div>
+                          ) : (
+                            log.details && <p className="text-xs text-muted-foreground mt-1">{log.details}</p>
+                          )}
                         </div>
-                        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">{new Date(log.created_at).toLocaleString('tr-TR')}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap ml-2">{new Date(log.created_at).toLocaleString('tr-TR')}</span>
                       </div>
                     );
                   })}
+                  {activityLogs.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">Henüz aktivite kaydı yok.</p>}
                 </div>
               </ScrollArea>
             </CardContent></Card>
@@ -1206,6 +1449,17 @@ const AdminPanel = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <UserLoginHistoryDialog
+          open={!!historyModalUserId}
+          onOpenChange={(open) => {
+            if (!open) setHistoryModalUserId(null);
+          }}
+          userProfile={historyModalProfile}
+          email={historyModalUserId ? userEmails[historyModalUserId] || summariesByUserId[historyModalUserId]?.events?.[0]?.userEmail || '' : ''}
+          roleLabel={historyModalUserId ? getRoleLabel(getUserRole(historyModalUserId)) : 'Öğrenci'}
+          summary={historyModalUserId ? summariesByUserId[historyModalUserId] : undefined}
+        />
       </div>
     <AlertDialog open={!!tempPassword} onOpenChange={(o) => { if (!o) setTempPassword(null); }}>
       <AlertDialogContent className="rounded-2xl max-w-md">

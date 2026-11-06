@@ -32,7 +32,16 @@ Deno.serve(async (req) => {
     const { data: isAdmin } = await admin.rpc('is_admin', { _user_id: userData.user.id });
     if (!isAdmin) return json({ error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
 
-    const users: { id: string; email: string | null; created_at: string; confirmed: boolean; provider: string }[] = [];
+    const users: {
+      id: string;
+      email: string | null;
+      created_at: string;
+      last_sign_in_at: string | null;
+      confirmed: boolean;
+      provider: string;
+      providers: string[];
+    }[] = [];
+
     for (let page = 1; page <= 20; page++) {
       const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
       if (error) return json({ error: error.message }, 500);
@@ -41,12 +50,37 @@ Deno.serve(async (req) => {
           ?.map((identity) => identity.identity_data?.email)
           .find((email): email is string => typeof email === 'string' && email.trim().length > 0);
         const metadataEmail = u.user_metadata?.email;
+
+        const identitySignIn =
+          u.identities
+            ?.map((identity) => identity.last_sign_in_at)
+            .filter((ts): ts is string => typeof ts === 'string' && ts.length > 0)
+            .sort()
+            .at(-1) ?? null;
+
+        const bestSignIn =
+          [u.last_sign_in_at, identitySignIn]
+            .filter((ts): ts is string => typeof ts === 'string' && ts.length > 0)
+            .sort()
+            .at(-1) ?? null;
+
+        const rawProviders = Array.isArray(u.app_metadata?.providers)
+          ? (u.app_metadata.providers as string[])
+          : [];
+        const identityProviders = (u.identities ?? [])
+          .map((identity) => identity.provider)
+          .filter((p): p is string => typeof p === 'string' && p.length > 0);
+        const primaryProvider = (u.app_metadata?.provider as string) ?? 'email';
+        const providers = Array.from(new Set([...rawProviders, ...identityProviders, primaryProvider]));
+
         users.push({
           id: u.id,
           email: u.email ?? identityEmail ?? (typeof metadataEmail === 'string' ? metadataEmail : null),
           created_at: u.created_at,
+          last_sign_in_at: bestSignIn,
           confirmed: Boolean(u.email_confirmed_at ?? u.confirmed_at),
-          provider: (u.app_metadata?.provider as string) ?? 'email',
+          provider: primaryProvider,
+          providers,
         });
       }
       if (data.users.length < 200) break;

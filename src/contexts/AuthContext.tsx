@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import { APP_VERSION } from '@/lib/version';
 import { rememberReturningAccount } from '@/lib/returningAccount';
+import { detectClientDevice, formatLoginDetails, serializeLoginMetadata } from '@/lib/deviceInfo';
 
 interface Profile {
   id: string;
@@ -134,8 +135,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId: string, detectInactivity = false, email?: string, fallbackFullName = '', authUserOverride?: User | null) => {
+  const fetchProfile = async (
+    userId: string,
+    detectInactivity = false,
+    email?: string,
+    fallbackFullName = '',
+    authUserOverride?: User | null,
+  ): Promise<string> => {
     const authUser = authUserOverride ?? (user?.id === userId ? user : null);
+    let resolvedName = fallbackFullName;
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -150,6 +158,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await supabase.from('profiles').update({ full_name: profileName }).eq('user_id', userId);
         data.full_name = profileName;
       }
+      resolvedName = data.full_name || profileName;
       const previousLogin = data.last_login ? new Date(data.last_login).getTime() : null;
       const inactiveSince = Date.now() - INACTIVE_DAYS * 24 * 60 * 60 * 1000;
       const tourKey = `econnotes_return_tour_${RETURN_TOUR_VERSION}_${userId}`;
@@ -162,6 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile({ ...data, last_login: new Date().toISOString() } as Profile);
     } else if (authUser || fallbackFullName || email) {
       const profileName = getOAuthFullName(authUser ?? { user_metadata: { full_name: fallbackFullName }, identities: [], email }, fallbackFullName);
+      resolvedName = profileName;
       const { data: createdProfile, error: profileError } = await supabase
         .from('profiles')
         .upsert({ user_id: userId, full_name: profileName }, { onConflict: 'user_id' })
@@ -170,6 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profileError) {
         console.error('OAuth profile could not be created:', profileError);
       } else if (createdProfile) {
+        resolvedName = createdProfile.full_name || profileName;
         setProfile({ ...createdProfile, last_login: new Date().toISOString() } as Profile);
       }
     }
@@ -180,6 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .eq('user_id', userId)
       .single();
     if (roleData) setIsAdmin(roleData.role === 'admin');
+    return resolvedName;
   };
 
   const refreshProfile = async () => {
@@ -197,7 +209,77 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
     let initialized = false;
-    const hydrateSession = async (nextSession: Session | null, detectInactivity = false) => {
+    const inFlightLoginLog = new Set<string>();
+
+    const recordSignInSideEffects = async (
+      signedInUser: User,
+      resolvedFullName = '',
+      isExplicitSignIn = false,
+    ) => {
+      if (!inFlightLoginLog.has(signedInUser.id)) {
+        inFlightLoginLog.add(signedInUser.id);
+        try {
+          const provider =
+            (signedInUser.app_metadata?.provider as string) ||
+            signedInUser.identities?.[0]?.provider ||
+            'email';
+          const deviceInfo = await detectClientDevice(provider);
+          const dedupeKey = `econnotes_device_login_${signedInUser.id}_${deviceInfo.fingerprint}`;
+          let loggedAt = 0;
+          try {
+            loggedAt = Number(localStorage.getItem(dedupeKey) || 0);
+          } catch {
+            loggedAt = 0;
+          }
+          const cooldownMs = isExplicitSignIn ? 15_000 : 30 * 60 * 1000;
+          if (Date.now() - loggedAt > cooldownMs) {
+            const { logActivity } = await import('@/lib/activityLogger');
+            const ok = await logActivity(
+              signedInUser.id,
+              resolvedFullName.trim() || getOAuthFullName(signedInUser),
+              signedInUser.email || '',
+              'user_login',
+              formatLoginDetails(deviceInfo),
+              serializeLoginMetadata(deviceInfo),
+            );
+            if (ok) {
+              try {
+                localStorage.setItem(dedupeKey, String(Date.now()));
+              } catch {
+                // ignore storage quota errors
+              }
+              window.dispatchEvent(new CustomEvent('econnotes:login-recorded'));
+            }
+          }
+        } catch (err) {
+          console.warn('Giriş cihaz kaydı oluşturulamadı:', err);
+        } finally {
+          inFlightLoginLog.delete(signedInUser.id);
+        }
+      }
+
+      if (isExplicitSignIn) {
+        setTimeout(() => {
+          (supabase as any).rpc('award_daily_login').then(({ data }: any) => {
+            const result = Array.isArray(data) ? data[0] : data;
+            if (result && !result.already_claimed && result.awarded > 0) {
+              import('sonner').then(({ toast }) => {
+                toast.success(`Günlük giriş puanı: +${result.awarded}`, {
+                  description: `${result.current_streak} günlük serideysin. Toplam puanın: ${result.points}`,
+                });
+              });
+            }
+          });
+        }, 400);
+      }
+    };
+
+    const hydrateSession = async (
+      nextSession: Session | null,
+      detectInactivity = false,
+      isExplicitSignIn = false,
+      recordVisit = true,
+    ) => {
       if (!mounted) return;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
@@ -217,64 +299,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAdmin(true);
       }
 
+      let resolvedName = getOAuthFullName(nextSession.user);
       try {
-        await fetchProfile(
+        const fetchedName = await fetchProfile(
           nextSession.user.id,
           detectInactivity,
           nextSession.user.email,
-          getOAuthFullName(nextSession.user),
+          resolvedName,
           nextSession.user,
         );
+        if (fetchedName?.trim()) {
+          resolvedName = fetchedName.trim();
+        }
       } catch (error) {
         console.error('Profil yüklenirken hata:', error);
       } finally {
         if (mounted) {
           setLoading(false);
-          void supabase
-            .from('profiles')
-            .update({ last_login: new Date().toISOString() })
-            .eq('user_id', nextSession.user.id);
+          if (recordVisit) {
+            const nowIso = new Date().toISOString();
+            void supabase
+              .from('profiles')
+              .update({ last_login: nowIso })
+              .eq('user_id', nextSession.user.id)
+              .select('user_id')
+              .then(({ data: updatedRows }) => {
+                if (!updatedRows || updatedRows.length === 0) {
+                  void supabase
+                    .from('profiles')
+                    .upsert(
+                      {
+                        user_id: nextSession.user.id,
+                        full_name: resolvedName,
+                        last_login: nowIso,
+                      },
+                      { onConflict: 'user_id' },
+                    );
+                }
+              });
+            void recordSignInSideEffects(nextSession.user, resolvedName, isExplicitSignIn);
+          }
         }
       }
-    };
-
-    const recordSignInSideEffects = (signedInUser: User) => {
-      const activityKey = `econnotes_login_logged_${signedInUser.id}`;
-      const loggedAt = Number(localStorage.getItem(activityKey) || 0);
-      if (Date.now() - loggedAt > 60 * 60 * 1000) {
-        localStorage.setItem(activityKey, String(Date.now()));
-        import('@/lib/activityLogger').then(({ logActivity }) => {
-          void logActivity(
-            signedInUser.id,
-            getOAuthFullName(signedInUser),
-            signedInUser.email || '',
-            'user_login',
-            'Panele giriş yaptı',
-          );
-        });
-      }
-      setTimeout(() => {
-        (supabase as any).rpc('award_daily_login').then(({ data }: any) => {
-          const result = Array.isArray(data) ? data[0] : data;
-          if (result && !result.already_claimed && result.awarded > 0) {
-            import('sonner').then(({ toast }) => {
-              toast.success(`Günlük giriş puanı: +${result.awarded}`, {
-                description: `${result.current_streak} günlük serideysin. Toplam puanın: ${result.points}`,
-              });
-            });
-          }
-        });
-      }, 400);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (!initialized) return;
         setLoading(false);
-        window.setTimeout(() => { void hydrateSession(session, _event === 'SIGNED_IN'); }, 0);
-        if (session?.user && _event === 'SIGNED_IN') {
-          recordSignInSideEffects(session.user);
-        }
+        const isSignIn = _event === 'SIGNED_IN';
+        const shouldRecordVisit = isSignIn || _event === 'INITIAL_SESSION';
+        window.setTimeout(() => {
+          void hydrateSession(session, isSignIn, isSignIn, shouldRecordVisit);
+        }, 0);
       }
     );
 
@@ -326,10 +403,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         window.clearTimeout(authStartupTimer);
-        await hydrateSession(activeSession, hadOAuthTokens);
-        if (hadOAuthTokens && activeSession?.user) {
-          recordSignInSideEffects(activeSession.user);
-        }
+        await hydrateSession(activeSession, true, hadOAuthTokens, true);
         initialized = true;
       } catch (error) {
         window.clearTimeout(authStartupTimer);
