@@ -18,7 +18,6 @@ import {
   Download,
   CheckCircle2,
   Layers,
-  Zap,
 } from 'lucide-react';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { AmbientShaderBackground } from '@/components/landing/AmbientShaderBackground';
@@ -176,10 +175,6 @@ const Landing = () => {
         <section className="relative rounded-3xl border border-white/15 bg-gradient-to-b from-white/[0.06] via-card/60 to-card/40 p-6 sm:p-10 backdrop-blur-2xl shadow-xl">
           <div className="absolute -top-10 left-10 h-32 w-32 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
           <div className="relative z-10 max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 border border-primary/20 px-3 py-1 text-xs font-semibold text-primary">
-              <Zap className="h-3.5 w-3.5" />
-              <span>ÖĞRENCİLER İÇİN, ÖĞRENCİLER TARAFINDAN</span>
-            </div>
             <h2 className="font-display text-2xl sm:text-4xl font-bold tracking-tight text-foreground">
               EconNotes Nedir?
             </h2>
