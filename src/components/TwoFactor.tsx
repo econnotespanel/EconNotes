@@ -192,7 +192,11 @@ export const TwoFactorCard = () => {
   return (
     <Card className="glass-card">
       <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> İki Adımlı Doğrulama</CardTitle>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <ShieldCheck className="h-5 w-5" /> İki Adımlı Doğrulama
+          <span className="rounded-full border-2 border-foreground bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">Yeni</span>
+          {count > 0 && <span className="ml-auto text-xs font-medium text-muted-foreground">Etkin</span>}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
