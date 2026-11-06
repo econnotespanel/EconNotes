@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       case 'enroll_send': {
         const phone = String(body.phone ?? '');
         if (!/^\+90\d{10}$/.test(phone)) throw new RequestError('Telefonu +905xxxxxxxxx biçiminde girin.', 400);
-        await twilio('Verifications', { To: phone, Channel: 'sms', Locale: 'en' });
+        await twilio('Verifications', { To: phone, Channel: 'sms', Locale: 'tr' });
         return jsonResponse(req, { success: true });
       }
       case 'enroll_confirm': {
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
         return jsonResponse(req, { success: true });
       }
       case 'login_send':
-        await twilio('Verifications', { To: await getStoredPhone(), Channel: 'sms', Locale: 'en' });
+        await twilio('Verifications', { To: await getStoredPhone(), Channel: 'sms', Locale: 'tr' });
         return jsonResponse(req, { success: true });
       case 'login_check':
         await check(await getStoredPhone());
