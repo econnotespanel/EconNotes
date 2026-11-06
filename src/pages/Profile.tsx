@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BadgesCard from '@/components/BadgesCard';
+import { TwoFactorCard } from '@/components/TwoFactor';
 import { Switch } from '@/components/ui/switch';
 
 const Profile = () => {
@@ -228,6 +229,8 @@ const Profile = () => {
             </div>
           </CardContent>
         </Card>
+
+        <TwoFactorCard />
 
         <BadgesCard />
 
