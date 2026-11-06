@@ -823,6 +823,42 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_2fa: {
+        Row: {
+          created_at: string
+          phone: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          phone: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          phone?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sms_2fa_sessions: {
+        Row: {
+          session_id: string
+          user_id: string
+          verified_at: string
+        }
+        Insert: {
+          session_id: string
+          user_id: string
+          verified_at?: string
+        }
+        Update: {
+          session_id?: string
+          user_id?: string
+          verified_at?: string
+        }
+        Relationships: []
+      }
       study_materials: {
         Row: {
           content: Json

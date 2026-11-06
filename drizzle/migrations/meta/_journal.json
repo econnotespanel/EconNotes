@@ -15,6 +15,13 @@
       "when": 1793957829934,
       "tag": "0001_tighten_points_quota_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793964976424,
+      "tag": "0002_sms_two_factor",
+      "breakpoints": true
     }
   ]
 }
