@@ -196,9 +196,6 @@ const Landing = () => {
         {/* ─── FEATURES MODULES GRID (Platformda Neler Var?) ─── */}
         <section id="ozellikler" className="space-y-8 scroll-mt-24">
           <div className="text-center space-y-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-cyan-400">
-              KAPSAMLI MODÜLLER
-            </span>
             <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
               Platformda Neler Var?
             </h2>
@@ -250,9 +247,6 @@ const Landing = () => {
         {/* ─── SECURITY & RELIABILITY INFRASTRUCTURE ─── */}
         <section id="guvenlik" className="space-y-8 scroll-mt-24">
           <div className="text-center space-y-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
-              SIFIR TAVİZ GÜVENLİK
-            </span>
             <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight text-foreground">
               Endüstri Standardı Güvenlik Altyapısı
             </h2>
