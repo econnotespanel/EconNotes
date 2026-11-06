@@ -30,7 +30,6 @@ describe('deviceInfo & adminLoginAnalytics', () => {
     expect(meta.startsWith('login_device:')).toBe(true);
 
     const parsed = parseLoginLogDevice({
-      action: 'user_login',
       details,
       entity_type: meta,
     });
