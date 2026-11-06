@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ForcePasswordChange from "@/components/ForcePasswordChange";
+import { MfaGate } from "@/components/TwoFactor";
 import UserPenaltyMonitor from "@/components/UserPenaltyMonitor";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { SiteConfigProvider } from "@/contexts/SiteConfigContext";
@@ -88,7 +89,7 @@ const App = () => {
                 <ScrollToTop />
                 <Suspense fallback={<RouteLoader />}>
                   <SystemGate>
-                    <PasswordChangeGate>
+                    <PasswordChangeGate><MfaGate>
                       <Routes>
                       <Route path="/" element={<Index />} />
                       <Route path="/login" element={<Login />} />
@@ -111,7 +112,7 @@ const App = () => {
                       <Route path="/install" element={<Install />} />
                       <Route path="*" element={<NotFound />} />
                       </Routes>
-                    </PasswordChangeGate>
+                    </MfaGate></PasswordChangeGate>
                   </SystemGate>
                 </Suspense>
               </BrowserRouter>
