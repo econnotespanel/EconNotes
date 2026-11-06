@@ -82,9 +82,10 @@ export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
         <Button variant="outline" className="h-auto flex-col gap-1 py-4" disabled={busy} onClick={startTotp}>
           <Smartphone className="h-5 w-5" /> Doğrulayıcı uygulama
         </Button>
-        <Button variant="outline" className="h-auto flex-col gap-1 py-4" disabled={busy} onClick={() => setMode('phone')}>
+        <div className="flex h-auto flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-border py-4 text-sm text-muted-foreground" aria-disabled="true">
           <MessageSquare className="h-5 w-5" /> SMS kodu
-        </Button>
+          <span className="text-xs">Yakında.</span>
+        </div>
       </div>
     );
   }
@@ -110,7 +111,7 @@ export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
       {factorId && (
         <div className="space-y-2">
           <Label htmlFor="mfa-code">6 haneli kod</Label>
-          <Input id="mfa-code" value={code} maxLength={6} inputMode="numeric" onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+          <Input id="mfa-code" className="h-12 text-center font-mono text-xl tracking-[0.4em]" value={code} maxLength={6} inputMode="numeric" onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
           <Button className="w-full" disabled={busy} onClick={verify}>
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Doğrula.
           </Button>
@@ -220,11 +221,14 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
 
   const selected = factors.find((f) => f.id === factorId);
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-3">
-          <EconLogo />
-          <CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5" />
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background p-4">
+      <EconLogo className="h-8 w-36 sm:h-9 sm:w-40" />
+      <Card className="w-full max-w-md border-2 border-foreground shadow-[6px_6px_0_0_hsl(var(--foreground))]">
+        <CardHeader className="space-y-3 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border-2 border-foreground bg-primary text-primary-foreground">
+            <ShieldCheck className="h-6 w-6" />
+          </div>
+          <CardTitle className="text-xl">
             {state === 'enroll' ? 'İki adımlı doğrulamayı kurun' : 'İki adımlı doğrulama'}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -250,13 +254,13 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
               {selected?.factor_type === 'phone' && (
                 <Button variant="outline" className="w-full" disabled={busy} onClick={() => sendChallenge(factorId)}>SMS kodu gönder.</Button>
               )}
-              <Input aria-label="Doğrulama kodu" value={code} maxLength={6} inputMode="numeric" placeholder="6 haneli kod" onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+              <Input aria-label="Doğrulama kodu" className="h-14 text-center font-mono text-2xl tracking-[0.5em]" value={code} maxLength={6} inputMode="numeric" placeholder="6 haneli kod" onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
               <Button className="w-full" disabled={busy || code.length !== 6} onClick={verify}>
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Doğrula.
               </Button>
             </>
           )}
-          <Button variant="ghost" className="w-full" onClick={() => signOut()}>Çıkış yap.</Button>
+          <Button variant="link" className="w-full text-muted-foreground" onClick={() => signOut()}>Çıkış yap.</Button>
         </CardContent>
       </Card>
     </div>
