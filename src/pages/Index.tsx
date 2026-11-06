@@ -65,6 +65,11 @@ const Index = () => {
 
   if (!user || forceGuest) return <Landing />;
 
+  if (localStorage.getItem('econnotes_welcome_pending') === '1') {
+    localStorage.removeItem('econnotes_welcome_pending');
+    return <Navigate to="/welcome" replace />;
+  }
+
   if (sessionStorage.getItem('econnotes_return_tour_pending') === '1') {
     sessionStorage.removeItem('econnotes_return_tour_pending');
     return <Navigate to="/welcome?mode=return" replace />;
