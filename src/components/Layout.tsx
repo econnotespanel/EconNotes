@@ -4,6 +4,7 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import SupportNotificationListener from '@/components/SupportNotificationListener';
 import ContentNotificationListener from '@/components/ContentNotificationListener';
 import DeviceNotificationBanner from '@/components/DeviceNotificationBanner';
+import ExamWishPopup from '@/components/ExamWishPopup';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -20,6 +21,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <SupportNotificationListener />
       <ContentNotificationListener />
       <DeviceNotificationBanner />
+      <ExamWishPopup />
       <Header />
       <Sidebar />
       <main className="relative z-10 min-h-[calc(100vh-4rem)] min-w-0 px-3 py-4 pb-24 sm:px-4 sm:pb-28 md:ml-64 md:p-8 opacity-100 visible">
