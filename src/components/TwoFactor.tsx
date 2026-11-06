@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   Loader2,
   ShieldCheck,
@@ -15,6 +15,7 @@ import {
   Fingerprint,
   RotateCw,
   LogOut,
+  Timer,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { OTPInput, OTPInputContext } from 'input-otp';
@@ -613,6 +614,63 @@ export const TwoFactorCard = () => {
 /* Login gate                                                          */
 /* ------------------------------------------------------------------ */
 
+/** Time allowed to enter the second-factor code before the session is closed. */
+const CODE_WINDOW_SECONDS = 120;
+
+const SessionTimer = ({ left, total }: { left: number; total: number }) => {
+  const pct = Math.max(0, Math.min(100, (left / total) * 100));
+  const tone = left <= 10 ? 'danger' : left <= 30 ? 'warn' : 'ok';
+  const mm = Math.floor(left / 60);
+  const ss = String(left % 60).padStart(2, '0');
+  return (
+    <div
+      role="timer"
+      aria-live={left <= 10 ? 'assertive' : 'off'}
+      className={cn(
+        'rounded-2xl border p-3 transition-colors',
+        tone === 'ok' && 'border-border bg-muted/30',
+        tone === 'warn' && 'border-amber-500/40 bg-amber-500/10',
+        tone === 'danger' && 'border-destructive/50 bg-destructive/10',
+      )}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <Timer
+            className={cn(
+              'h-4 w-4',
+              tone === 'ok' && 'text-primary',
+              tone === 'warn' && 'text-amber-500',
+              tone === 'danger' && 'animate-pulse text-destructive',
+            )}
+          />
+          {tone === 'danger' ? 'Oturum kapanmak üzere' : 'Kodu girmek için kalan süre'}
+        </span>
+        <span
+          className={cn(
+            'font-mono text-base font-bold tabular-nums',
+            tone === 'ok' && 'text-foreground',
+            tone === 'warn' && 'text-amber-500',
+            tone === 'danger' && 'text-destructive',
+          )}
+        >
+          {mm}:{ss}
+        </span>
+      </div>
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-border">
+        <div
+          className={cn(
+            'h-full rounded-full transition-[width] duration-300 ease-linear',
+            tone === 'ok' && 'bg-gradient-to-r from-sky-400 to-primary',
+            tone === 'warn' && 'bg-amber-500',
+            tone === 'danger' && 'bg-destructive',
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
 /** Blocks the app until the user passes their second factor; forces enrollment for admins. */
 export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, loading, signOut } = useAuth();
@@ -626,6 +684,30 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   const [error, setError] = useState(false);
   const [success, setSuccess] = useState(false);
   const [resendLeft, startResend] = useCountdown();
+  const [timeLeft, setTimeLeft] = useState(CODE_WINDOW_SECONDS);
+  const signOutRef = useRef(signOut);
+  signOutRef.current = signOut;
+
+  // Security window: the user has CODE_WINDOW_SECONDS to pass the second factor,
+  // otherwise the session is terminated. Based on a fixed deadline so throttled
+  // background tabs can't extend it.
+  useEffect(() => {
+    if (state !== 'challenge' || success) return;
+    const deadline = Date.now() + CODE_WINDOW_SECONDS * 1000;
+    setTimeLeft(CODE_WINDOW_SECONDS);
+    const id = setInterval(() => {
+      const left = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTimeLeft(left);
+      if (left === 0) {
+        clearInterval(id);
+        setCode('');
+        setSent(false);
+        toast.error('Doğrulama süresi doldu. Güvenliğiniz için oturumunuz kapatıldı.');
+        void signOutRef.current();
+      }
+    }, 250);
+    return () => clearInterval(id);
+  }, [state, success]);
 
   const check = useCallback(async () => {
     if (!user) return setState('ok');
@@ -661,6 +743,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
 
   const verify = async (value = code) => {
     if (!/^\d{6}$/.test(value)) return;
+    if (timeLeft <= 0) return;
     setBusy(true);
     if (method === 'sms') {
       const err = await sms('login_check', { code: value });
@@ -717,10 +800,21 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
         {/* glow border */}
         <div aria-hidden className="absolute -inset-px rounded-[1.6rem] bg-gradient-to-b from-primary/50 via-primary/10 to-transparent opacity-70 blur-[1px]" />
         <Card className="sticker-card relative overflow-hidden rounded-3xl p-0">
-          <div className="auth-band relative px-6 pb-14 pt-8 text-center">
-            <EconLogo allWhite className="relative z-10 mx-auto h-8 w-36 sm:h-9 sm:w-40" />
-            <div className="relative z-10 mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
-              <Lock className="h-3 w-3" /> Güvenli Oturum
+          <div className="auth-band relative px-6 pb-16 pt-7">
+            <div className="relative z-10 flex flex-col items-center gap-3.5">
+              <EconLogo allWhite className="h-8 w-36 sm:h-9 sm:w-40" />
+              <div className="flex w-full items-center justify-center gap-3">
+                <span aria-hidden className="hidden h-px flex-1 max-w-12 bg-gradient-to-r from-transparent to-white/60 sm:block" />
+                <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-white/25 bg-white/10 py-1 pl-1 pr-3.5 shadow-[inset_0_1px_0_hsl(0_0%_100%/0.25),0_8px_24px_-12px_hsl(0_0%_0%/0.5)] backdrop-blur-md">
+                  <span className="flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-black tracking-wider text-primary shadow-sm">
+                    <ShieldCheck className="h-3 w-3" strokeWidth={3} /> 2FA
+                  </span>
+                  <span className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-white sm:text-[11px]">
+                    Çift Faktörlü Güvenlik Modülü
+                  </span>
+                </div>
+                <span aria-hidden className="hidden h-px flex-1 max-w-12 bg-gradient-to-l from-transparent to-white/60 sm:block" />
+              </div>
             </div>
           </div>
 
@@ -733,6 +827,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
           </CardHeader>
 
           <CardContent className="space-y-5 px-6 pb-6">
+            {state === 'challenge' && !success && <SessionTimer left={timeLeft} total={CODE_WINDOW_SECONDS} />}
             {state === 'enroll' ? (
               <TwoFactorEnroll onDone={() => void check()} />
             ) : success ? (
