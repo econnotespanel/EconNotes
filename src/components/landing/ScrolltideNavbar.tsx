@@ -16,10 +16,10 @@ export const ScrolltideNavbar: React.FC<ScrolltideNavbarProps> = ({ onLoginClick
   return (
     <header className="sticky top-4 z-50 mx-auto w-full max-w-6xl px-4 pointer-events-auto">
       <nav className="relative flex items-center justify-between rounded-full border border-white/15 bg-background/70 dark:bg-black/50 px-3.5 sm:px-6 py-2.5 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] transition-all">
-        {/* Brand Logo */}
-        <div className="flex items-center">
-          <Link to="/" className="flex items-center gap-2 group">
-            <EconLogo className="h-7 w-28 sm:h-8 sm:w-32 transition-transform duration-300 group-hover:scale-105" />
+        {/* Brand Logo — optically centered inside the pill (wordmark sits low in the PNG) */}
+        <div className="flex h-9 items-center pl-1 sm:pl-1.5">
+          <Link to="/" className="flex h-full items-center group" aria-label="EconNotes ana sayfa">
+            <EconLogo className="h-7 w-28 sm:h-8 sm:w-32 -translate-y-[3px] transition-transform duration-300 group-hover:scale-105" />
           </Link>
         </div>
 
