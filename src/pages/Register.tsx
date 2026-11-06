@@ -221,7 +221,15 @@ const Register = () => {
       </div>
 
       {/* Right panel - register form */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 pt-20 bg-background relative min-h-screen lg:min-h-0 lg:pt-6">
+      <div className="flex-1 flex flex-col items-center justify-center p-5 pt-16 sm:p-6 sm:pt-20 bg-background relative min-h-screen lg:min-h-0 lg:pt-6">
+        {/* Mobile back to home */}
+        <Link
+          to="/"
+          className="lg:hidden absolute top-4 left-4 flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <span>← Ana Sayfa</span>
+        </Link>
+
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
@@ -238,7 +246,7 @@ const Register = () => {
           <EconLogo className="h-8 w-36" />
         </div>
 
-        <div className="w-full max-w-sm space-y-4 max-h-[85vh] overflow-y-auto pr-1">
+        <div className="w-full max-w-sm space-y-4 lg:max-h-[85vh] lg:overflow-y-auto lg:pr-1">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <UserPlus className="h-5 w-5 text-primary" />
