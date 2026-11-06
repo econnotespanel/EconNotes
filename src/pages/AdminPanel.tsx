@@ -549,7 +549,15 @@ const AdminPanel = () => {
     toast.success(`Rol güncellendi!`); setRoleDialogOpen(false); fetchAll();
   };
 
+  const [savingUser, setSavingUser] = useState(false);
   const updateUserProfile = async () => {
+    if (!editUserData || savingUser) return;
+    setSavingUser(true);
+    try { await doUpdateUserProfile(); }
+    catch (e: any) { toast.error('Kaydedilemedi: ' + (e?.message || 'Sunucuya ulaşılamadı.')); }
+    finally { setSavingUser(false); }
+  };
+  const doUpdateUserProfile = async () => {
     if (!editUserData) return;
     const { error } = await supabase.from('profiles').update({
       full_name: editUserForm.full_name,
@@ -1397,7 +1405,7 @@ const AdminPanel = () => {
                 </Select>
                 <p className="text-xs text-muted-foreground">Seçilen değer, kullanıcının toplam indirme hakkını belirler.</p>
               </div>
-              <Button className="w-full" onClick={updateUserProfile}>Kaydet</Button>
+              <Button type="button" className="w-full" disabled={savingUser} onClick={updateUserProfile}>{savingUser ? 'Kaydediliyor…' : 'Kaydet'}</Button>
             </div>
           </DialogContent>
         </Dialog>
