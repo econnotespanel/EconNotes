@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { AmbientShaderBackground } from '@/components/landing/AmbientShaderBackground';
-import { ScrolltideHero3D } from '@/components/landing/ScrolltideHero3D';
 import { ScrolltideNavbar } from '@/components/landing/ScrolltideNavbar';
 
 const modules = [
@@ -119,20 +118,14 @@ const Landing = () => {
       <ScrolltideNavbar />
 
       <main className="relative z-10 mx-auto max-w-6xl px-4 pt-6 pb-20 space-y-24 sm:space-y-32">
-        {/* ─── SCROLLTIDE HERO SECTION ─── */}
+        {/* ─── HERO SECTION ─── */}
         <section className="text-center pt-8 sm:pt-14 space-y-6">
-          {/* Micro Top Badge */}
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-1.5 text-xs font-semibold text-cyan-400 backdrop-blur-md shadow-[0_0_15px_rgba(0,240,255,0.15)] animate-fade-in">
-            <Sparkles className="h-3.5 w-3.5 animate-spin-slow" />
-            <span>YENİ NESİL AKADEMİK ÇALIŞMA PLATFORMU</span>
-          </div>
-
-          {/* Monumental Editorial Headline */}
+          {/* Headline */}
           <div className="space-y-2 max-w-4xl mx-auto">
-            <h1 className="font-display text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight leading-[1.05] text-foreground">
-              DAHA İYİ NOTLAR. <br />
-              <span className="bg-gradient-to-r from-[#0055ff] via-[#00c6ff] to-[#a855f7] bg-clip-text text-transparent">
-                DAHA GÜÇLÜ SEN.
+            <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight text-foreground">
+              Daha iyi notlar,{' '}
+              <span className="bg-gradient-to-r from-[#003791] via-[#0070d1] to-[#00f0ff] bg-clip-text text-transparent">
+                daha güçlü bir sen.
               </span>
             </h1>
           </div>
@@ -176,11 +169,6 @@ const Landing = () => {
                 <span>Uygulamayı İndir</span>
               </Link>
             </Button>
-          </div>
-
-          {/* ─── 3D CENTERPIECE SHOWCASE (Scrolltide 3D Stage) ─── */}
-          <div className="pt-6">
-            <ScrolltideHero3D />
           </div>
         </section>
 

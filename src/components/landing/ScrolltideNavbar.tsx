@@ -3,8 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
 import EconLogo from '@/components/EconLogo';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Sparkles, Menu, X, Sun, Moon } from 'lucide-react';
-import { APP_VERSION_LABEL } from '@/lib/version';
+import { ArrowRight, Menu, X, Sun, Moon } from 'lucide-react';
 
 interface ScrolltideNavbarProps {
   onLoginClick?: () => void;
@@ -17,15 +16,11 @@ export const ScrolltideNavbar: React.FC<ScrolltideNavbarProps> = ({ onLoginClick
   return (
     <header className="sticky top-4 z-50 mx-auto w-full max-w-6xl px-4 pointer-events-auto">
       <nav className="relative flex items-center justify-between rounded-full border border-white/15 bg-background/70 dark:bg-black/50 px-3.5 sm:px-6 py-2.5 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] transition-all">
-        {/* Brand Logo & Version Pill */}
-        <div className="flex items-center gap-3">
+        {/* Brand Logo */}
+        <div className="flex items-center">
           <Link to="/" className="flex items-center gap-2 group">
             <EconLogo className="h-7 w-28 sm:h-8 sm:w-32 transition-transform duration-300 group-hover:scale-105" />
           </Link>
-          <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary font-mono">
-            <Sparkles className="h-2.5 w-2.5 text-cyan-400" />
-            {APP_VERSION_LABEL}
-          </span>
         </div>
 
         {/* Desktop Centered Pill Navigation */}
