@@ -102,7 +102,15 @@ export const sendOneSignalNotification = async (
 
     if (error) {
       console.warn('send-notification edge function error:', error);
-      return { success: false, reason: 'Bildirim servisine ulaşılamadı.' };
+      let reason = 'Bildirim servisine ulaşılamadı.';
+      try {
+        const ctx = (error as any)?.context;
+        if (ctx && typeof ctx.json === 'function') {
+          const body = await ctx.json();
+          if (body?.error) reason = String(body.error);
+        }
+      } catch {}
+      return { success: false, reason };
     }
 
     if (!data?.success) {

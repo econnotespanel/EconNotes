@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
       throw new RequestError('Başlık ve içerik zorunludur.', 400);
     }
 
-    const restApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
+    const restApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY')?.trim().replace(/^(Key|Basic)\s+/i, '');
     if (!restApiKey) {
       console.warn('ONESIGNAL_REST_API_KEY is not configured on server.');
       return jsonResponse(req, { success: false, reason: 'ONESIGNAL_REST_API_KEY not configured' }, 200);

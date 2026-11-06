@@ -40,7 +40,7 @@ export const isTrustedOrigin = (origin: string | null): boolean => {
 
 export const corsHeaders = (req: Request): Headers => {
   const headers = new Headers({
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   });
@@ -72,9 +72,12 @@ export const getAuthenticatedUser = async (req: Request) => {
   const supabase = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error) return null;
-  return data.user;
+  const { data, error } = await supabase.auth.getClaims(token);
+  if (error || !data?.claims?.sub) {
+    console.warn('Auth token rejected:', error?.message);
+    return null;
+  }
+  return { id: data.claims.sub as string, email: data.claims.email as string | undefined };
 };
 
 export const readJsonBody = async <T>(req: Request, maxBytes: number): Promise<T> => {
