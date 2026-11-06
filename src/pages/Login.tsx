@@ -26,6 +26,9 @@ import {
   ArrowLeft,
   Sun,
   Moon,
+  BookOpen,
+  Users,
+  TrendingUp,
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
@@ -423,44 +426,104 @@ const Login = () => {
     );
   }
 
+  const features = [
+    { icon: BookOpen, title: 'Not Paylaşımı', desc: 'Ders notlarınızı arkadaşlarınızla kolayca paylaşın.' },
+    { icon: Users, title: 'Topluluk', desc: 'Üniversite öğrencileriyle bilgi paylaşın.' },
+    { icon: TrendingUp, title: 'Başarı', desc: 'Sınavlara hazırlanın, başarıya ulaşın.' },
+  ];
+
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center p-4 sm:p-8 overflow-x-hidden bg-background text-foreground antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
-      {/* Ambient Background */}
-      <AmbientShaderBackground intensity={0.9} />
+    <div className="min-h-screen flex flex-col lg:flex-row overflow-x-clip bg-background text-foreground antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+      {/* Left panel - Classic PlayStation-blue platform features (desktop) */}
+      <div
+        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 xl:p-14 relative overflow-hidden z-10"
+        style={{
+          background:
+            theme === 'dark'
+              ? 'linear-gradient(145deg, #070b14 0%, #001f5c 50%, #003791 100%)'
+              : 'linear-gradient(145deg, #001845 0%, #002d7a 45%, #00439c 100%)',
+        }}
+      >
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-6">
+            <EconLogo allWhite className="h-8 w-36 sm:h-9 sm:w-40" />
+          </div>
 
-      {/* Top Navigation Row */}
-      <div className="relative z-20 w-full max-w-md flex items-center justify-between mb-4">
-        <Link
-          to="/"
-          className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span>Ana Sayfa</span>
-        </Link>
+          <h2 className="text-white text-xl xl:text-2xl font-bold tracking-tight mb-8 leading-snug">
+            EconNotes ile tüm ders notların yanında!
+          </h2>
 
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/60 border border-border/70 dark:border-white/15 backdrop-blur-xl text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-sm"
-          aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
-        >
-          {theme === 'dark' ? (
-            <>
-              <Sun className="h-3.5 w-3.5 text-amber-300" />
-              <span>Açık Mod</span>
-            </>
-          ) : (
-            <>
-              <Moon className="h-3.5 w-3.5 text-blue-600" />
-              <span>Koyu Mod</span>
-            </>
-          )}
-        </button>
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60 mb-2">
+              Platform Özellikleri
+            </p>
+            {features.map((f, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 transition-all duration-300 hover:bg-white/15 hover:border-white/25 hover:translate-x-1 shadow-sm"
+              >
+                <div className="p-2.5 rounded-xl bg-white/10 text-white shadow-xs shrink-0">
+                  <f.icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-white text-sm">{f.title}</h3>
+                  <p className="text-xs text-white/70 leading-relaxed mt-0.5">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-10 flex items-center justify-between pt-6 border-t border-white/10">
+          <p className="text-white/60 text-xs">
+            EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
+          </p>
+          <span className="text-white/40 text-xs font-mono">{APP_VERSION}</span>
+        </div>
+
+        {/* Decorative ambient lighting */}
+        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#00f0ff]/15 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#003791]/35 blur-3xl pointer-events-none" />
       </div>
 
-      {/* Centered EconNotes Logo */}
-      <div className="relative z-20 flex justify-center mb-6">
-        <EconLogo className="h-8 w-36 sm:h-9 sm:w-40" />
-      </div>
+      {/* Right panel - Frosted Glass Login Console */}
+      <div className="relative flex-1 flex flex-col items-center justify-center p-4 sm:p-8 min-h-screen lg:min-h-0 overflow-hidden">
+        {/* Ambient Background */}
+        <AmbientShaderBackground intensity={0.9} />
+
+        {/* Top Navigation Row */}
+        <div className="relative z-20 w-full max-w-md flex items-center justify-between mb-4">
+          <Link
+            to="/"
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Ana Sayfa</span>
+          </Link>
+
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/60 border border-border/70 dark:border-white/15 backdrop-blur-xl text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-sm"
+            aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="h-3.5 w-3.5 text-amber-300" />
+                <span>Açık Mod</span>
+              </>
+            ) : (
+              <>
+                <Moon className="h-3.5 w-3.5 text-blue-600" />
+                <span>Koyu Mod</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Centered Mobile EconNotes Logo */}
+        <div className="lg:hidden relative z-20 flex justify-center mb-6">
+          <EconLogo className="h-8 w-36 sm:h-9 sm:w-40" />
+        </div>
 
       {/* Frosted Glass Login Card */}
       <div className="relative z-20 w-full max-w-md rounded-3xl border border-border/70 dark:border-white/15 bg-card/85 dark:bg-black/50 p-6 sm:p-8 backdrop-blur-3xl shadow-[0_20px_70px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.35)] space-y-5">
@@ -805,6 +868,7 @@ const Login = () => {
             <span className="font-mono opacity-75">{APP_VERSION}</span>
           </p>
         </div>
+      </div>
       </div>
     </div>
   );
