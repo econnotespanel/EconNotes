@@ -13,7 +13,7 @@ type Factor = { id: string; factor_type: string; status: string; friendly_name?:
 
 const smsError = (msg: string) =>
   /phone|sms|provider|disabled/i.test(msg)
-    ? 'SMS doğrulaması henüz etkin değil. Lütfen doğrulayıcı uygulamayı kullanın.'
+    ? 'SMS servisi henüz ayarlanmadı. Şimdilik doğrulayıcı uygulamayı kullanın.'
     : msg;
 
 /** Enrollment UI: authenticator app (TOTP) or SMS. */
@@ -82,10 +82,9 @@ export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
         <Button variant="outline" className="h-auto flex-col gap-1 py-4" disabled={busy} onClick={startTotp}>
           <Smartphone className="h-5 w-5" /> Doğrulayıcı uygulama
         </Button>
-        <div className="flex h-auto flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-border py-4 text-sm text-muted-foreground" aria-disabled="true">
+        <Button variant="outline" className="h-auto flex-col gap-1 py-4" disabled={busy} onClick={() => setMode('phone')}>
           <MessageSquare className="h-5 w-5" /> SMS kodu
-          <span className="text-xs">Yakında.</span>
-        </div>
+        </Button>
       </div>
     );
   }
