@@ -46,7 +46,7 @@ const CodeInput = ({ value, onChange, id }: { value: string; onChange: (v: strin
   <Input
     id={id}
     aria-label="Doğrulama kodu"
-    className="h-14 text-center font-mono text-2xl tracking-[0.5em]"
+    className="h-14 rounded-xl border-2 text-center font-mono text-2xl font-bold tracking-[0.5em] focus-visible:border-primary"
     value={value}
     maxLength={6}
     inputMode="numeric"
@@ -193,9 +193,9 @@ export const TwoFactorCard = () => {
     <Card className="glass-card">
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5" /> İki Adımlı Doğrulama
-          <span className="rounded-full border-2 border-foreground bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">Yeni</span>
-          {count > 0 && <span className="ml-auto text-xs font-medium text-muted-foreground">Etkin</span>}
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary"><ShieldCheck className="h-4 w-4" /></span> İki Adımlı Doğrulama
+          <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">Yeni</span>
+          {count > 0 && <span className="ml-auto rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">Etkin</span>}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -203,13 +203,13 @@ export const TwoFactorCard = () => {
           {isAdmin ? 'Yönetici hesapları için zorunludur.' : 'İsteğe bağlıdır. Hesabınızı daha güvenli hale getirir.'}
         </p>
         {totp.map((f) => (
-          <div key={f.id} className="flex items-center justify-between rounded-md border-2 border-border p-3 text-sm">
+          <div key={f.id} className="flex items-center justify-between rounded-xl border border-border bg-muted/40 p-3 text-sm">
             <span className="flex items-center gap-2"><Smartphone className="h-4 w-4" /> Doğrulayıcı uygulama</span>
             <Button variant="ghost" size="icon" aria-label="Kaldır" onClick={() => removeTotp(f.id)}><Trash2 className="h-4 w-4" /></Button>
           </div>
         ))}
         {phone && (
-          <div className="flex items-center justify-between rounded-md border-2 border-border p-3 text-sm">
+          <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 p-3 text-sm">
             <span className="flex items-center gap-2"><MessageSquare className="h-4 w-4" /> SMS · {phone.slice(0, 5)}•••{phone.slice(-2)}</span>
             <Button variant="ghost" size="icon" aria-label="Kaldır" onClick={removeSms}><Trash2 className="h-4 w-4" /></Button>
           </div>
@@ -286,14 +286,18 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   if (state === 'checking') return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background p-4">
-      <EconLogo className="h-8 w-36 sm:h-9 sm:w-40" />
-      <Card className="w-full max-w-md border-2 border-foreground shadow-[6px_6px_0_0_hsl(var(--foreground))]">
-        <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border-2 border-foreground bg-primary text-primary-foreground">
-            <ShieldCheck className="h-6 w-6" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
+      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-60" style={{ background: 'radial-gradient(60% 50% at 50% 0%, hsl(var(--primary) / 0.18), transparent 70%)' }} />
+      <Card className="sticker-card relative w-full max-w-md overflow-hidden rounded-3xl p-0">
+        <div className="relative px-6 pb-10 pt-6 text-center" style={{ background: 'var(--gradient-neon)' }}>
+          <EconLogo allWhite className="mx-auto h-7 w-32 sm:h-8 sm:w-36" />
+          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-foreground/70">Güvenli giriş</p>
+        </div>
+        <CardHeader className="-mt-7 space-y-3 pb-2 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-card bg-primary text-primary-foreground shadow-lg">
+            <ShieldCheck className="h-7 w-7" />
           </div>
-          <CardTitle className="text-xl">
+          <CardTitle className="text-xl font-bold tracking-tight">
             {state === 'enroll' ? 'İki adımlı doğrulamayı kurun' : 'İki adımlı doğrulama'}
           </CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -302,17 +306,17 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
               : method === 'sms' ? 'Telefonunuza gelen 6 haneli kodu girin.' : 'Doğrulayıcı uygulamadaki 6 haneli kodu girin.'}
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 px-6 pb-6">
           {state === 'enroll' ? (
             <TwoFactorEnroll onDone={() => void check()} />
           ) : (
             <>
               {totp.length > 0 && phone && (
-                <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant={method === 'totp' ? 'default' : 'outline'} onClick={() => { setMethod('totp'); setCode(''); }}>
+                <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+                  <Button size="sm" variant={method === 'totp' ? 'default' : 'ghost'} className="rounded-lg" onClick={() => { setMethod('totp'); setCode(''); }}>
                     <Smartphone className="mr-1 h-4 w-4" /> Uygulama
                   </Button>
-                  <Button size="sm" variant={method === 'sms' ? 'default' : 'outline'} onClick={() => { setMethod('sms'); setCode(''); }}>
+                  <Button size="sm" variant={method === 'sms' ? 'default' : 'ghost'} className="rounded-lg" onClick={() => { setMethod('sms'); setCode(''); }}>
                     <MessageSquare className="mr-1 h-4 w-4" /> SMS
                   </Button>
                 </div>
@@ -323,7 +327,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                 </Button>
               )}
               <CodeInput value={code} onChange={setCode} />
-              <Button className="w-full" disabled={busy || code.length !== 6} onClick={verify}>
+              <Button className="gradient-primary h-11 w-full rounded-xl font-bold" disabled={busy || code.length !== 6} onClick={verify}>
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Doğrula.
               </Button>
             </>
