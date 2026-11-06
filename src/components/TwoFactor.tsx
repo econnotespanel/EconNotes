@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EconLogo from '@/components/EconLogo';
+import { cn } from '@/lib/utils';
 
 type Factor = { id: string; factor_type: string; status: string };
 
@@ -46,7 +47,7 @@ const CodeInput = ({ value, onChange, id }: { value: string; onChange: (v: strin
   <Input
     id={id}
     aria-label="Doğrulama kodu"
-    className="h-14 rounded-xl border-2 text-center font-mono text-2xl font-bold tracking-[0.5em] focus-visible:border-primary"
+    className="h-16 rounded-2xl border-2 border-input bg-muted/30 text-center font-mono text-[26px] font-bold tracking-[0.45em] shadow-inner [text-indent:0.45em] placeholder:font-normal placeholder:tracking-[0.28em] placeholder:text-muted-foreground focus-visible:border-primary focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/25"
     value={value}
     maxLength={6}
     inputMode="numeric"
@@ -112,13 +113,31 @@ export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
 
   if (!mode) {
     return (
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Button variant="outline" className="h-auto flex-col gap-1 border-2 py-4" disabled={busy} onClick={startTotp}>
-          <Smartphone className="h-5 w-5" /> Doğrulayıcı uygulama
-        </Button>
-        <Button variant="outline" className="h-auto flex-col gap-1 border-2 py-4" disabled={busy} onClick={() => setMode('phone')}>
-          <MessageSquare className="h-5 w-5" /> SMS kodu
-        </Button>
+      <div className="grid gap-3">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={startTotp}
+          className="flex items-start gap-3 rounded-2xl border border-border bg-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:bg-muted/60 disabled:opacity-60"
+        >
+          <span className="icon-tile flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"><Smartphone className="h-5 w-5" /></span>
+          <span>
+            <span className="block text-sm font-bold">Doğrulayıcı uygulama</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">QR kodu tarayın, kodu uygulama üretsin.</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setMode('phone')}
+          className="flex items-start gap-3 rounded-2xl border border-border bg-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:bg-muted/60 disabled:opacity-60"
+        >
+          <span className="icon-tile flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"><MessageSquare className="h-5 w-5" /></span>
+          <span>
+            <span className="block text-sm font-bold">SMS kodu</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">6 haneli kod telefonunuza gönderilsin.</span>
+          </span>
+        </button>
       </div>
     );
   }
@@ -126,17 +145,19 @@ export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
   return (
     <div className="space-y-4">
       {mode === 'totp' && qr && (
-        <div className="space-y-2 text-sm">
-          <p>Google Authenticator veya benzeri bir uygulamayla kodu tarayın.</p>
-          <img src={qr} alt="Doğrulama QR kodu" className="mx-auto h-44 w-44 rounded border-2 border-foreground bg-card p-2" />
+        <div className="space-y-3 text-sm">
+          <p className="text-center text-muted-foreground">Google Authenticator veya benzeri bir uygulamayla kodu tarayın.</p>
+          <div className="mx-auto w-fit rounded-2xl border-2 border-border bg-card p-3 shadow-inner">
+            <img src={qr} alt="Doğrulama QR kodu" className="h-44 w-44" />
+          </div>
           <p className="break-all text-center text-xs text-muted-foreground">Elle giriş: {secret}</p>
         </div>
       )}
       {mode === 'phone' && (
         <div className="space-y-2">
           <Label htmlFor="mfa-phone">Telefon numarası</Label>
-          <Input id="mfa-phone" value={phone} disabled={sent} onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ''))} inputMode="tel" />
-          <Button variant={sent ? 'outline' : 'default'} className="w-full" disabled={busy} onClick={sendSms}>
+          <Input id="mfa-phone" value={phone} disabled={sent} onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ''))} inputMode="tel" className="h-12 rounded-xl" />
+          <Button variant={sent ? 'outline' : 'cta'} className="h-11 w-full rounded-xl font-bold" disabled={busy} onClick={sendSms}>
             {busy && !sent && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{sent ? 'Kodu tekrar gönder.' : 'Kod gönder.'}
           </Button>
         </div>
@@ -145,7 +166,7 @@ export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
         <div className="space-y-2">
           <Label htmlFor="mfa-code">6 haneli kod</Label>
           <CodeInput id="mfa-code" value={code} onChange={setCode} />
-          <Button className="w-full" disabled={busy || code.length !== 6} onClick={verify}>
+          <Button variant="cta" className="h-11 w-full rounded-xl font-bold" disabled={busy || code.length !== 6} onClick={verify}>
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Doğrula.
           </Button>
         </div>
@@ -203,14 +224,20 @@ export const TwoFactorCard = () => {
           {isAdmin ? 'Yönetici hesapları için zorunludur.' : 'İsteğe bağlıdır. Hesabınızı daha güvenli hale getirir.'}
         </p>
         {totp.map((f) => (
-          <div key={f.id} className="flex items-center justify-between rounded-xl border border-border bg-muted/40 p-3 text-sm">
-            <span className="flex items-center gap-2"><Smartphone className="h-4 w-4" /> Doğrulayıcı uygulama</span>
+          <div key={f.id} className="flex items-center justify-between rounded-2xl border border-border bg-muted/40 p-3 text-sm">
+            <span className="flex items-center gap-3">
+              <span className="icon-tile flex h-8 w-8 items-center justify-center rounded-lg"><Smartphone className="h-4 w-4" /></span>
+              Doğrulayıcı uygulama
+            </span>
             <Button variant="ghost" size="icon" aria-label="Kaldır" onClick={() => removeTotp(f.id)}><Trash2 className="h-4 w-4" /></Button>
           </div>
         ))}
         {phone && (
-          <div className="flex items-center justify-between rounded-xl border border-border bg-muted/40 p-3 text-sm">
-            <span className="flex items-center gap-2"><MessageSquare className="h-4 w-4" /> SMS · {phone.slice(0, 5)}•••{phone.slice(-2)}</span>
+          <div className="flex items-center justify-between rounded-2xl border border-border bg-muted/40 p-3 text-sm">
+            <span className="flex items-center gap-3">
+              <span className="icon-tile flex h-8 w-8 items-center justify-center rounded-lg"><MessageSquare className="h-4 w-4" /></span>
+              SMS · {phone.slice(0, 5)}•••{phone.slice(-2)}
+            </span>
             <Button variant="ghost" size="icon" aria-label="Kaldır" onClick={removeSms}><Trash2 className="h-4 w-4" /></Button>
           </div>
         )}
@@ -287,14 +314,17 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
-      <div aria-hidden className="pointer-events-none absolute inset-0 opacity-60" style={{ background: 'radial-gradient(60% 50% at 50% 0%, hsl(var(--primary) / 0.18), transparent 70%)' }} />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(65% 45% at 50% 0%, hsl(var(--primary) / 0.16), transparent 70%), radial-gradient(45% 35% at 50% 100%, hsl(var(--neon-cyan) / 0.10), transparent 70%)' }}
+      />
       <Card className="sticker-card relative w-full max-w-md overflow-hidden rounded-3xl p-0">
-        <div className="relative px-6 pb-10 pt-6 text-center" style={{ background: 'var(--gradient-neon)' }}>
-          <EconLogo allWhite className="mx-auto h-7 w-32 sm:h-8 sm:w-36" />
-          <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary-foreground/70">Güvenli giriş</p>
+        <div className="auth-band px-6 pb-12 pt-8 text-center">
+          <EconLogo allWhite className="relative z-10 mx-auto h-8 w-36 sm:h-9 sm:w-40" />
         </div>
-        <CardHeader className="-mt-7 space-y-3 pb-2 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-card bg-primary text-primary-foreground shadow-lg">
+        <CardHeader className="-mt-8 space-y-3 pb-2 text-center">
+          <div className="icon-tile mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-card">
             <ShieldCheck className="h-7 w-7" />
           </div>
           <CardTitle className="text-xl font-bold tracking-tight">
@@ -312,22 +342,36 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
           ) : (
             <>
               {totp.length > 0 && phone && (
-                <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
-                  <Button size="sm" variant={method === 'totp' ? 'default' : 'ghost'} className="rounded-lg" onClick={() => { setMethod('totp'); setCode(''); }}>
-                    <Smartphone className="mr-1 h-4 w-4" /> Uygulama
-                  </Button>
-                  <Button size="sm" variant={method === 'sms' ? 'default' : 'ghost'} className="rounded-lg" onClick={() => { setMethod('sms'); setCode(''); }}>
-                    <MessageSquare className="mr-1 h-4 w-4" /> SMS
-                  </Button>
+                <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-muted/50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => { setMethod('totp'); setCode(''); }}
+                    className={cn(
+                      'flex h-9 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-all',
+                      method === 'totp' ? 'icon-tile' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  >
+                    <Smartphone className="h-4 w-4" /> Uygulama
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMethod('sms'); setCode(''); }}
+                    className={cn(
+                      'flex h-9 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-all',
+                      method === 'sms' ? 'icon-tile' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  >
+                    <MessageSquare className="h-4 w-4" /> SMS
+                  </button>
                 </div>
               )}
               {method === 'sms' && (
-                <Button variant="outline" className="w-full" disabled={busy} onClick={sendSms}>
+                <Button variant="outline" className="h-11 w-full rounded-xl" disabled={busy} onClick={sendSms}>
                   {sent ? 'Kodu tekrar gönder.' : `${phone?.slice(0, 5)}•••${phone?.slice(-2)} numarasına kod gönder.`}
                 </Button>
               )}
               <CodeInput value={code} onChange={setCode} />
-              <Button className="gradient-primary h-11 w-full rounded-xl font-bold" disabled={busy || code.length !== 6} onClick={verify}>
+              <Button variant="cta" className="h-11 w-full rounded-xl font-bold" disabled={busy || code.length !== 6} onClick={verify}>
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Doğrula.
               </Button>
             </>

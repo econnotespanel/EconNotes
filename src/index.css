@@ -28,6 +28,7 @@
     --neon-cyan: 205 100% 48%; --neon-blue: 215 100% 45%; --neon-indigo: 222 90% 56%; --neon-ice: 210 95% 75%;
     --gradient-neon: linear-gradient(115deg, #003791, #0070d1);
     --gradient-neon-soft: linear-gradient(115deg, hsl(215 100% 45% / 0.12), hsl(205 100% 50% / 0.08));
+    --cta-foreground: 0 0% 100%;
     --glow-cyan: 0 8px 24px hsl(205 100% 50% / 0.18); --glow-blue: 0 8px 28px hsl(215 100% 45% / 0.22);
     --sheen: linear-gradient(180deg, hsl(0 0% 100% / 0.6), transparent);
     --hairline: var(--border);
@@ -54,6 +55,7 @@
     --neon-cyan: 205 100% 55%; --neon-blue: 214 100% 55%; --neon-indigo: 222 95% 65%; --neon-ice: 210 95% 82%;
     --gradient-neon: linear-gradient(115deg, #00439c, #0070d1);
     --gradient-neon-soft: linear-gradient(115deg, hsl(214 100% 55% / 0.16), hsl(205 100% 55% / 0.1));
+    --cta-foreground: 0 0% 100%;
     --glow-cyan: 0 8px 30px hsl(205 100% 55% / 0.22); --glow-blue: 0 8px 32px hsl(214 100% 55% / 0.28);
     --sheen: linear-gradient(180deg, hsl(var(--foreground) / 0.06), transparent);
     --hairline: var(--border);
@@ -335,6 +337,52 @@
     transition: box-shadow .2s ease, border-color .2s ease;
   }
   .sticker-card:hover, .glass-card:hover { border-color: hsl(var(--primary) / .38); box-shadow: var(--panel-shadow-hover); }
+
+  /* ---------------- Verification screens ----------------
+     Deep-blue call to action, gradient icon tile and header band.
+     The gradient is always dark blue, so the label stays white in both themes. */
+  .gradient-cta {
+    background-image: linear-gradient(100deg, hsl(215 100% 30%), hsl(var(--neon-blue)) 52%, hsl(var(--neon-cyan)));
+    color: hsl(var(--cta-foreground));
+    box-shadow: 0 10px 26px -12px hsl(var(--neon-blue) / 0.6);
+    transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+  }
+  .gradient-cta:hover { transform: translateY(-1px); box-shadow: 0 14px 32px -12px hsl(var(--neon-blue) / 0.75); filter: brightness(1.05); }
+  .gradient-cta:active { transform: translateY(0); filter: brightness(.98); }
+  .gradient-cta:disabled {
+    background-image: none;
+    background-color: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    box-shadow: none;
+    transform: none;
+    filter: none;
+    opacity: 1;
+  }
+
+  .icon-tile {
+    background-image: linear-gradient(135deg, hsl(var(--neon-blue)), hsl(var(--neon-cyan)));
+    color: hsl(var(--cta-foreground));
+    box-shadow: 0 8px 20px -10px hsl(var(--neon-blue) / 0.65);
+  }
+
+  .auth-band {
+    position: relative;
+    overflow: hidden;
+    background: var(--gradient-neon);
+  }
+  .auth-band::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image: radial-gradient(hsl(0 0% 100% / 0.14) 1px, transparent 1.4px);
+    background-size: 15px 15px;
+    -webkit-mask-image: linear-gradient(180deg, hsl(0 0% 0% / 0.9), transparent 78%);
+    mask-image: linear-gradient(180deg, hsl(0 0% 0% / 0.9), transparent 78%);
+  }
+  .auth-band::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(110% 80% at 50% -25%, hsl(0 0% 100% / 0.3), transparent 62%);
+  }
 
   .tilt-left, .tilt-right, .tilt-none { transform: none; }
 
