@@ -108,7 +108,13 @@ const securityItems = [
 
 const Landing = () => {
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-background text-foreground antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div
+      className="relative min-h-screen overflow-x-clip bg-background text-foreground antialiased selection:bg-cyan-500/30 selection:text-cyan-200"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      }}
+    >
       {/* ─── SCROLLSHADERS AMBIENT BACKGROUND ─── */}
       <AmbientShaderBackground />
 

@@ -65,7 +65,13 @@ const ResetPassword = () => {
 
   if (!isRecovery && !done) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden">
+      <div
+        className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+        }}
+      >
         <div className="absolute inset-0 decorative-lines opacity-10" />
         <Card className="w-full max-w-md glass-card animate-fade-in relative z-10">
           <CardHeader className="text-center space-y-3">
@@ -86,7 +92,13 @@ const ResetPassword = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden">
+    <div
+      className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+      }}
+    >
       <div className="absolute inset-0 decorative-lines opacity-10" />
       <Card className="w-full max-w-md glass-card animate-fade-in relative z-10">
         <CardHeader className="text-center space-y-3">

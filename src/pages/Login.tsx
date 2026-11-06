@@ -487,46 +487,53 @@ const Login = () => {
       </div>
 
       {/* Right panel - Frosted Glass Login Console */}
-      <div className="relative flex-1 flex flex-col items-center justify-center p-4 sm:p-8 min-h-screen lg:min-h-0 overflow-hidden">
+      <div
+        className="relative flex-1 flex flex-col items-center px-4 sm:px-8 min-h-screen lg:min-h-0 overflow-x-clip"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+        }}
+      >
         {/* Ambient Background */}
         <AmbientShaderBackground intensity={0.9} />
 
-        {/* Top Navigation Row */}
-        <div className="relative z-20 w-full max-w-md flex items-center justify-between mb-4">
-          <Link
-            to="/"
-            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            <span>Ana Sayfa</span>
-          </Link>
+        <div className="relative z-20 my-auto w-full max-w-md flex flex-col items-center">
+          {/* Top Navigation Row */}
+          <div className="w-full flex items-center justify-between mb-4">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/65 border border-border/70 dark:border-white/15 backdrop-blur-xl text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-sm"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Ana Sayfa</span>
+            </Link>
 
-          <button
-            onClick={toggleTheme}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/60 border border-border/70 dark:border-white/15 backdrop-blur-xl text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-sm"
-            aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
-          >
-            {theme === 'dark' ? (
-              <>
-                <Sun className="h-3.5 w-3.5 text-amber-300" />
-                <span>Açık Mod</span>
-              </>
-            ) : (
-              <>
-                <Moon className="h-3.5 w-3.5 text-blue-600" />
-                <span>Koyu Mod</span>
-              </>
-            )}
-          </button>
-        </div>
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/65 border border-border/70 dark:border-white/15 backdrop-blur-xl text-xs font-semibold text-muted-foreground hover:text-foreground transition-all shadow-sm"
+              aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="h-3.5 w-3.5 text-amber-300" />
+                  <span>Açık Mod</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Koyu Mod</span>
+                </>
+              )}
+            </button>
+          </div>
 
-        {/* Centered Mobile EconNotes Logo */}
-        <div className="lg:hidden relative z-20 flex justify-center mb-6">
-          <EconLogo className="h-8 w-36 sm:h-9 sm:w-40" />
-        </div>
+          {/* Centered Mobile EconNotes Logo */}
+          <div className="lg:hidden flex justify-center mb-5">
+            <EconLogo className="h-8 w-36 sm:h-9 sm:w-40" />
+          </div>
 
-      {/* Frosted Glass Login Card */}
-      <div className="relative z-20 w-full max-w-md rounded-3xl border border-border/70 dark:border-white/15 bg-card/85 dark:bg-black/50 p-6 sm:p-8 backdrop-blur-3xl shadow-[0_20px_70px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.35)] space-y-5">
+          {/* Frosted Glass Login Card */}
+          <div className="w-full rounded-3xl border border-border/70 dark:border-white/15 bg-card/85 dark:bg-black/50 p-5 sm:p-8 backdrop-blur-3xl shadow-[0_20px_70px_rgba(0,0,0,0.12)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.35)] space-y-5">
         {/* Announcement Banners */}
         {loginBanners.length > 0 && (
           <div className="space-y-2">
@@ -870,7 +877,8 @@ const Login = () => {
             </a>
           </p>
         </div>
-      </div>
+        </div>
+        </div>
       </div>
     </div>
   );

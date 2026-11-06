@@ -88,24 +88,40 @@ const ForgotPassword = () => {
       </div>
 
       {/* Right panel */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 pt-20 bg-background relative min-h-screen lg:min-h-0 lg:pt-6">
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md shadow-xs hover:shadow-sm transition-all duration-200 text-xs font-semibold text-muted-foreground hover:text-foreground"
-          aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
-        >
-          <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
-          <span className={`transition-transform duration-300 ${theme === 'light' ? 'rotate-0' : 'rotate-90 scale-0 absolute'}`}>🌙</span>
-          <span>{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
-        </button>
+      <div
+        className="flex-1 flex flex-col items-center px-6 bg-background relative min-h-screen lg:min-h-0"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+        }}
+      >
+        <div className="my-auto w-full max-w-sm flex flex-col items-center">
+          <div className="w-full flex items-center justify-between lg:justify-end mb-5">
+            <Link
+              to="/login"
+              className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors shadow-xs"
+            >
+              <span>← Giriş</span>
+            </Link>
 
-        {/* Mobile logo */}
-        <div className="lg:hidden flex items-center gap-3 mb-6">
-          <EconLogo className="h-8 w-36" />
-        </div>
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md shadow-xs hover:shadow-sm transition-all duration-200 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+            >
+              <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
+              <span className={`transition-transform duration-300 ${theme === 'light' ? 'rotate-0' : 'rotate-90 scale-0 absolute'}`}>🌙</span>
+              <span>{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
+            </button>
+          </div>
 
-        <div className="w-full max-w-sm space-y-5">
+          {/* Mobile logo */}
+          <div className="lg:hidden flex items-center gap-3 mb-6">
+            <EconLogo className="h-8 w-36" />
+          </div>
+
+          <div className="w-full space-y-5">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <KeyRound className="h-5 w-5 text-primary" />
@@ -166,7 +182,7 @@ const ForgotPassword = () => {
               Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline">destek@econnotes.online</a>
             </p>
             <p className="text-xs text-muted-foreground/60 text-center lg:hidden">EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
-            <p className="text-xs text-muted-foreground/40 text-center lg:hidden">{APP_VERSION}</p>
+          </div>
           </div>
         </div>
       </div>

@@ -14,7 +14,10 @@ export const ScrolltideNavbar: React.FC<ScrolltideNavbarProps> = ({ onLoginClick
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-3 sm:top-4 z-50 mx-auto w-full max-w-6xl px-3 sm:px-4 pointer-events-auto">
+    <header
+      className="sticky z-50 mx-auto w-full max-w-6xl px-3 sm:px-4 pointer-events-auto"
+      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)' }}
+    >
       <nav className="relative flex items-center justify-between gap-2 rounded-full border border-slate-200/85 dark:border-white/15 bg-white/85 dark:bg-black/55 px-3 sm:px-6 py-2 sm:py-2.5 backdrop-blur-2xl shadow-[0_8px_32px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.25)] transition-all">
         {/* Brand Logo — optically centered inside the pill (wordmark sits low in the PNG) */}
         <div className="flex h-8 sm:h-9 shrink-0 items-center pl-1 sm:pl-1.5">

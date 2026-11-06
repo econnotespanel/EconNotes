@@ -17,7 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Loader2 } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Loader2, Upload } from 'lucide-react';
 import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark, prepareWatermarkedPreview } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -596,115 +596,166 @@ const Notes = () => {
             <h1 className="text-2xl font-bold">Notlar</h1>
             <p className="text-sm text-muted-foreground">Tüm paylaşılan ders notları</p>
           </div>
+          <Button
+            className="gradient-primary text-primary-foreground rounded-xl"
+            onClick={() => {
+              setEditingNote(null);
+              setConfirmUpload(false);
+              setAcceptOwnership(false);
+              setForm({ title: '', description: '', grade: '1', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
+              setDepartmentInputs(['']);
+              const key = `econotes_upload_rules_${user?.id}`;
+              if (!localStorage.getItem(key)) {
+                setShowUploadRules(true);
+              } else {
+                setDialogOpen(true);
+              }
+            }}
+          >
+            <Plus className="h-4 w-4 mr-2" /> Not Ekle
+          </Button>
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingNote(null); setConfirmUpload(false); setAcceptOwnership(false); } }}>
-            <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground" onClick={() => {
-                if (!editingNote) {
-                  setForm({ title: '', description: '', grade: '1', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
-                  setDepartmentInputs(['']);
-                  const key = `econotes_upload_rules_${user?.id}`;
-                  if (!localStorage.getItem(key)) {
-                    setShowUploadRules(true);
-                  }
-                }
-              }}><Plus className="h-4 w-4 mr-2" /> Not Ekle</Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingNote ? 'Notu Düzenle' : 'Yeni Not Ekle'}</DialogTitle>
+            <DialogContent className="flex flex-col gap-0 p-0 overflow-hidden sm:p-0">
+              <DialogHeader className="px-5 pt-5 pb-3.5 border-b border-border/60 bg-gradient-to-r from-primary/[0.08] via-transparent to-transparent shrink-0">
+                <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <FileText className="h-4 w-4" />
+                  </span>
+                  <span>{editingNote ? 'Notu Düzenle' : 'Yeni Not Ekle'}</span>
+                </DialogTitle>
               </DialogHeader>
               {!confirmUpload ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Başlık *</Label>
-                    <Input value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} placeholder="Not başlığı" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Açıklama</Label>
-                    <Textarea value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} placeholder="Açıklama" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Sınıf *</Label>
-                      <Select value={form.grade} onValueChange={(v) => setForm({...form, grade: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {[1,2,3,4].map(g => <SelectItem key={g} value={String(g)}>{g}. Sınıf</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                <>
+                  <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground/90">Başlık *</Label>
+                      <Input className="rounded-xl bg-background/70" value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} placeholder="Not başlığı" />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Dönem *</Label>
-                      <Select value={form.semester} onValueChange={(v) => setForm({...form, semester: v})}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Güz Dönemi">Güz Dönemi</SelectItem>
-                          <SelectItem value="Bahar Dönemi">Bahar Dönemi</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground/90">Açıklama</Label>
+                      <Textarea className="rounded-xl bg-background/70 min-h-[76px]" value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} placeholder="Açıklama" />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Üniversite *</Label>
-                    <Input value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} placeholder={profile?.university || 'Üniversite adını yazın'} />
-                    {!form.university && profile?.university && (
-                      <p className="text-xs text-muted-foreground">Profilinizdeki üniversite kullanılacak: {profile.university}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label>Bölüm{departmentInputs.length > 1 ? 'ler' : ''} *</Label>
-                      <Button type="button" size="sm" variant="outline" onClick={() => setDepartmentInputs((current) => [...current, ''])}>
-                        <Plus className="mr-1 h-3.5 w-3.5" /> Bölüm ekle
-                      </Button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-foreground/90">Sınıf *</Label>
+                        <Select value={form.grade} onValueChange={(v) => setForm({...form, grade: v})}>
+                          <SelectTrigger className="rounded-xl bg-background/70"><SelectValue /></SelectTrigger>
+                          <SelectContent className="z-[95] rounded-xl">
+                            {[1,2,3,4].map(g => <SelectItem key={g} value={String(g)}>{g}. Sınıf</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-foreground/90">Dönem *</Label>
+                        <Select value={form.semester} onValueChange={(v) => setForm({...form, semester: v})}>
+                          <SelectTrigger className="rounded-xl bg-background/70"><SelectValue /></SelectTrigger>
+                          <SelectContent className="z-[95] rounded-xl">
+                            <SelectItem value="Güz Dönemi">Güz Dönemi</SelectItem>
+                            <SelectItem value="Bahar Dönemi">Bahar Dönemi</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      {departmentInputs.map((department, index) => (
-                        <div key={index} className="flex items-center gap-2">
-                          <Input
-                            value={department}
-                            onChange={(e) => setDepartmentInputs((current) => current.map((value, i) => i === index ? e.target.value : value))}
-                            placeholder={index === 0 ? 'Bölüm adını yazın' : 'Diğer bölüm'}
-                            aria-label={`${index + 1}. bölüm`}
-                          />
-                          {departmentInputs.length > 1 && (
-                            <Button type="button" size="icon" variant="ghost" aria-label="Bölümü kaldır" onClick={() => setDepartmentInputs((current) => current.filter((_, i) => i !== index))}>
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground/90">Üniversite *</Label>
+                      <Input className="rounded-xl bg-background/70" value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} placeholder={profile?.university || 'Üniversite adını yazın'} />
+                      {!form.university && profile?.university && (
+                        <p className="text-[11px] text-muted-foreground">Profilinizdeki üniversite kullanılacak: {profile.university}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label className="text-xs font-semibold text-foreground/90">Bölüm{departmentInputs.length > 1 ? 'ler' : ''} *</Label>
+                        <Button type="button" size="sm" variant="outline" className="h-8 rounded-full px-3 text-xs" onClick={() => setDepartmentInputs((current) => [...current, ''])}>
+                          <Plus className="mr-1 h-3.5 w-3.5" /> Bölüm ekle
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        {departmentInputs.map((department, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <Input
+                              className="rounded-xl bg-background/70"
+                              value={department}
+                              onChange={(e) => setDepartmentInputs((current) => current.map((value, i) => i === index ? e.target.value : value))}
+                              placeholder={index === 0 ? 'Bölüm adını yazın' : 'Diğer bölüm'}
+                              aria-label={`${index + 1}. bölüm`}
+                            />
+                            {departmentInputs.length > 1 && (
+                              <Button type="button" size="icon" variant="ghost" className="rounded-full shrink-0" aria-label="Bölümü kaldır" onClick={() => setDepartmentInputs((current) => current.filter((_, i) => i !== index))}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {departmentInputs.length > 1 && (
+                        <p className="text-[11px] text-muted-foreground">Bu not, eklediğiniz tüm bölümler için listelenecek.</p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground/90">Ders *</Label>
+                      <Input className="rounded-xl bg-background/70" value={form.course} onChange={(e) => setForm({...form, course: e.target.value})} placeholder="Ders adını yazın" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-foreground/90">Dosya</Label>
+                      <label className="group flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 border-dashed border-primary/30 bg-primary/[0.04] hover:bg-primary/[0.08] hover:border-primary/50 p-3.5 transition-all">
+                        <input
+                          type="file"
+                          accept={ACCEPTED_TYPES}
+                          className="sr-only"
+                          onChange={(e) => setForm({...form, file: e.target.files?.[0] || null})}
+                        />
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                            <Upload className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs sm:text-sm font-semibold text-foreground">
+                              {form.file ? form.file.name : 'Dosya seçmek için dokunun'}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {form.file
+                                ? `${(form.file.size / (1024 * 1024)).toFixed(2)} MB • Değiştirmek için dokunun`
+                                : 'PDF, PNG, JPG, JPEG veya PPTX'}
+                            </p>
+                          </div>
                         </div>
-                      ))}
+                        {form.file && (
+                          <button
+                            type="button"
+                            onClick={(ev) => {
+                              ev.preventDefault();
+                              ev.stopPropagation();
+                              setForm({ ...form, file: null });
+                            }}
+                            aria-label="Seçilen dosyayı kaldır"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </label>
                     </div>
-                    {departmentInputs.length > 1 && (
-                      <p className="text-xs text-muted-foreground">Bu not, eklediğiniz tüm bölümler için listelenecek.</p>
-                    )}
+                    <div className="space-y-1.5">
+                      <Label className="flex items-center gap-1.5 text-xs font-semibold text-foreground/90"><Lock className="h-3.5 w-3.5 text-primary" /> Not Şifresi (İsteğe bağlı)</Label>
+                      <Input type="password" className="rounded-xl bg-background/70" value={form.note_password} onChange={(e) => setForm({...form, note_password: e.target.value})} placeholder="Şifre belirleyin (opsiyonel)" />
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">Şifre belirlerseniz, diğer kullanıcılar notu görmek için şifre girmelidir. Şifreyi yalnızca admin yönetici ekibi görebilir.</p>
+                    </div>
+                    <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-warning/10 border border-warning/25">
+                      <Checkbox id="ownership" className="mt-0.5 rounded-md" checked={acceptOwnership} onCheckedChange={(v) => setAcceptOwnership(v as boolean)} />
+                      <Label htmlFor="ownership" className="text-xs leading-relaxed cursor-pointer">
+                        Bu notun paylaşılmasını onaylıyorum. Başkasının notu ise izin aldığımı beyan ederim.
+                      </Label>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Ders *</Label>
-                    <Input value={form.course} onChange={(e) => setForm({...form, course: e.target.value})} placeholder="Ders adını yazın" />
+                  <div className="px-5 py-3.5 border-t border-border/60 bg-card/95 shrink-0">
+                    <Button className="w-full h-11 rounded-2xl gradient-primary text-primary-foreground font-semibold" onClick={() => setConfirmUpload(true)} disabled={!acceptOwnership}>
+                      {editingNote ? 'Güncelle' : 'Notu Yükle'}
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Dosya</Label>
-                    <Input type="file" accept={ACCEPTED_TYPES} onChange={(e) => setForm({...form, file: e.target.files?.[0] || null})} />
-                    <p className="text-xs text-muted-foreground">Desteklenen formatlar: PDF, PNG, JPG, JPEG, PPTX</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1"><Lock className="h-3 w-3" /> Not Şifresi (İsteğe bağlı)</Label>
-                    <Input type="password" value={form.note_password} onChange={(e) => setForm({...form, note_password: e.target.value})} placeholder="Şifre belirleyin (opsiyonel)" />
-                    <p className="text-xs text-muted-foreground">Şifre belirlerseniz, diğer kullanıcılar notu görmek için şifre girmelidir. Şifreyi yalnızca admin yönetici ekibi görebilir.</p>
-                  </div>
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20">
-                    <Checkbox id="ownership" checked={acceptOwnership} onCheckedChange={(v) => setAcceptOwnership(v as boolean)} />
-                    <Label htmlFor="ownership" className="text-xs leading-tight cursor-pointer">
-                      Bu notun paylaşılmasını onaylıyorum. Başkasının notu ise izin aldığımı beyan ederim.
-                    </Label>
-                  </div>
-                  <Button className="w-full" onClick={() => setConfirmUpload(true)} disabled={!acceptOwnership}>
-                    {editingNote ? 'Güncelle' : 'Notu Yükle'}
-                  </Button>
-                </div>
+                </>
               ) : (
-                <div className="space-y-4 text-center">
+                <div className="p-5 sm:p-6 space-y-4 text-center">
                   <p className="text-foreground font-medium">Bu notu yüklemek istediğinize emin misiniz?</p>
                   {uploading && (
                     <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-4 text-left">
@@ -717,8 +768,8 @@ const Notes = () => {
                     </div>
                   )}
                   <div className="flex gap-3 justify-center">
-                    <Button variant="outline" disabled={uploading} onClick={() => setConfirmUpload(false)}>İptal</Button>
-                    <Button className="gradient-primary text-primary-foreground min-w-28" disabled={uploading} onClick={handleSubmit}>
+                    <Button variant="outline" className="rounded-xl" disabled={uploading} onClick={() => setConfirmUpload(false)}>İptal</Button>
+                    <Button className="gradient-primary text-primary-foreground min-w-28 rounded-xl" disabled={uploading} onClick={handleSubmit}>
                       {uploading ? `${uploadProgress}%` : 'Evet, Yükle'}
                     </Button>
                   </div>
@@ -1137,7 +1188,7 @@ const Notes = () => {
               setPreviewSlides([]);
             }}
           >
-            <DialogContent className="flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
+            <DialogContent className="flex h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
               <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-16 text-left sm:px-6 sm:pr-20">
                 <DialogClose className="absolute right-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
                   <X className="h-5 w-5" aria-hidden="true" />
@@ -1188,25 +1239,41 @@ const Notes = () => {
 
         {/* First-time upload rules dialog */}
         <Dialog open={showUploadRules} onOpenChange={setShowUploadRules}>
-          <DialogContent className="max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5 text-primary" /> Not Yükleme Kuralları
+          <DialogContent className="flex flex-col gap-4 rounded-3xl">
+            <DialogHeader className="space-y-1">
+              <DialogTitle className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <ShieldCheck className="h-4 w-4" />
+                </span>
+                <span>Not Yükleme Kuralları</span>
               </DialogTitle>
+              <p className="text-xs text-muted-foreground">
+                Topluluk kalitesi ve güvenliği için lütfen paylaşım kurallarını inceleyin.
+              </p>
             </DialogHeader>
-            <ScrollArea className="h-[300px] rounded-lg border border-border p-4">
-              <ol className="space-y-3 list-decimal list-inside text-sm">
-                {NOTE_UPLOAD_RULES.map((rule, i) => (
-                  <li key={i} className="leading-relaxed">{rule}</li>
-                ))}
-              </ol>
-            </ScrollArea>
-            <Button className="w-full gradient-primary text-primary-foreground" onClick={() => {
-              const key = `econotes_upload_rules_${user?.id}`;
-              localStorage.setItem(key, 'true');
-              setShowUploadRules(false);
-              toast.success('Kurallar okundu. Not yüklemeye başlayabilirsiniz.');
-            }}>
+            <div className="max-h-[50dvh] overflow-y-auto pr-1 space-y-2.5">
+              {NOTE_UPLOAD_RULES.map((rule, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 rounded-2xl border border-border/60 bg-muted/40 p-3 text-xs sm:text-sm leading-relaxed text-foreground"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                    {i + 1}
+                  </span>
+                  <span>{rule.replace(/^\d+\.\s*/, '')}</span>
+                </div>
+              ))}
+            </div>
+            <Button
+              className="w-full h-11 rounded-2xl gradient-primary text-primary-foreground font-semibold"
+              onClick={() => {
+                const key = `econotes_upload_rules_${user?.id}`;
+                localStorage.setItem(key, 'true');
+                setShowUploadRules(false);
+                setDialogOpen(true);
+                toast.success('Kurallar okundu. Not yüklemeye başlayabilirsiniz.');
+              }}
+            >
               Okudum ve Anladım
             </Button>
           </DialogContent>

@@ -105,7 +105,13 @@ const Install = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between py-8 px-4 sm:px-6 relative overflow-x-hidden selection:bg-blue-600 selection:text-white">
+    <div
+      className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between px-4 sm:px-6 relative overflow-x-hidden selection:bg-blue-600 selection:text-white"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.5rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)',
+      }}
+    >
       {/* Arka plan yumuşak aydınlatması */}
       <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
         <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-gradient-to-b from-blue-600/20 via-sky-600/10 to-transparent blur-3xl opacity-60 rounded-full" />

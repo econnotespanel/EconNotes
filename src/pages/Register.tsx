@@ -221,32 +221,40 @@ const Register = () => {
       </div>
 
       {/* Right panel - register form */}
-      <div className="flex-1 flex flex-col items-center justify-center p-5 pt-16 sm:p-6 sm:pt-20 bg-background relative min-h-screen lg:min-h-0 lg:pt-6">
-        {/* Mobile back to home */}
-        <Link
-          to="/"
-          className="lg:hidden absolute top-4 left-4 flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <span>← Ana Sayfa</span>
-        </Link>
+      <div
+        className="flex-1 flex flex-col items-center px-5 sm:px-6 bg-background relative min-h-screen lg:min-h-0"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+        }}
+      >
+        <div className="my-auto w-full max-w-sm flex flex-col items-center">
+          {/* Top navigation row */}
+          <div className="w-full flex items-center justify-between lg:justify-end mb-4">
+            <Link
+              to="/"
+              className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors shadow-xs"
+            >
+              <span>← Ana Sayfa</span>
+            </Link>
 
-        {/* Theme toggle */}
-        <button
-          onClick={toggleTheme}
-          className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md shadow-xs hover:shadow-sm transition-all duration-200 text-xs font-semibold text-muted-foreground hover:text-foreground"
-          aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
-        >
-          <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
-          <span className={`transition-transform duration-300 ${theme === 'light' ? 'rotate-0' : 'rotate-90 scale-0 absolute'}`}>🌙</span>
-          <span>{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
-        </button>
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md shadow-xs hover:shadow-sm transition-all duration-200 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
+            >
+              <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
+              <span className={`transition-transform duration-300 ${theme === 'light' ? 'rotate-0' : 'rotate-90 scale-0 absolute'}`}>🌙</span>
+              <span>{theme === 'dark' ? 'Açık Mod' : 'Koyu Mod'}</span>
+            </button>
+          </div>
 
-        {/* Mobile logo */}
-        <div className="lg:hidden flex items-center gap-3 mb-4">
-          <EconLogo className="h-8 w-36" />
-        </div>
+          {/* Mobile logo */}
+          <div className="lg:hidden flex items-center gap-3 mb-4">
+            <EconLogo className="h-8 w-36" />
+          </div>
 
-        <div className="w-full max-w-sm space-y-4 lg:max-h-[85vh] lg:overflow-y-auto lg:pr-1">
+          <div className="w-full space-y-4 lg:max-h-[82vh] lg:overflow-y-auto lg:pr-1">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <UserPlus className="h-5 w-5 text-primary" />
@@ -368,19 +376,28 @@ const Register = () => {
                   <DialogTrigger asChild>
                     <span className="underline text-primary cursor-pointer hover:text-primary/80 font-medium">Panel Kuralları</span>
                   </DialogTrigger>
-                  <DialogContent className="max-h-[80vh] rounded-2xl">
+                  <DialogContent className="rounded-3xl">
                     <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2">
-                        <ShieldCheck className="h-5 w-5 text-primary" /> EconNotes Panel Kuralları
+                      <DialogTitle className="flex items-center gap-2.5">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                          <ShieldCheck className="h-4 w-4" />
+                        </span>
+                        <span>EconNotes Panel Kuralları</span>
                       </DialogTitle>
                     </DialogHeader>
-                    <ScrollArea className="h-[400px] rounded-xl border border-border p-4">
-                      <ol className="space-y-3 list-decimal list-inside text-sm">
-                        {PANEL_RULES.map((rule, i) => (
-                          <li key={i} className="leading-relaxed">{rule}</li>
-                        ))}
-                      </ol>
-                    </ScrollArea>
+                    <div className="max-h-[55dvh] overflow-y-auto pr-1 space-y-2.5">
+                      {PANEL_RULES.map((rule, i) => (
+                        <div
+                          key={i}
+                          className="flex items-start gap-3 rounded-2xl border border-border/60 bg-muted/40 p-3 text-xs sm:text-sm leading-relaxed text-foreground"
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                            {i + 1}
+                          </span>
+                          <span>{rule}</span>
+                        </div>
+                      ))}
+                    </div>
                   </DialogContent>
                 </Dialog>
                 'nı okudum ve kabul ediyorum. Paylaşılan içeriklerden sorumluluk tarafıma aittir.
@@ -431,7 +448,7 @@ const Register = () => {
               Yardım ve Teknik Destek: <a href="mailto:destek@econnotes.online" className="text-primary hover:underline font-medium">destek@econnotes.online</a>
             </p>
             <p className="text-xs text-muted-foreground/60 text-center lg:hidden">EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</p>
-            <p className="text-xs text-muted-foreground/40 text-center lg:hidden">{APP_VERSION}</p>
+          </div>
           </div>
         </div>
       </div>
