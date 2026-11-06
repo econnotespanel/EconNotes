@@ -620,46 +620,77 @@ const CODE_WINDOW_SECONDS = 120;
 const SessionTimer = ({ left, total }: { left: number; total: number }) => {
   const pct = Math.max(0, Math.min(100, (left / total) * 100));
   const tone = left <= 10 ? 'danger' : left <= 30 ? 'warn' : 'ok';
-  const mm = Math.floor(left / 60);
+  const mm = String(Math.floor(left / 60)).padStart(2, '0');
   const ss = String(left % 60).padStart(2, '0');
+  const r = 11;
+  const circ = 2 * Math.PI * r;
+
   return (
     <div
       role="timer"
       aria-live={left <= 10 ? 'assertive' : 'off'}
       className={cn(
-        'rounded-2xl border p-3 transition-colors',
-        tone === 'ok' && 'border-border bg-muted/30',
+        'relative overflow-hidden rounded-2xl border px-3.5 py-2.5 transition-colors animate-in fade-in slide-in-from-top-1 duration-300',
+        tone === 'ok' && 'border-primary/25 bg-primary/[0.06]',
         tone === 'warn' && 'border-amber-500/40 bg-amber-500/10',
         tone === 'danger' && 'border-destructive/50 bg-destructive/10',
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Timer
-            className={cn(
-              'h-4 w-4',
-              tone === 'ok' && 'text-primary',
-              tone === 'warn' && 'text-amber-500',
-              tone === 'danger' && 'animate-pulse text-destructive',
-            )}
-          />
-          {tone === 'danger' ? 'Oturum kapanmak üzere' : 'Kodu girmek için kalan süre'}
-        </span>
+        <div className="flex items-center gap-2.5">
+          <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
+            <svg className="h-7 w-7 -rotate-90" viewBox="0 0 28 28" aria-hidden>
+              <circle cx="14" cy="14" r={r} fill="none" strokeWidth="2.5" className="stroke-border/70" />
+              <circle
+                cx="14"
+                cy="14"
+                r={r}
+                fill="none"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray={circ}
+                strokeDashoffset={circ * (1 - pct / 100)}
+                className={cn(
+                  'transition-[stroke-dashoffset] duration-300 ease-linear',
+                  tone === 'ok' && 'stroke-primary',
+                  tone === 'warn' && 'stroke-amber-500',
+                  tone === 'danger' && 'stroke-destructive',
+                )}
+              />
+            </svg>
+            <Timer
+              className={cn(
+                'absolute h-3.5 w-3.5',
+                tone === 'ok' && 'text-primary',
+                tone === 'warn' && 'text-amber-500',
+                tone === 'danger' && 'animate-pulse text-destructive',
+              )}
+            />
+          </div>
+          <div className="leading-tight">
+            <p className="text-xs font-semibold text-foreground">
+              {tone === 'danger' ? 'Oturum kapanmak üzere' : 'Kalan doğrulama süresi'}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Süre dolduğunda oturum otomatik kapatılır
+            </p>
+          </div>
+        </div>
         <span
           className={cn(
-            'font-mono text-base font-bold tabular-nums',
-            tone === 'ok' && 'text-foreground',
-            tone === 'warn' && 'text-amber-500',
-            tone === 'danger' && 'text-destructive',
+            'rounded-lg px-2.5 py-1 font-mono text-sm font-bold tabular-nums tracking-wider',
+            tone === 'ok' && 'bg-primary/15 text-primary',
+            tone === 'warn' && 'bg-amber-500/20 text-amber-500',
+            tone === 'danger' && 'bg-destructive/20 text-destructive',
           )}
         >
           {mm}:{ss}
         </span>
       </div>
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-border">
+      <div className="absolute inset-x-0 bottom-0 h-[2px] bg-border/50">
         <div
           className={cn(
-            'h-full rounded-full transition-[width] duration-300 ease-linear',
+            'h-full transition-[width] duration-300 ease-linear',
             tone === 'ok' && 'bg-gradient-to-r from-sky-400 to-primary',
             tone === 'warn' && 'bg-amber-500',
             tone === 'danger' && 'bg-destructive',
@@ -678,6 +709,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   const [totp, setTotp] = useState<Factor[]>([]);
   const [phone, setPhone] = useState<string | null>(null);
   const [method, setMethod] = useState<'totp' | 'sms'>('totp');
+  const [started, setStarted] = useState(false);
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -688,11 +720,10 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   const signOutRef = useRef(signOut);
   signOutRef.current = signOut;
 
-  // Security window: the user has CODE_WINDOW_SECONDS to pass the second factor,
-  // otherwise the session is terminated. Based on a fixed deadline so throttled
-  // background tabs can't extend it.
+  // Security window: starts as soon as the user initiates verification (`started`),
+  // giving CODE_WINDOW_SECONDS before automatically terminating the session.
   useEffect(() => {
-    if (state !== 'challenge' || success) return;
+    if (state !== 'challenge' || !started || success) return;
     const deadline = Date.now() + CODE_WINDOW_SECONDS * 1000;
     setTimeLeft(CODE_WINDOW_SECONDS);
     const id = setInterval(() => {
@@ -702,15 +733,24 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
         clearInterval(id);
         setCode('');
         setSent(false);
+        setStarted(false);
         toast.error('Doğrulama süresi doldu. Güvenliğiniz için oturumunuz kapatıldı.');
         void signOutRef.current();
       }
     }, 250);
     return () => clearInterval(id);
-  }, [state, success]);
+  }, [state, started, success]);
 
   const check = useCallback(async () => {
-    if (!user) return setState('ok');
+    if (!user) {
+      setStarted(false);
+      setSent(false);
+      setCode('');
+      setError(false);
+      setSuccess(false);
+      setTimeLeft(CODE_WINDOW_SECONDS);
+      return setState('ok');
+    }
     const [t, p, aal, sid] = await Promise.all([
       verifiedTotp(),
       smsPhone(user.id),
@@ -725,6 +765,12 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
       const { data } = await (supabase as any).from('sms_2fa_sessions').select('session_id').eq('session_id', sid).maybeSingle();
       if (data) return setState('ok');
     }
+    setStarted(false);
+    setSent(false);
+    setCode('');
+    setError(false);
+    setSuccess(false);
+    setTimeLeft(CODE_WINDOW_SECONDS);
     setMethod(t.length ? 'totp' : 'sms');
     setState('challenge');
   }, [user, isAdmin]);
@@ -737,13 +783,20 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     setBusy(false);
     if (err) return toast.error(err);
     setSent(true);
+    setStarted(true);
     startResend();
     toast.success('Kod telefonunuza gönderildi.');
   };
 
+  const startTotpVerification = () => {
+    setCode('');
+    setError(false);
+    setStarted(true);
+  };
+
   const verify = async (value = code) => {
     if (!/^\d{6}$/.test(value)) return;
-    if (timeLeft <= 0) return;
+    if (!started || timeLeft <= 0) return;
     setBusy(true);
     if (method === 'sms') {
       const err = await sms('login_check', { code: value });
@@ -773,14 +826,19 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   }
 
   const both = totp.length > 0 && !!phone;
+  const canEnterCode = started && (method === 'totp' || sent);
   const description =
     state === 'enroll'
       ? 'Yönetici hesapları için iki adımlı doğrulama zorunludur. Devam etmek için bir yöntem ekleyin.'
       : success
         ? 'Kimliğiniz doğrulandı. Yönlendiriliyorsunuz…'
-        : method === 'sms'
-          ? sent ? `${maskPhone(phone)} numarasına gönderilen 6 haneli kodu girin.` : 'Telefonunuza tek kullanımlık bir kod gönderelim.'
-          : 'Doğrulayıcı uygulamanızdaki 6 haneli kodu girin.';
+        : !started
+          ? method === 'sms'
+            ? 'Devam etmek için kayıtlı telefonunuza tek kullanımlık doğrulama kodu gönderin.'
+            : 'Devam etmek için doğrulayıcı uygulamanız ile güvenlik doğrulamasını başlatın.'
+          : method === 'sms'
+            ? sent ? `${maskPhone(phone)} numarasına gönderilen 6 haneli kodu girin.` : 'Kayıtlı numaranıza doğrulama kodu gönderin.'
+            : 'Doğrulayıcı uygulamanızdaki 6 haneli kodu girin.';
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
@@ -800,25 +858,20 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
         {/* glow border */}
         <div aria-hidden className="absolute -inset-px rounded-[1.6rem] bg-gradient-to-b from-primary/50 via-primary/10 to-transparent opacity-70 blur-[1px]" />
         <Card className="sticker-card relative overflow-hidden rounded-3xl p-0">
-          <div className="auth-band relative px-6 pb-16 pt-7">
-            <div className="relative z-10 flex flex-col items-center gap-3.5">
-              <EconLogo allWhite className="h-8 w-36 sm:h-9 sm:w-40" />
-              <div className="flex w-full items-center justify-center gap-3">
-                <span aria-hidden className="hidden h-px flex-1 max-w-12 bg-gradient-to-r from-transparent to-white/60 sm:block" />
-                <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-white/25 bg-white/10 py-1 pl-1 pr-3.5 shadow-[inset_0_1px_0_hsl(0_0%_100%/0.25),0_8px_24px_-12px_hsl(0_0%_0%/0.5)] backdrop-blur-md">
-                  <span className="flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-black tracking-wider text-primary shadow-sm">
-                    <ShieldCheck className="h-3 w-3" strokeWidth={3} /> 2FA
-                  </span>
-                  <span className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-white sm:text-[11px]">
-                    Çift Faktörlü Güvenlik Modülü
-                  </span>
-                </div>
-                <span aria-hidden className="hidden h-px flex-1 max-w-12 bg-gradient-to-l from-transparent to-white/60 sm:block" />
+          <div className="auth-band relative border-b border-white/10 px-5 pb-14 pt-5 sm:px-6 sm:pb-16 sm:pt-6">
+            <div className="relative z-10 flex items-center justify-between gap-2.5">
+              <EconLogo allWhite className="h-6 w-24 shrink-0 sm:h-7 sm:w-32 [&_img]:object-left" />
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white/95 shadow-[inset_0_1px_0_hsl(0_0%_100%/0.25),0_4px_14px_-4px_hsl(0_0%_0%/0.35)] backdrop-blur-md sm:px-3 sm:py-1.5 sm:text-[11px]">
+                <span className="relative flex h-2 w-2 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+                </span>
+                <span className="whitespace-nowrap">Çift Faktörlü Güvenlik Modülü</span>
               </div>
             </div>
           </div>
 
-          <CardHeader className="-mt-11 space-y-3 pb-2 text-center">
+          <CardHeader className="-mt-10 space-y-3 pb-2 text-center">
             <ShieldEmblem success={success} />
             <CardTitle className="pt-1 text-2xl font-extrabold tracking-tight">
               {state === 'enroll' ? 'İki adımlı doğrulamayı kurun' : success ? 'Doğrulandı!' : 'Kimliğinizi doğrulayın'}
@@ -826,8 +879,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
             <p className="mx-auto max-w-xs text-sm leading-relaxed text-muted-foreground">{description}</p>
           </CardHeader>
 
-          <CardContent className="space-y-5 px-6 pb-6">
-            {state === 'challenge' && !success && <SessionTimer left={timeLeft} total={CODE_WINDOW_SECONDS} />}
+          <CardContent className="space-y-4 px-6 pb-6">
             {state === 'enroll' ? (
               <TwoFactorEnroll onDone={() => void check()} />
             ) : success ? (
@@ -865,27 +917,68 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                   </div>
                 )}
 
-                {method === 'sms' && (
-                  <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3">
-                    <MethodTile icon={MessageSquare} tone="violet" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Kayıtlı numara</p>
-                      <p className="font-mono text-sm font-bold tracking-wide">{maskPhone(phone)}</p>
+                {started && <SessionTimer left={timeLeft} total={CODE_WINDOW_SECONDS} />}
+
+                {method === 'totp' && !started && (
+                  <div className="space-y-3 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3.5">
+                      <MethodTile icon={Smartphone} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-foreground">Doğrulayıcı uygulama</p>
+                        <p className="text-xs text-muted-foreground">Uygulamanızdaki 6 haneli tek kullanımlık kod</p>
+                      </div>
                     </div>
                     <Button
-                      size="sm"
-                      variant={sent ? 'outline' : 'cta'}
-                      className="h-9 gap-1.5 rounded-xl px-3 text-xs font-bold"
-                      disabled={busy || resendLeft > 0}
-                      onClick={sendSms}
+                      variant="cta"
+                      className="h-12 w-full gap-2 rounded-xl text-base font-bold"
+                      onClick={startTotpVerification}
                     >
-                      {busy && !sent ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : sent ? <RotateCw className="h-3.5 w-3.5" /> : null}
-                      {sent ? (resendLeft > 0 ? `${resendLeft} sn` : 'Tekrar') : 'Kod gönder'}
+                      <ShieldCheck className="h-4 w-4" />
+                      Doğrulamayı Başlat
                     </Button>
                   </div>
                 )}
 
-                {(method === 'totp' || sent) && (
+                {method === 'sms' && !sent && (
+                  <div className="space-y-3 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3.5">
+                      <MethodTile icon={MessageSquare} tone="violet" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Kayıtlı numara</p>
+                        <p className="font-mono text-sm font-bold tracking-wide">{maskPhone(phone)}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="cta"
+                      className="h-12 w-full gap-2 rounded-xl text-base font-bold"
+                      disabled={busy}
+                      onClick={sendSms}
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+                      Doğrulama Kodu Gönder
+                    </Button>
+                  </div>
+                )}
+
+                {method === 'sms' && sent && (
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/25 px-3 py-2 text-xs">
+                    <span className="truncate text-muted-foreground">
+                      Kod <strong className="font-mono font-semibold text-foreground">{maskPhone(phone)}</strong> numarasına iletildi
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 shrink-0 gap-1 rounded-lg px-2 text-xs font-semibold"
+                      disabled={busy || resendLeft > 0}
+                      onClick={sendSms}
+                    >
+                      <RotateCw className="h-3 w-3" />
+                      {resendLeft > 0 ? `${resendLeft} sn` : 'Tekrar gönder'}
+                    </Button>
+                  </div>
+                )}
+
+                {canEnterCode && (
                   <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <CodeInput
                       key={method}
@@ -905,6 +998,13 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                       Doğrula
                     </Button>
                   </div>
+                )}
+
+                {!started && (
+                  <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground">
+                    <Timer className="h-3.5 w-3.5 text-primary" />
+                    Doğrulama başlatıldığında kodu girmek için 2 dakika süreniz vardır.
+                  </p>
                 )}
               </>
             )}
