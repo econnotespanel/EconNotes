@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.4"
   }
   public: {
     Tables: {
@@ -1050,86 +1050,6 @@ export type Database = {
         }
         Relationships: []
       }
-      support_ticket_messages: {
-        Row: {
-          author_id: string
-          author_role: string
-          created_at: string
-          id: string
-          message: string
-          ticket_id: string
-        }
-        Insert: {
-          author_id: string
-          author_role: string
-          created_at?: string
-          id?: string
-          message: string
-          ticket_id: string
-        }
-        Update: {
-          author_id?: string
-          author_role?: string
-          created_at?: string
-          id?: string
-          message?: string
-          ticket_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "support_ticket_messages_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "support_tickets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      support_tickets: {
-        Row: {
-          category: string
-          closed_at: string | null
-          created_at: string
-          first_response_at: string | null
-          id: string
-          initial_message: string
-          response_due_at: string
-          reviewing_at: string | null
-          status: string
-          subject: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          category: string
-          closed_at?: string | null
-          created_at?: string
-          first_response_at?: string | null
-          id?: string
-          initial_message: string
-          response_due_at?: string
-          reviewing_at?: string | null
-          status?: string
-          subject: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          category?: string
-          closed_at?: string | null
-          created_at?: string
-          first_response_at?: string | null
-          id?: string
-          initial_message?: string
-          response_due_at?: string
-          reviewing_at?: string | null
-          status?: string
-          subject?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           id: string
@@ -1154,10 +1074,6 @@ export type Database = {
     }
     Functions: {
       admin_get_note_password: { Args: { _note_id: string }; Returns: string }
-      admin_set_download_quota: {
-        Args: { _quota: number | null; _user_id: string }
-        Returns: boolean
-      }
       award_daily_login: {
         Args: never
         Returns: {
@@ -1170,10 +1086,6 @@ export type Database = {
       }
       award_points: {
         Args: { _amount: number; _reason: string }
-        Returns: number
-      }
-      close_unanswered_support_tickets: {
-        Args: never
         Returns: number
       }
       get_download_quota: {
