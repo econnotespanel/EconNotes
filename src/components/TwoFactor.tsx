@@ -81,7 +81,7 @@ const useCountdown = () => {
 
 const OtpSlot = ({ index, error }: { index: number; error: boolean }) => {
   const ctx = useContext(OTPInputContext);
-  const { char, hasFakeCaret, isActive } = ctx.slots[index];
+  const { char, hasFakeCaret, isActive } = ctx?.slots?.[index] ?? { char: null, hasFakeCaret: false, isActive: false };
   return (
     <div
       className={cn(
@@ -135,18 +135,15 @@ const CodeInput = ({
       onChange={(v) => onChange(v.replace(/\D/g, ''))}
       onComplete={onComplete}
       containerClassName="flex items-center gap-2 has-[:disabled]:opacity-60"
-      render={() => (
-        <>
-          <div className="flex gap-1.5 sm:gap-2">
-            {[0, 1, 2].map((i) => <OtpSlot key={i} index={i} error={error} />)}
-          </div>
-          <div className="mx-0.5 h-0.5 w-3 rounded-full bg-border" />
-          <div className="flex gap-1.5 sm:gap-2">
-            {[3, 4, 5].map((i) => <OtpSlot key={i} index={i} error={error} />)}
-          </div>
-        </>
-      )}
-    />
+    >
+      <div className="flex gap-1.5 sm:gap-2">
+        {[0, 1, 2].map((i) => <OtpSlot key={i} index={i} error={error} />)}
+      </div>
+      <div className="mx-0.5 h-0.5 w-3 rounded-full bg-border" />
+      <div className="flex gap-1.5 sm:gap-2">
+        {[3, 4, 5].map((i) => <OtpSlot key={i} index={i} error={error} />)}
+      </div>
+    </OTPInput>
   </div>
 );
 
