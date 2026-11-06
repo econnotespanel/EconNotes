@@ -704,6 +704,7 @@ export type Database = {
           hide_surname: boolean
           id: string
           last_login: string | null
+          manual_download_quota: number | null
           university: string
           updated_at: string
           user_id: string
@@ -720,6 +721,7 @@ export type Database = {
           hide_surname?: boolean
           id?: string
           last_login?: string | null
+          manual_download_quota?: number | null
           university?: string
           updated_at?: string
           user_id: string
@@ -736,6 +738,7 @@ export type Database = {
           hide_surname?: boolean
           id?: string
           last_login?: string | null
+          manual_download_quota?: number | null
           university?: string
           updated_at?: string
           user_id?: string
@@ -1074,6 +1077,10 @@ export type Database = {
     }
     Functions: {
       admin_get_note_password: { Args: { _note_id: string }; Returns: string }
+      admin_set_download_quota: {
+        Args: { _quota: number; _user_id: string }
+        Returns: boolean
+      }
       award_daily_login: {
         Args: never
         Returns: {

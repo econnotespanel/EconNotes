@@ -8,12 +8,16 @@ async function verifyAdminPanelSync() {
   console.log('EconNotes Admin Panel User Sync & Verification');
   console.log('='.repeat(70));
 
+  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+    console.error('Set ADMIN_EMAIL and ADMIN_PASSWORD env vars.');
+    process.exit(1);
+  }
   const client = createClient(SUPABASE_URL, ANON_KEY);
 
   // 1. Sign in as Super Admin
   const { data: auth, error: loginErr } = await client.auth.signInWithPassword({
-    email: 'kaancolakogullari1@gmail.com',
-    password: 'EconNotesAdmin2026!'
+    email: process.env.ADMIN_EMAIL,
+    password: process.env.ADMIN_PASSWORD
   });
   if (loginErr) {
     console.error('Login failed:', loginErr.message);
