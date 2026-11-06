@@ -492,6 +492,17 @@ const AdminPanel = () => {
     fetchAll();
   };
 
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="flex min-h-[60vh] items-center justify-center gap-2 text-muted-foreground">
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="text-sm">Yönetici yetkisi doğrulanıyor…</span>
+        </div>
+      </Layout>
+    );
+  }
+
   if (!isAdmin) return null;
 
   return (

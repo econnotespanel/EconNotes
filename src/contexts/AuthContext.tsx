@@ -134,24 +134,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!mounted) return;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
-      setProfile(null);
-      setIsAdmin(false);
       if (!nextSession?.user) {
+        setProfile(null);
+        setIsAdmin(false);
         setLoading(false);
         return;
       }
 
-      // Auth session is enough to render the application. Profile/role data is
-      // hydrated in the background so a slow database cannot lock the whole app.
-      setLoading(false);
-      void fetchProfile(
+      // Ana yönetici hesapları için gecikmesiz anlık yetki tanımlaması
+      const email = nextSession.user.email?.toLowerCase();
+      const isDesignatedAdmin = email === 'kaancolakogullari1@gmail.com' ||
+        email === 'kaancolakogullari9@gmail.com' ||
+        email === 'econnotespanel@gmail.com';
+      if (isDesignatedAdmin) {
+        setIsAdmin(true);
+      }
+
+      try {
+        await fetchProfile(
           nextSession.user.id,
           detectInactivity,
           nextSession.user.email,
           getOAuthFullName(nextSession.user),
           nextSession.user,
-        ).then(() => supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('user_id', nextSession.user.id))
-        .catch((error) => console.error('Profil arka planda yüklenemedi:', error));
+        );
+      } catch (error) {
+        console.error('Profil yüklenirken hata:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          void supabase
+            .from('profiles')
+            .update({ last_login: new Date().toISOString() })
+            .eq('user_id', nextSession.user.id);
+        }
+      }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
