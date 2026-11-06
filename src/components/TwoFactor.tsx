@@ -63,19 +63,6 @@ const smsPhone = async (uid: string) => {
 
 const maskPhone = (p?: string | null) => (p ? `${p.slice(0, 5)} ••• ${p.slice(-2)}` : '');
 
-const RESEND_SECONDS = 60;
-
-/** Simple resend countdown. */
-const useCountdown = () => {
-  const [left, setLeft] = useState(0);
-  useEffect(() => {
-    if (left <= 0) return;
-    const t = setTimeout(() => setLeft((l) => l - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left]);
-  return [left, () => setLeft(RESEND_SECONDS)] as const;
-};
-
 /* ------------------------------------------------------------------ */
 /* Visual building blocks                                              */
 /* ------------------------------------------------------------------ */
@@ -148,20 +135,14 @@ const CodeInput = ({
   </div>
 );
 
-/** Animated shield emblem with radiating rings. */
+/** Shield emblem. */
 const ShieldEmblem = ({ success = false, size = 'lg' }: { success?: boolean; size?: 'lg' | 'sm' }) => {
   const lg = size === 'lg';
   return (
     <div className={cn('relative mx-auto flex items-center justify-center', lg ? 'h-20 w-20' : 'h-10 w-10')}>
-      {lg && !success && (
-        <>
-          <span className="absolute inset-0 rounded-[1.4rem] bg-primary/30 animate-shield-ring" />
-          <span className="absolute inset-0 rounded-[1.4rem] bg-primary/20 animate-shield-ring [animation-delay:1.2s]" />
-        </>
-      )}
       <div
         className={cn(
-          'relative flex items-center justify-center text-white shadow-lg transition-all duration-500',
+          'relative flex items-center justify-center text-white shadow-lg transition-colors duration-300',
           lg ? 'h-20 w-20 rounded-[1.4rem] border-4 border-card' : 'h-10 w-10 rounded-xl',
           success
             ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/40'
@@ -169,7 +150,7 @@ const ShieldEmblem = ({ success = false, size = 'lg' }: { success?: boolean; siz
         )}
       >
         {success ? (
-          <Check className={cn('animate-in zoom-in-50 duration-300', lg ? 'h-9 w-9' : 'h-5 w-5')} strokeWidth={3} />
+          <Check className={cn(lg ? 'h-9 w-9' : 'h-5 w-5')} strokeWidth={3} />
         ) : (
           <ShieldCheck className={lg ? 'h-9 w-9' : 'h-5 w-5'} />
         )}
@@ -236,7 +217,6 @@ export const TwoFactorEnroll = ({ onDone, onCancel }: { onDone: () => void; onCa
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [resendLeft, startResend] = useCountdown();
 
   const startTotp = async () => {
     setBusy(true);
@@ -260,7 +240,6 @@ export const TwoFactorEnroll = ({ onDone, onCancel }: { onDone: () => void; onCa
     setBusy(false);
     if (err) return toast.error(err);
     setSent(true);
-    startResend();
     toast.success('Doğrulama kodu telefonunuza gönderildi.');
   };
 
@@ -381,11 +360,11 @@ export const TwoFactorEnroll = ({ onDone, onCancel }: { onDone: () => void; onCa
           <Button
             variant={sent ? 'outline' : 'cta'}
             className="h-11 w-full gap-2 rounded-xl font-bold"
-            disabled={busy || resendLeft > 0}
+            disabled={busy}
             onClick={sendSms}
           >
-            {busy && !sent ? <Loader2 className="h-4 w-4 animate-spin" /> : sent ? <RotateCw className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
-            {sent ? (resendLeft > 0 ? `Tekrar gönder (${resendLeft} sn)` : 'Kodu tekrar gönder') : 'Kod gönder'}
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : sent ? <RotateCw className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+            {sent ? 'Kodu tekrar gönder' : 'Kod gönder'}
           </Button>
         </div>
       )}
@@ -715,7 +694,6 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [resendLeft, startResend] = useCountdown();
   const [timeLeft, setTimeLeft] = useState(CODE_WINDOW_SECONDS);
   const signOutRef = useRef(signOut);
   signOutRef.current = signOut;
@@ -784,7 +762,6 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     if (err) return toast.error(err);
     setSent(true);
     setStarted(true);
-    startResend();
     toast.success('Kod telefonunuza gönderildi.');
   };
 
@@ -862,10 +839,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
             <div className="relative z-10 flex items-center justify-between gap-2.5">
               <EconLogo allWhite className="h-6 w-24 shrink-0 sm:h-7 sm:w-32 [&_img]:object-left" />
               <div className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white/95 shadow-[inset_0_1px_0_hsl(0_0%_100%/0.25),0_4px_14px_-4px_hsl(0_0%_0%/0.35)] backdrop-blur-md sm:px-3 sm:py-1.5 sm:text-[11px]">
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-75" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-                </span>
+                <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
                 <span className="whitespace-nowrap">Çift Faktörlü Güvenlik Modülü</span>
               </div>
             </div>
@@ -969,11 +943,11 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                       size="sm"
                       variant="ghost"
                       className="h-7 shrink-0 gap-1 rounded-lg px-2 text-xs font-semibold"
-                      disabled={busy || resendLeft > 0}
+                      disabled={busy}
                       onClick={sendSms}
                     >
-                      <RotateCw className="h-3 w-3" />
-                      {resendLeft > 0 ? `${resendLeft} sn` : 'Tekrar gönder'}
+                      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCw className="h-3 w-3" />}
+                      Tekrar gönder
                     </Button>
                   </div>
                 )}
