@@ -106,7 +106,10 @@ const Announcements = () => {
       toast.success('Duyuru eklendi!');
 
       // 1. OneSignal Cloud Push: Delivers directly to iPhone lock screens & Android devices even when website is closed!
-      void sendOneSignalNotification(data.title, data.content);
+      void sendOneSignalNotification(data.title, data.content).then((res) => {
+        if (res.success) toast.success('Cihaz bildirimi gönderildi.');
+        else toast.error('Cihaz bildirimi gönderilemedi: ' + res.reason);
+      });
 
       // 2. Broadcast announcement notification to other devices in real-time
       try {

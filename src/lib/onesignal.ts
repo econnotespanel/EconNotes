@@ -94,7 +94,7 @@ export const sendOneSignalNotification = async (
   title: string,
   content: string,
   url: string = 'https://econnotes.online/announcements'
-): Promise<boolean> => {
+): Promise<{ success: boolean; reason?: string; recipients?: number }> => {
   try {
     const { data, error } = await supabase.functions.invoke('send-notification', {
       body: { title, content, url },
@@ -102,12 +102,19 @@ export const sendOneSignalNotification = async (
 
     if (error) {
       console.warn('send-notification edge function error:', error);
-      return false;
+      return { success: false, reason: 'Bildirim servisine ulaşılamadı.' };
     }
 
-    return Boolean(data?.success);
+    if (!data?.success) {
+      const reason = data?.reason === 'ONESIGNAL_REST_API_KEY not configured'
+        ? 'Bildirim anahtarı tanımlı değil.'
+        : (data?.data?.errors?.[0] ?? 'Bildirim gönderilemedi.');
+      return { success: false, reason: String(reason) };
+    }
+
+    return { success: true, recipients: data?.data?.recipients };
   } catch (error) {
     console.error('OneSignal push dispatch error:', error);
-    return false;
+    return { success: false, reason: 'Bildirim gönderilemedi.' };
   }
 };
