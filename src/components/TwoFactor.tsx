@@ -1,6 +1,23 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2, ShieldCheck, Smartphone, MessageSquare, Trash2 } from 'lucide-react';
+import { useCallback, useContext, useEffect, useState } from 'react';
+import {
+  Loader2,
+  ShieldCheck,
+  Smartphone,
+  MessageSquare,
+  Trash2,
+  Plus,
+  Lock,
+  Copy,
+  Check,
+  ChevronRight,
+  ArrowLeft,
+  KeyRound,
+  Fingerprint,
+  RotateCw,
+  LogOut,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { OTPInput, OTPInputContext } from 'input-otp';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -43,22 +60,174 @@ const smsPhone = async (uid: string) => {
   return (data?.phone as string) ?? null;
 };
 
-const CodeInput = ({ value, onChange, id }: { value: string; onChange: (v: string) => void; id?: string }) => (
-  <Input
-    id={id}
-    aria-label="Doğrulama kodu"
-    className="h-16 rounded-2xl border-2 border-input bg-muted/30 text-center font-mono text-[26px] font-bold tracking-[0.45em] shadow-inner [text-indent:0.45em] placeholder:font-normal placeholder:tracking-[0.28em] placeholder:text-muted-foreground focus-visible:border-primary focus-visible:bg-background focus-visible:ring-2 focus-visible:ring-primary/25"
-    value={value}
-    maxLength={6}
-    inputMode="numeric"
-    autoComplete="one-time-code"
-    placeholder="••••••"
-    onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
-  />
+const maskPhone = (p?: string | null) => (p ? `${p.slice(0, 5)} ••• ${p.slice(-2)}` : '');
+
+const RESEND_SECONDS = 60;
+
+/** Simple resend countdown. */
+const useCountdown = () => {
+  const [left, setLeft] = useState(0);
+  useEffect(() => {
+    if (left <= 0) return;
+    const t = setTimeout(() => setLeft((l) => l - 1), 1000);
+    return () => clearTimeout(t);
+  }, [left]);
+  return [left, () => setLeft(RESEND_SECONDS)] as const;
+};
+
+/* ------------------------------------------------------------------ */
+/* Visual building blocks                                              */
+/* ------------------------------------------------------------------ */
+
+const OtpSlot = ({ index, error }: { index: number; error: boolean }) => {
+  const ctx = useContext(OTPInputContext);
+  const { char, hasFakeCaret, isActive } = ctx.slots[index];
+  return (
+    <div
+      className={cn(
+        'relative flex h-14 w-11 items-center justify-center rounded-xl border-2 bg-muted/30 font-mono text-2xl font-bold transition-all duration-200 sm:h-16 sm:w-12',
+        char ? 'border-primary/60 bg-primary/10 text-foreground' : 'border-border text-muted-foreground',
+        isActive && 'scale-105 border-primary bg-background shadow-[0_0_0_4px_hsl(var(--primary)/0.18),0_8px_24px_-8px_hsl(var(--primary)/0.6)]',
+        error && 'border-destructive bg-destructive/10 text-destructive shadow-none',
+      )}
+    >
+      {char ? (
+        <span className="animate-in zoom-in-50 fade-in duration-150">{char}</span>
+      ) : (
+        !hasFakeCaret && <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+      )}
+      {hasFakeCaret && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="h-7 w-0.5 animate-caret-blink rounded-full bg-primary" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** 6-digit segmented code field with paste, autofill and auto-submit support. */
+const CodeInput = ({
+  value,
+  onChange,
+  onComplete,
+  error = false,
+  disabled,
+  id,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onComplete?: (v: string) => void;
+  error?: boolean;
+  disabled?: boolean;
+  id?: string;
+}) => (
+  <div className={cn('flex justify-center', error && 'animate-shake')}>
+    <OTPInput
+      id={id}
+      aria-label="Doğrulama kodu"
+      maxLength={6}
+      value={value}
+      disabled={disabled}
+      inputMode="numeric"
+      autoComplete="one-time-code"
+      pattern="^\d*$"
+      autoFocus
+      onChange={(v) => onChange(v.replace(/\D/g, ''))}
+      onComplete={onComplete}
+      containerClassName="flex items-center gap-2 has-[:disabled]:opacity-60"
+      render={() => (
+        <>
+          <div className="flex gap-1.5 sm:gap-2">
+            {[0, 1, 2].map((i) => <OtpSlot key={i} index={i} error={error} />)}
+          </div>
+          <div className="mx-0.5 h-0.5 w-3 rounded-full bg-border" />
+          <div className="flex gap-1.5 sm:gap-2">
+            {[3, 4, 5].map((i) => <OtpSlot key={i} index={i} error={error} />)}
+          </div>
+        </>
+      )}
+    />
+  </div>
 );
 
+/** Animated shield emblem with radiating rings. */
+const ShieldEmblem = ({ success = false, size = 'lg' }: { success?: boolean; size?: 'lg' | 'sm' }) => {
+  const lg = size === 'lg';
+  return (
+    <div className={cn('relative mx-auto flex items-center justify-center', lg ? 'h-20 w-20' : 'h-10 w-10')}>
+      {lg && !success && (
+        <>
+          <span className="absolute inset-0 rounded-[1.4rem] bg-primary/30 animate-shield-ring" />
+          <span className="absolute inset-0 rounded-[1.4rem] bg-primary/20 animate-shield-ring [animation-delay:1.2s]" />
+        </>
+      )}
+      <div
+        className={cn(
+          'relative flex items-center justify-center text-white shadow-lg transition-all duration-500',
+          lg ? 'h-20 w-20 rounded-[1.4rem] border-4 border-card' : 'h-10 w-10 rounded-xl',
+          success
+            ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/40'
+            : 'bg-gradient-to-br from-sky-400 via-primary to-indigo-600 shadow-primary/40',
+        )}
+      >
+        {success ? (
+          <Check className={cn('animate-in zoom-in-50 duration-300', lg ? 'h-9 w-9' : 'h-5 w-5')} strokeWidth={3} />
+        ) : (
+          <ShieldCheck className={lg ? 'h-9 w-9' : 'h-5 w-5'} />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Stepper = ({ step }: { step: 1 | 2 | 3 }) => {
+  const labels = ['Yöntem', 'Kurulum', 'Doğrula'];
+  return (
+    <div className="flex items-center gap-2">
+      {labels.map((l, i) => {
+        const n = i + 1;
+        const done = n < step;
+        const active = n === step;
+        return (
+          <div key={l} className="flex flex-1 items-center gap-2">
+            <div
+              className={cn(
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold transition-all',
+                done && 'bg-primary text-primary-foreground',
+                active && 'bg-primary/15 text-primary ring-2 ring-primary',
+                !done && !active && 'bg-muted text-muted-foreground',
+              )}
+            >
+              {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : n}
+            </div>
+            <span className={cn('text-xs font-semibold', active ? 'text-foreground' : 'text-muted-foreground')}>{l}</span>
+            {n < 3 && <div className={cn('h-0.5 flex-1 rounded-full', done ? 'bg-primary' : 'bg-border')} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const MethodTile = ({ icon: Icon, tone = 'primary' }: { icon: typeof Smartphone; tone?: 'primary' | 'violet' }) => (
+  <span
+    className={cn(
+      'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-md',
+      tone === 'primary'
+        ? 'bg-gradient-to-br from-sky-400 to-primary shadow-primary/30'
+        : 'bg-gradient-to-br from-violet-400 to-indigo-600 shadow-indigo-500/30',
+    )}
+  >
+    <Icon className="h-5 w-5" />
+  </span>
+);
+
+/* ------------------------------------------------------------------ */
+/* Enrollment                                                          */
+/* ------------------------------------------------------------------ */
+
 /** Enrollment UI: authenticator app (TOTP) or SMS. */
-export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
+export const TwoFactorEnroll = ({ onDone, onCancel }: { onDone: () => void; onCancel?: () => void }) => {
   const [mode, setMode] = useState<'totp' | 'phone' | null>(null);
   const [factorId, setFactorId] = useState('');
   const [qr, setQr] = useState('');
@@ -67,6 +236,9 @@ export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [resendLeft, startResend] = useCountdown();
 
   const startTotp = async () => {
     setBusy(true);
@@ -90,88 +262,246 @@ export const TwoFactorEnroll = ({ onDone }: { onDone: () => void }) => {
     setBusy(false);
     if (err) return toast.error(err);
     setSent(true);
+    startResend();
     toast.success('Doğrulama kodu telefonunuza gönderildi.');
   };
 
-  const verify = async () => {
-    if (!/^\d{6}$/.test(code)) return toast.error('6 haneli kodu girin.');
+  const verify = async (value = code) => {
+    if (!/^\d{6}$/.test(value)) return toast.error('6 haneli kodu girin.');
     setBusy(true);
     if (mode === 'phone') {
-      const err = await sms('enroll_confirm', { phone, code });
+      const err = await sms('enroll_confirm', { phone, code: value });
       setBusy(false);
-      if (err) return toast.error(err);
+      if (err) { setError(true); return toast.error(err); }
     } else {
       const ch = await supabase.auth.mfa.challenge({ factorId });
       if (ch.error) { setBusy(false); return toast.error(ch.error.message); }
-      const { error } = await supabase.auth.mfa.verify({ factorId, challengeId: ch.data.id, code });
+      const { error } = await supabase.auth.mfa.verify({ factorId, challengeId: ch.data.id, code: value });
       setBusy(false);
-      if (error) return toast.error('Kod hatalı.');
+      if (error) { setError(true); return toast.error('Kod hatalı.'); }
     }
     toast.success('İki adımlı doğrulama etkinleştirildi.');
     onDone();
   };
 
+  const copySecret = async () => {
+    try {
+      await navigator.clipboard.writeText(secret);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error('Kopyalanamadı.');
+    }
+  };
+
+  const reset = () => { setMode(null); setFactorId(''); setSent(false); setCode(''); setError(false); };
+  const step: 1 | 2 | 3 = !mode ? 1 : mode === 'totp' || sent ? 3 : 2;
+
   if (!mode) {
     return (
-      <div className="grid gap-3">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={startTotp}
-          className="flex items-start gap-3 rounded-2xl border border-border bg-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:bg-muted/60 disabled:opacity-60"
-        >
-          <span className="icon-tile flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"><Smartphone className="h-5 w-5" /></span>
-          <span>
-            <span className="block text-sm font-bold">Doğrulayıcı uygulama</span>
-            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">QR kodu tarayın, kodu uygulama üretsin.</span>
-          </span>
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => setMode('phone')}
-          className="flex items-start gap-3 rounded-2xl border border-border bg-muted/30 p-4 text-left transition-all hover:border-primary/50 hover:bg-muted/60 disabled:opacity-60"
-        >
-          <span className="icon-tile flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"><MessageSquare className="h-5 w-5" /></span>
-          <span>
-            <span className="block text-sm font-bold">SMS kodu</span>
-            <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">6 haneli kod telefonunuza gönderilsin.</span>
-          </span>
-        </button>
+      <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <Stepper step={1} />
+        <div className="grid gap-3">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={startTotp}
+            className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-border bg-muted/30 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10 disabled:opacity-60"
+          >
+            <MethodTile icon={Smartphone} />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2 text-sm font-bold">
+                Doğrulayıcı uygulama
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-500">Önerilen</span>
+              </span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">Google Authenticator, Authy veya Microsoft Authenticator ile çalışır.</span>
+            </span>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setMode('phone')}
+            className="group relative flex items-center gap-4 overflow-hidden rounded-2xl border border-border bg-muted/30 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/10 disabled:opacity-60"
+          >
+            <MethodTile icon={MessageSquare} tone="violet" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold">SMS kodu</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">Her girişte 6 haneli kod telefonunuza gönderilsin.</span>
+            </span>
+            <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1 group-hover:text-primary" />
+          </button>
+        </div>
+        {onCancel && (
+          <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={onCancel}>Vazgeç</Button>
+        )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300">
+      <Stepper step={step} />
+
       {mode === 'totp' && qr && (
-        <div className="space-y-3 text-sm">
-          <p className="text-center text-muted-foreground">Google Authenticator veya benzeri bir uygulamayla kodu tarayın.</p>
-          <div className="mx-auto w-fit rounded-2xl border-2 border-border bg-card p-3 shadow-inner">
+        <div className="space-y-4 text-sm">
+          <p className="text-center text-muted-foreground">Doğrulayıcı uygulamanızla aşağıdaki QR kodu tarayın.</p>
+          <div className="relative mx-auto w-fit rounded-3xl bg-white p-4 shadow-xl shadow-primary/20">
+            {/* corner accents */}
+            <span className="absolute left-1.5 top-1.5 h-5 w-5 rounded-tl-xl border-l-4 border-t-4 border-primary" />
+            <span className="absolute right-1.5 top-1.5 h-5 w-5 rounded-tr-xl border-r-4 border-t-4 border-primary" />
+            <span className="absolute bottom-1.5 left-1.5 h-5 w-5 rounded-bl-xl border-b-4 border-l-4 border-primary" />
+            <span className="absolute bottom-1.5 right-1.5 h-5 w-5 rounded-br-xl border-b-4 border-r-4 border-primary" />
+            <span className="pointer-events-none absolute left-4 right-4 h-0.5 animate-scan-line rounded-full bg-primary/70 shadow-[0_0_12px_2px_hsl(var(--primary)/0.6)]" />
             <img src={qr} alt="Doğrulama QR kodu" className="h-44 w-44" />
           </div>
-          <p className="break-all text-center text-xs text-muted-foreground">Elle giriş: {secret}</p>
+          <div className="flex items-center gap-2 rounded-xl border border-dashed border-border bg-muted/30 p-2 pl-3">
+            <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <code className="min-w-0 flex-1 truncate font-mono text-xs tracking-wider text-muted-foreground">{secret}</code>
+            <Button type="button" size="sm" variant="ghost" className="h-8 gap-1.5 rounded-lg px-2.5 text-xs" onClick={copySecret}>
+              {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? 'Kopyalandı' : 'Kopyala'}
+            </Button>
+          </div>
         </div>
       )}
+
       {mode === 'phone' && (
         <div className="space-y-2">
-          <Label htmlFor="mfa-phone">Telefon numarası</Label>
-          <Input id="mfa-phone" value={phone} disabled={sent} onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ''))} inputMode="tel" className="h-12 rounded-xl" />
-          <Button variant={sent ? 'outline' : 'cta'} className="h-11 w-full rounded-xl font-bold" disabled={busy} onClick={sendSms}>
-            {busy && !sent && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{sent ? 'Kodu tekrar gönder.' : 'Kod gönder.'}
+          <Label htmlFor="mfa-phone" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Telefon numarası</Label>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg">🇹🇷</span>
+            <Input
+              id="mfa-phone"
+              value={phone}
+              disabled={sent}
+              onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ''))}
+              inputMode="tel"
+              className="h-12 rounded-xl pl-11 font-mono text-base tracking-wide"
+            />
+          </div>
+          <Button
+            variant={sent ? 'outline' : 'cta'}
+            className="h-11 w-full gap-2 rounded-xl font-bold"
+            disabled={busy || resendLeft > 0}
+            onClick={sendSms}
+          >
+            {busy && !sent ? <Loader2 className="h-4 w-4 animate-spin" /> : sent ? <RotateCw className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+            {sent ? (resendLeft > 0 ? `Tekrar gönder (${resendLeft} sn)` : 'Kodu tekrar gönder') : 'Kod gönder'}
           </Button>
         </div>
       )}
+
       {(mode === 'totp' || sent) && (
-        <div className="space-y-2">
-          <Label htmlFor="mfa-code">6 haneli kod</Label>
-          <CodeInput id="mfa-code" value={code} onChange={setCode} />
-          <Button variant="cta" className="h-11 w-full rounded-xl font-bold" disabled={busy || code.length !== 6} onClick={verify}>
-            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Doğrula.
+        <div className="space-y-3">
+          <Label htmlFor="mfa-code" className="block text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">6 haneli kod</Label>
+          <CodeInput
+            id="mfa-code"
+            value={code}
+            error={error}
+            disabled={busy}
+            onChange={(v) => { setCode(v); setError(false); }}
+            onComplete={(v) => void verify(v)}
+          />
+          <Button variant="cta" className="h-12 w-full gap-2 rounded-xl font-bold" disabled={busy || code.length !== 6} onClick={() => verify()}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            Doğrula ve etkinleştir
           </Button>
         </div>
       )}
-      <Button variant="ghost" size="sm" onClick={() => { setMode(null); setFactorId(''); setSent(false); setCode(''); }}>Geri.</Button>
+
+      <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={reset}>
+        <ArrowLeft className="h-4 w-4" /> Geri
+      </Button>
+    </div>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/* Profile card                                                        */
+/* ------------------------------------------------------------------ */
+
+const MethodRow = ({
+  icon,
+  tone,
+  title,
+  subtitle,
+  onRemove,
+}: {
+  icon: typeof Smartphone;
+  tone?: 'primary' | 'violet';
+  title: string;
+  subtitle: string;
+  onRemove: () => Promise<void> | void;
+}) => {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!confirm) return;
+    const t = setTimeout(() => setConfirm(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirm]);
+
+  return (
+    <div className="group flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3 transition-all hover:border-primary/40 hover:bg-muted/50">
+      <MethodTile icon={icon} tone={tone} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          {title}
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-500">
+            <Check className="h-3 w-3" strokeWidth={3} /> Aktif
+          </span>
+        </div>
+        <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+      </div>
+      {confirm ? (
+        <Button
+          size="sm"
+          variant="destructive"
+          className="h-8 rounded-lg px-3 text-xs font-bold animate-in fade-in zoom-in-95"
+          disabled={busy}
+          onClick={async () => { setBusy(true); await onRemove(); setBusy(false); setConfirm(false); }}
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Kaldır?'}
+        </Button>
+      ) : (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Kaldır"
+          className="h-9 w-9 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => setConfirm(true)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
+    </div>
+  );
+};
+
+const SecurityMeter = ({ count }: { count: number }) => {
+  const level = Math.min(count, 2);
+  const meta = [
+    { label: 'Düşük', hint: 'Hesabınız yalnızca şifreyle korunuyor.', color: 'bg-amber-500', text: 'text-amber-500' },
+    { label: 'İyi', hint: 'Yedek bir yöntem eklemek erişimi garantiye alır.', color: 'bg-sky-500', text: 'text-sky-500' },
+    { label: 'Güçlü', hint: 'Hesabınız en üst seviyede korunuyor.', color: 'bg-emerald-500', text: 'text-emerald-500' },
+  ][level];
+  return (
+    <div className="rounded-2xl border border-border bg-gradient-to-br from-muted/50 to-muted/10 p-4">
+      <div className="mb-2 flex items-center justify-between text-xs">
+        <span className="flex items-center gap-1.5 font-semibold text-muted-foreground">
+          <Fingerprint className="h-4 w-4" /> Güvenlik seviyesi
+        </span>
+        <span className={cn('font-bold', meta.text)}>{meta.label}</span>
+      </div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-1.5 overflow-hidden rounded-full bg-border">
+            <div className={cn('h-full rounded-full transition-all duration-700', i <= level ? cn('w-full', meta.color) : 'w-0')} />
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">{meta.hint}</p>
     </div>
   );
 };
@@ -198,58 +528,93 @@ export const TwoFactorCard = () => {
   const removeTotp = async (id: string) => {
     if (!guard()) return;
     const { error } = await supabase.auth.mfa.unenroll({ factorId: id });
-    if (error) return toast.error('Kaldırılamadı: ' + error.message);
+    if (error) return void toast.error('Kaldırılamadı: ' + error.message);
     toast.success('Doğrulama yöntemi kaldırıldı.');
     void load();
   };
   const removeSms = async () => {
     if (!guard() || !user) return;
     const { error } = await (supabase as any).from('sms_2fa').delete().eq('user_id', user.id);
-    if (error) return toast.error('Kaldırılamadı: ' + error.message);
+    if (error) return void toast.error('Kaldırılamadı: ' + error.message);
     toast.success('SMS doğrulaması kaldırıldı.');
     void load();
   };
 
   return (
-    <Card className="glass-card">
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/15 text-primary"><ShieldCheck className="h-4 w-4" /></span> İki Adımlı Doğrulama
-          <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">Yeni</span>
-          {count > 0 && <span className="ml-auto rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">Etkin</span>}
+    <Card className="glass-card relative overflow-hidden">
+      <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/15 blur-3xl" />
+      <CardHeader className="relative">
+        <CardTitle className="flex items-center gap-3 text-lg">
+          <ShieldEmblem size="sm" success={count > 0} />
+          <span className="flex flex-col">
+            <span className="flex items-center gap-2">
+              İki Adımlı Doğrulama
+              <span className="rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm">Yeni</span>
+            </span>
+            <span className="text-xs font-normal text-muted-foreground">
+              {isAdmin ? 'Yönetici hesapları için zorunludur.' : 'İsteğe bağlı · Hesabınızı ekstra güvenli hale getirir.'}
+            </span>
+          </span>
+          <span
+            className={cn(
+              'ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold',
+              count > 0 ? 'bg-emerald-500/15 text-emerald-500' : 'bg-muted text-muted-foreground',
+            )}
+          >
+            <span className="relative flex h-2 w-2">
+              {count > 0 && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />}
+              <span className={cn('relative inline-flex h-2 w-2 rounded-full', count > 0 ? 'bg-emerald-500' : 'bg-muted-foreground')} />
+            </span>
+            {count > 0 ? 'Etkin' : 'Kapalı'}
+          </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          {isAdmin ? 'Yönetici hesapları için zorunludur.' : 'İsteğe bağlıdır. Hesabınızı daha güvenli hale getirir.'}
-        </p>
+      <CardContent className="relative space-y-3">
+        <SecurityMeter count={count} />
+
         {totp.map((f) => (
-          <div key={f.id} className="flex items-center justify-between rounded-2xl border border-border bg-muted/40 p-3 text-sm">
-            <span className="flex items-center gap-3">
-              <span className="icon-tile flex h-8 w-8 items-center justify-center rounded-lg"><Smartphone className="h-4 w-4" /></span>
-              Doğrulayıcı uygulama
-            </span>
-            <Button variant="ghost" size="icon" aria-label="Kaldır" onClick={() => removeTotp(f.id)}><Trash2 className="h-4 w-4" /></Button>
-          </div>
+          <MethodRow
+            key={f.id}
+            icon={Smartphone}
+            title="Doğrulayıcı uygulama"
+            subtitle="Uygulamanızdaki 30 saniyelik kodlar"
+            onRemove={() => removeTotp(f.id)}
+          />
         ))}
         {phone && (
-          <div className="flex items-center justify-between rounded-2xl border border-border bg-muted/40 p-3 text-sm">
-            <span className="flex items-center gap-3">
-              <span className="icon-tile flex h-8 w-8 items-center justify-center rounded-lg"><MessageSquare className="h-4 w-4" /></span>
-              SMS · {phone.slice(0, 5)}•••{phone.slice(-2)}
-            </span>
-            <Button variant="ghost" size="icon" aria-label="Kaldır" onClick={removeSms}><Trash2 className="h-4 w-4" /></Button>
-          </div>
+          <MethodRow
+            icon={MessageSquare}
+            tone="violet"
+            title="SMS"
+            subtitle={`Kodlar ${maskPhone(phone)} numarasına gönderilir`}
+            onRemove={removeSms}
+          />
         )}
+
         {adding ? (
-          <TwoFactorEnroll onDone={() => { setAdding(false); void load(); }} />
+          <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+            <TwoFactorEnroll onDone={() => { setAdding(false); void load(); }} onCancel={() => setAdding(false)} />
+          </div>
         ) : (
-          <Button variant="outline" onClick={() => setAdding(true)}>Yöntem ekle.</Button>
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="group flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border p-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-primary/60 hover:bg-primary/5 hover:text-primary"
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+              <Plus className="h-4 w-4" />
+            </span>
+            {count > 0 ? 'Yedek yöntem ekle' : 'Yöntem ekle'}
+          </button>
         )}
       </CardContent>
     </Card>
   );
 };
+
+/* ------------------------------------------------------------------ */
+/* Login gate                                                          */
+/* ------------------------------------------------------------------ */
 
 /** Blocks the app until the user passes their second factor; forces enrollment for admins. */
 export const MfaGate = ({ children }: { children: React.ReactNode }) => {
@@ -261,6 +626,9 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   const [sent, setSent] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [resendLeft, startResend] = useCountdown();
 
   const check = useCallback(async () => {
     if (!user) return setState('ok');
@@ -290,95 +658,174 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     setBusy(false);
     if (err) return toast.error(err);
     setSent(true);
+    startResend();
     toast.success('Kod telefonunuza gönderildi.');
   };
 
-  const verify = async () => {
+  const verify = async (value = code) => {
+    if (!/^\d{6}$/.test(value)) return;
     setBusy(true);
     if (method === 'sms') {
-      const err = await sms('login_check', { code });
+      const err = await sms('login_check', { code: value });
       setBusy(false);
-      if (err) return toast.error(err);
+      if (err) { setError(true); return toast.error(err); }
     } else {
       const ch = await supabase.auth.mfa.challenge({ factorId: totp[0].id });
       if (ch.error) { setBusy(false); return toast.error(ch.error.message); }
-      const { error } = await supabase.auth.mfa.verify({ factorId: totp[0].id, challengeId: ch.data.id, code });
+      const { error } = await supabase.auth.mfa.verify({ factorId: totp[0].id, challengeId: ch.data.id, code: value });
       setBusy(false);
-      if (error) return toast.error('Kod hatalı.');
+      if (error) { setError(true); return toast.error('Kod hatalı.'); }
     }
-    setState('ok');
+    setSuccess(true);
+    setTimeout(() => setState('ok'), 900);
   };
 
+  const switchMethod = (m: 'totp' | 'sms') => { setMethod(m); setCode(''); setError(false); };
+
   if (loading || state === 'ok') return <>{children}</>;
-  if (state === 'checking') return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  if (state === 'checking') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background">
+        <ShieldEmblem size="sm" />
+        <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Güvenlik kontrolü yapılıyor…</p>
+      </div>
+    );
+  }
+
+  const both = totp.length > 0 && !!phone;
+  const description =
+    state === 'enroll'
+      ? 'Yönetici hesapları için iki adımlı doğrulama zorunludur. Devam etmek için bir yöntem ekleyin.'
+      : success
+        ? 'Kimliğiniz doğrulandı. Yönlendiriliyorsunuz…'
+        : method === 'sms'
+          ? sent ? `${maskPhone(phone)} numarasına gönderilen 6 haneli kodu girin.` : 'Telefonunuza tek kullanımlık bir kod gönderelim.'
+          : 'Doğrulayıcı uygulamanızdaki 6 haneli kodu girin.';
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
+      {/* Ambient background */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(65% 45% at 50% 0%, hsl(var(--primary) / 0.16), transparent 70%), radial-gradient(45% 35% at 50% 100%, hsl(var(--neon-cyan) / 0.10), transparent 70%)' }}
+        style={{ background: 'radial-gradient(65% 45% at 50% 0%, hsl(var(--primary) / 0.22), transparent 70%), radial-gradient(45% 35% at 50% 100%, hsl(var(--neon-cyan) / 0.12), transparent 70%)' }}
       />
-      <Card className="sticker-card relative w-full max-w-md overflow-hidden rounded-3xl p-0">
-        <div className="auth-band px-6 pb-12 pt-8 text-center">
-          <EconLogo allWhite className="relative z-10 mx-auto h-8 w-36 sm:h-9 sm:w-40" />
-        </div>
-        <CardHeader className="-mt-8 space-y-3 pb-2 text-center">
-          <div className="icon-tile mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-card">
-            <ShieldCheck className="h-7 w-7" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.07] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]"
+        style={{ backgroundImage: 'linear-gradient(hsl(var(--foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--foreground)) 1px, transparent 1px)', backgroundSize: '44px 44px' }}
+      />
+
+      <div className="relative w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
+        {/* glow border */}
+        <div aria-hidden className="absolute -inset-px rounded-[1.6rem] bg-gradient-to-b from-primary/50 via-primary/10 to-transparent opacity-70 blur-[1px]" />
+        <Card className="sticker-card relative overflow-hidden rounded-3xl p-0">
+          <div className="auth-band relative px-6 pb-14 pt-8 text-center">
+            <EconLogo allWhite className="relative z-10 mx-auto h-8 w-36 sm:h-9 sm:w-40" />
+            <div className="relative z-10 mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
+              <Lock className="h-3 w-3" /> Güvenli Oturum
+            </div>
           </div>
-          <CardTitle className="text-xl font-bold tracking-tight">
-            {state === 'enroll' ? 'İki adımlı doğrulamayı kurun' : 'İki adımlı doğrulama'}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            {state === 'enroll'
-              ? 'Yönetici hesapları için iki adımlı doğrulama zorunludur. Devam etmek için bir yöntem ekleyin.'
-              : method === 'sms' ? 'Telefonunuza gelen 6 haneli kodu girin.' : 'Doğrulayıcı uygulamadaki 6 haneli kodu girin.'}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4 px-6 pb-6">
-          {state === 'enroll' ? (
-            <TwoFactorEnroll onDone={() => void check()} />
-          ) : (
-            <>
-              {totp.length > 0 && phone && (
-                <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-muted/50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => { setMethod('totp'); setCode(''); }}
-                    className={cn(
-                      'flex h-9 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-all',
-                      method === 'totp' ? 'icon-tile' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                    )}
-                  >
-                    <Smartphone className="h-4 w-4" /> Uygulama
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setMethod('sms'); setCode(''); }}
-                    className={cn(
-                      'flex h-9 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-all',
-                      method === 'sms' ? 'icon-tile' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                    )}
-                  >
-                    <MessageSquare className="h-4 w-4" /> SMS
-                  </button>
+
+          <CardHeader className="-mt-11 space-y-3 pb-2 text-center">
+            <ShieldEmblem success={success} />
+            <CardTitle className="pt-1 text-2xl font-extrabold tracking-tight">
+              {state === 'enroll' ? 'İki adımlı doğrulamayı kurun' : success ? 'Doğrulandı!' : 'Kimliğinizi doğrulayın'}
+            </CardTitle>
+            <p className="mx-auto max-w-xs text-sm leading-relaxed text-muted-foreground">{description}</p>
+          </CardHeader>
+
+          <CardContent className="space-y-5 px-6 pb-6">
+            {state === 'enroll' ? (
+              <TwoFactorEnroll onDone={() => void check()} />
+            ) : success ? (
+              <div className="flex justify-center py-2">
+                <div className="h-1 w-40 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full w-full origin-left animate-in slide-in-from-left duration-700 rounded-full bg-emerald-500" />
                 </div>
-              )}
-              {method === 'sms' && (
-                <Button variant="outline" className="h-11 w-full rounded-xl" disabled={busy} onClick={sendSms}>
-                  {sent ? 'Kodu tekrar gönder.' : `${phone?.slice(0, 5)}•••${phone?.slice(-2)} numarasına kod gönder.`}
-                </Button>
-              )}
-              <CodeInput value={code} onChange={setCode} />
-              <Button variant="cta" className="h-11 w-full rounded-xl font-bold" disabled={busy || code.length !== 6} onClick={verify}>
-                {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Doğrula.
-              </Button>
-            </>
-          )}
-          <Button variant="link" className="w-full text-muted-foreground" onClick={() => signOut()}>Çıkış yap.</Button>
-        </CardContent>
-      </Card>
+              </div>
+            ) : (
+              <>
+                {both && (
+                  <div className="relative grid grid-cols-2 rounded-2xl border border-border bg-muted/50 p-1">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'absolute bottom-1 top-1 w-[calc(50%-0.25rem)] rounded-xl bg-gradient-to-r from-sky-500 to-primary shadow-lg shadow-primary/30 transition-transform duration-300 ease-out',
+                        method === 'sms' ? 'translate-x-full' : 'translate-x-0',
+                      )}
+                      style={{ left: '0.25rem' }}
+                    />
+                    {(['totp', 'sms'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => switchMethod(m)}
+                        className={cn(
+                          'relative z-10 flex h-10 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-colors',
+                          method === m ? 'text-white' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        {m === 'totp' ? <Smartphone className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                        {m === 'totp' ? 'Uygulama' : 'SMS'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {method === 'sms' && (
+                  <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-3">
+                    <MethodTile icon={MessageSquare} tone="violet" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Kayıtlı numara</p>
+                      <p className="font-mono text-sm font-bold tracking-wide">{maskPhone(phone)}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={sent ? 'outline' : 'cta'}
+                      className="h-9 gap-1.5 rounded-xl px-3 text-xs font-bold"
+                      disabled={busy || resendLeft > 0}
+                      onClick={sendSms}
+                    >
+                      {busy && !sent ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : sent ? <RotateCw className="h-3.5 w-3.5" /> : null}
+                      {sent ? (resendLeft > 0 ? `${resendLeft} sn` : 'Tekrar') : 'Kod gönder'}
+                    </Button>
+                  </div>
+                )}
+
+                {(method === 'totp' || sent) && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <CodeInput
+                      key={method}
+                      value={code}
+                      error={error}
+                      disabled={busy}
+                      onChange={(v) => { setCode(v); setError(false); }}
+                      onComplete={(v) => void verify(v)}
+                    />
+                    <Button
+                      variant="cta"
+                      className="h-12 w-full gap-2 rounded-xl text-base font-bold"
+                      disabled={busy || code.length !== 6}
+                      onClick={() => verify()}
+                    >
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                      Doğrula
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="flex items-center justify-between border-t border-border/60 pt-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" /> Şifreli bağlantı</span>
+              <button type="button" onClick={() => signOut()} className="flex items-center gap-1 font-semibold transition-colors hover:text-destructive">
+                <LogOut className="h-3.5 w-3.5" /> Çıkış yap
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
