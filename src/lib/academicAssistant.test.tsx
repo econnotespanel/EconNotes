@@ -507,10 +507,14 @@ describe('EconNotes Branded Vector PDF Export', () => {
       ],
     });
 
-    // Official EconNotes theme & logos & version
-    expect(html).toContain('econnotes-brand-dark');
+    // Official EconNotes theme, pure-white banner logo, updated header/footer copy & version
+    expect(html).toContain('econnotes-brand-white');
     expect(html).toContain('econnotes-brand-light');
-    expect(html).toContain('linear-gradient(115deg, #002b73 0%, #0045a5 54%, #0070d1 100%)');
+    expect(html).toContain('linear-gradient(115deg, #002669 0%, #0045a5 54%, #0070d1 100%)');
+    expect(html).toContain('Akademik Asistan Soru Çözüm Raporu');
+    expect(html).toContain('Yeni nesil not paylaşım ve çalışma platformu.');
+    expect(html).not.toContain('Üniversite Çalışma Merkezi');
+    expect(html).not.toContain('MATEMATİK &amp; MÜHENDİSLİK ÇÖZÜM RAPORU');
     expect(html).toContain('print-color-adjust: exact');
     expect(html).toContain('Kaan Çolakoğlu');
     expect(html).toContain(APP_VERSION_LABEL);

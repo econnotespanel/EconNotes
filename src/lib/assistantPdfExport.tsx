@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { toast } from 'sonner';
 import AcademicMarkdown from '@/components/AcademicMarkdown';
 import lightLogoUrl from '@/assets/econnotes-brand-light.png';
-import darkLogoUrl from '@/assets/econnotes-brand-dark.png';
+import whiteLogoUrl from '@/assets/econnotes-brand-white.png';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { AssistantSolveMode } from '@/lib/assistantClient';
 
@@ -151,7 +151,7 @@ function renderMarkdownWithVectorMath(markdown: string): string {
  */
 export function buildAssistantPdfHtml(payload: AssistantPdfExportPayload): string {
   const resolvedLightLogo = resolveAssetUrl(lightLogoUrl);
-  const resolvedDarkLogo = resolveAssetUrl(darkLogoUrl);
+  const resolvedWhiteLogo = resolveAssetUrl(whiteLogoUrl);
   const baseHref =
     typeof window !== 'undefined' && window.location?.origin ? `${window.location.origin}/` : '';
 
@@ -170,8 +170,8 @@ export function buildAssistantPdfHtml(payload: AssistantPdfExportPayload): strin
   const docTitle =
     payload.title?.trim() ||
     (isMulti
-      ? `EconNotes Akademik Asistan — ${payload.items.length} Soruluk Çözüm Kitapçığı`
-      : 'EconNotes Akademik Asistan — Soru ve Adım Adım Çözüm Raporu');
+      ? `EconNotes — Akademik Asistan Soru Çözüm Raporu (${payload.items.length} Soru)`
+      : 'EconNotes — Akademik Asistan Soru Çözüm Raporu');
 
   const itemsHtml = payload.items
     .map((item, idx) => {
@@ -364,32 +364,50 @@ export function buildAssistantPdfHtml(payload: AssistantPdfExportPayload): strin
       align-items: center;
       justify-content: space-between;
       gap: 18px;
-      padding: 18px 22px;
-      border-radius: 14px;
-      background: linear-gradient(115deg, #002b73 0%, #0045a5 54%, #0070d1 100%);
+      padding: 19px 24px;
+      border-radius: 15px;
+      background: linear-gradient(115deg, #002669 0%, #0045a5 54%, #0070d1 100%);
       color: #ffffff;
       margin-bottom: 18px;
       border: 1px solid #003791;
+      box-shadow: 0 8px 22px rgba(0, 43, 115, 0.14);
     }
 
     .brand-left {
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      align-items: flex-start;
+      gap: 8px;
     }
 
     .brand-logo {
-      height: 36px;
-      max-width: 200px;
+      height: 38px;
+      max-width: 210px;
       object-fit: contain;
       object-position: left center;
     }
 
     .brand-subtitle {
-      font-size: 9.5pt;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.26);
+      font-size: 9.4pt;
       font-weight: 600;
-      letter-spacing: 0.04em;
-      color: rgba(255, 255, 255, 0.9);
+      letter-spacing: 0.015em;
+      color: #ffffff;
+    }
+
+    .brand-subtitle-dot {
+      width: 6.5px;
+      height: 6.5px;
+      border-radius: 999px;
+      background: #7dd3fc;
+      box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.28);
+      flex-shrink: 0;
     }
 
     .brand-meta-box {
@@ -738,15 +756,18 @@ export function buildAssistantPdfHtml(payload: AssistantPdfExportPayload): strin
 
     /* Official Branded Footer */
     .report-footer {
-      margin-top: 20px;
-      padding-top: 11px;
-      border-top: 1.5px solid #dbeafe;
+      margin-top: 22px;
+      padding: 11px 16px;
+      background: linear-gradient(90deg, #f4f8ff 0%, #eff6ff 100%);
+      border: 1px solid #dbeafe;
+      border-top: 2.5px solid #0045a5;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 14px;
       font-size: 8.5pt;
-      color: #475569;
+      color: #334155;
       break-inside: avoid;
       page-break-inside: avoid;
     }
@@ -754,13 +775,57 @@ export function buildAssistantPdfHtml(payload: AssistantPdfExportPayload): strin
     .footer-left {
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 11px;
     }
 
     .footer-logo {
-      height: 20px;
+      height: 22px;
       width: auto;
       object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .footer-divider {
+      width: 1px;
+      height: 24px;
+      background: #bfdbfe;
+      flex-shrink: 0;
+    }
+
+    .footer-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      line-height: 1.35;
+    }
+
+    .footer-title {
+      font-size: 8.6pt;
+      font-weight: 700;
+      color: #002b73;
+    }
+
+    .footer-domain {
+      font-weight: 600;
+      color: #0058b8;
+    }
+
+    .footer-tagline {
+      font-size: 8.2pt;
+      font-weight: 500;
+      color: #475569;
+    }
+
+    .footer-version-pill {
+      display: inline-block;
+      background: #ffffff;
+      border: 1px solid #bfdbfe;
+      color: #003791;
+      font-size: 8pt;
+      font-weight: 700;
+      padding: 3.5px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
     }
 
     @media print {
@@ -783,7 +848,7 @@ export function buildAssistantPdfHtml(payload: AssistantPdfExportPayload): strin
 <body>
   <div class="preview-toolbar no-print">
     <div class="toolbar-left">
-      <img class="toolbar-logo" src="${escapeHtml(resolvedDarkLogo)}" alt="EconNotes" />
+      <img class="toolbar-logo" src="${escapeHtml(resolvedWhiteLogo)}" alt="EconNotes" />
       <span class="toolbar-hint">
         Yazdırma penceresinde <strong>"PDF olarak kaydet" (Save as PDF)</strong> seçeneğiyle tam vektörel kalitede indirebilirsiniz.
       </span>
@@ -802,8 +867,11 @@ export function buildAssistantPdfHtml(payload: AssistantPdfExportPayload): strin
     <div class="content-layer">
       <header class="brand-banner">
         <div class="brand-left">
-          <img class="brand-logo" src="${escapeHtml(resolvedDarkLogo)}" alt="EconNotes" />
-          <div class="brand-subtitle">AKADEMİK ASİSTAN · MATEMATİK &amp; MÜHENDİSLİK ÇÖZÜM RAPORU</div>
+          <img class="brand-logo" src="${escapeHtml(resolvedWhiteLogo)}" alt="EconNotes" />
+          <div class="brand-subtitle">
+            <span class="brand-subtitle-dot"></span>
+            <span>Akademik Asistan Soru Çözüm Raporu</span>
+          </div>
         </div>
         <div class="brand-meta-box">
           ${payload.studentName ? `<div>Öğrenci: <strong>${escapeHtml(payload.studentName)}</strong></div>` : ''}
@@ -818,9 +886,13 @@ export function buildAssistantPdfHtml(payload: AssistantPdfExportPayload): strin
       <footer class="report-footer">
         <div class="footer-left">
           <img class="footer-logo" src="${escapeHtml(resolvedLightLogo)}" alt="EconNotes" />
-          <span><strong>EconNotes Akademik Asistan</strong> · econnotes.online · Üniversite Çalışma Merkezi</span>
+          <span class="footer-divider" aria-hidden="true"></span>
+          <div class="footer-copy">
+            <div class="footer-title">EconNotes Akademik Asistan · <span class="footer-domain">econnotes.online</span></div>
+            <div class="footer-tagline">Yeni nesil not paylaşım ve çalışma platformu.</div>
+          </div>
         </div>
-        <div>${escapeHtml(APP_VERSION_LABEL)}</div>
+        <div class="footer-version-pill">${escapeHtml(APP_VERSION_LABEL)}</div>
       </footer>
     </div>
   </div>
