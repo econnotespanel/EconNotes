@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import AcademicMarkdown from '@/components/AcademicMarkdown';
@@ -13,6 +13,11 @@ import {
   isUnsupportedImageFormat,
   processImageAttachment,
 } from '@/lib/assistantAttachments';
+import {
+  formatStructuredSolutionToMarkdown,
+  invokeAcademicAssistantResilient,
+} from '@/lib/assistantClient';
+import { supabase } from '@/integrations/supabase/client';
 
 describe('Academic Math & Engineering Markdown Renderer', () => {
   it('protects subscripts and asterisks inside inline math from markdown emphasis', () => {
@@ -99,5 +104,98 @@ describe('Gallery PNG & JPG Attachment Helpers', () => {
     expect(item.mimeType).toBe('image/png');
     expect(item.base64Data.length).toBeGreaterThan(0);
     expect(item.previewUrl.startsWith('data:image/png;base64,')).toBe(true);
+  });
+});
+
+describe('Resilient Multimodal Assistant Failover Client', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('rejects static generic fallback text in formatStructuredSolutionToMarkdown', () => {
+    expect(
+      formatStructuredSolutionToMarkdown({
+        overview: 'Ders konusu, kuramsal temelleri ve sınav ağırlığı bakımından en kritik ünitelerden biridir.',
+        sections: [],
+      }),
+    ).toBeNull();
+
+    const md = formatStructuredSolutionToMarkdown({
+      overview: 'Verilen integral: $$\\int_0^1 2x\\,dx$$',
+      sections: [
+        {
+          heading: 'Adım 1: Belirsiz İntegralin Alınması',
+          content: 'Kuvvet kuralı uygulanır: $x^2 + C$.',
+          takeaway: 'Sonuç $\\boxed{1}$ olarak doğrulanır.',
+        },
+      ],
+      instructorEmphasis: ['Sınır değerlerini yerine koyarken işaretlere dikkat edin.'],
+    });
+    expect(md).toContain('Adım 1: Belirsiz İntegralin Alınması');
+    expect(md).toContain('\\boxed{1}');
+  });
+
+  it('transparently fails over to multimodal generate-study-material when academic-assistant fails on image upload', async () => {
+    vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'test-jwt-token',
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        } as any,
+      },
+      error: null,
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+      const url = String(input);
+      if (url.includes('/functions/v1/academic-assistant')) {
+        return new Response(JSON.stringify({ error: 'Bir hata oluştu.' }), { status: 500 });
+      }
+      if (url.includes('/functions/v1/generate-study-material')) {
+        return new Response(
+          JSON.stringify({
+            content: {
+              overview: 'Görseldeki türev sorusu: $f(x) = x^3 + 2x$',
+              sections: [
+                {
+                  heading: 'Adım 1: Türev Kurallarının Uygulanması',
+                  content: '$$f\'(x) = 3x^2 + 2$$',
+                  takeaway: 'Cevap $\\boxed{3x^2 + 2}$ bulunur.',
+                },
+              ],
+              instructorEmphasis: ['Sabit terimin türevi sıfırdır.'],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const reply = await invokeAcademicAssistantResilient({
+      userQuestion: 'Görseldeki soruyu çöz.',
+      fullMessageWithDoc: 'Görseldeki soruyu çöz.',
+      mode: 'step_by_step',
+      notesContext: '',
+      history: [],
+      images: [
+        {
+          id: 'img-1',
+          kind: 'image',
+          name: 'soru.jpg',
+          mimeType: 'image/jpeg',
+          base64Data: 'aGVsbG8=',
+          previewUrl: 'data:image/jpeg;base64,aGVsbG8=',
+          sizeLabel: '1.0 KB',
+        },
+      ],
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    // Verify no extra x-supabase-client-platform CORS-breaking header was sent
+    const firstCallHeaders = (fetchSpy.mock.calls[0][1] as RequestInit)?.headers as Record<string, string>;
+    expect(Object.keys(firstCallHeaders).sort()).toEqual(['Authorization', 'Content-Type', 'apikey']);
+    expect(reply).toContain('Adım 1: Türev Kurallarının Uygulanması');
+    expect(reply).toContain("3x^2 + 2");
   });
 });

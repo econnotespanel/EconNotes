@@ -21,7 +21,7 @@ export type AssistantAttachment = AssistantImageItem | AssistantDocumentItem;
 
 export const MAX_IMAGE_ATTACHMENTS = 3;
 export const MAX_RAW_FILE_BYTES = 15 * 1024 * 1024; // 15 MB
-const MAX_IMAGE_DIMENSION = 2048;
+const MAX_IMAGE_DIMENSION = 1568; // Optimal high-res tile size for GPT-4o & Gemini Vision
 
 const IMAGE_MIME_SET = new Set([
   'image/png',
@@ -41,7 +41,12 @@ export function isSupportedImageFile(file: File): boolean {
   const mime = (file.type || '').toLowerCase();
   const name = (file.name || '').toLowerCase();
   if (IMAGE_MIME_SET.has(mime)) return true;
-  return /\.(png|jpe?g|webp)$/i.test(name);
+  if (/\.(png|jpe?g|webp)$/i.test(name)) return true;
+  // Allow mobile Safari / Android gallery HEIC/HEIF photos when browser decodes them natively to JPEG via canvas
+  if (mime === 'image/heic' || mime === 'image/heif' || /\.(heic|heif)$/i.test(name)) {
+    return typeof navigator !== 'undefined' && !/jsdom/i.test(navigator.userAgent);
+  }
+  return false;
 }
 
 export function isUnsupportedImageFormat(file: File): boolean {
@@ -79,7 +84,7 @@ function loadImageElement(src: string): Promise<HTMLImageElement> {
     const img = new Image();
     const timer = setTimeout(() => {
       reject(new Error('Görsel çözümleme zaman aşımına uğradı.'));
-    }, 2500);
+    }, 4000);
     img.onload = () => {
       clearTimeout(timer);
       resolve(img);
@@ -97,115 +102,164 @@ function makeId(): string {
 }
 
 /**
- * Optimizes PNG / JPG / WebP images selected from mobile gallery, camera, or clipboard
- * while keeping mathematical subscripts, exponents, matrices, and circuit diagrams crisp.
+ * Optimizes PNG / JPG / WebP gallery photos cleanly on HTML5 Canvas:
+ * - Uses URL.createObjectURL first to avoid large RAM spikes on mobile Safari/Chrome
+ * - Fills pure #ffffff background so transparent-background PNG equations stay crisp dark-on-white
+ * - Keeps payload compact (~200-550 KB) so Edge Function gateways never reject for body size
  */
 export async function processImageAttachment(file: File): Promise<AssistantImageItem> {
   if (file.size > MAX_RAW_FILE_BYTES) {
     throw new Error('Görsel boyutu 15 MB sınırını aşıyor. Lütfen daha küçük bir görsel seçin.');
   }
   if (!isSupportedImageFile(file)) {
-    throw new Error('Lütfen PNG veya JPG/JPEG formatında bir resim seçin.');
+    throw new Error('Lütfen galeriden PNG veya JPG/JPEG formatında bir resim seçin.');
   }
 
-  const rawDataUrl = await readFileAsDataUrl(file);
   const originalMime = normalizeImageMime(file);
-  const fallbackBase64 = rawDataUrl.includes(',') ? rawDataUrl.split(',')[1] : rawDataUrl;
+  const isHeicLike = /\.(heic|heif)$/i.test(file.name || '') || /heic|heif/i.test(file.type || '');
 
+  // Prefer lightweight ObjectURL decode in real browsers
+  let objectUrl: string | null = null;
   try {
-    const img = await loadImageElement(rawDataUrl);
+    if (
+      typeof URL !== 'undefined' &&
+      typeof URL.createObjectURL === 'function' &&
+      !(typeof navigator !== 'undefined' && /jsdom/i.test(navigator.userAgent))
+    ) {
+      objectUrl = URL.createObjectURL(file);
+    }
+
+    const decodeSrc = objectUrl || (await readFileAsDataUrl(file));
+    const img = await loadImageElement(decodeSrc);
     const width = img.naturalWidth || img.width;
     const height = img.naturalHeight || img.height;
 
-    if (!width || !height || typeof document === 'undefined') {
-      return {
-        id: makeId(),
-        kind: 'image',
-        name: file.name || 'soru-gorseli.png',
-        mimeType: originalMime,
-        base64Data: fallbackBase64,
-        previewUrl: `data:${originalMime};base64,${fallbackBase64}`,
-        sizeLabel: formatFileSize(file.size),
-      };
-    }
+    if (width && height && typeof document !== 'undefined') {
+      const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(width, height));
+      const targetW = Math.max(1, Math.round(width * scale));
+      const targetH = Math.max(1, Math.round(height * scale));
 
-    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(width, height));
-    const targetW = Math.max(1, Math.round(width * scale));
-    const targetH = Math.max(1, Math.round(height * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext('2d');
+
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, targetW, targetH);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+
+        let outputMime: 'image/png' | 'image/jpeg' =
+          originalMime === 'image/png' && targetW * targetH <= 700_000 ? 'image/png' : 'image/jpeg';
+
+        let finalDataUrl =
+          outputMime === 'image/png'
+            ? canvas.toDataURL('image/png')
+            : canvas.toDataURL('image/jpeg', 0.85);
+
+        if (finalDataUrl.length > 720_000) {
+          outputMime = 'image/jpeg';
+          finalDataUrl = canvas.toDataURL('image/jpeg', 0.74);
+        }
+
+        if (finalDataUrl.startsWith('data:image/')) {
+          const base64Data = finalDataUrl.split(',')[1] || '';
+          if (base64Data.length > 0) {
+            const approxBytes = Math.round((base64Data.length * 3) / 4);
+            return {
+              id: makeId(),
+              kind: 'image',
+              name: file.name || (outputMime === 'image/png' ? 'soru.png' : 'soru.jpg'),
+              mimeType: outputMime,
+              base64Data,
+              previewUrl: finalDataUrl,
+              sizeLabel: formatFileSize(approxBytes),
+            };
+          }
+        }
+      }
+    }
+  } catch {
+    if (isHeicLike) {
+      throw new Error('Bu fotoğraf biçimi tarayıcınızda çözümlenemedi. Lütfen PNG veya JPG formatında seçin.');
+    }
+    // Fall back to direct FileReader base64 below
+  } finally {
+    if (objectUrl && typeof URL.revokeObjectURL === 'function') {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  const rawDataUrl = await readFileAsDataUrl(file);
+  const fallbackBase64 = rawDataUrl.includes(',') ? rawDataUrl.split(',')[1] : rawDataUrl;
+  if (!fallbackBase64) {
+    throw new Error('Görsel verisi okunamadı. Lütfen başka bir PNG veya JPG seçin.');
+  }
+
+  return {
+    id: makeId(),
+    kind: 'image',
+    name: file.name || 'soru-gorseli.png',
+    mimeType: originalMime,
+    base64Data: fallbackBase64,
+    previewUrl: `data:${originalMime};base64,${fallbackBase64}`,
+    sizeLabel: formatFileSize(file.size),
+  };
+}
+
+/**
+ * Combines 1..N attached images vertically onto a single crisp sheet when calling
+ * single-document vision endpoints.
+ */
+export async function combineImagesForSingleDocument(
+  images: AssistantImageItem[],
+): Promise<{ data: string; mimeType: string }> {
+  if (images.length === 1) {
+    return { data: images[0].base64Data, mimeType: images[0].mimeType };
+  }
+
+  try {
+    const loaded = await Promise.all(images.map((item) => loadImageElement(item.previewUrl)));
+    const maxWidth = Math.min(
+      MAX_IMAGE_DIMENSION,
+      Math.max(...loaded.map((im) => im.naturalWidth || im.width || 800)),
+    );
+    const gap = 18;
+    const scaledHeights = loaded.map((im) => {
+      const w = im.naturalWidth || im.width || maxWidth;
+      const h = im.naturalHeight || im.height || 600;
+      return Math.max(1, Math.round(h * (maxWidth / w)));
+    });
+    const totalHeight = scaledHeights.reduce((acc, h) => acc + h, 0) + gap * (loaded.length - 1);
 
     const canvas = document.createElement('canvas');
-    canvas.width = targetW;
-    canvas.height = targetH;
+    canvas.width = maxWidth;
+    canvas.height = Math.min(totalHeight, 3600);
+    const yScale = canvas.height / totalHeight;
+
     const ctx = canvas.getContext('2d');
-
-    if (!ctx) {
-      return {
-        id: makeId(),
-        kind: 'image',
-        name: file.name || 'soru-gorseli.png',
-        mimeType: originalMime,
-        base64Data: fallbackBase64,
-        previewUrl: `data:${originalMime};base64,${fallbackBase64}`,
-        sizeLabel: formatFileSize(file.size),
-      };
+    if (ctx) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      let y = 0;
+      loaded.forEach((im, idx) => {
+        const drawH = Math.round(scaledHeights[idx] * yScale);
+        ctx.drawImage(im, 0, y, canvas.width, drawH);
+        y += drawH + Math.round(gap * yScale);
+      });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      const b64 = dataUrl.split(',')[1];
+      if (b64) {
+        return { data: b64, mimeType: 'image/jpeg' };
+      }
     }
-
-    // Fill pure white background so transparent-background PNG equations remain dark-on-white
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, targetW, targetH);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, targetW, targetH);
-
-    // Keep lossless PNG for sharp screenshots when compact; use high-quality JPEG for large photos
-    let outputMime: 'image/png' | 'image/jpeg' =
-      originalMime === 'image/png' && targetW * targetH <= 1_400_000 ? 'image/png' : 'image/jpeg';
-    let finalDataUrl =
-      outputMime === 'image/png'
-        ? canvas.toDataURL('image/png')
-        : canvas.toDataURL('image/jpeg', 0.9);
-
-    // If PNG export is still heavy (> 1.8 MB base64) or canvas fell back, re-encode as crisp JPEG
-    if (outputMime === 'image/png' && finalDataUrl.length > 1_800_000) {
-      outputMime = 'image/jpeg';
-      finalDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    }
-
-    if (!finalDataUrl.startsWith('data:image/')) {
-      return {
-        id: makeId(),
-        kind: 'image',
-        name: file.name || 'soru-gorseli.png',
-        mimeType: originalMime,
-        base64Data: fallbackBase64,
-        previewUrl: `data:${originalMime};base64,${fallbackBase64}`,
-        sizeLabel: formatFileSize(file.size),
-      };
-    }
-
-    const base64Data = finalDataUrl.split(',')[1] || fallbackBase64;
-    const approxBytes = Math.round((base64Data.length * 3) / 4);
-
-    return {
-      id: makeId(),
-      kind: 'image',
-      name: file.name || (outputMime === 'image/png' ? 'soru.png' : 'soru.jpg'),
-      mimeType: outputMime,
-      base64Data,
-      previewUrl: finalDataUrl,
-      sizeLabel: formatFileSize(approxBytes),
-    };
   } catch {
-    return {
-      id: makeId(),
-      kind: 'image',
-      name: file.name || 'soru-gorseli.png',
-      mimeType: originalMime,
-      base64Data: fallbackBase64,
-      previewUrl: `data:${originalMime};base64,${fallbackBase64}`,
-      sizeLabel: formatFileSize(file.size),
-    };
+    // Fallback to first image if stitching fails
   }
+
+  return { data: images[0].base64Data, mimeType: images[0].mimeType };
 }
 
 /**
@@ -228,7 +282,7 @@ async function renderScannedPdfToImages(file: File, maxPages = 3): Promise<Assis
 
   for (let i = 1; i <= pageCount; i++) {
     const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 1.75 });
+    const viewport = page.getViewport({ scale: 1.6 });
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(viewport.width);
     canvas.height = Math.round(viewport.height);
@@ -239,7 +293,7 @@ async function renderScannedPdfToImages(file: File, maxPages = 3): Promise<Assis
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvasContext: ctx, viewport }).promise;
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
     const base64Data = dataUrl.split(',')[1] || '';
     if (base64Data) {
       rendered.push({
@@ -290,7 +344,6 @@ export async function processDocumentOrScannedPdf(
     const { extractFile } = await import('@/lib/extractFile');
     const extracted = await extractFile(file);
     if (extracted.kind === 'text') {
-      // Check if PDF had only page headers and virtually no real text (scanned exam sheet)
       const stripped = extracted.text.replace(/---\s*Sayfa\s*\d+\s*---/g, '').trim();
       if (isPdf && stripped.length < 25) {
         const scannedImages = await renderScannedPdfToImages(file, MAX_IMAGE_ATTACHMENTS);
@@ -321,7 +374,7 @@ export async function processDocumentOrScannedPdf(
           return { scannedImages };
         }
       } catch {
-        // fall through to original error
+        // fall through
       }
     }
     throw new Error(err?.message || 'Dosya içeriği okunamadı.');

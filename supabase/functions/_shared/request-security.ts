@@ -39,10 +39,18 @@ export const isTrustedOrigin = (origin: string | null): boolean => {
 };
 
 export const corsHeaders = (req: Request): Headers => {
+  const defaultAllowHeaders =
+    'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-supabase-api-version, x-region';
+  const requestedHeaders = req.headers.get('access-control-request-headers');
+  const allowHeaders =
+    requestedHeaders && /^[a-z0-9_, -]+$/i.test(requestedHeaders)
+      ? `${defaultAllowHeaders}, ${requestedHeaders}`
+      : defaultAllowHeaders;
+
   const headers = new Headers({
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Headers': allowHeaders,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary': 'Origin',
+    'Vary': 'Origin, Access-Control-Request-Headers',
   });
   const origin = req.headers.get('origin');
   if (origin && isTrustedOrigin(origin)) headers.set('Access-Control-Allow-Origin', origin);
@@ -72,6 +80,21 @@ export const getAuthenticatedUser = async (req: Request) => {
   const supabase = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  if (typeof (supabase.auth as any).getClaims === 'function') {
+    try {
+      const { data: claimsData, error: claimsErr } = await (supabase.auth as any).getClaims(token);
+      if (!claimsErr && claimsData?.claims?.sub) {
+        return {
+          id: String(claimsData.claims.sub),
+          email: typeof claimsData.claims.email === 'string' ? claimsData.claims.email : undefined,
+        };
+      }
+    } catch {
+      // Fallback to getUser below
+    }
+  }
+
   const { data, error } = await supabase.auth.getUser(token);
   if (error) return null;
   return data.user;

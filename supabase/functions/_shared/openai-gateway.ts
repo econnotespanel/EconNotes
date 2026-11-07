@@ -70,7 +70,7 @@ export const getOpenAIApiKey = (): string => {
 };
 
 /**
- * Execute a Chat Completion request with automatic structured schema support.
+ * Execute a Chat Completion request with automatic multi-gateway fallback & structured schema support.
  */
 export async function createChatCompletion(options: OpenAIChatOptions): Promise<{
   content: string;
@@ -78,110 +78,150 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
   model: string;
 }> {
-  const apiKey = getOpenAIApiKey();
-  const isLovableGateway = apiKey.startsWith('la-') || !Deno.env.get('OPENAI_API_KEY');
-  
-  const endpoint = isLovableGateway
-    ? 'https://ai.gateway.lovable.dev/v1/chat/completions'
-    : 'https://api.openai.com/v1/chat/completions';
+  const openaiKey = Deno.env.get('OPENAI_API_KEY');
+  const lovableKey = Deno.env.get('LOVABLE_API_KEY');
 
-  // Map model if on Lovable gateway fallback, else use pure OpenAI model
-  const selectedModel = isLovableGateway
-    ? (options.model?.includes('/')
-        ? options.model
-        : options.model === 'gpt-4o'
-        ? 'openai/gpt-4o'
-        : 'openai/gpt-4o-mini')
-    : (options.model?.startsWith('openai/')
-        ? options.model.slice('openai/'.length)
-        : options.model && !options.model.includes('/')
-        ? options.model
-        : options.model
-        ? 'gpt-4o'
-        : 'gpt-4o-mini');
+  const providers: Array<{ apiKey: string; isLovableGateway: boolean }> = [];
+  if (openaiKey && !openaiKey.startsWith('la-')) {
+    providers.push({ apiKey: openaiKey, isLovableGateway: false });
+  }
+  if (lovableKey) {
+    providers.push({ apiKey: lovableKey, isLovableGateway: true });
+  }
+  if (providers.length === 0 && openaiKey) {
+    providers.push({ apiKey: openaiKey, isLovableGateway: true });
+  }
+  if (providers.length === 0) {
+    throw new OpenAIGatewayError('AI servisi yapılandırılmamış (API anahtarı eksik).', 500);
+  }
 
-  const payload: Record<string, unknown> = {
-    model: selectedModel,
-    messages: options.messages,
-    temperature: options.temperature ?? 0.2,
-    max_tokens: options.max_tokens ?? 4000,
-  };
+  let lastErr: OpenAIGatewayError | null = null;
 
-  if (options.jsonSchema) {
-    payload.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: options.jsonSchema.name,
-        strict: options.jsonSchema.strict ?? true,
-        schema: options.jsonSchema.schema,
-      },
+  for (const provider of providers) {
+    const { apiKey, isLovableGateway } = provider;
+    const endpoint = isLovableGateway
+      ? 'https://ai.gateway.lovable.dev/v1/chat/completions'
+      : 'https://api.openai.com/v1/chat/completions';
+
+    const selectedModel = isLovableGateway
+      ? (options.model?.includes('/')
+          ? options.model
+          : options.model === 'gpt-4o'
+          ? 'google/gemini-2.5-pro'
+          : 'google/gemini-2.5-flash')
+      : (options.model?.startsWith('openai/')
+          ? options.model.slice('openai/'.length)
+          : options.model && !options.model.includes('/')
+          ? options.model
+          : options.model
+          ? 'gpt-4o'
+          : 'gpt-4o-mini');
+
+    const normalizedMessages = isLovableGateway
+      ? options.messages.map((msg) => {
+          if (!Array.isArray(msg.content)) return msg;
+          return {
+            ...msg,
+            content: msg.content.map((part) =>
+              part.type === 'image_url'
+                ? { type: 'image_url' as const, image_url: { url: part.image_url.url } }
+                : part,
+            ),
+          };
+        })
+      : options.messages;
+
+    const payload: Record<string, unknown> = {
+      model: selectedModel,
+      messages: normalizedMessages,
+      temperature: options.temperature ?? 0.2,
+      max_tokens: options.max_tokens ?? 4000,
     };
-  } else if (options.tools) {
-    payload.tools = options.tools;
-    if (options.tool_choice) {
-      payload.tool_choice = options.tool_choice;
+
+    if (options.jsonSchema) {
+      payload.response_format = {
+        type: 'json_schema',
+        json_schema: {
+          name: options.jsonSchema.name,
+          strict: options.jsonSchema.strict ?? true,
+          schema: options.jsonSchema.schema,
+        },
+      };
+    } else if (options.tools) {
+      payload.tools = options.tools;
+      if (options.tool_choice) {
+        payload.tool_choice = options.tool_choice;
+      }
     }
-  }
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (response.status === 429) {
-    throw new OpenAIGatewayError('Yoğunluk: Lütfen birazdan tekrar deneyin.', 429);
-  }
-  if (response.status === 402 || response.status === 403) {
-    throw new OpenAIGatewayError('AI servis kotası tükendi.', 402);
-  }
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`OpenAI Gateway error [${response.status}]:`, errorText);
-    throw new OpenAIGatewayError('AI servisi yanıt vermedi.', 502, errorText);
-  }
-
-  const data = await response.json();
-  const message = data.choices?.[0]?.message;
-
-  // Handle function calling response
-  if (message?.tool_calls?.[0]?.function?.arguments) {
     try {
-      const parsed = JSON.parse(message.tool_calls[0].function.arguments);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`AI Gateway error [${selectedModel} @ ${response.status}]:`, errorText);
+        if (response.status === 429) {
+          lastErr = new OpenAIGatewayError('Yoğunluk: Lütfen birazdan tekrar deneyin.', 429, errorText);
+        } else if (response.status === 402 || response.status === 403) {
+          lastErr = new OpenAIGatewayError('AI servis kotası tükendi.', 402, errorText);
+        } else {
+          lastErr = new OpenAIGatewayError('AI servisi yanıt vermedi.', 502, errorText);
+        }
+        continue;
+      }
+
+      const data = await response.json();
+      const message = data.choices?.[0]?.message;
+
+      // Handle function calling response
+      if (message?.tool_calls?.[0]?.function?.arguments) {
+        try {
+          const parsed = JSON.parse(message.tool_calls[0].function.arguments);
+          return {
+            content: message.tool_calls[0].function.arguments,
+            parsedJson: parsed,
+            usage: data.usage,
+            model: selectedModel,
+          };
+        } catch {
+          // return as text if JSON parse fails
+        }
+      }
+
+      // Handle json_schema response_format
+      if (message?.content && options.jsonSchema) {
+        try {
+          const parsed = JSON.parse(message.content);
+          return {
+            content: message.content,
+            parsedJson: parsed,
+            usage: data.usage,
+            model: selectedModel,
+          };
+        } catch {
+          // fallback
+        }
+      }
+
       return {
-        content: message.tool_calls[0].function.arguments,
-        parsedJson: parsed,
+        content: message?.content || '',
         usage: data.usage,
         model: selectedModel,
       };
-    } catch {
-      // return as text if JSON parse fails
+    } catch (err) {
+      console.error(`AI Gateway network failure [${selectedModel}]:`, err);
+      lastErr = new OpenAIGatewayError('AI servisine bağlanılamadı.', 502, err);
     }
   }
 
-  // Handle json_schema response_format
-  if (message?.content && options.jsonSchema) {
-    try {
-      const parsed = JSON.parse(message.content);
-      return {
-        content: message.content,
-        parsedJson: parsed,
-        usage: data.usage,
-        model: selectedModel,
-      };
-    } catch {
-      // fallback
-    }
-  }
-
-  return {
-    content: message?.content || '',
-    usage: data.usage,
-    model: selectedModel,
-  };
+  throw lastErr ?? new OpenAIGatewayError('AI servisi yanıt vermedi.', 502);
 }
 
 /**

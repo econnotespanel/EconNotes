@@ -36,6 +36,7 @@ import {
   processDocumentOrScannedPdf,
   processImageAttachment,
 } from '@/lib/assistantAttachments';
+import { invokeAcademicAssistantResilient } from '@/lib/assistantClient';
 
 type SolveMode = 'step_by_step' | 'check_solution' | 'concept';
 
@@ -286,40 +287,36 @@ const AcademicAssistant = () => {
         )
         .join('\n');
 
-      const response = await supabase.functions.invoke('academic-assistant', {
-        body: {
-          message: fullMessage,
-          mode,
-          notesContext,
-          history: historySnapshot,
-          hasFile: Boolean(currentDocument) || currentImages.length > 0,
-          fileName: currentDocument?.name || currentImages[0]?.name,
-          images:
-            currentImages.length > 0
-              ? currentImages.map((img) => ({
-                  name: img.name,
-                  mimeType: img.mimeType,
-                  data: img.base64Data,
-                }))
-              : undefined,
-        },
+      const reply = await invokeAcademicAssistantResilient({
+        userQuestion: effectivePrompt,
+        fullMessageWithDoc: fullMessage,
+        documentText: currentDocument?.textContent,
+        documentName: currentDocument?.name,
+        mode,
+        notesContext,
+        history: historySnapshot,
+        images: currentImages,
       });
-
-      if (response.error) throw response.error;
-      if (response.data?.error) throw new Error(response.data.error);
 
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: response.data?.reply || 'Yanıt alınamadı.',
+          content: reply || 'Yanıt alınamadı.',
         },
       ]);
     } catch (error: any) {
+      // Restore attachments & input so user can retry immediately with one tap
+      if (currentImages.length > 0) setAttachedImages(currentImages);
+      if (currentDocument) setAttachedDocument(currentDocument);
+      if (typedText) setInput(typedText);
+
       const errMsg =
-        typeof error?.message === 'string' && error.message.length < 180
+        typeof error?.message === 'string' &&
+        error.message.length < 220 &&
+        !/failed to (send|fetch)|load failed|edge function/i.test(error.message)
           ? error.message
-          : 'Üzgünüm, şu anda yanıt oluşturulamadı. Lütfen bağlantınızı kontrol edip tekrar deneyin.';
+          : 'Üzgünüm, şu anda yanıt oluşturulamadı. Görseliniz ve sorunuz korundu; lütfen tekrar göndermeyi deneyin.';
       setMessages((prev) => [
         ...prev,
         {
