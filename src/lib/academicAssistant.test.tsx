@@ -85,6 +85,18 @@ describe('Academic Math & Engineering Markdown Renderer', () => {
     expect(container.querySelector('mtable')).not.toBeNull();
     expect(container.querySelectorAll('mtr').length).toBe(2);
   });
+
+  it('renders Gauss-Jordan augmented matrices ({ccc|c}) with vertical divider and spaced inline LaTeX', () => {
+    const content = [
+      'Satır işlemi ($ \\frac{1}{2}S_1 \\rightarrow S_1 $) uygulandığında genişletilmiş matris:',
+      '$$\\left[\\begin{array}{ccc|c} 2 & 8 & 2 & 14 \\\\ 1 & 6 & -1 & 13 \\\\ 2 & -1 & 2 & 5 \\end{array}\\right]$$',
+    ].join('\n\n');
+
+    const { container } = render(<AcademicMarkdown content={content} />);
+    expect(container.querySelectorAll('math').length).toBe(2);
+    expect(container.querySelectorAll('.math-cell-divider-right').length).toBe(3);
+    expect(container.querySelectorAll('.math-cell-divider-left').length).toBe(3);
+  });
 });
 
 describe('Gallery PNG & JPG Attachment Helpers', () => {
@@ -325,5 +337,101 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
     const excerpt = selectRelevantDocumentExcerpt(bigNote, 'Laplace dönüşümü nasıl çözülür?', 650);
     expect(excerpt).toContain('Laplace Dönüşümü');
     expect(excerpt).not.toContain('Alakasız Tarihçe Metni');
+  });
+
+  it('solves handwritten Gauss-Jordan matrix photos via True Multimodal Vision Cascade when Edge returns 402/500', async () => {
+    vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'test-jwt-token',
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        } as any,
+      },
+      error: null,
+    });
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+      const url = String(input);
+      if (url.includes('/functions/v1/academic-assistant')) {
+        return new Response(JSON.stringify({ error: 'AI servis kotası tükendi.' }), { status: 402 });
+      }
+      if (url.includes('openbmb-minicpm-v-4-7-demo.hf.space/gradio_api/upload')) {
+        return new Response(JSON.stringify(['/tmp/gradio/mock/gauss_jordan.jpg']), { status: 200 });
+      }
+      if (url.includes('openbmb-minicpm-v-4-7-demo.hf.space/gradio_api/queue/join')) {
+        return new Response(JSON.stringify({ event_id: 'evt-123' }), { status: 200 });
+      }
+      if (url.includes('openbmb-minicpm-v-4-7-demo.hf.space/gradio_api/queue/data')) {
+        const evt1 = JSON.stringify({
+          msg: 'process_generating',
+          output: { data: [{ reasoning: 'Checking rows...', content: '' }] },
+        });
+        const evt2 = JSON.stringify({
+          msg: 'process_completed',
+          success: true,
+          output: {
+            data: [
+              {
+                reasoning: 'Verified.',
+                content:
+                  '### 📌 Gauss-Jordan Çözümü\n$$\\boxed{x_1 = 5, \\quad x_2 = 1, \\quad x_3 = -2}$$\nEl yazısı çözümünüz tamamen doğrudur.',
+              },
+            ],
+          },
+        });
+        return new Response(`data: ${evt1}\n\ndata: ${evt2}\n\n`, { status: 200 });
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const stagesSeen: string[] = [];
+    const reply = await invokeAcademicAssistantResilient({
+      userQuestion: 'Görseldeki soruyu adım adım anlata anlata çöz.',
+      fullMessageWithDoc: 'Görseldeki soruyu adım adım anlata anlata çöz.',
+      mode: 'step_by_step',
+      notesContext: '',
+      history: [],
+      images: [
+        {
+          id: 'img-gj',
+          kind: 'image',
+          name: 'gauss_jordan.jpg',
+          mimeType: 'image/jpeg',
+          base64Data: 'aGVsbG8=',
+          previewUrl: 'data:image/jpeg;base64,aGVsbG8=',
+          sizeLabel: '42.0 KB',
+        },
+      ],
+      onProgress: (info) => stagesSeen.push(info.stage),
+    });
+
+    expect(reply).toContain('x_1 = 5');
+    expect(reply).toContain('x_2 = 1');
+    expect(reply).toContain('x_3 = -2');
+    expect(stagesSeen).toContain('ocr');
+    expect(stagesSeen).toContain('verify');
+  });
+
+  it('solves 3x3 Gauss-Jordan linear systems deterministically offline when all cloud endpoints are unreachable', async () => {
+    vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({ data: { session: null }, error: null });
+    vi.spyOn(supabase.auth, 'refreshSession').mockResolvedValue({
+      data: { session: null, user: null },
+      error: null,
+    });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Offline'));
+
+    const reply = await invokeAcademicAssistantResilient({
+      userQuestion: '2x_1 + 8x_2 + 2x_3 = 14\nx_1 + 6x_2 - x_3 = 13\n2x_1 - x_2 + 2x_3 = 5',
+      fullMessageWithDoc: '2x_1 + 8x_2 + 2x_3 = 14\nx_1 + 6x_2 - x_3 = 13\n2x_1 - x_2 + 2x_3 = 5',
+      mode: 'step_by_step',
+      notesContext: '',
+      history: [],
+      images: [],
+    });
+
+    expect(reply).toContain('\\begin{array}{ccc|c}');
+    expect(reply).toContain('x_1 = 5');
+    expect(reply).toContain('x_2 = 1');
+    expect(reply).toContain('x_3 = -2');
   });
 });

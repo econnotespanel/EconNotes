@@ -152,7 +152,12 @@ type MathNode =
   | { kind: 'munder'; base: MathNode; under: MathNode }
   | { kind: 'mover'; base: MathNode; over: MathNode }
   | { kind: 'munderover'; base: MathNode; under: MathNode; over: MathNode }
-  | { kind: 'mtable'; rows: MathNode[][][]; align?: 'left' | 'center' }
+  | {
+      kind: 'mtable';
+      rows: MathNode[][][];
+      align?: 'left' | 'center';
+      verticalDividersAfter?: number[];
+    }
   | { kind: 'menclose'; base: MathNode };
 
 class LatexParser {
@@ -693,9 +698,22 @@ class LatexParser {
     let body = this.src.slice(this.pos, cursor);
     this.pos = cursor < this.src.length ? cursor + endMarker.length : this.src.length;
 
-    // Strip optional column alignment spec on array/matrix* e.g. {cc|c} or [r]
+    // Parse optional column alignment & vertical divider spec on array/matrix* e.g. {ccc|c} or [r]
+    const verticalDividersAfter: number[] = [];
     if (envName === 'array' || envName === 'subarray') {
-      body = body.replace(/^\s*\{[^}]*\}/, '');
+      const specMatch = body.match(/^\s*\{([^}]*)\}/);
+      if (specMatch) {
+        const spec = specMatch[1];
+        let colIdx = -1;
+        for (const ch of spec) {
+          if (/[lcrpbmX]/i.test(ch)) {
+            colIdx++;
+          } else if (ch === '|' && colIdx >= 0 && !verticalDividersAfter.includes(colIdx)) {
+            verticalDividersAfter.push(colIdx);
+          }
+        }
+        body = body.slice(specMatch[0].length);
+      }
     } else if (envName.endsWith('*') && /^\s*\[[^\]]*\]/.test(body)) {
       body = body.replace(/^\s*\[[^\]]*\]/, '');
     }
@@ -727,8 +745,10 @@ class LatexParser {
       kind: 'mtable',
       rows: parsedRows,
       align: isLeftAligned ? 'left' : 'center',
+      ...(verticalDividersAfter.length > 0 ? { verticalDividersAfter } : {}),
     };
 
+    const baseEnv = envName.replace(/\*$/, '');
     const wrappers: Record<string, [string, string]> = {
       pmatrix: ['(', ')'],
       bmatrix: ['[', ']'],
@@ -740,7 +760,7 @@ class LatexParser {
       rcases: ['', '}'],
     };
 
-    const pair = wrappers[envName];
+    const pair = wrappers[baseEnv];
     if (!pair) return table;
 
     const children: MathNode[] = [];
@@ -900,20 +920,32 @@ function renderNode(node: MathNode, key: string | number): React.ReactNode {
           React.createElement(
             'mtr',
             { key: rIdx },
-            row.map((cellNodes, cIdx) =>
-              React.createElement(
+            row.map((cellNodes, cIdx) => {
+              const hasDividerRight = Boolean(node.verticalDividersAfter?.includes(cIdx));
+              const hasDividerLeft = Boolean(
+                cIdx > 0 && node.verticalDividersAfter?.includes(cIdx - 1),
+              );
+              const cellClass = [
+                'math-cell',
+                node.align === 'left' ? 'math-cell-left' : '',
+                hasDividerRight ? 'math-cell-divider-right' : '',
+                hasDividerLeft ? 'math-cell-divider-left' : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
+              return React.createElement(
                 'mtd',
                 {
                   key: cIdx,
-                  className: node.align === 'left' ? 'math-cell math-cell-left' : 'math-cell',
+                  className: cellClass,
                 },
                 React.createElement(
                   'mrow',
                   null,
                   cellNodes.map((cn, nIdx) => renderNode(cn, nIdx)),
                 ),
-              ),
-            ),
+              );
+            }),
           ),
         ),
       );
@@ -982,8 +1014,7 @@ export function splitInlineMath(text: string): InlineSegment[] {
     // $ ... $ (single dollar, not $$)
     if (text[cursor] === '$' && text[cursor + 1] !== '$') {
       const afterOpen = text[cursor + 1] || '';
-      // Standard pandoc/remark-math rule: opening $ cannot be followed by whitespace
-      if (afterOpen && !/\s/.test(afterOpen)) {
+      if (afterOpen && afterOpen !== '\n') {
         let closeIdx = cursor + 1;
         let found = -1;
         while (closeIdx < text.length) {
@@ -993,19 +1024,27 @@ export function splitInlineMath(text: string): InlineSegment[] {
           }
           if (text[closeIdx] === '\n') break;
           if (text[closeIdx] === '$' && text[closeIdx + 1] !== '$') {
-            const beforeClose = text[closeIdx - 1] || '';
             const afterClose = text[closeIdx + 1] || '';
-            // Closing $ cannot be preceded by whitespace and cannot be followed immediately by a digit (avoids $50 ... $100)
-            if (!/\s/.test(beforeClose) && !/[0-9]/.test(afterClose)) {
-              found = closeIdx;
-              break;
+            // Closing $ cannot be followed immediately by a digit (avoids $50 ... $100 currency spans)
+            if (!/[0-9]/.test(afterClose)) {
+              const rawCandidate = text.slice(cursor + 1, closeIdx);
+              const hasLeadingOrTrailingSpace =
+                /^\s/.test(rawCandidate) || /\s$/.test(rawCandidate);
+              const hasExplicitMathSyntax = /[\\^_{}=<>±×÷→←⇒⇔∫∑√]/.test(rawCandidate);
+              if (
+                rawCandidate.trim().length > 0 &&
+                (!hasLeadingOrTrailingSpace || hasExplicitMathSyntax)
+              ) {
+                found = closeIdx;
+                break;
+              }
             }
           }
           closeIdx++;
         }
 
         if (found !== -1) {
-          const candidate = text.slice(cursor + 1, found);
+          const candidate = text.slice(cursor + 1, found).trim();
           if (cursor > plainStart) {
             segments.push({ type: 'text', content: text.slice(plainStart, cursor) });
           }

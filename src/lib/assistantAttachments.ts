@@ -21,7 +21,7 @@ export type AssistantAttachment = AssistantImageItem | AssistantDocumentItem;
 
 export const MAX_IMAGE_ATTACHMENTS = 3;
 export const MAX_RAW_FILE_BYTES = 15 * 1024 * 1024; // 15 MB
-const MAX_IMAGE_DIMENSION = 1568; // Optimal high-res tile size for GPT-4o & Gemini Vision
+const MAX_IMAGE_DIMENSION = 1792; // High-res tile size preserving handwritten subscripts & matrices
 
 const IMAGE_MIME_SET = new Set([
   'image/png',
@@ -162,11 +162,11 @@ export async function processImageAttachment(
         let finalDataUrl =
           outputMime === 'image/png'
             ? canvas.toDataURL('image/png')
-            : canvas.toDataURL('image/jpeg', 0.85);
+            : canvas.toDataURL('image/jpeg', 0.88);
 
-        if (finalDataUrl.length > 720_000) {
+        if (finalDataUrl.length > 1_100_000) {
           outputMime = 'image/jpeg';
-          finalDataUrl = canvas.toDataURL('image/jpeg', 0.74);
+          finalDataUrl = canvas.toDataURL('image/jpeg', 0.8);
         }
 
         if (finalDataUrl.startsWith('data:image/')) {

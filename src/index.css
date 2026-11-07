@@ -692,10 +692,19 @@ math .math-italic {
 }
 
 math mtd.math-cell {
-  padding: 0.15em 0.35em;
+  padding: 0.15em 0.38em;
   text-align: center;
 }
 
 math mtd.math-cell-left {
   text-align: left;
+}
+
+math mtd.math-cell-divider-right {
+  border-right: 1.5px solid hsl(var(--foreground) / 0.55);
+  padding-right: 0.65em;
+}
+
+math mtd.math-cell-divider-left {
+  padding-left: 0.65em;
 }

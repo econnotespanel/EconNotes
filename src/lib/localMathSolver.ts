@@ -355,8 +355,153 @@ function trySolveEquationOrExpression(rawText: string): string | null {
 /**
  * Offline / emergency fallback solver used ONLY when all cloud AI gateways are unreachable.
  */
+/**
+ * Deterministic Gauss-Jordan solver for 2x2 and 3x3 linear systems (x_1, x_2, x_3 or x, y, z)
+ * used when completely offline from cloud gateways.
+ */
+function trySolveLinearSystem(rawText: string): string | null {
+  const candidates = rawText
+    .split(/[\r\n,;]+/)
+    .map((s) => s.replace(/\$|\\/g, '').trim())
+    .filter((s) => s.includes('='));
+
+  if (candidates.length < 2) return null;
+
+  const useIndexed = /x_?1/i.test(rawText) && /x_?2/i.test(rawText);
+  const varNames = useIndexed
+    ? /x_?3/i.test(rawText)
+      ? ['x_1', 'x_2', 'x_3']
+      : ['x_1', 'x_2']
+    : /[zZ]/.test(rawText) && /[yY]/.test(rawText)
+    ? ['x', 'y', 'z']
+    : /[yY]/.test(rawText)
+    ? ['x', 'y']
+    : null;
+
+  if (!varNames) return null;
+  const n = varNames.length;
+
+  const parseLinearEq = (eqStr: string): { row: number[]; rhs: number } | null => {
+    const parts = eqStr.split('=');
+    if (parts.length !== 2) return null;
+    const evalLinear = (expr: string, vals: number[]): number | null => {
+      let s = expr.replace(/\s+/g, '');
+      if (useIndexed) {
+        s = s
+          .replace(/(\d)(x_?[123])/gi, '$1*$2')
+          .replace(/x_?1/gi, `(${vals[0]})`)
+          .replace(/x_?2/gi, `(${vals[1]})`)
+          .replace(/x_?3/gi, `(${vals[2] ?? 0})`);
+      } else {
+        s = s
+          .replace(/(\d)([xyzXYZ])/g, '$1*$2')
+          .replace(/[xX]/g, `(${vals[0]})`)
+          .replace(/[yY]/g, `(${vals[1]})`)
+          .replace(/[zZ]/g, `(${vals[2] ?? 0})`);
+      }
+      return new SafeMathEvaluator(s).evaluate();
+    };
+
+    const zeroVec = new Array(n).fill(0);
+    const l0 = evalLinear(parts[0], zeroVec);
+    const r0 = evalLinear(parts[1], zeroVec);
+    if (l0 === null || r0 === null) return null;
+    const constDiff = l0 - r0; // a*x + constDiff = 0 -> a*x = -constDiff
+
+    const coeffs: number[] = [];
+    for (let j = 0; j < n; j++) {
+      const unit = new Array(n).fill(0);
+      unit[j] = 1;
+      const lj = evalLinear(parts[0], unit);
+      const rj = evalLinear(parts[1], unit);
+      if (lj === null || rj === null) return null;
+      coeffs.push(lj - rj - constDiff);
+    }
+
+    if (coeffs.every((c) => Math.abs(c) < 1e-11)) return null;
+    return { row: coeffs, rhs: -constDiff };
+  };
+
+  const parsedEqs: Array<{ row: number[]; rhs: number }> = [];
+  for (const c of candidates) {
+    const p = parseLinearEq(c);
+    if (p) parsedEqs.push(p);
+    if (parsedEqs.length === n) break;
+  }
+
+  if (parsedEqs.length !== n) return null;
+
+  const aug = parsedEqs.map((e) => [...e.row, e.rhs]);
+  const initialMatrixLatex = aug
+    .map((r) => `${r.slice(0, n).map(fmtNum).join(' & ')} & ${fmtNum(r[n])}`)
+    .join(' \\\\\n');
+  const colSpec = `${'c'.repeat(n)}|c`;
+
+  // Gauss-Jordan elimination with partial pivoting
+  const mat = aug.map((r) => [...r]);
+  const stepLogs: string[] = [];
+
+  for (let col = 0; col < n; col++) {
+    let pivot = col;
+    for (let r = col + 1; r < n; r++) {
+      if (Math.abs(mat[r][col]) > Math.abs(mat[pivot][col])) pivot = r;
+    }
+    if (Math.abs(mat[pivot][col]) < 1e-10) return null;
+    if (pivot !== col) {
+      [mat[col], mat[pivot]] = [mat[pivot], mat[col]];
+      stepLogs.push(`- $R_{${col + 1}} \\leftrightarrow R_{${pivot + 1}}$ satır değişimi yapıldı.`);
+    }
+
+    const diag = mat[col][col];
+    if (Math.abs(diag - 1) > 1e-10) {
+      for (let j = col; j <= n; j++) mat[col][j] /= diag;
+      stepLogs.push(`- $R_{${col + 1}} \\leftarrow \\frac{1}{${fmtNum(diag)}} R_{${col + 1}}$ ile pivot $1$ yapıldı.`);
+    }
+
+    for (let r = 0; r < n; r++) {
+      if (r === col) continue;
+      const factor = mat[r][col];
+      if (Math.abs(factor) > 1e-10) {
+        for (let j = col; j <= n; j++) mat[r][j] -= factor * mat[col][j];
+        stepLogs.push(`- $R_{${r + 1}} \\leftarrow R_{${r + 1}} - (${fmtNum(factor)}) R_{${col + 1}}$ uygulandı.`);
+      }
+    }
+  }
+
+  const rrefLatex = mat
+    .map((r) => `${r.slice(0, n).map(fmtNum).join(' & ')} & ${fmtNum(r[n])}`)
+    .join(' \\\\\n');
+
+  const solLatex = varNames.map((v, idx) => `${v} = ${fmtNum(mat[idx][n])}`).join(', \\quad ');
+
+  return [
+    '### 📌 Sorunun Analizi ve Genişletilmiş Matris',
+    'Verilen doğrusal denklem sisteminin genişletilmiş matrisi ($[A \\mid b]$):',
+    '$$',
+    `\\left[\\begin{array}{${colSpec}}\n${initialMatrixLatex}\n\\end{array}\\right]`,
+    '$$',
+    '',
+    '### ✍️ Gauss-Jordan Eliminasyon Adımları',
+    ...stepLogs,
+    '',
+    'İndirgenmiş satır basamak (RREF) matrisi:',
+    '$$',
+    `\\left[\\begin{array}{${colSpec}}\n${rrefLatex}\n\\end{array}\\right]`,
+    '$$',
+    '',
+    '### ✅ Nihai Sonuç',
+    '$$',
+    `\\boxed{${solLatex}}`,
+    '$$',
+  ].join('\n');
+}
+
 export function solveLocallyAsLastResort(input: LocalSolveInput): string {
   const combinedSource = [input.extractedImageText, input.question].filter(Boolean).join('\n').trim();
+  const linearSolved = trySolveLinearSystem(combinedSource);
+  if (linearSolved) {
+    return linearSolved;
+  }
   const solved = trySolveEquationOrExpression(combinedSource);
   if (solved) {
     return solved;

@@ -42,7 +42,6 @@ import {
   AssistantProgressStage,
   invokeAcademicAssistantResilient,
 } from '@/lib/assistantClient';
-import { prewarmAndCacheImageOcr } from '@/lib/imageMathOcr';
 
 type SolveMode = 'step_by_step' | 'check_solution' | 'concept';
 
@@ -225,12 +224,10 @@ const AcademicAssistant = () => {
 
       if (newImages.length > 0) {
         setAttachedImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGE_ATTACHMENTS));
-        // Immediately pre-start OCR in background while user types their question!
-        prewarmAndCacheImageOcr(newImages);
         toast.success(
           newImages.length === 1
-            ? `${newImages[0].name} hazır! Arka planda ön okuma başlatıldı.`
-            : `${newImages.length} soru görseli hazır!`,
+            ? `${newImages[0].name} AI Vision analizi için hazır!`
+            : `${newImages.length} soru görseli AI Vision analizi için hazır!`,
         );
       }
     } catch (err: any) {
@@ -628,7 +625,7 @@ const AcademicAssistant = () => {
                         : 'Sorunun konusu ve verilenler belirleniyor',
                     ocr:
                       activeRequestKind === 'image'
-                        ? 'Görseldeki soru metni, tablolar ve denklemler okunuyor'
+                        ? 'El yazısı, matrisler, tablolar ve şekiller AI Vision ile okunuyor'
                         : 'Ders notundaki ilgili bölümler ve formüller taranıyor',
                     solve: 'Adım adım matematiksel / akademik çözüm oluşturuluyor',
                     verify: 'LaTeX denklemler ve sağlama adımları düzenleniyor',

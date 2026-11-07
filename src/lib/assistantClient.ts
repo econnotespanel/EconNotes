@@ -2,6 +2,10 @@ import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/integrations
 import { AssistantImageItem, combineImagesForSingleDocument } from '@/lib/assistantAttachments';
 import { extractMathTextFromImages } from '@/lib/imageMathOcr';
 import { matchConversationalIntent, solveLocallyAsLastResort } from '@/lib/localMathSolver';
+import {
+  extractHandwrittenLatexViaVisionOcr,
+  invokeMultimodalVisionCascade,
+} from '@/lib/multimodalVisionClient';
 
 export type AssistantSolveMode = 'step_by_step' | 'check_solution' | 'concept';
 export type AssistantProgressStage = 'prepare' | 'ocr' | 'solve' | 'verify';
@@ -254,7 +258,7 @@ function buildStemSystemPrompt(mode: AssistantSolveMode, hasImages: boolean, not
     'YAZIM KURALLARI:',
     '- Daima akıcı, anlaşılır, sabırlı ve öğretici bir Türkçe kullan.',
     '- Satır içi matematiksel ifadeleri `$...$` içinde (ör. `$f\'(x) = 2x$`), ana denklemleri kendi satırında `$$...$$` içinde yaz.',
-    '- Matrislerde `\\begin{bmatrix}...\\end{bmatrix}`, çok satırlı türetmelerde `\\begin{aligned}...\\end{aligned}`, nihai sonuçta `\\boxed{...}` kullan.',
+    '- Matrislerde `\\begin{bmatrix}...\\end{bmatrix}`, genişletilmiş (Gauss-Jordan) matrislerde `\\left[\\begin{array}{ccc|c}...\\end{array}\\right]`, çok satırlı türetmelerde `\\begin{aligned}...\\end{aligned}`, nihai sonuçta `\\boxed{...}` kullan.',
     '- Uygunsuz veya akademik dışı/yasadışı isteklere kibarca yanıt veremeyeceğini belirt.',
     '',
     buildModeDirective(mode, hasImages),
@@ -434,20 +438,11 @@ export async function invokeAcademicAssistantResilient(
     'prepare',
     12,
     images.length > 0
-      ? 'Soru görseli hazırlanıyor...'
+      ? 'Soru görseli AI Vision analizi için hazırlanıyor...'
       : documentName
       ? `${documentName} ders notu analiz için hazırlanıyor...`
       : 'Soru analiz ediliyor...',
   );
-
-  // Start background OCR concurrently if images are present so zero time is wasted if Edge fails
-  const concurrentOcrTask: Promise<string> | null =
-    images.length > 0
-      ? extractMathTextFromImages(images, (ocrPct, ocrLabel) => {
-          const mappedPct = Math.round(18 + (ocrPct / 100) * 42);
-          report('ocr', mappedPct, ocrLabel);
-        }).catch(() => '')
-      : null;
 
   // Stage 1 & 2: Supabase Edge Functions (with fast 6s probe & 10-minute session circuit breaker)
   if (Date.now() >= getEdgeCooldownUntil()) {
@@ -564,13 +559,6 @@ export async function invokeAcademicAssistantResilient(
     setEdgeCooldown(10 * 60_000);
   }
 
-  // Stage 3: Await the already-running Browser OCR task if images were attached
-  let extractedImageText = '';
-  if (concurrentOcrTask) {
-    extractedImageText = await concurrentOcrTask;
-  }
-
-  // Stage 4: Cloud Reasoning STEM Engine (`GPT-OSS 20B Reasoning`)
   const stemSystemPrompt = buildStemSystemPrompt(mode, images.length > 0, notesContext);
 
   let reasoningUserPrompt = userQuestion;
@@ -580,13 +568,37 @@ export async function invokeAcademicAssistantResilient(
     reasoningUserPrompt = `[Yüklenen Ders Notu: ${documentName || 'Belge'}]\n\nİlgili Not İçeriği:\n${trimmedDoc}\n\nÖğrencinin İsteği: ${userQuestion}`;
   }
 
+  // Stage 3: True Multimodal Vision-Language Cascade for gallery PNG/JPG photos (handwritten math, matrices, circuits, textbook pages)
+  let extractedImageText = '';
   if (images.length > 0) {
+    const visionReply = await invokeMultimodalVisionCascade({
+      systemPrompt: stemSystemPrompt,
+      userQuestion: reasoningUserPrompt,
+      history,
+      images,
+      report,
+    });
+
+    if (visionReply) {
+      report('verify', 100, 'Çözüm tamamlandı!');
+      return visionReply;
+    }
+
+    // Fallback 3B: Specialized Handwritten Formula/Layout VLM OCR (`PaddleOCR-VL-1.5`) -> Browser Printed OCR (`Tesseract.js`)
+    extractedImageText = await extractHandwrittenLatexViaVisionOcr(images, report);
+    if (!extractedImageText) {
+      extractedImageText = await extractMathTextFromImages(images, (ocrPct, ocrLabel) => {
+        const mappedPct = Math.round(35 + (ocrPct / 100) * 25);
+        report('ocr', mappedPct, ocrLabel);
+      }).catch(() => '');
+    }
+
     if (extractedImageText.trim().length >= 3) {
       reasoningUserPrompt = [
         `Öğrenci galeriden ${images.length} adet soru görseli (${images.map((i) => i.name).join(', ')}) yükledi.`,
-        'Görselden okunan soru/tablo metni ve matematiksel ifadeler aşağıdadır. Olası küçük OCR sembol kaymalarını (ör. x2 → x^2, kesir/tablo sütun hizaları) akademik bağlama göre düzelterek yorumla, önce okuduğun soruyu/tabloyu net biçimde özetle ve ardından adım adım anlata anlata çöz:',
+        'Görselden okunan soru/tablo metni ve matematiksel LaTeX ifadeleri aşağıdadır. Olası küçük sembol kaymalarını akademik bağlama göre düzelterek yorumla, önce okuduğun soruyu/denklem sistemini net biçimde yaz ve ardından adım adım anlata anlata çöz:',
         '',
-        '--- GÖRSELDEN OKUNAN METİN ---',
+        '--- GÖRSELDEN OKUNAN MATEMATİKSEL METİN ---',
         extractedImageText.slice(0, 9_500),
         '--- SON ---',
         '',
@@ -595,10 +607,26 @@ export async function invokeAcademicAssistantResilient(
     } else {
       return [
         '### 📷 Görseldeki Metin Net Okunamadı',
-        'Yüklediğiniz görseldeki yazılar otomatik taramada yeterince net seçilemedi. En hızlı ve doğru adım adım çözüm için:',
+        'Yüklediğiniz görsel şu an otomatik vizyon taramasında yeterince net seçilemedi. En hızlı ve doğru adım adım çözüm için:',
         '- Fotoğrafta **sadece çözülmesini istediğiniz soruyu yakından kırparak (crop)** iyi ışıkta tekrar `PNG` / `JPG` olarak yükleyebilir, **veya**',
-        '- Soruyu / denklemi kısaca metin kutusuna yazabilirsiniz.',
+        '- Soruyu / denklem sistemini kısaca metin kutusuna yazabilirsiniz.',
       ].join('\n');
+    }
+  }
+
+  // Stage 4: Cloud Reasoning STEM Engine (`GPT-OSS 20B Reasoning` + zero-cooldown Cloud STEM failover)
+  const isPollinationsInCooldown = Date.now() < nextAllowedReasoningAt - 1_500;
+  if (images.length === 0 && isPollinationsInCooldown) {
+    const fastCloudReply = await invokeMultimodalVisionCascade({
+      systemPrompt: stemSystemPrompt,
+      userQuestion: reasoningUserPrompt,
+      history,
+      images: [],
+      report,
+    });
+    if (fastCloudReply) {
+      report('verify', 100, 'Çözüm tamamlandı!');
+      return fastCloudReply;
     }
   }
 
@@ -612,6 +640,20 @@ export async function invokeAcademicAssistantResilient(
   if (reasoningReply) {
     report('verify', 100, 'Çözüm tamamlandı!');
     return reasoningReply;
+  }
+
+  if (images.length === 0 && !isPollinationsInCooldown) {
+    const backupCloudReply = await invokeMultimodalVisionCascade({
+      systemPrompt: stemSystemPrompt,
+      userQuestion: reasoningUserPrompt,
+      history,
+      images: [],
+      report,
+    });
+    if (backupCloudReply) {
+      report('verify', 100, 'Çözüm tamamlandı!');
+      return backupCloudReply;
+    }
   }
 
   // Stage 5: Offline / Last-Resort Symbolic & Numerical Math Solver
