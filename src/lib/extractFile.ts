@@ -46,25 +46,37 @@ export async function extractFile(
     return { kind: 'text', text: text.slice(0, 200_000) };
   }
 
-  // PDF → browser-side parse
+  // PDF → browser-side parallel batch parse
   if (mime === 'application/pdf' || name.endsWith('.pdf')) {
-    onProgress?.(10, 'PDF okunuyor...');
+    onProgress?.(12, 'PDF ders notu açılıyor...');
     const buf = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     const maxPages = Math.min(pdf.numPages, 80);
-    const parts: string[] = [];
-    for (let i = 1; i <= maxPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items
-        .map((it: any) => ('str' in it ? it.str : ''))
-        .join(' ');
-      parts.push(`--- Sayfa ${i} ---\n${pageText}`);
-      onProgress?.(10 + Math.round((i / maxPages) * 50), `PDF okunuyor (${i}/${maxPages})...`);
+    const parts: string[] = new Array(maxPages);
+    const batchSize = 8;
+
+    for (let start = 1; start <= maxPages; start += batchSize) {
+      const end = Math.min(maxPages, start + batchSize - 1);
+      await Promise.all(
+        Array.from({ length: end - start + 1 }, (_, offset) => {
+          const pageNum = start + offset;
+          return (async () => {
+            const page = await pdf.getPage(pageNum);
+            const content = await page.getTextContent();
+            const pageText = content.items
+              .map((it: any) => ('str' in it ? it.str : ''))
+              .join(' ');
+            parts[pageNum - 1] = `--- Sayfa ${pageNum} ---\n${pageText}`;
+          })();
+        }),
+      );
+      const pct = 15 + Math.round((end / maxPages) * 75);
+      onProgress?.(pct, `PDF ders notu okunuyor (${end}/${maxPages} sayfa)...`);
     }
+
     const text = parts.join('\n\n').slice(0, 200_000);
     if (!text.trim()) throw new Error('PDF metin içermiyor (taranmış olabilir). Görsel olarak yükleyin.');
-    onProgress?.(65, 'PDF metni hazır.');
+    onProgress?.(95, 'PDF ders notu hazır.');
     return { kind: 'text', text, pages: maxPages };
   }
 

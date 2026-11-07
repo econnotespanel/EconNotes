@@ -17,6 +17,7 @@ import {
   __resetAssistantClientStateForTests,
   formatStructuredSolutionToMarkdown,
   invokeAcademicAssistantResilient,
+  selectRelevantDocumentExcerpt,
 } from '@/lib/assistantClient';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -312,5 +313,17 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
     expect(Object.keys(firstCallHeaders).sort()).toEqual(['Authorization', 'Content-Type', 'apikey']);
     expect(reply).toContain('Adım 1: Türev Kurallarının Uygulanması');
     expect(reply).toContain("3x^2 + 2");
+  });
+
+  it('prioritizes matching pages in large PDF notes via selectRelevantDocumentExcerpt', () => {
+    const bigNote = [
+      '--- Sayfa 1 ---\nDers Girişi ve Genel Kavramlar ' + 'A'.repeat(400),
+      '--- Sayfa 2 ---\nAlakasız Tarihçe Metni ' + 'B'.repeat(400),
+      '--- Sayfa 3 ---\nLaplace Dönüşümü ve Diferansiyel Denklemler Çözümü f(t) = e^{-at}',
+    ].join('\n\n');
+
+    const excerpt = selectRelevantDocumentExcerpt(bigNote, 'Laplace dönüşümü nasıl çözülür?', 650);
+    expect(excerpt).toContain('Laplace Dönüşümü');
+    expect(excerpt).not.toContain('Alakasız Tarihçe Metni');
   });
 });

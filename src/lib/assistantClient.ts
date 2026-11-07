@@ -4,6 +4,13 @@ import { extractMathTextFromImages } from '@/lib/imageMathOcr';
 import { matchConversationalIntent, solveLocallyAsLastResort } from '@/lib/localMathSolver';
 
 export type AssistantSolveMode = 'step_by_step' | 'check_solution' | 'concept';
+export type AssistantProgressStage = 'prepare' | 'ocr' | 'solve' | 'verify';
+
+export interface AssistantProgressInfo {
+  stage: AssistantProgressStage;
+  percent: number;
+  label: string;
+}
 
 export interface InvokeAssistantParams {
   userQuestion: string;
@@ -15,6 +22,7 @@ export interface InvokeAssistantParams {
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
   images: AssistantImageItem[];
   onStatus?: (statusText: string) => void;
+  onProgress?: (info: AssistantProgressInfo) => void;
 }
 
 interface EdgeCallResult<T = any> {
@@ -25,16 +33,102 @@ interface EdgeCallResult<T = any> {
 }
 
 const PUBLIC_REASONING_ENDPOINT = 'https://text.pollinations.ai/openai';
+const EDGE_COOLDOWN_STORAGE_KEY = 'econnotes_assistant_edge_cooldown_v1';
 
 let edgeUnavailableUntil = 0;
 let edgeHasSucceededOnce = false;
 let nextAllowedReasoningAt = 0;
+
+function getEdgeCooldownUntil(): number {
+  if (edgeUnavailableUntil > 0) return edgeUnavailableUntil;
+  try {
+    const raw = globalThis.sessionStorage?.getItem(EDGE_COOLDOWN_STORAGE_KEY);
+    if (raw) {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed) && parsed > Date.now()) {
+        edgeUnavailableUntil = parsed;
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return 0;
+}
+
+function setEdgeCooldown(durationMs: number): void {
+  const until = Date.now() + durationMs;
+  edgeUnavailableUntil = until;
+  try {
+    globalThis.sessionStorage?.setItem(EDGE_COOLDOWN_STORAGE_KEY, String(until));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 /** Test helper to reset module-level circuit-breaker state between unit tests */
 export function __resetAssistantClientStateForTests(): void {
   edgeUnavailableUntil = 0;
   edgeHasSucceededOnce = false;
   nextAllowedReasoningAt = 0;
+  try {
+    globalThis.sessionStorage?.removeItem(EDGE_COOLDOWN_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Selects the most relevant pages/sections from large uploaded PDF/DOCX/PPTX lecture notes
+ * so the Reasoning LLM answers 3x faster without choking on 35,000+ characters of unrelated pages.
+ */
+export function selectRelevantDocumentExcerpt(
+  docText: string,
+  userQuestion: string,
+  maxChars = 11_500,
+): string {
+  if (!docText || docText.length <= maxChars) return docText;
+
+  const chunks = docText
+    .split(/(?=---\s*(?:Sayfa|Slayt)\s+\d+\s*---)/g)
+    .map((c) => c.trim())
+    .filter(Boolean);
+
+  if (chunks.length <= 1) {
+    return `${docText.slice(0, maxChars)}\n\n[...Belgenin devamı kısaltıldı...]`;
+  }
+
+  const keywords = userQuestion
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 3);
+
+  const scored = chunks.map((chunk, index) => {
+    const lower = chunk.toLowerCase();
+    let score = index === 0 ? 5 : index === 1 ? 2 : 0; // Always favor intro/title page
+    for (const kw of keywords) {
+      if (lower.includes(kw)) score += 4;
+    }
+    return { index, chunk, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const selectedIndices = new Set<number>();
+  let totalLen = 0;
+  for (const item of scored) {
+    if (totalLen + item.chunk.length > maxChars && selectedIndices.size > 0) continue;
+    selectedIndices.add(item.index);
+    totalLen += item.chunk.length + 2;
+    if (totalLen >= maxChars * 0.92) break;
+  }
+
+  return Array.from(selectedIndices)
+    .sort((a, b) => a - b)
+    .map((idx) => chunks[idx])
+    .join('\n\n')
+    .slice(0, maxChars);
 }
 
 async function getValidAccessToken(): Promise<string | null> {
@@ -64,7 +158,7 @@ async function getValidAccessToken(): Promise<string | null> {
 async function postEdgeFunction<T = any>(
   functionName: string,
   payload: Record<string, unknown>,
-  timeoutMs = 35_000,
+  timeoutMs = 15_000,
 ): Promise<EdgeCallResult<T>> {
   const token = await getValidAccessToken();
   if (!token) {
@@ -145,7 +239,7 @@ function buildModeDirective(mode: AssistantSolveMode, hasImages: boolean): strin
   return [
     `MOD: ADIM ADIM "ANLATA ANLATA" SORU ÇÖZÜMÜ (${hasImages ? 'GÖRSELDEN OKUNAN SORU' : 'MATEMATİK & MÜHENDİSLİK UZMANI'})`,
     'Soruyu şu 5 pedagojik aşamayla, HİÇBİR ARA CEBİRSEL İŞLEMİ ATLAMADAN çöz:',
-    '1. **📌 Sorunun Analizi ve Verilenler:** Sorunun konusunu, verilen değerleri/denklemi ve isteneni net biçimde yaz.',
+    '1. **📌 Sorunun Analizi ve Verilenler:** Sorunun konusunu, verilen değerleri/tabloyu/denklemi ve isteneni net biçimde yaz. (Sayfada birden fazla numaralı soru varsa ve öğrenci tek bir numara belirtmediyse ana/ilk sorudan başlayarak net alt başlıklarla çöz.)',
     '2. **🧭 Çözüm Stratejisi ve Formül:** Neden bu teoremi/yöntemi seçtiğimizi açıkla ve ana formülü LaTeX ile yaz.',
     '3. **✍️ Adım Adım, Anlata Anlata Çözüm:** **Adım 1**, **Adım 2**, **Adım 3**... şeklinde her adımda önce Türkçe olarak ne yaptığımızı samimi bir hoca gibi anlat, hemen altında denklemi göster.',
     '4. **✅ Nihai Sonuç ve Sağlama:** Nihai cevabı `\\boxed{...}` içinde birimiyle (ve varsa doğru şık harfiyle) vurgula; mümkünse kısa sağlama yap.',
@@ -165,7 +259,7 @@ function buildStemSystemPrompt(mode: AssistantSolveMode, hasImages: boolean, not
     '',
     buildModeDirective(mode, hasImages),
     notesContext
-      ? `\nPlatformdaki Mevcut Ders Notları (yalnızca ilgiliyse referans al):\n${notesContext.slice(0, 3_500)}`
+      ? `\nPlatformdaki Mevcut Ders Notları (yalnızca ilgiliyse referans al):\n${notesContext.slice(0, 2_500)}`
       : '',
   ]
     .filter(Boolean)
@@ -176,7 +270,6 @@ export function formatStructuredSolutionToMarkdown(content: any): string | null 
   if (!content || typeof content !== 'object') return null;
   const overview = typeof content.overview === 'string' ? content.overview.trim() : '';
 
-  // Reject static fallback placeholder from generate-study-material so we never show generic text
   if (
     !overview ||
     overview.includes('kuramsal temelleri ve sınav ağırlığı bakımından en kritik ünitelerden biridir')
@@ -215,48 +308,48 @@ export function formatStructuredSolutionToMarkdown(content: any): string | null 
 
 async function sleepWithCountdown(
   totalSeconds: number,
-  onStatus?: (statusText: string) => void,
+  report: (stage: AssistantProgressStage, percent: number, label: string) => void,
 ): Promise<void> {
   const clamped = Math.min(46, Math.max(1, Math.ceil(totalSeconds)));
   for (let remaining = clamped; remaining > 0; remaining--) {
-    onStatus?.(`Yoğunluk sırası bekleniyor, çözümünüz hazırlanıyor (${remaining} sn)...`);
+    const doneRatio = (clamped - remaining) / clamped;
+    report(
+      'solve',
+      Math.round(58 + doneRatio * 20),
+      `Yoğunluk sırası bekleniyor, çözümünüz hazırlanıyor (${remaining} sn)...`,
+    );
     await new Promise((r) => globalThis.setTimeout(r, 1000));
   }
-  onStatus?.('Adım adım çözüm ve LaTeX denklemler oluşturuluyor...');
 }
 
-/**
- * Calls the public CORS-enabled Reasoning STEM model (`GPT-OSS 20B Reasoning`) with
- * automatic cooldown queueing when rapid consecutive requests hit the per-IP window.
- */
 async function invokePublicReasoningStemEngine(params: {
   systemPrompt: string;
   userContent: string;
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
-  onStatus?: (statusText: string) => void;
+  report: (stage: AssistantProgressStage, percent: number, label: string) => void;
 }): Promise<string | null> {
-  const { systemPrompt, userContent, history, onStatus } = params;
+  const { systemPrompt, userContent, history, report } = params;
 
   const waitMs = nextAllowedReasoningAt - Date.now();
   if (waitMs > 1000 && waitMs <= 46_000) {
-    await sleepWithCountdown(Math.ceil(waitMs / 1000), onStatus);
+    await sleepWithCountdown(Math.ceil(waitMs / 1000), report);
   }
 
   const messages = [
     { role: 'system', content: systemPrompt },
     ...history.slice(-6).map((m) => ({
       role: m.role,
-      content: m.content.slice(0, 4_000),
+      content: m.content.slice(0, 3_500),
     })),
-    { role: 'user', content: userContent.slice(0, 24_000) },
+    { role: 'user', content: userContent.slice(0, 16_000) },
   ];
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const controller = new AbortController();
-    const timer = globalThis.setTimeout(() => controller.abort(), 65_000);
+    const timer = globalThis.setTimeout(() => controller.abort(), 55_000);
 
     try {
-      onStatus?.('Adım adım çözüm ve LaTeX denklemler hazırlanıyor...');
+      report('solve', 68, 'Matematiksel ve akademik çözüm adımları oluşturuluyor...');
       const res = await fetch(PUBLIC_REASONING_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -275,6 +368,7 @@ async function invokePublicReasoningStemEngine(params: {
 
       if (res.ok && rawText) {
         nextAllowedReasoningAt = Date.now() + 45_500;
+        report('verify', 94, 'LaTeX formüller ve sağlama adımları düzenleniyor...');
         try {
           const parsed = JSON.parse(rawText);
           const content = parsed?.choices?.[0]?.message?.content;
@@ -288,12 +382,11 @@ async function invokePublicReasoningStemEngine(params: {
         }
       }
 
-      // Check if rate-limited with explicit Retry after Xs
       const retryMatch = rawText.match(/Retry after\s+(\d+)\s*s/i);
       if ((res.status === 402 || res.status === 429) && retryMatch && attempt < 2) {
         const waitSec = Math.min(46, Math.max(2, Number(retryMatch[1]) + 1));
         nextAllowedReasoningAt = Date.now() + waitSec * 1000;
-        await sleepWithCountdown(waitSec, onStatus);
+        await sleepWithCountdown(waitSec, report);
         continue;
       }
 
@@ -307,14 +400,6 @@ async function invokePublicReasoningStemEngine(params: {
   return null;
 }
 
-/**
- * Multi-tier resilient Academic Assistant client:
- * 0. Instant response (<10ms) for pure greetings/courtesy ("selam", "nasılsın", etc.)
- * 1. Primary Supabase `academic-assistant` Edge Function (multimodal GPT-4o / Gemini 2.5 Pro)
- * 2. Secondary Supabase `study-coach` / `generate-study-material` Edge Functions
- * 3. Browser Turkish+Math OCR (`Tesseract.js@5` `tur+eng+equ`) + Cloud 20B Reasoning STEM Engine
- * 4. Offline Symbolic & Numerical Math Solver backup so the assistant never crashes.
- */
 export async function invokeAcademicAssistantResilient(
   params: InvokeAssistantParams,
 ): Promise<string> {
@@ -328,9 +413,15 @@ export async function invokeAcademicAssistantResilient(
     history,
     images,
     onStatus,
+    onProgress,
   } = params;
 
-  // Stage 0: Instant conversational response for pure greetings/courtesies (no math/files/images)
+  const report = (stage: AssistantProgressStage, percent: number, label: string) => {
+    onStatus?.(label);
+    onProgress?.({ stage, percent, label });
+  };
+
+  // Stage 0: Instant conversational response for pure greetings/courtesies
   const instantGreeting = matchConversationalIntent(
     userQuestion,
     images.length > 0 || Boolean(documentText),
@@ -339,24 +430,38 @@ export async function invokeAcademicAssistantResilient(
     return instantGreeting;
   }
 
-  // Stage 1 & 2: Supabase Edge Functions (skipped for 3 mins if verified unhealthy/quota-exhausted)
-  if (Date.now() >= edgeUnavailableUntil) {
-    const edgeTimeout = edgeHasSucceededOnce ? 75_000 : 14_000;
-    onStatus?.(
-      images.length > 0
-        ? 'Görsel inceleniyor, çözüm adımları hazırlanıyor...'
-        : 'Adım adım çözüm hazırlanıyor...',
-    );
+  report(
+    'prepare',
+    12,
+    images.length > 0
+      ? 'Soru görseli hazırlanıyor...'
+      : documentName
+      ? `${documentName} ders notu analiz için hazırlanıyor...`
+      : 'Soru analiz ediliyor...',
+  );
+
+  // Start background OCR concurrently if images are present so zero time is wasted if Edge fails
+  const concurrentOcrTask: Promise<string> | null =
+    images.length > 0
+      ? extractMathTextFromImages(images, (ocrPct, ocrLabel) => {
+          const mappedPct = Math.round(18 + (ocrPct / 100) * 42);
+          report('ocr', mappedPct, ocrLabel);
+        }).catch(() => '')
+      : null;
+
+  // Stage 1 & 2: Supabase Edge Functions (with fast 6s probe & 10-minute session circuit breaker)
+  if (Date.now() >= getEdgeCooldownUntil()) {
+    const edgeTimeout = edgeHasSucceededOnce ? 45_000 : 6_000;
 
     const primaryRes = await postEdgeFunction<{ reply?: string; error?: string }>(
       'academic-assistant',
       {
         message: fullMessageWithDoc,
         mode,
-        notesContext: notesContext.slice(0, 35_000),
+        notesContext: notesContext.slice(0, 25_000),
         history: history.slice(-10).map((m) => ({
           role: m.role,
-          content: m.content.slice(0, 10_000),
+          content: m.content.slice(0, 8_000),
         })),
         hasFile: Boolean(documentName) || images.length > 0,
         fileName: documentName || images[0]?.name,
@@ -374,17 +479,17 @@ export async function invokeAcademicAssistantResilient(
 
     if (primaryRes.ok && primaryRes.data?.reply) {
       edgeHasSucceededOnce = true;
+      report('verify', 98, 'Çözüm hazır.');
       return primaryRes.data.reply;
     }
 
     const directive = buildModeDirective(mode, images.length > 0);
 
-    // Try secondary Edge Function failover unless primary already reported 401/402 project-wide
-    if (primaryRes.status !== 401 && primaryRes.status !== 402) {
+    if (primaryRes.status !== 401 && primaryRes.status !== 402 && primaryRes.status !== 0) {
       if (images.length === 0) {
         const coachHistory = history.slice(-8).map((m) => ({
           role: m.role,
-          content: m.content.slice(0, 6_000),
+          content: m.content.slice(0, 5_000),
         }));
         const coachUserPrompt = `${directive}\n\nÖĞRENCİNİN SORUSU:\n${userQuestion}`.slice(0, 7_800);
 
@@ -399,8 +504,8 @@ export async function invokeAcademicAssistantResilient(
             course: 'Üniversite Matematik, Mühendislik ve Akademik Dersler',
             materialContent: {
               belgeAdi: documentName || null,
-              belgeMetni: documentText ? documentText.slice(0, 30_000) : null,
-              platformNotlari: notesContext.slice(0, 8_000),
+              belgeMetni: documentText ? selectRelevantDocumentExcerpt(documentText, userQuestion, 18_000) : null,
+              platformNotlari: notesContext.slice(0, 5_000),
             },
             messages: [...coachHistory, { role: 'user', content: coachUserPrompt }],
           },
@@ -409,11 +514,11 @@ export async function invokeAcademicAssistantResilient(
 
         if (coachRes.ok && coachRes.data?.reply) {
           edgeHasSucceededOnce = true;
+          report('verify', 98, 'Çözüm hazır.');
           return coachRes.data.reply;
         }
       }
 
-      // Multimodal Vision / Universal secondary Edge Function (`generate-study-material`)
       const singleDocImage =
         images.length > 0 ? await combineImagesForSingleDocument(images) : undefined;
 
@@ -439,7 +544,7 @@ export async function invokeAcademicAssistantResilient(
           summaryLength: 'detailed',
           noteStyle: mode === 'concept' ? 'formula_concepts' : 'solved_cases',
           customPrompt: customDirective,
-          noteContext: fullMessageWithDoc.slice(0, 90_000),
+          noteContext: fullMessageWithDoc.slice(0, 60_000),
           ...(singleDocImage ? { document: singleDocImage } : {}),
         },
         edgeTimeout,
@@ -449,37 +554,40 @@ export async function invokeAcademicAssistantResilient(
         const formatted = formatStructuredSolutionToMarkdown(studyMatRes.data.content);
         if (formatted) {
           edgeHasSucceededOnce = true;
+          report('verify', 98, 'Çözüm hazır.');
           return formatted;
         }
       }
     }
 
-    // Mark Edge Functions temporarily unhealthy for 3 minutes so subsequent messages skip dead roundtrips
-    edgeUnavailableUntil = Date.now() + 3 * 60_000;
+    // Remember unhealthy Edge state for 10 minutes across the session so next uploads take 0ms overhead
+    setEdgeCooldown(10 * 60_000);
   }
 
-  // Stage 3: If gallery PNG/JPG images are attached, extract Turkish + Math text via Browser OCR
+  // Stage 3: Await the already-running Browser OCR task if images were attached
   let extractedImageText = '';
-  if (images.length > 0) {
-    try {
-      extractedImageText = await extractMathTextFromImages(images, onStatus);
-    } catch (ocrErr) {
-      console.warn('[AcademicAssistant] Browser OCR fallback warning:', ocrErr);
-    }
+  if (concurrentOcrTask) {
+    extractedImageText = await concurrentOcrTask;
   }
 
   // Stage 4: Cloud Reasoning STEM Engine (`GPT-OSS 20B Reasoning`)
   const stemSystemPrompt = buildStemSystemPrompt(mode, images.length > 0, notesContext);
 
-  let reasoningUserPrompt = fullMessageWithDoc;
+  let reasoningUserPrompt = userQuestion;
+  if (documentText) {
+    const trimmedDoc = selectRelevantDocumentExcerpt(documentText, userQuestion, 11_500);
+    report('ocr', 55, `${documentName || 'Ders notu'} içindeki ilgili bölümler seçildi...`);
+    reasoningUserPrompt = `[Yüklenen Ders Notu: ${documentName || 'Belge'}]\n\nİlgili Not İçeriği:\n${trimmedDoc}\n\nÖğrencinin İsteği: ${userQuestion}`;
+  }
+
   if (images.length > 0) {
     if (extractedImageText.trim().length >= 3) {
       reasoningUserPrompt = [
         `Öğrenci galeriden ${images.length} adet soru görseli (${images.map((i) => i.name).join(', ')}) yükledi.`,
-        'Görselden OCR ile okunan ham metin ve matematiksel ifadeler aşağıdadır (olası küçük OCR karakter kaymalarını örn. x2 → x^2, kok → \\sqrt{}, kesir/indis yapılarını matematiksel bağlama göre düzelterek yorumla, önce okuduğun denklemi LaTeX ile teyit et ve ardından adım adım anlata anlata çöz):',
+        'Görselden okunan soru/tablo metni ve matematiksel ifadeler aşağıdadır. Olası küçük OCR sembol kaymalarını (ör. x2 → x^2, kesir/tablo sütun hizaları) akademik bağlama göre düzelterek yorumla, önce okuduğun soruyu/tabloyu net biçimde özetle ve ardından adım adım anlata anlata çöz:',
         '',
         '--- GÖRSELDEN OKUNAN METİN ---',
-        extractedImageText,
+        extractedImageText.slice(0, 9_500),
         '--- SON ---',
         '',
         `Öğrencinin ek notu / isteği: ${userQuestion}`,
@@ -487,9 +595,9 @@ export async function invokeAcademicAssistantResilient(
     } else {
       return [
         '### 📷 Görseldeki Metin Net Okunamadı',
-        'Yüklediğiniz görseldeki semboller otomatik taramada yeterince net seçilemedi. En doğru adım adım çözümü üretebilmem için:',
-        '- Görselin sadece **sorunun bulunduğu kısmını yakınlaştırıp (kırparak)** iyi ışıkta tekrar `PNG` / `JPG` olarak yükleyebilir, **veya**',
-        '- Denklemi kısaca metin kutusuna yazabilirsiniz (ör. `int x * e^x dx` veya `2x^2 - 5x + 2 = 0`).',
+        'Yüklediğiniz görseldeki yazılar otomatik taramada yeterince net seçilemedi. En hızlı ve doğru adım adım çözüm için:',
+        '- Fotoğrafta **sadece çözülmesini istediğiniz soruyu yakından kırparak (crop)** iyi ışıkta tekrar `PNG` / `JPG` olarak yükleyebilir, **veya**',
+        '- Soruyu / denklemi kısaca metin kutusuna yazabilirsiniz.',
       ].join('\n');
     }
   }
@@ -498,10 +606,11 @@ export async function invokeAcademicAssistantResilient(
     systemPrompt: stemSystemPrompt,
     userContent: reasoningUserPrompt,
     history,
-    onStatus,
+    report,
   });
 
   if (reasoningReply) {
+    report('verify', 100, 'Çözüm tamamlandı!');
     return reasoningReply;
   }
 

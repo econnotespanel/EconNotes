@@ -25,6 +25,7 @@ import {
   Check,
   RotateCcw,
   ZoomIn,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -36,7 +37,12 @@ import {
   processDocumentOrScannedPdf,
   processImageAttachment,
 } from '@/lib/assistantAttachments';
-import { invokeAcademicAssistantResilient } from '@/lib/assistantClient';
+import {
+  AssistantProgressInfo,
+  AssistantProgressStage,
+  invokeAcademicAssistantResilient,
+} from '@/lib/assistantClient';
+import { prewarmAndCacheImageOcr } from '@/lib/imageMathOcr';
 
 type SolveMode = 'step_by_step' | 'check_solution' | 'concept';
 
@@ -110,7 +116,19 @@ const AcademicAssistant = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
+  const [solveProgress, setSolveProgress] = useState<AssistantProgressInfo>({
+    stage: 'prepare',
+    percent: 10,
+    label: 'Soru analiz ediliyor...',
+  });
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [activeRequestKind, setActiveRequestKind] = useState<'text' | 'image' | 'document'>('text');
   const [processingAttachment, setProcessingAttachment] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    pct: number;
+    label: string;
+    fileName: string;
+  }>({ pct: 15, label: 'Dosya hazırlanıyor...', fileName: '' });
   const [notes, setNotes] = useState<any[]>([]);
   const [attachedImages, setAttachedImages] = useState<AssistantImageItem[]>([]);
   const [attachedDocument, setAttachedDocument] = useState<AssistantDocumentItem | null>(null);
@@ -137,30 +155,61 @@ const AcademicAssistant = () => {
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+  }, [messages, loading, processingAttachment]);
+
+  // Smooth elapsed-time counter & gentle progress creep during deep reasoning
+  useEffect(() => {
+    if (!loading) {
+      setElapsedSec(0);
+      return;
+    }
+    const interval = window.setInterval(() => {
+      setElapsedSec((prev) => prev + 1);
+      setSolveProgress((prev) => {
+        if (prev.percent >= 92) return prev;
+        const step = prev.stage === 'solve' ? 2 : 1;
+        return { ...prev, percent: Math.min(92, prev.percent + step) };
+      });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [loading]);
 
   const handleIncomingFiles = async (fileList: FileList | File[]) => {
     const files = Array.from(fileList);
     if (files.length === 0) return;
 
     setProcessingAttachment(true);
+    setUploadProgress({
+      pct: 12,
+      label: `${files[0].name} okunuyor...`,
+      fileName: files[0].name,
+    });
     try {
       let currentImgCount = attachedImages.length;
       const newImages: AssistantImageItem[] = [];
 
       for (const file of files) {
+        setUploadProgress({
+          pct: 18,
+          label: `${file.name} hazırlanıyor...`,
+          fileName: file.name,
+        });
         if (isSupportedImageFile(file)) {
           if (currentImgCount >= MAX_IMAGE_ATTACHMENTS) {
             toast.warning(`En fazla ${MAX_IMAGE_ATTACHMENTS} adet soru görseli ekleyebilirsiniz.`);
             continue;
           }
-          const processed = await processImageAttachment(file);
+          const processed = await processImageAttachment(file, (pct, label) => {
+            setUploadProgress({ pct, label, fileName: file.name });
+          });
           newImages.push(processed);
           currentImgCount++;
         } else if (isUnsupportedImageFormat(file)) {
           toast.error('Lütfen galeriden PNG, JPG/JPEG veya WebP formatında bir görsel seçin.');
         } else {
-          const result = await processDocumentOrScannedPdf(file);
+          const result = await processDocumentOrScannedPdf(file, (pct, label) => {
+            setUploadProgress({ pct, label, fileName: file.name });
+          });
           if (result.scannedImages && result.scannedImages.length > 0) {
             const slotsLeft = Math.max(0, MAX_IMAGE_ATTACHMENTS - currentImgCount);
             const toAdd = result.scannedImages.slice(0, slotsLeft || 1);
@@ -176,10 +225,12 @@ const AcademicAssistant = () => {
 
       if (newImages.length > 0) {
         setAttachedImages((prev) => [...prev, ...newImages].slice(0, MAX_IMAGE_ATTACHMENTS));
+        // Immediately pre-start OCR in background while user types their question!
+        prewarmAndCacheImageOcr(newImages);
         toast.success(
           newImages.length === 1
-            ? `${newImages[0].name} eklendi. Doğrudan gönderebilir veya not ekleyebilirsiniz.`
-            : `${newImages.length} soru görseli eklendi.`,
+            ? `${newImages[0].name} hazır! Arka planda ön okuma başlatıldı.`
+            : `${newImages.length} soru görseli hazır!`,
         );
       }
     } catch (err: any) {
@@ -266,6 +317,20 @@ const AcademicAssistant = () => {
       .slice(-10)
       .map((m) => ({ role: m.role, content: m.content.slice(0, 12_000) }));
 
+    const reqKind: 'text' | 'image' | 'document' =
+      currentImages.length > 0 ? 'image' : currentDocument ? 'document' : 'text';
+    setActiveRequestKind(reqKind);
+    setSolveProgress({
+      stage: 'prepare',
+      percent: 10,
+      label:
+        reqKind === 'image'
+          ? 'Soru görseli analiz için hazırlanıyor...'
+          : reqKind === 'document'
+          ? `${currentDocument?.name} ders notu taranıyor...`
+          : 'Soru analiz ediliyor...',
+    });
+
     setMessages((prev) => [
       ...prev,
       {
@@ -298,6 +363,14 @@ const AcademicAssistant = () => {
         history: historySnapshot,
         images: currentImages,
         onStatus: setLoadingStatus,
+        onProgress: (info) => {
+          setLoadingStatus(info.label);
+          setSolveProgress((prev) => ({
+            stage: info.stage,
+            percent: Math.max(prev.percent, info.percent),
+            label: info.label,
+          }));
+        },
       });
 
       setMessages((prev) => [
@@ -540,17 +613,144 @@ const AcademicAssistant = () => {
                   </div>
                 ))}
 
-                {loading && (
-                  <div className="flex justify-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15">
-                      <Bot className="h-4 w-4 text-primary" />
+                {loading && (() => {
+                  const stageOrder: AssistantProgressStage[] =
+                    activeRequestKind === 'text'
+                      ? ['prepare', 'solve', 'verify']
+                      : ['prepare', 'ocr', 'solve', 'verify'];
+
+                  const stageLabels: Record<AssistantProgressStage, string> = {
+                    prepare:
+                      activeRequestKind === 'image'
+                        ? 'Görsel netliği ve soru alanı doğrulanıyor'
+                        : activeRequestKind === 'document'
+                        ? 'Ders notu sayfaları analiz için hazırlanıyor'
+                        : 'Sorunun konusu ve verilenler belirleniyor',
+                    ocr:
+                      activeRequestKind === 'image'
+                        ? 'Görseldeki soru metni, tablolar ve denklemler okunuyor'
+                        : 'Ders notundaki ilgili bölümler ve formüller taranıyor',
+                    solve: 'Adım adım matematiksel / akademik çözüm oluşturuluyor',
+                    verify: 'LaTeX denklemler ve sağlama adımları düzenleniyor',
+                  };
+
+                  const currentStageIdx = Math.max(0, stageOrder.indexOf(solveProgress.stage));
+
+                  return (
+                    <div className="flex justify-start gap-2.5 sm:gap-3 animate-fade-in">
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15">
+                        <Bot className="h-4 w-4 text-primary" />
+                      </div>
+
+                      <div className="w-full max-w-[92%] sm:max-w-[540px] rounded-2xl rounded-bl-sm border border-primary/25 bg-card/95 p-4 shadow-md">
+                        {/* Top Header + Elapsed Time + Percentage */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                            <span className="truncate text-xs sm:text-sm font-semibold text-foreground">
+                              {activeRequestKind === 'image'
+                                ? 'Görseldeki Soru Çözümleniyor'
+                                : activeRequestKind === 'document'
+                                ? 'Ders Notu Analiz Ediliyor'
+                                : 'Adım Adım Çözüm Hazırlanıyor'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {elapsedSec} sn
+                            </span>
+                            <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-bold text-primary">
+                              %{solveProgress.percent}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Animated Progress Bar */}
+                        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-primary via-blue-500 to-emerald-500 transition-all duration-500 ease-out"
+                            style={{ width: `${Math.max(8, Math.min(100, solveProgress.percent))}%` }}
+                          />
+                        </div>
+
+                        {/* Current Live Sub-Status */}
+                        <p className="mt-2 text-xs text-primary/90 font-medium">
+                          {loadingStatus || solveProgress.label}
+                        </p>
+
+                        {/* Multi-Step Visual Checklist */}
+                        <div className="mt-3 space-y-1.5 border-t border-border/60 pt-2.5">
+                          {stageOrder.map((st, idx) => {
+                            const isDone = idx < currentStageIdx;
+                            const isCurrent = idx === currentStageIdx;
+                            return (
+                              <div
+                                key={st}
+                                className={`flex items-center gap-2 text-xs transition-colors ${
+                                  isCurrent
+                                    ? 'font-medium text-foreground'
+                                    : isDone
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-muted-foreground/60'
+                                }`}
+                              >
+                                {isDone ? (
+                                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                                ) : isCurrent ? (
+                                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
+                                ) : (
+                                  <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-muted-foreground/35" />
+                                )}
+                                <span>{stageLabels[st]}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {activeRequestKind === 'image' && (
+                          <p className="mt-2.5 rounded-lg bg-muted/50 px-2.5 py-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                            💡 Tam sayfa ders kitabı fotoğraflarında tablo ve tüm alt sorular okunduğu için işlem birkaç saniye sürebilir. Tek bir soruyu yakından kırparak yüklerseniz çok daha hızlı çözülür.
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2.5 rounded-2xl rounded-bl-sm border border-border/80 bg-card/95 px-4 py-3 text-xs sm:text-sm text-muted-foreground shadow-sm">
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                      <span>
-                        {loadingStatus ||
-                          'Soru analiz ediliyor, formüller ve adım adım anlatımlı çözüm hazırlanıyor...'}
-                      </span>
+                  );
+                })()}
+
+                {/* Prominent File / Note Upload Loading Card inside Chat Stream */}
+                {processingAttachment && (
+                  <div className="flex justify-center py-2 animate-fade-in">
+                    <div className="w-full max-w-md rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card to-card p-4 shadow-lg">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs sm:text-sm font-semibold text-foreground">
+                              Ders Notu / Görsel Yükleniyor...
+                            </p>
+                            <p className="truncate text-[11px] text-muted-foreground">
+                              {uploadProgress.fileName || 'Dosya işleniyor'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-bold text-primary">
+                          %{uploadProgress.pct}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-primary to-blue-500 transition-all duration-300 ease-out"
+                          style={{ width: `${Math.max(10, Math.min(100, uploadProgress.pct))}%` }}
+                        />
+                      </div>
+
+                      <p className="mt-2 text-xs font-medium text-primary/90">
+                        {uploadProgress.label}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -618,9 +818,14 @@ const AcademicAssistant = () => {
                 )}
 
                 {processingAttachment && (
-                  <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                    <span>Görsel / dosya hazırlanıyor...</span>
+                  <div className="flex w-full items-center justify-between gap-3 rounded-xl border border-primary/30 bg-card px-3.5 py-2.5 text-xs shadow-sm">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                      <span className="truncate font-medium text-foreground">
+                        {uploadProgress.label}
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-bold text-primary">%{uploadProgress.pct}</span>
                   </div>
                 )}
               </div>

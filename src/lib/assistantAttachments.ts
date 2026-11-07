@@ -107,7 +107,10 @@ function makeId(): string {
  * - Fills pure #ffffff background so transparent-background PNG equations stay crisp dark-on-white
  * - Keeps payload compact (~200-550 KB) so Edge Function gateways never reject for body size
  */
-export async function processImageAttachment(file: File): Promise<AssistantImageItem> {
+export async function processImageAttachment(
+  file: File,
+  onProgress?: (pct: number, label: string) => void,
+): Promise<AssistantImageItem> {
   if (file.size > MAX_RAW_FILE_BYTES) {
     throw new Error('Görsel boyutu 15 MB sınırını aşıyor. Lütfen daha küçük bir görsel seçin.');
   }
@@ -115,6 +118,7 @@ export async function processImageAttachment(file: File): Promise<AssistantImage
     throw new Error('Lütfen galeriden PNG veya JPG/JPEG formatında bir resim seçin.');
   }
 
+  onProgress?.(20, `${file.name || 'Soru görseli'} okunuyor...`);
   const originalMime = normalizeImageMime(file);
   const isHeicLike = /\.(heic|heif)$/i.test(file.name || '') || /heic|heif/i.test(file.type || '');
 
@@ -130,6 +134,7 @@ export async function processImageAttachment(file: File): Promise<AssistantImage
     }
 
     const decodeSrc = objectUrl || (await readFileAsDataUrl(file));
+    onProgress?.(50, 'Görsel netliği ve boyutu optimize ediliyor...');
     const img = await loadImageElement(decodeSrc);
     const width = img.naturalWidth || img.width;
     const height = img.naturalHeight || img.height;
@@ -266,7 +271,12 @@ export async function combineImagesForSingleDocument(
  * Renders up to the first `maxPages` of a scanned PDF as crisp JPEG images
  * so scanned math/engineering exam PDFs can still be solved visually.
  */
-async function renderScannedPdfToImages(file: File, maxPages = 3): Promise<AssistantImageItem[]> {
+async function renderScannedPdfToImages(
+  file: File,
+  maxPages = 3,
+  onProgress?: (pct: number, label: string) => void,
+): Promise<AssistantImageItem[]> {
+  onProgress?.(25, 'Taranmış PDF sayfaları görüntüye aktarılıyor...');
   const [pdfjsLib, pdfWorkerMod] = await Promise.all([
     import('pdfjs-dist/legacy/build/pdf.js'),
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -281,6 +291,10 @@ async function renderScannedPdfToImages(file: File, maxPages = 3): Promise<Assis
   const rendered: AssistantImageItem[] = [];
 
   for (let i = 1; i <= pageCount; i++) {
+    onProgress?.(
+      30 + Math.round((i / pageCount) * 65),
+      `Taranmış PDF sayfası hazırlanıyor (${i}/${pageCount})...`,
+    );
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale: 1.6 });
     const canvas = document.createElement('canvas');
@@ -317,16 +331,19 @@ async function renderScannedPdfToImages(file: File, maxPages = 3): Promise<Assis
  */
 export async function processDocumentOrScannedPdf(
   file: File,
+  onProgress?: (pct: number, label: string) => void,
 ): Promise<{ document?: AssistantDocumentItem; scannedImages?: AssistantImageItem[] }> {
   if (file.size > MAX_RAW_FILE_BYTES) {
     throw new Error('Dosya boyutu 15 MB sınırını aşıyor.');
   }
 
   const lowerName = file.name.toLowerCase();
+  onProgress?.(10, `${file.name} okunuyor...`);
 
   if (lowerName.endsWith('.csv') || file.type === 'text/csv') {
     const text = (await file.text()).slice(0, 35_000);
     if (!text.trim()) throw new Error('CSV dosyası boş görünüyor.');
+    onProgress?.(100, 'Tablo verisi hazır.');
     return {
       document: {
         id: makeId(),
@@ -342,15 +359,17 @@ export async function processDocumentOrScannedPdf(
 
   try {
     const { extractFile } = await import('@/lib/extractFile');
-    const extracted = await extractFile(file);
+    const extracted = await extractFile(file, onProgress);
     if (extracted.kind === 'text') {
       const stripped = extracted.text.replace(/---\s*Sayfa\s*\d+\s*---/g, '').trim();
       if (isPdf && stripped.length < 25) {
-        const scannedImages = await renderScannedPdfToImages(file, MAX_IMAGE_ATTACHMENTS);
+        const scannedImages = await renderScannedPdfToImages(file, MAX_IMAGE_ATTACHMENTS, onProgress);
         if (scannedImages.length > 0) {
+          onProgress?.(100, 'Taranmış ders notu hazır.');
           return { scannedImages };
         }
       }
+      onProgress?.(100, 'Ders notu hazır.');
       return {
         document: {
           id: makeId(),
@@ -363,14 +382,16 @@ export async function processDocumentOrScannedPdf(
       };
     }
     if (extracted.kind === 'image') {
-      const imgItem = await processImageAttachment(file);
+      const imgItem = await processImageAttachment(file, onProgress);
+      onProgress?.(100, 'Görsel hazır.');
       return { scannedImages: [imgItem] };
     }
   } catch (err: any) {
     if (isPdf) {
       try {
-        const scannedImages = await renderScannedPdfToImages(file, MAX_IMAGE_ATTACHMENTS);
+        const scannedImages = await renderScannedPdfToImages(file, MAX_IMAGE_ATTACHMENTS, onProgress);
         if (scannedImages.length > 0) {
+          onProgress?.(100, 'Taranmış ders notu hazır.');
           return { scannedImages };
         }
       } catch {
