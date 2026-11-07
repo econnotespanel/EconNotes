@@ -570,7 +570,7 @@ const AdminPanel = () => {
     const originalQuota = editUserData.manual_download_quota ?? null;
 
     if (selectedQuota !== originalQuota) {
-      const { error: quotaError } = await supabase.rpc('admin_set_download_quota', {
+      const { data: quotaSaved, error: quotaError } = await supabase.rpc('admin_set_download_quota', {
         _user_id: editUserData.user_id,
         _quota: selectedQuota,
       });
@@ -580,8 +580,10 @@ const AdminPanel = () => {
         } else {
           toast.error('Not kotası güncellenemedi: ' + quotaError.message);
         }
-        setEditUserDialog(false);
-        fetchAll();
+        return;
+      }
+      if (quotaSaved !== true) {
+        toast.error('Not kotası kaydedilemedi. Kullanıcı kaydı bulunamadı.');
         return;
       }
     }
@@ -1375,7 +1377,7 @@ const AdminPanel = () => {
         </Dialog>
 
         <Dialog open={editUserDialog} onOpenChange={setEditUserDialog}>
-          <DialogContent><DialogHeader><DialogTitle>Kullanıcı Düzenle - {editUserData?.full_name}</DialogTitle></DialogHeader>
+          <DialogContent className="overflow-y-auto"><DialogHeader><DialogTitle>Kullanıcı Düzenle - {editUserData?.full_name}</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2"><Label>Ad Soyad</Label><Input value={editUserForm.full_name} onChange={e => setEditUserForm({...editUserForm, full_name: e.target.value})} /></div>
               <div className="space-y-2"><Label>Üniversite</Label><Input value={editUserForm.university} onChange={e => setEditUserForm({...editUserForm, university: e.target.value})} /></div>
@@ -1383,7 +1385,7 @@ const AdminPanel = () => {
               <div className="space-y-2"><Label>Sınıf</Label>
                 <Select value={String(editUserForm.grade)} onValueChange={v => setEditUserForm({...editUserForm, grade: parseInt(v)})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[90]">
                     <SelectItem value="1">1. Sınıf</SelectItem>
                     <SelectItem value="2">2. Sınıf</SelectItem>
                     <SelectItem value="3">3. Sınıf</SelectItem>
@@ -1396,7 +1398,7 @@ const AdminPanel = () => {
                 <Label>Özel not indirme kotası</Label>
                 <Select value={editUserForm.download_quota || 'auto'} onValueChange={(value) => setEditUserForm({...editUserForm, download_quota: value === 'auto' ? '' : value})}>
                   <SelectTrigger><SelectValue placeholder="Otomatik hesapla" /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[90]">
                     <SelectItem value="auto">Otomatik hesapla</SelectItem>
                     {Array.from({ length: 9 }, (_, index) => String(index + 1)).map((quota) => (
                       <SelectItem key={quota} value={quota}>{quota} indirme hakkı</SelectItem>
