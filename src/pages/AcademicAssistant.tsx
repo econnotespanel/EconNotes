@@ -109,6 +109,7 @@ const AcademicAssistant = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_ASSISTANT_MESSAGE]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState('');
   const [processingAttachment, setProcessingAttachment] = useState(false);
   const [notes, setNotes] = useState<any[]>([]);
   const [attachedImages, setAttachedImages] = useState<AssistantImageItem[]>([]);
@@ -296,6 +297,7 @@ const AcademicAssistant = () => {
         notesContext,
         history: historySnapshot,
         images: currentImages,
+        onStatus: setLoadingStatus,
       });
 
       setMessages((prev) => [
@@ -326,6 +328,7 @@ const AcademicAssistant = () => {
       ]);
     } finally {
       setLoading(false);
+      setLoadingStatus('');
     }
   };
 
@@ -545,7 +548,8 @@ const AcademicAssistant = () => {
                     <div className="flex items-center gap-2.5 rounded-2xl rounded-bl-sm border border-border/80 bg-card/95 px-4 py-3 text-xs sm:text-sm text-muted-foreground shadow-sm">
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
                       <span>
-                        Soru analiz ediliyor, formüller ve adım adım anlatımlı çözüm hazırlanıyor...
+                        {loadingStatus ||
+                          'Soru analiz ediliyor, formüller ve adım adım anlatımlı çözüm hazırlanıyor...'}
                       </span>
                     </div>
                   </div>

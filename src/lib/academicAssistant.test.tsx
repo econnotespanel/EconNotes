@@ -14,6 +14,7 @@ import {
   processImageAttachment,
 } from '@/lib/assistantAttachments';
 import {
+  __resetAssistantClientStateForTests,
   formatStructuredSolutionToMarkdown,
   invokeAcademicAssistantResilient,
 } from '@/lib/assistantClient';
@@ -110,6 +111,120 @@ describe('Gallery PNG & JPG Attachment Helpers', () => {
 describe('Resilient Multimodal Assistant Failover Client', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    __resetAssistantClientStateForTests();
+  });
+
+  it('answers conversational greetings ("selam", "nasılsın") instantaneously without failing when Edge Functions are down', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network down'));
+
+    const reply1 = await invokeAcademicAssistantResilient({
+      userQuestion: 'selam',
+      fullMessageWithDoc: 'selam',
+      mode: 'step_by_step',
+      notesContext: '',
+      history: [],
+      images: [],
+    });
+    const reply2 = await invokeAcademicAssistantResilient({
+      userQuestion: 'nasılsın',
+      fullMessageWithDoc: 'nasılsın',
+      mode: 'step_by_step',
+      notesContext: '',
+      history: [
+        { role: 'user', content: 'selam' },
+        { role: 'assistant', content: reply1 },
+      ],
+      images: [],
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(reply1).toContain('EconNotes Akademik Asistan');
+    expect(reply2).toContain('İyiyim, çok teşekkür ederim');
+  });
+
+  it('fails over to Cloud STEM Reasoning Engine when all Supabase Edge Functions return 500/402/fallback', async () => {
+    vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'test-jwt-token',
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        } as any,
+      },
+      error: null,
+    });
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+      const url = String(input);
+      if (url.includes('/functions/v1/academic-assistant')) {
+        return new Response(JSON.stringify({ error: 'Bir hata oluştu. Lütfen tekrar deneyin.' }), {
+          status: 500,
+        });
+      }
+      if (url.includes('/functions/v1/study-coach')) {
+        return new Response(JSON.stringify({ error: 'AI servis kotası tükendi.' }), { status: 402 });
+      }
+      if (url.includes('/functions/v1/generate-study-material')) {
+        return new Response(
+          JSON.stringify({
+            content: {
+              overview:
+                'konusu, kuramsal temelleri ve sınav ağırlığı bakımından en kritik ünitelerden biridir.',
+              sections: [],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('text.pollinations.ai/openai')) {
+        return new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: '### Adım Adım Çözüm\n$$\\int x e^x\\,dx = \\boxed{e^x(x - 1) + C}$$',
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const reply = await invokeAcademicAssistantResilient({
+      userQuestion: 'integral x * e^x dx nedir?',
+      fullMessageWithDoc: 'integral x * e^x dx nedir?',
+      mode: 'step_by_step',
+      notesContext: '',
+      history: [],
+      images: [],
+    });
+
+    expect(reply).toContain('e^x(x - 1) + C');
+    expect(reply).not.toContain('Bir hata oluştu');
+  });
+
+  it('solves quadratic equations step-by-step locally even when completely offline from all cloud endpoints', async () => {
+    vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({ data: { session: null }, error: null });
+    vi.spyOn(supabase.auth, 'refreshSession').mockResolvedValue({
+      data: { session: null, user: null },
+      error: null,
+    });
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Offline'));
+
+    const reply = await invokeAcademicAssistantResilient({
+      userQuestion: '2x^2 - 5x + 2 = 0 denklemini çöz',
+      fullMessageWithDoc: '2x^2 - 5x + 2 = 0 denklemini çöz',
+      mode: 'step_by_step',
+      notesContext: '',
+      history: [],
+      images: [],
+    });
+
+    expect(reply).toContain('\\Delta');
+    expect(reply).toContain('\\boxed{2}');
+    expect(reply).toContain('\\boxed{0.5}');
   });
 
   it('rejects static generic fallback text in formatStructuredSolutionToMarkdown', () => {

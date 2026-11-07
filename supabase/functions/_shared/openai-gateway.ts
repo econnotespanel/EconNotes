@@ -221,6 +221,37 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
     }
   }
 
+  // Emergency zero-key reasoning fallback for plain-text chat when configured keys are exhausted (402/502)
+  const hasMultimodalImages = options.messages.some(
+    (m) => Array.isArray(m.content) && m.content.some((p) => p.type === 'image_url'),
+  );
+  if (!hasMultimodalImages && !options.tools && !options.jsonSchema) {
+    try {
+      const pubRes = await fetch('https://text.pollinations.ai/openai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'openai',
+          messages: options.messages,
+          temperature: options.temperature ?? 0.2,
+        }),
+      });
+      if (pubRes.ok) {
+        const pubData = await pubRes.json();
+        const pubText = pubData?.choices?.[0]?.message?.content;
+        if (typeof pubText === 'string' && pubText.trim().length > 0) {
+          return {
+            content: pubText.trim(),
+            usage: pubData.usage,
+            model: 'econnotes-reasoning',
+          };
+        }
+      }
+    } catch {
+      // Ignore fallback error and surface original gateway error below
+    }
+  }
+
   throw lastErr ?? new OpenAIGatewayError('AI servisi yanıt vermedi.', 502);
 }
 
