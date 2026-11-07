@@ -11,11 +11,22 @@
 
 export interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
+  content:
+    | string
+    | Array<
+        | { type: 'text'; text: string }
+        | { type: 'image_url'; image_url: { url: string; detail?: 'auto' | 'low' | 'high' } }
+      >;
 }
 
 export interface OpenAIChatOptions {
-  model?: 'gpt-4o' | 'gpt-4o-mini';
+  model?:
+    | 'gpt-4o'
+    | 'gpt-4o-mini'
+    | 'google/gemini-2.5-pro'
+    | 'google/gemini-2.5-flash'
+    | 'openai/gpt-4o'
+    | 'openai/gpt-4o-mini';
   messages: OpenAIMessage[];
   temperature?: number;
   max_tokens?: number;
@@ -76,8 +87,18 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
 
   // Map model if on Lovable gateway fallback, else use pure OpenAI model
   const selectedModel = isLovableGateway
-    ? (options.model === 'gpt-4o' ? 'openai/gpt-4o' : 'openai/gpt-4o-mini')
-    : (options.model || 'gpt-4o-mini');
+    ? (options.model?.includes('/')
+        ? options.model
+        : options.model === 'gpt-4o'
+        ? 'openai/gpt-4o'
+        : 'openai/gpt-4o-mini')
+    : (options.model?.startsWith('openai/')
+        ? options.model.slice('openai/'.length)
+        : options.model && !options.model.includes('/')
+        ? options.model
+        : options.model
+        ? 'gpt-4o'
+        : 'gpt-4o-mini');
 
   const payload: Record<string, unknown> = {
     model: selectedModel,
