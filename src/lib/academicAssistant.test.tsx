@@ -19,6 +19,13 @@ import {
   invokeAcademicAssistantResilient,
   selectRelevantDocumentExcerpt,
 } from '@/lib/assistantClient';
+import {
+  buildAssistantPdfHtml,
+  exportAssistantQuestionsToPdf,
+  extractExportableQuestionPairs,
+  isExportableAssistantAnswer,
+} from '@/lib/assistantPdfExport';
+import { APP_VERSION_LABEL } from '@/lib/version';
 import { supabase } from '@/integrations/supabase/client';
 
 describe('Academic Math & Engineering Markdown Renderer', () => {
@@ -433,5 +440,147 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
     expect(reply).toContain('x_1 = 5');
     expect(reply).toContain('x_2 = 1');
     expect(reply).toContain('x_3 = -2');
+  });
+});
+
+describe('EconNotes Branded Vector PDF Export', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('extracts solved question pairs while skipping welcome greeting and error stubs', () => {
+    const messages = [
+      { role: 'assistant' as const, content: 'Merhaba! Ben EconNotes Akademik Asistanınızım.' },
+      {
+        role: 'user' as const,
+        content: 'Görseldeki Gauss-Jordan sorusunu adım adım çöz.',
+        images: [{ name: 'gauss_jordan.jpg', previewUrl: 'data:image/jpeg;base64,aGVsbG8=' }],
+      },
+      { role: 'assistant' as const, content: 'Bir hata oluştu. Lütfen tekrar deneyin.' },
+      {
+        role: 'user' as const,
+        content: 'Görseldeki Gauss-Jordan sorusunu adım adım çöz.',
+        images: [{ name: 'gauss_jordan.jpg', previewUrl: 'data:image/jpeg;base64,aGVsbG8=' }],
+        documentName: 'Lineer_Cebir_Notu.pdf',
+      },
+      {
+        role: 'assistant' as const,
+        content: '### 📌 Adım Adım Çözüm\n$$\\boxed{x_1 = 5, \\quad x_2 = 1, \\quad x_3 = -2}$$',
+      },
+    ];
+
+    expect(isExportableAssistantAnswer(messages[2].content)).toBe(false);
+    expect(isExportableAssistantAnswer(messages[4].content)).toBe(true);
+
+    // Index 0 welcome and Index 2 error stub should both return empty on targeted export
+    expect(extractExportableQuestionPairs(messages, 0)).toEqual([]);
+    expect(extractExportableQuestionPairs(messages, 2)).toEqual([]);
+
+    const single = extractExportableQuestionPairs(messages, 4);
+    expect(single).toHaveLength(1);
+    expect(single[0].images?.[0]?.name).toBe('gauss_jordan.jpg');
+    expect(single[0].documentName).toBe('Lineer_Cebir_Notu.pdf');
+    expect(single[0].answerMarkdown).toContain('x_1 = 5');
+
+    const all = extractExportableQuestionPairs(messages);
+    expect(all).toHaveLength(1);
+    expect(all[0]).toEqual(single[0]);
+  });
+
+  it('builds publication-grade EconNotes-branded A4 HTML with logos, gallery image, and vector MathML', () => {
+    const html = buildAssistantPdfHtml({
+      mode: 'step_by_step',
+      studentName: 'Kaan Çolakoğlu',
+      createdAt: '08 Kasım 2026 02:30',
+      items: [
+        {
+          questionText: 'Denklem sistemini Gauss-Jordan ile çözünüz: $2x_1 + 8x_2 + 2x_3 = 14$',
+          images: [{ name: 'soru1.jpg', previewUrl: 'data:image/jpeg;base64,dGVzdA==' }],
+          documentName: 'Vize_Sorulari.pdf',
+          answerMarkdown: [
+            '### ✍️ Genişletilmiş Matris',
+            '$$\\left[\\begin{array}{ccc|c} 2 & 8 & 2 & 14 \\\\ 1 & 6 & -1 & 13 \\\\ 2 & -1 & 2 & 5 \\end{array}\\right]$$',
+            '### 🎯 Nihai Sonuç',
+            '$$\\boxed{x_1 = 5, \\quad x_2 = 1, \\quad x_3 = -2}$$',
+          ].join('\n\n'),
+        },
+      ],
+    });
+
+    // Official EconNotes theme & logos & version
+    expect(html).toContain('econnotes-brand-dark');
+    expect(html).toContain('econnotes-brand-light');
+    expect(html).toContain('linear-gradient(115deg, #002b73 0%, #0045a5 54%, #0070d1 100%)');
+    expect(html).toContain('print-color-adjust: exact');
+    expect(html).toContain('Kaan Çolakoğlu');
+    expect(html).toContain(APP_VERSION_LABEL);
+
+    // Embedded uploaded image & document badge
+    expect(html).toContain('data:image/jpeg;base64,dGVzdA==');
+    expect(html).toContain('soru1.jpg');
+    expect(html).toContain('Vize_Sorulari.pdf');
+
+    // Vector MathML equations, Gauss-Jordan divider, and boxed final answer
+    expect(html).toContain('<math');
+    expect(html).toContain('math-cell-divider-right');
+    expect(html).toContain('math-boxed');
+    expect(html).toContain('.academic-copy-btn');
+  });
+
+  it('writes branded PDF document synchronously to popup window and falls back to hidden iframe when blocked', () => {
+    let writtenHtml = '';
+    const mockPopup = {
+      document: {
+        open: vi.fn(),
+        write: vi.fn((chunk: string) => {
+          writtenHtml += chunk;
+        }),
+        close: vi.fn(),
+      },
+    } as unknown as Window;
+
+    const openSpy = vi.spyOn(window, 'open').mockReturnValueOnce(mockPopup);
+
+    exportAssistantQuestionsToPdf({
+      mode: 'check_solution',
+      studentName: 'Test Öğrenci',
+      items: [
+        {
+          questionText: '$\\int_0^1 x^2\\,dx$ integralini hesapla.',
+          answerMarkdown: 'Sonuç: $$\\boxed{\\frac{1}{3}}$$',
+        },
+      ],
+    });
+
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    expect(writtenHtml).toContain('Çözüm Kontrolü &amp; Hata Analizi');
+    expect(writtenHtml).toContain('<mfrac>');
+
+    // Fallback path when popup is blocked (window.open returns null)
+    vi.useFakeTimers();
+    openSpy.mockReturnValueOnce(null);
+    const beforeIframes = document.querySelectorAll('iframe').length;
+
+    exportAssistantQuestionsToPdf({
+      mode: 'concept',
+      items: [
+        {
+          questionText: 'Özdeğer nedir?',
+          answerMarkdown: 'Karakteristik denklem: $$\\det(A - \\lambda I) = 0$$',
+        },
+      ],
+    });
+
+    const afterIframes = document.querySelectorAll('iframe');
+    expect(afterIframes.length).toBe(beforeIframes + 1);
+    const fallbackIframe = afterIframes[afterIframes.length - 1] as HTMLIFrameElement;
+    const iframePrintSpy = vi.fn();
+    if (fallbackIframe.contentWindow) {
+      fallbackIframe.contentWindow.focus = vi.fn();
+      fallbackIframe.contentWindow.print = iframePrintSpy;
+    }
+    vi.runAllTimers();
+    expect(iframePrintSpy).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 });

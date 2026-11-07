@@ -1,7 +1,7 @@
 import Layout from '@/components/Layout';
 import AcademicMarkdown from '@/components/AcademicMarkdown';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import {
   RotateCcw,
   ZoomIn,
   Clock,
+  FileDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -42,6 +43,11 @@ import {
   AssistantProgressStage,
   invokeAcademicAssistantResilient,
 } from '@/lib/assistantClient';
+import {
+  exportAssistantQuestionsToPdf,
+  extractExportableQuestionPairs,
+  isExportableAssistantAnswer,
+} from '@/lib/assistantPdfExport';
 
 type SolveMode = 'step_by_step' | 'check_solution' | 'concept';
 
@@ -105,11 +111,11 @@ const MODE_OPTIONS: Array<{
 const INITIAL_ASSISTANT_MESSAGE: ChatMessage = {
   role: 'assistant',
   content:
-    'Merhaba! 🎓 Ben **EconNotes Akademik Asistanınızım**.\n\n**Matematik, Mühendislik, Fizik, İstatistik, Ekonometri** ve tüm üniversite derslerinizdeki soruları **hiçbir ara işlemi atlamadan, anlata anlata** çözmek için hazırım.\n\n- 🖼️ **Galeriden PNG / JPG Soru Resmi Gönderin:** Telefon galerinizden soru fotoğrafı veya ekran görüntüsü seçip doğrudan gönderebilirsiniz.\n- 📄 **PDF / Ders Notu Ekleyin:** PDF, Word veya slayt yükleyerek soru çözdürebilir ya da özet çıkarabilirsiniz.\n- ✍️ **Adım Adım Anlatım & Sağlama:** Her adımda hangi formülü *neden* kullandığımızı açıklar ve çözüm sonunda sağlama yaparım.',
+    'Merhaba! 🎓 Ben **EconNotes Akademik Asistanınızım**.\n\n**Matematik, Mühendislik, Fizik, İstatistik, Ekonometri** ve tüm üniversite derslerinizdeki soruları **hiçbir ara işlemi atlamadan, anlata anlata** çözmek için hazırım.\n\n- 🖼️ **Galeriden PNG / JPG Soru Resmi Gönderin:** Telefon galerinizden soru fotoğrafı veya ekran görüntüsü seçip doğrudan gönderebilirsiniz.\n- 📄 **PDF / Ders Notu Ekleyin:** PDF, Word veya slayt yükleyerek soru çözdürebilir ya da özet çıkarabilirsiniz.\n- ✍️ **Adım Adım Anlatım & Sağlama:** Her adımda hangi formülü *neden* kullandığımızı açıklar ve çözüm sonunda sağlama yaparım.\n- 📥 **EconNotes Temalı PDF Çıktısı:** Çözdürdüğünüz soruları tek tıkla EconNotes logolu ve vektörel formüllü **PDF** olarak dışa aktarabilirsiniz.',
 };
 
 const AcademicAssistant = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [mode, setMode] = useState<SolveMode>('step_by_step');
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_ASSISTANT_MESSAGE]);
   const [input, setInput] = useState('');
@@ -283,6 +289,34 @@ const AcademicAssistant = () => {
     }
   };
 
+  const studentDisplayName = useMemo(
+    () =>
+      profile?.full_name?.trim() ||
+      String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim() ||
+      user?.email?.split('@')[0] ||
+      undefined,
+    [profile?.full_name, user?.email, user?.user_metadata],
+  );
+
+  const exportablePairs = useMemo(() => extractExportableQuestionPairs(messages), [messages]);
+
+  const handleExportSinglePdf = (assistantIndex: number) => {
+    const singleItems = extractExportableQuestionPairs(messages, assistantIndex);
+    exportAssistantQuestionsToPdf({
+      mode,
+      studentName: studentDisplayName,
+      items: singleItems,
+    });
+  };
+
+  const handleExportAllPdf = () => {
+    exportAssistantQuestionsToPdf({
+      mode,
+      studentName: studentDisplayName,
+      items: exportablePairs,
+    });
+  };
+
   const hasAttachments = attachedImages.length > 0 || Boolean(attachedDocument);
   const canSend = !loading && !processingAttachment && (input.trim().length > 0 || hasAttachments);
 
@@ -437,17 +471,34 @@ const AcademicAssistant = () => {
             </div>
 
             {messages.length > 1 && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={resetConversation}
-                disabled={loading}
-                className="h-8 rounded-xl text-xs"
-              >
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                Yeni Soru
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                {exportablePairs.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={handleExportAllPdf}
+                    disabled={loading}
+                    className="h-8 rounded-xl text-xs shadow-sm"
+                  >
+                    <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                    {exportablePairs.length > 1
+                      ? `Tümünü PDF İndir (${exportablePairs.length})`
+                      : 'Soruyu PDF İndir'}
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={resetConversation}
+                  disabled={loading}
+                  className="h-8 rounded-xl text-xs"
+                >
+                  <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                  Yeni Soru
+                </Button>
+              </div>
             )}
           </div>
 
@@ -576,7 +627,18 @@ const AcademicAssistant = () => {
                         <div>
                           <AcademicMarkdown content={msg.content} />
                           {i > 0 && (
-                            <div className="mt-3 flex items-center justify-end border-t border-border/50 pt-2">
+                            <div className="mt-3 flex flex-wrap items-center justify-end gap-1.5 border-t border-border/50 pt-2">
+                              {isExportableAssistantAnswer(msg.content) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleExportSinglePdf(i)}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/20"
+                                >
+                                  <FileDown className="h-3.5 w-3.5" />
+                                  <span>PDF Olarak Dışa Aktar</span>
+                                </button>
+                              )}
+
                               <button
                                 type="button"
                                 onClick={() => copyMessageContent(msg.content, i)}
