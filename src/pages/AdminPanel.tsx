@@ -417,6 +417,16 @@ const AdminPanel = () => {
     if (opts?.reopen) patch.is_system_open = true;
     const { error } = await supabase.from('system_settings').update(patch).not('id', 'is', null);
     if (error) { toast.error('Kapanış ayarları kaydedilemedi.'); return; }
+    window.dispatchEvent(new Event('econnotes:system-changed'));
+    try {
+      await supabase.channel('public-system-status').send({
+        type: 'broadcast',
+        event: 'system-maintenance',
+        payload: { is_system_open: patch.is_system_open ?? systemOpen },
+      });
+    } catch (broadcastError) {
+      console.warn('Sistem bakım yayını gönderilemedi; istemciler periyodik kontrolle durumu alacak.', broadcastError);
+    }
     if (opts?.close) { setSystemOpen(false); toast.success('Sistem kapatıldı ve kapanış ekranı yayınlandı.'); }
     else if (opts?.reopen) { setSystemOpen(true); toast.success('Sistem yeniden açıldı. Herkese kolay gelsin!'); }
     else toast.success('Kapanış ayarları kaydedildi.');
