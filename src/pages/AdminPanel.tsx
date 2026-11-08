@@ -22,6 +22,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import SiteDesignPanel from '@/components/admin/SiteDesignPanel';
+import FatalErrorScreen from '@/components/FatalErrorScreen';
 import { downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
 import { parseLoginLogDevice } from '@/lib/deviceInfo';
 import { buildLoginAnalytics, formatRelativeLoginTime, type AuthAdminUserMeta } from '@/lib/adminLoginAnalytics';
@@ -73,6 +74,7 @@ const AdminPanel = () => {
   const [closureMessage, setClosureMessage] = useState('');
   const [closureImageUrl, setClosureImageUrl] = useState('');
   const [closureMode, setClosureMode] = useState('maintenance');
+  const [showFatalPreview, setShowFatalPreview] = useState(false);
   const [closedUntilInput, setClosedUntilInput] = useState('');
   const [promoteLoading, setPromoteLoading] = useState(false);
   const [promoteDialog, setPromoteDialog] = useState(false);
@@ -710,8 +712,27 @@ const AdminPanel = () => {
           <CardContent className="space-y-4">
             <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Kapanış Türü</Label>
-                <Select value={closureMode} onValueChange={setClosureMode}>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Kapanış Türü</Label>
+                  {closureMode === 'fatal_error' && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFatalPreview(true)}
+                      className="text-[11px] font-mono text-red-600 dark:text-red-400 font-semibold hover:underline flex items-center gap-1"
+                    >
+                      <AlertTriangle className="h-3 w-3" /> Ekranı Aç / Önizle
+                    </button>
+                  )}
+                </div>
+                <Select
+                  value={closureMode}
+                  onValueChange={(val) => {
+                    setClosureMode(val);
+                    if (val === 'fatal_error') {
+                      setShowFatalPreview(true);
+                    }
+                  }}
+                >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="summer">🌴 Yaz Tatili</SelectItem>
@@ -743,6 +764,17 @@ const AdminPanel = () => {
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
               <Button size="sm" variant="outline" onClick={() => saveClosureSettings()}>Ayarları Kaydet</Button>
+              {closureMode === 'fatal_error' && (
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="destructive"
+                  className="bg-red-700 hover:bg-red-800 text-white font-mono text-xs gap-1.5 shadow-md"
+                  onClick={() => setShowFatalPreview(true)}
+                >
+                  <AlertTriangle className="h-4 w-4" /> 🔴 Kırmızı Fatal Error Ekranını Aç
+                </Button>
+              )}
               {systemOpen ? (
                 <Button size="sm" className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:opacity-90 text-white" onClick={() => saveClosureSettings({ close: true })}>
                   <Sun className="h-4 w-4 mr-1.5" /> Sistemi Kapat & Yayınla
@@ -1517,6 +1549,52 @@ const AdminPanel = () => {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+      {showFatalPreview && (
+        <div className="fixed inset-0 z-[99999] overflow-auto bg-[#1b0307]">
+          {/* Admin Floating Controls */}
+          <div className="fixed top-4 right-4 z-[100000] flex flex-wrap items-center gap-2 bg-black/85 backdrop-blur-md border border-red-500/60 p-2.5 rounded-xl shadow-2xl">
+            <div className="flex items-center gap-2 px-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-ping" />
+              <span className="text-xs font-mono text-red-200 font-bold uppercase tracking-wider">
+                FATAL ERROR CANLI GÖRÜNÜM (YÖNETİCİ)
+              </span>
+            </div>
+            <Button
+              size="sm"
+              className="h-8 text-xs font-bold bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 text-white"
+              onClick={() => {
+                saveClosureSettings({ close: true });
+                setShowFatalPreview(false);
+              }}
+            >
+              <Power className="h-3.5 w-3.5 mr-1" />
+              Sistemi Kapat & Bu Ekranı Yayınla
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
+              onClick={() => setShowFatalPreview(false)}
+            >
+              ← Yönetim Paneline Dön
+            </Button>
+          </div>
+
+          <FatalErrorScreen
+            errorCode="ECON-FATAL-500"
+            application="ECONNOTES-WEB"
+            status="SERVICE_UNAVAILABLE"
+            request="ACCESS_BLOCKED_FOR_MAINTENANCE"
+            title={closureTitle || '500 — Sunucu Hatası'}
+            message={
+              closureMessage ||
+              'EconNotes şu anda beklenmeyen bir sunucu hatası nedeniyle kullanılamıyor. Teknik ekip bilgilendirildi ve hizmetin yeniden başlatılması için çalışmalar sürdürülüyor.'
+            }
+            onGoHome={() => setShowFatalPreview(false)}
+            onReload={() => window.location.reload()}
+          />
+        </div>
+      )}
       </Layout>
   );
 };

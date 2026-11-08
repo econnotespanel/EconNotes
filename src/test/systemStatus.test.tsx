@@ -102,4 +102,27 @@ describe('SystemGate & Maintenance Recognition', () => {
 
     expect(screen.getByText('Giriş Yap Sayfası')).toBeInTheDocument();
   });
+
+  it('renders FatalErrorScreen when closureMode is fatal_error and system is closed', () => {
+    mockUseAuth.mockReturnValue({ isAdmin: false, loading: false });
+    mockUseSystemStatus.mockReturnValue({
+      systemOpen: false,
+      closureTitle: 'Sunucu Arızası',
+      closureMessage: 'Teknik aksaklık yaşanmaktadır.',
+      closureMode: 'fatal_error',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <SystemGate>
+          <div>Anasayfa İçeriği</div>
+        </SystemGate>
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByText('Anasayfa İçeriği')).not.toBeInTheDocument();
+    expect(screen.getByText('CRITICAL SERVICE INTERRUPTION')).toBeInTheDocument();
+    expect(screen.getByText('500')).toBeInTheDocument();
+    expect(screen.getByText('Sunucu Arızası')).toBeInTheDocument();
+  });
 });

@@ -16,6 +16,7 @@ import {
   GraduationCap,
 } from 'lucide-react';
 import EconLogo from '@/components/EconLogo';
+import FatalErrorScreen from '@/components/FatalErrorScreen';
 import econNotesEMark from '@/assets/econnotes-e-mark.png';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,19 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
   imageUrl,
   mode = 'maintenance',
 }) => {
+  if (mode === 'fatal_error') {
+    return (
+      <FatalErrorScreen
+        errorCode="ECON-FATAL-500"
+        application="ECONNOTES-WEB"
+        status="SERVICE_UNAVAILABLE"
+        request="ACCESS_BLOCKED_FOR_MAINTENANCE"
+        title={title}
+        message={message}
+      />
+    );
+  }
+
   const [lastChecked, setLastChecked] = useState<string>(() =>
     new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
   );

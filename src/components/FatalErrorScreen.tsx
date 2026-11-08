@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import EconLogo from '@/components/EconLogo';
-import { RefreshCw, Home } from 'lucide-react';
+import { RefreshCw, Home, Shield } from 'lucide-react';
 
 export interface FatalErrorScreenProps {
   error?: Error | null;
@@ -9,8 +9,11 @@ export interface FatalErrorScreenProps {
   status?: string;
   request?: string;
   timestamp?: string;
+  title?: string | null;
+  message?: string | null;
   onReload?: () => void;
   onGoHome?: () => void;
+  adminControls?: React.ReactNode;
 }
 
 export const FatalErrorScreen: React.FC<FatalErrorScreenProps> = ({
@@ -20,8 +23,11 @@ export const FatalErrorScreen: React.FC<FatalErrorScreenProps> = ({
   status = 'SERVICE_UNAVAILABLE',
   request = 'ACCESS_BLOCKED_FOR_MAINTENANCE',
   timestamp,
+  title,
+  message,
   onReload,
   onGoHome,
+  adminControls,
 }) => {
   const formattedTimestamp = useMemo(() => {
     if (timestamp) return timestamp;
@@ -29,6 +35,11 @@ export const FatalErrorScreen: React.FC<FatalErrorScreenProps> = ({
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   }, [timestamp]);
+
+  const displayTitle = title?.trim() || '500 — Sunucu Hatası';
+  const displayMessage =
+    message?.trim() ||
+    'EconNotes şu anda beklenmeyen bir sunucu hatası nedeniyle kullanılamıyor. Teknik ekip bilgilendirildi ve hizmetin yeniden başlatılması için çalışmalar sürdürülüyor.';
 
   const handleReload = () => {
     if (onReload) {
@@ -78,13 +89,24 @@ export const FatalErrorScreen: React.FC<FatalErrorScreenProps> = ({
       </div>
 
       {/* Top Header Bar */}
-      <header className="relative z-10 w-full px-6 sm:px-10 lg:px-16 py-6 border-b border-white/20">
+      <header className="relative z-10 w-full px-6 sm:px-10 lg:px-16 py-6 border-b border-white/20 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <EconLogo allWhite className="h-7 w-auto" />
           <span className="text-white/40 text-lg font-light select-none">|</span>
           <span className="font-mono text-xs sm:text-sm uppercase tracking-[0.28em] text-white/90 font-semibold">
             SYSTEM STATUS
           </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {adminControls}
+          <a
+            href="/admin"
+            className="hidden sm:inline-flex items-center gap-1.5 font-mono text-xs text-white/60 hover:text-white border border-white/20 hover:border-white/50 px-3 py-1.5 rounded transition-all bg-black/20"
+          >
+            <Shield className="h-3.5 w-3.5" />
+            <span>YÖNETİCİ PANELİ</span>
+          </a>
         </div>
       </header>
 
@@ -103,14 +125,14 @@ export const FatalErrorScreen: React.FC<FatalErrorScreenProps> = ({
             </div>
 
             <div className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-wide">
-              500 — Sunucu Hatası
+              {displayTitle}
             </div>
 
             {/* Accent divider line */}
             <div className="w-28 sm:w-36 h-[2px] bg-white/40 my-2" />
 
             <p className="text-sm sm:text-base md:text-lg text-white/85 max-w-xl leading-relaxed">
-              EconNotes şu anda beklenmeyen bir sunucu hatası nedeniyle kullanılamıyor. Teknik ekip bilgilendirildi ve hizmetin yeniden başlatılması için çalışmalar sürdürülüyor.
+              {displayMessage}
             </p>
 
             {/* Recovery actions */}
