@@ -2069,7 +2069,9 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
                     <p className="text-xs font-bold text-foreground mb-1.5 flex items-center gap-1.5">
                       <GraduationCap className="h-4 w-4 text-primary" /> HOCANIN PUANLAMA KRİTERİ VE DEĞERLENDİRME REHBERİ
                     </p>
-                    <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">{q.explanation}</p>
+                    <div className="prose prose-sm max-w-none dark:prose-invert text-xs sm:text-sm leading-relaxed text-foreground/90 prose-p:my-1.5 prose-strong:text-foreground">
+                      <ReactMarkdown>{q.explanation}</ReactMarkdown>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2101,8 +2103,8 @@ const QuizViewer = ({ material, onProgressSaved }: { material: StudyMaterial; on
                   <GraduationCap className="h-4 w-4 text-primary" />
                   <span className="text-foreground">{userChoice === q.correctIndex ? '✓ DOĞRU YANIT — HOCANIN AKADEMİK ÇÖZÜM ANALİZİ' : '✗ NEDEN YANLIŞ? — HOCANIN SINAV VE ÇELDİRİCİ ANALİZİ'}</span>
                 </div>
-                <div className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed text-foreground/90">
-                  {q.explanation}
+                <div className="prose prose-sm max-w-none dark:prose-invert text-xs sm:text-sm leading-relaxed text-foreground/90 prose-p:my-1.5 prose-strong:text-foreground">
+                  <ReactMarkdown>{q.explanation}</ReactMarkdown>
                 </div>
               </div>
             )}

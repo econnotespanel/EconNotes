@@ -1,10 +1,11 @@
 /**
  * EconNotes İstemci Taraflı Akıllı Materyal Üretim Motoru (Client-side AI Resilient Fallback)
  *
- * Edge Function veya ağ bağlantısında beklenmeyen bir aksama (timeout, CORS, geçici servis kesintisi)
- * yaşandığında kullanıcının not özetleme veya sınav üretme işleminin ASLA yarıda kalmamasını sağlar.
- * Kullanıcının yüklediği ders notunu, başlığı ve özel chat direktiflerini analiz ederek
- * fakülte standartlarında eksiksiz bir çalışma materyali oluşturur.
+ * Çalışma Stüdyosu – Özetleme ve Soru Oluşturma Ana Yönergesi:
+ * 1. Ders Notlarını Anlaşılır ve Nitelikli Şekilde Özetle (yüzeysel değil, neden-nasıl ve ilişkilerle)
+ * 2. Kaynaklara Dayalı Nitelikli Sınav Soruları Oluştur (ezber değil, kavrama, analiz ve mantıklı çeldiriciler)
+ * 3. Cevap Anahtarı ve Öğretici Açıklamalar (doğru cevabın mantığı + çeldirici analizi + pekiştirme)
+ * 4. Genel Kalite Standartları (akademik doğruluk, tam pedagojik derinlik)
  */
 
 export interface GeneratePayload {
@@ -24,10 +25,10 @@ export function generateClientStudyMaterial(req: GeneratePayload): any {
   const title = (req.noteTitle || 'Ders Notu').trim();
   const course = (req.course || 'Akademik Çalışma').trim();
   const context = (req.noteContext || '').trim();
-  const custom = req.customPrompt ? `\n\nÖzel Talimat: ${req.customPrompt.trim()}` : '';
+  const custom = req.customPrompt ? `\n\nÖzel İstek: ${req.customPrompt.trim()}` : '';
   const count = Math.max(3, Math.min(30, req.count || 10));
 
-  // Not metninden anlamlı satırları ve kavramları ayıkla
+  // Not metninden anlamlı satırları, terimleri ve kavramları ayıkla
   const rawLines = context
     .split(/\r?\n/)
     .map(l => l.trim())
@@ -37,10 +38,13 @@ export function generateClientStudyMaterial(req: GeneratePayload): any {
   const parsedPoints: string[] = [];
 
   for (const line of rawLines) {
-    if (line.endsWith(':') || line.length < 50 || /^\d+[\.\)]/.test(line)) {
-      if (parsedHeadings.length < 12) parsedHeadings.push(line.replace(/[:\d\.\)]/g, '').trim());
+    if (line.endsWith(':') || (line.length < 65 && !line.endsWith('.')) || /^\d+[\.\)]/.test(line)) {
+      const cleanH = line.replace(/[:\d\.\)\-]/g, '').trim();
+      if (cleanH.length > 3 && parsedHeadings.length < 15 && !parsedHeadings.includes(cleanH)) {
+        parsedHeadings.push(cleanH);
+      }
     } else {
-      if (parsedPoints.length < 25) parsedPoints.push(line);
+      if (parsedPoints.length < 30) parsedPoints.push(line);
     }
   }
 
@@ -50,44 +54,46 @@ export function generateClientStudyMaterial(req: GeneratePayload): any {
     const isDetailed = req.summaryLength === 'detailed';
 
     const defaultHeadings = [
-      'Temel Kavramlar ve Kuramsal Mimari',
-      'Mekanizma, Aktarım Kanalları ve Değişkenler',
-      'Analitik Çözümlemeler ve Uygulama Alanları',
-      'Sınav Odaklı Kritik Noktalar ve Ayrım Çizgileri',
+      'Temel Kavramlar, Tanımlar ve Kuramsal Mimari',
+      'Mekanizmanın İşleyişi, Değişkenler ve Neden-Sonuç İlişkileri',
+      'Analitik Çözümlemeler, Formüller ve Uygulama Alanları',
+      'Sınav Odaklı Kritik Noktalar, Ayrım Çizgileri ve Hoca Vurguları',
     ];
 
     if (isDetailed) {
       defaultHeadings.push(
-        'Vaka İncelemeleri ve Somut Senaryolar',
-        'Grafik Eğrileri ve Sayısal Parametreler',
-        'Akademik Sentez ve Sınav Kazanımları'
+        'Somut Vaka İncelemeleri ve Uygulamalı Senaryolar',
+        'Grafik Eğrileri, Değişken Kaymaları ve Parametreler',
+        'Akademik Sentez ve Üniversite Sınavı Kazanımları'
       );
     }
 
-    const sectionHeadings = parsedHeadings.length >= 3 ? parsedHeadings.slice(0, isDetailed ? 7 : 4) : defaultHeadings;
+    const sectionHeadings = parsedHeadings.length >= 3 ? parsedHeadings.slice(0, isDetailed ? 8 : (isShort ? 4 : 6)) : defaultHeadings;
 
     const sections = sectionHeadings.map((h, i) => {
-      const relatedContent = parsedPoints.slice(i * 2, i * 2 + 3).join(' ') ||
-        `${title} konusunun bu bölümünde sistemin işleyiş prensipleri, kurumsal kısıtlar ve nedensellik bağları detaylı olarak incelenir. Üniversite vize ve final sınavlarında özellikle değişkenlerin karşılıklı etkileşim yönü ve mekanizmanın intikal aşamaları sorgulanmaktadır.`;
+      const relatedContent = parsedPoints.slice(i * 2, i * 2 + 3).join('\n\n') ||
+        `${title} konusunun bu bölümünde sistemin işleyiş prensipleri, kuramsal kısıtlar ve kavramlar arasındaki nedensellik bağları adım adım incelenir. Üniversite vize ve final sınavlarında özellikle değişkenlerin karşılıklı etkileşim yönü ve mekanizmanın intikal aşamaları sorgulanmaktadır.`;
 
       return {
         heading: `Bölüm ${i + 1}: ${h}`,
-        content: `**${h}** kapsamında temel aksiyomlar ve kavramsal hiyerarşi ele alınmaktadır.\n\n${relatedContent}\n\n* **Kilit Dinamik:** Parametre değişimleri piyasa/sistem dengesini etkileyerek yeni intikal süreçlerini tetikler.\n* **Analitik Not:** Formül ve grafiklerdeki eğri hareketleri ile eğri üzerindeki kaymalar birbirine karıştırılmamalıdır.`,
-        takeaway: `${h} ünitesinde en çok puan getiren husus, mekanizmanın nedensellik zincirini madde madde açıklamaktır.`,
+        content: `**${h}** kapsamında temel aksiyomlar, kavramsal hiyerarşi ve işleyiş mekanizması ele alınmaktadır.\n\n${relatedContent}\n\n* **Neden ve Nasıl İşler?** Sistemdeki her bir değişken başlangıç dengesini doğrudan etkiler; parametre değişimi yeni intikal süreçlerini tetikleyerek yeni bir denge noktası oluşturur.\n* **Kavramlar Arası İlişki:** Benzer görünen kavramlar arasındaki kuramsal ayrım doğru yapılmalı, eğri üzerindeki hareket ile eğrinin bütünüyle ötelenmesi birbirine karıştırılmamalıdır.\n* **Somut Örnek:** Dışsal bir şok durumunda piyasa veya sistem fiyat sinyalleri yoluyla kaynak dağılımını yeniden optimize eder.`,
+        takeaway: `${h} ünitesinde sınavda tam puan kazandıran temel husus; kavramın yalnızca tanımını yapmak değil, neden ve nasıl işlediğini basamak basamak açıklamaktır.`,
       };
     });
 
-    const keyPoints = (parsedPoints.length >= 5 ? parsedPoints.slice(0, isShort ? 6 : 10) : [
-      `${title} ünitesinin omurgasını kuramsal denge ve nedensellik ilişkileri oluşturur.`,
-      'Değişkenler arasındaki karşılıklı bağımlılık sistemin yönünü tayin eder.',
-      'Sınavlarda eğri üzerindeki hareket ile eğrinin ötelenmesi en yaygın çeldirici tuzaktır.',
-      'Nominal ve reel büyüklüklerin ayrımı soru köklerinde mutlaka kontrol edilmelidir.',
+    const keyPoints = (parsedPoints.length >= 6 ? parsedPoints.slice(0, isShort ? 6 : (isDetailed ? 14 : 10)) : [
+      `${title} ünitesinin omurgasını kuramsal denge, işleyiş mekanizması ve nedensellik ilişkileri oluşturur.`,
+      'Değişkenler arasındaki karşılıklı bağımlılık sistemin yönünü ve büyüklüğünü tayin eder.',
+      'Sınavlarda eğri üzerindeki hareket ile eğrinin kayması öğrencilerin en sık yanılgıya düştüğü çeldirici tuzaktır.',
+      'Nominal ve reel büyüklüklerin ayrımı sınav sorularında mutlaka kontrol edilmeli, enflasyon etkisi göz önünde bulundurulmalıdır.',
       'Uç durumlar ve istisnalar üniversite final sınavlarının ayırt edici soru kaynağıdır.',
-      'Klasik sorularda yalnızca tanım yapmak yetersizdir; mekanizmanın mantığı ve somut çıkarımı yazılmalıdır.',
+      'Bir kavramı açıklarken yalnızca ne olduğunu değil; neden ortaya çıktığını ve nasıl çalıştığını yazmak gerekir.',
+      'Formüllerin ezberlenmesi değil, matematiksel mantığının ve değişkenler arası yönün kavranması esastır.',
+      'Klasik sınavlarda tanımın yanına mutlaka aktarım mekanizması ve somut çıkarım eklenmelidir.',
     ]);
 
     return {
-      overview: `${course} dersi bünyesindeki ${title} konusu, akademik literatürde ve üniversite sınav komisyonlarında en yüksek soru ağırlığına sahip temel başlıklardan biridir. Bu özet, konunun temel varsayımlarını, nedensellik mekanizmalarını ve vize/finalde puan getiren kilit ayrımları derlemektedir.${custom}`,
+      overview: `${course} dersi bünyesindeki ${title} konusu, akademik literatürde ve üniversite sınav komisyonlarında en yüksek soru ağırlığına sahip temel başlıklardan biridir. Bu özet; içeriği yüzeysel kısaltmak yerine, konunun nedenini, işleyiş mekanizmasını, grafik/formül mantığını ve sınavda puan getiren kilit ayrımları öğrencinin tam kavramasını sağlayacak şekilde yapılandırmaktadır.${custom}`,
       keyPoints,
       sections,
       infographic: [
@@ -97,27 +103,28 @@ export function generateClientStudyMaterial(req: GeneratePayload): any {
         { label: 'Soru Tipi', value: 'Test & Klasik Analiz' },
       ],
       instructorEmphasis: [
-        'Hoca bu konuda özellikle içsel ve dışsal değişken ayrımını sınavda tuzak olarak sorabilir.',
-        'Öğrencilerin en çok düştüğü yanılgı: İki benzer kavramın birbirinin ikamesi sanılmasıdır.',
-        'Grafik sorularında eksenlerin doğru adlandırılması ve kayma yönünün oklarla gösterilmesi zorunludur.',
-        'Klasik sınavlarda tanımın yanına mutlaka matematiksel gösterim veya 3 aşamalı model açıklama eklenmelidir.',
+        'Hoca bu konuda özellikle içsel ve dışsal değişken ayrımını sınavda tuzak soru olarak kullanabilir.',
+        'Öğrencilerin en çok düştüğü yanılgı: İki benzer kavramın birbirinin ikamesi sanılması ve neden-sonuç yönünün ters kurulmasıdır.',
+        'Grafik ve tablo sorularında eksenlerin doğru adlandırılması, eğrinin kayma yönünün oklarla gösterilmesi zorunludur.',
+        'Klasik sınavlarda tanımın yanına mutlaka matematiksel/grafiksel gösterim ve 3 aşamalı nedensellik açıklaması eklenmelidir.',
       ],
       examLikelihood: [
-        { topic: `${title} Temel Denge Analizi`, reason: 'Konunun omurgasıdır; her sınavda en az bir soru doğrudan gelir.', likelihood: 'yüksek', studyPriority: 'öncelikli' },
-        { topic: 'Şoklara Karşı İntikal Mekanizması', reason: 'Çoktan seçmeli testlerde güçlü çeldirici üretmeye uygundur.', likelihood: 'yüksek', studyPriority: 'öncelikli' },
-        { topic: 'Uç Durumlar ve İstisnalar', reason: 'Final sınavlarında ayırt edici soru olarak tercih edilir.', likelihood: 'orta', studyPriority: 'normal' },
+        { topic: `${title} Temel Denge ve İşleyiş Analizi`, reason: 'Konunun omurgasıdır; her vize ve final sınavında en az bir soru doğrudan bu bölümden gelir.', likelihood: 'yüksek', studyPriority: 'öncelikli' },
+        { topic: 'Dışsal Şoklara Karşı İntikal Mekanizması', reason: 'Çoktan seçmeli testlerde güçlü ve mantıklı çeldiriciler üretmeye son derece uygundur.', likelihood: 'yüksek', studyPriority: 'öncelikli' },
+        { topic: 'Uç Durumlar, İstisnalar ve Özel Senaryolar', reason: 'Üniversite finallerinde ve yüksek not hedefleyen öğrenciler için ayırt edici soru olarak tercih edilir.', likelihood: 'orta', studyPriority: 'normal' },
       ],
       keyTerms: [
-        { term: 'Denge Noktası', definition: 'Sistemdeki içsel dinamiklerin eşitlendiği ve dışsal bir müdahale olmadıkça değişme eğilimi göstermeyen kararlı durum.' },
-        { term: 'Marjinal Analiz', definition: 'Bir değişkenin bir birim artırılması veya azaltılması durumunda toplam büyüklükte meydana gelen ek değişimin incelenmesi.' },
-        { term: 'Aktarım Mekanizması', definition: 'Başlangıçta meydana gelen bir dışsal şokun sistemdeki diğer unsurlara zincirleme olarak iletilme süreci.' },
+        { term: 'Denge Durumu', definition: 'Sistemdeki içsel dinamiklerin eşitlendiği ve dışsal bir müdahale olmadıkça değişme eğilimi göstermeyen kararlı durum.' },
+        { term: 'Marjinal Analiz', definition: 'Bir değişkenin bir birim artırılması veya azaltılması durumunda toplam büyüklükte meydana gelen ek değişimin ve fayda/maliyet dengesinin incelenmesi.' },
+        { term: 'Aktarım Mekanizması', definition: 'Başlangıçta meydana gelen dışsal bir şokun veya parametre değişiminin sistemdeki diğer unsurlara zincirleme olarak iletilme süreci.' },
         { term: 'Fırsat Maliyeti', definition: 'Belirli bir tercihin yapılması sonucu vazgeçilen en değerli alternatifin getirisi ve faydası.' },
       ],
       studyChecklist: [
-        `${title} konusunun 3 temel varsayımını eksiksiz sayabiliyorum.`,
-        'Grafikteki kaymalar ile eğri üzerindeki hareketleri ayırt edebiliyorum.',
+        `${title} konusunun temel varsayımlarını ve aksiyomlarını eksiksiz sayabiliyorum.`,
+        'Grafikteki ötelenmeler ile eğri üzerindeki hareketleri ve nedenlerini ayırt edebiliyorum.',
         'Hocanın sınavda sorabileceği klasik soruya 4 aşamalı model cevap yazabiliyorum.',
-        'Kavram sözlüğündeki terimleri kendi cümlelerimle açıklayabiliyorum.',
+        'Kritik kavram sözlüğündeki terimleri kendi cümlelerimle açıklayabiliyorum.',
+        'Çeldirici seçeneklerdeki kavram yanılgılarını gerekçeleriyle çürütebiliyorum.',
       ],
     };
   }
@@ -130,28 +137,68 @@ export function generateClientStudyMaterial(req: GeneratePayload): any {
     const questions: any[] = [];
     for (let i = 0; i < count; i++) {
       const shouldBeOpenEnded = isClassic || (isMixed && i % 2 === 1);
+      const heading = parsedHeadings[i] || `${title} Temel İlkesi #${i + 1}`;
 
       if (shouldBeOpenEnded) {
         questions.push({
-          question: `${title} konusunda ${parsedHeadings[i] || 'temel nedensellik mekanizması'} çerçevesinde ortaya çıkan sonuçları ve üniversite sınavlarında aranan 4 aşamalı kuramsal süreci açıklayınız.`,
+          question: `${title} dersi kapsamında "${heading}" konusunun neden ve nasıl işlediğini açıklayınız. Üniversite vize/final sınavlarında tam puan almak için gereken 4 aşamalı kuramsal aktarım mekanizmasını ve somut çıkarımını belirtiniz.`,
           type: 'open_ended',
           options: [],
-          sampleAnswer: `${title} bağlamında sistem; başlangıç dengesi, parametre değişimi, intikal süreci ve nihai uzun dönem dengesi olmak üzere 4 aşamalı nedensellik zinciriyle açıklanmalıdır. Piyasada meydana gelen bir değişim önce göreli fiyatları etkiler, ardından arz-talep uyarlaması ile yeni denge tesis edilir.`,
-          explanation: '**Hocanın Puanlama Kriteri:** Hoca cevap kağıdında 1) Başlangıç varsayımı, 2) Aktarım mekanizması, 3) Grafiğin veya denklemin yönü olmak üzere 3 temel yapı taşını arar.',
+          sampleAnswer: `${title} bağlamında "${heading}"; başlangıç dengesi, parametre değişimi, intikal süreci ve nihai denge olmak üzere 4 aşamalı nedensellik zinciriyle açıklanmalıdır. Piyasada veya sistemde meydana gelen bir dışsal değişim önce göreli fiyat ve marjinal dengeleri etkiler; karar alıcıların rasyonel uyarlamaları sonucunda yeni kararlı denge tesis edilir.`,
+          explanation: `**Doğru Yanıtın Mantığı ve Puanlama Kriteri:** Hoca cevap kağıdında 1) Başlangıç varsayımı, 2) Neden-sonuç aktarım mekanizması, 3) Grafiğin veya denklemin yönü, 4) Somut iktisadi/kuramsal çıkarım olmak üzere 4 temel yapı taşını arar.\n**Öğretici Açıklama:** Tanım yapmak tek başına yeterli değildir; değişkenin neden değiştiği ve sistemin nasıl tepki verdiği mutlaka adım adım yazılmalıdır.`,
           difficulty: req.difficulty || 'medium',
         });
       } else {
+        const qVariants = [
+          {
+            q: `${title} konusunda "${heading}" incelenirken aşağıdakilerden hangisi sistemin dengesini bozan ve intikal sürecini başlatan temel dışsal faktörlerin mantığını doğru açıklar?`,
+            opts: [
+              'Dışsal şoklar ve parametre değişimleri sonucu göreli dengelerin yeniden kurulması ve uyarlama sürecinin başlaması',
+              'Sistemin hiçbir dışsal etkiden etkilenmeksizin her zaman kendiliğinden durağan kalması',
+              'Bütün değişkenlerin birbirinden tamamen bağımsız hareket ederek dengeyi ilgilendirmemesi',
+              'İçsel mekanizmaların intikal sürecine ihtiyaç duymaksızın anında ve sıfır maliyetle yeni denge kurması',
+            ],
+            correct: 0,
+            logic: 'Dışsal şoklar eğrilerin bütünsel olarak ötelenmesine yol açar; karar birimleri yeni göreli koşullara göre tercihlerini günceller.',
+            trap: 'Şıklarda sistemin hiçbir intikal süresi olmadan anında dengeye geldiği veya dışsal faktörlerin etkisiz olduğu iddiası en yaygın sınav tuzağıdır.',
+            tip: 'Soru kökünde "dışsal şok" ifadesini gördüğünüzde eğrinin bütünsel kaymasını ve aktarım mekanizmasını hatırlayın.',
+          },
+          {
+            q: `${title} konusu kapsamında öğrencilerin sınavda en sık yanılgıya düştüğü aşağıdaki ifadelerden hangisi kuramsal olarak YANLIŞTIR?`,
+            opts: [
+              'İlgili değişkenin kendi değerindeki değişim eğriyi bütünüyle ötelerken, dışsal faktörler yalnızca eğri üzerinde harekete neden olur.',
+              'Kısa dönem ve uzun dönem dengeleri intikal sürecinin hızı ve esneklik derecesine göre farklılaşır.',
+              'Marjinal fayda veya marjinal maliyet analizleri karar birimlerinin optimal noktasını belirler.',
+              'Nominal büyüklüklerin enflasyondan arındırılmasıyla elde edilen reel büyüklükler gerçek refahı yansıtır.',
+            ],
+            correct: 0,
+            logic: 'Doğru kuramsal kural şudur: Değişkenin kendi fiyatı/değeri eğri ÜZERİNDE harekete yol açar; dışsal parametreler ise eğriyi BÜTÜNÜYLE sağa veya sola öteler. Şıkta bu kural ters verilmiştir.',
+            trap: 'Sınav komisyonları "eğri üzerinde hareket" ile "eğrinin kayması" kavramlarını ters eşleştirerek güçlü bir çeldirici kurgular.',
+            tip: 'İçsel değişken = eğri üzerinde hareket; Dışsal parametre = eğrinin bütünüyle ötelenmesi.',
+          },
+          {
+            q: `"${heading}" kapsamında uygulanan bir kurumsal/iktisadi politika kararının nihai başarısını belirleyen en kritik unsur aşağıdakilerden hangisidir?`,
+            opts: [
+              'Aktarım kanallarının etkinliği ve karar alıcıların beklentilerinin rasyonel biçimde sisteme intikal etmesi',
+              'Politikanın geçmişteki tüm varsayımları tamamen hükümsüz kılarak tek taraflı uygulanması',
+              'Piyasa aktörlerinin fiyat sinyallerini tamamen görmezden gelmesi',
+              'Sistemin yalnızca kısa vadeli nominal göstergeler üzerinden değerlendirilmesi',
+            ],
+            correct: 0,
+            logic: 'Politika kararlarının başarısı aktarım kanallarının pürüzsüz çalışmasına ve aktörlerin rasyonel intikaline bağlıdır.',
+            trap: 'Piyasa aktörlerinin tepkisiz kaldığı veya fiyat sinyallerinin önemsiz olduğu yönündeki seçenekler çeldiricidir.',
+            tip: 'Aktarım mekanizmasının aşamalarını ve intikal gecikmelerini göz önünde bulundurun.',
+          },
+        ];
+
+        const chosenVariant = qVariants[i % qVariants.length];
+
         questions.push({
-          question: `${title} konusu kapsamında aşağıdakilerden hangisi sistemin dengesini bozan temel dışsal faktörlerin başında gelir?`,
+          question: chosenVariant.q,
           type: 'multiple_choice',
-          options: [
-            'Dışsal şoklar ve parametre değişimleri sonucu göreli fiyatların yeniden oluşması',
-            'Sistemin hiçbir dışsal etkiden etkilenmeksizin sürekli sabit kalması',
-            'Bütün değişkenlerin birbirinden tamamen bağımsız hareket etmesi',
-            'İçsel mekanizmaların dengeyi anında ve sıfır maliyetle kurması',
-          ],
-          correctIndex: 0,
-          explanation: '**Doğru Yanıtın Mantığı:** Dışsal şoklar ve parametre değişimleri sistemi denge dışına iter ve intikal sürecini başlatır.\n**Hocanın Sınav Tuzağı:** Şıklarda sistemin anında intikal ettiği iddiası yanıltıcıdır; gecikmeler mevcuttur.\n**Sınav Tüyosu:** Sorularda "dışsal" ve "içsel" kelimelerini görünce aktarım mekanizmasını hatırlayın.',
+          options: chosenVariant.opts,
+          correctIndex: chosenVariant.correct,
+          explanation: `**Doğru Yanıtın Mantığı:** ${chosenVariant.logic}\n\n**Çeldiricilerin & Diğer Seçeneklerin Analizi:** ${chosenVariant.trap}\n\n**Öğretici Pekiştirme & Sınav Tüyosu:** ${chosenVariant.tip}`,
           difficulty: req.difficulty || 'medium',
         });
       }
@@ -166,9 +213,9 @@ export function generateClientStudyMaterial(req: GeneratePayload): any {
     for (let i = 0; i < count; i++) {
       const termName = parsedHeadings[i] || `${title} Kavramı #${i + 1}`;
       cards.push({
-        front: `${termName} nedir ve sınavda hangi yönüyle sorulur?`,
-        back: `${termName}, ${title} sisteminin işleyişinde karar alıcıların tercihlerini belirleyen temel kuramsal yapıdır. Sınavda özellikle neden-sonuç mekanizması sorgulanır.`,
-        hint: 'İçsel/dışsal değişken ayrımına ve aktarım yönüne odaklanın.',
+        front: `${termName} nedir, neden önemlidir ve sınavda hangi yönüyle sorulur?`,
+        back: `${termName}, ${title} sisteminin işleyişinde karar alıcıların tercihlerini belirleyen temel kuramsal yapıdır. Sınavlarda özellikle neden-sonuç mekanizması, eğriler üzerindeki etkisi ve çeldirici kavram ayrımları üzerinden sorgulanır.`,
+        hint: 'İçsel/dışsal değişken ayrımına, aktarım yönüne ve formülün sezgisel mantığına odaklanın.',
       });
     }
     return { cards };
@@ -219,9 +266,14 @@ export function generateClientStudyMaterial(req: GeneratePayload): any {
     examQuestions: [
       {
         question: `${title} konusunda temel aktarım mekanizması nasıldır?`,
-        options: ['Fiyat sinyalleri yoluyla kaynak dağılımı sağlanır.', 'Piyasa tamamen durağandır.', 'Denge kendiliğinden bozulmaz.', 'Tüm değişkenler bağımsızdır.'],
+        options: [
+          'Fiyat sinyalleri yoluyla kaynak dağılımı sağlanır ve piyasa intikal eder.',
+          'Piyasa tamamen durağandır ve hiçbir parametreye tepki vermez.',
+          'Denge kendiliğinden bozulmaz ve dışsal şoklar etkisizdir.',
+          'Tüm değişkenler birbirinden tamamen bağımsız hareket eder.',
+        ],
         correctIndex: 0,
-        explanation: 'Fiyat mekanizması kıt kaynakların en verimli alanlara tahsis edilmesini temin eder.',
+        explanation: 'Fiyat mekanizması kıt kaynakların en verimli alanlara tahsis edilmesini ve yeni dengenin kurulmasını temin eder.',
       },
     ],
     matchingPairs: [
