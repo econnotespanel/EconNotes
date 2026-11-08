@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
-import { getSupportMessageBody, parseSupportMessage } from '@/lib/support';
+import { getSupportMessageBody, isSupportSystemMessage, SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 
 const EMOJIS = ['😀','😂','😍','👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐'];
 
@@ -124,20 +124,22 @@ const Messages = () => {
       .from('messages')
       .select('id,sender_id,receiver_id,content,created_at,is_read')
       .or(`and(sender_id.eq.${user!.id},receiver_id.eq.${friendUserId}),and(sender_id.eq.${friendUserId},receiver_id.eq.${user!.id})`)
+      .not('content', 'like', `${SUPPORT_MESSAGE_PREFIX}%`)
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) {
       toast.error(`Mesajlar yüklenemedi: ${error.message}`);
       return;
     }
-    setMessages((data || []).filter(message => !parseSupportMessage(message.content)).reverse());
+    setMessages((data || []).filter(message => !isSupportSystemMessage(message.content)).reverse());
     
-    // Mark received messages as read
+    // Mark only personal messages as read (never touch Destek Merkezi messages)
     await supabase.from('messages')
       .update({ is_read: true })
       .eq('sender_id', friendUserId)
       .eq('receiver_id', user!.id)
-      .eq('is_read', false);
+      .eq('is_read', false)
+      .not('content', 'like', `${SUPPORT_MESSAGE_PREFIX}%`);
     
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
@@ -248,7 +250,12 @@ const Messages = () => {
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedFriend) return;
+    const trimmed = newMessage.trim();
+    if (!trimmed || !selectedFriend) return;
+    if (isSupportSystemMessage(trimmed)) {
+      toast.error('Destek mesajları yalnızca Destek Merkezi üzerinden gönderilebilir.');
+      return;
+    }
     const { error } = await supabase.from('messages').insert({
       sender_id: user!.id,
       receiver_id: selectedFriend.user_id,

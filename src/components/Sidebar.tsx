@@ -20,7 +20,7 @@ import { APP_VERSION } from '@/lib/version';
 import { useSiteConfig } from '@/contexts/SiteConfigContext';
 import EconLogo from '@/components/EconLogo';
 import { toast } from 'sonner';
-import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
+import { parseSupportMessage, SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 
 type LinkItem = {
   label: string;
@@ -38,18 +38,39 @@ const Sidebar = () => {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [unreadSupport, setUnreadSupport] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const firstItemRef = useRef<HTMLButtonElement>(null);
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
-    const { data: unreadMsgs } = await supabase
-      .from('messages').select('sender_id')
-      .eq('receiver_id', user.id).eq('is_read', false)
-      .not('content', 'like', `${SUPPORT_MESSAGE_PREFIX}%`);
+    const [{ data: unreadMsgs }, { data: unreadSupportRows }] = await Promise.all([
+      supabase
+        .from('messages')
+        .select('sender_id')
+        .eq('receiver_id', user.id)
+        .eq('is_read', false)
+        .not('content', 'like', `${SUPPORT_MESSAGE_PREFIX}%`),
+      supabase
+        .from('messages')
+        .select('content')
+        .eq('receiver_id', user.id)
+        .eq('is_read', false)
+        .like('content', `${SUPPORT_MESSAGE_PREFIX}%`),
+    ]);
     if (unreadMsgs) {
       const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));
       setUnreadMessages(uniqueSenders.size);
+    }
+    if (unreadSupportRows) {
+      const unreadTicketIds = new Set<string>();
+      for (const row of unreadSupportRows as { content: string }[]) {
+        const parsed = parseSupportMessage(row.content);
+        if (parsed && (parsed.kind === 'ticket' || parsed.kind === 'reply')) {
+          unreadTicketIds.add(parsed.ticketId);
+        }
+      }
+      setUnreadSupport(unreadTicketIds.size);
     }
     const { data: announcements } = await supabase.from('announcements').select('id');
     const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
@@ -60,7 +81,11 @@ const Sidebar = () => {
   useEffect(() => {
     fetchUnread();
     const interval = setInterval(fetchUnread, 120000);
-    return () => clearInterval(interval);
+    window.addEventListener('econnotes:support-read-updated', fetchUnread);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('econnotes:support-read-updated', fetchUnread);
+    };
   }, [fetchUnread]);
 
   useEffect(() => {
@@ -125,14 +150,14 @@ const Sidebar = () => {
   const account: LinkItem[] = [
     { label: 'Profilim',           icon: User,          path: '/profile' },
     { label: 'Puan Geçmişim',      icon: Sparkles,      path: '/points',     isNew: true },
-    { label: 'Destek Merkezi',     icon: LifeBuoy,      path: '/support',    isBeta: true },
+    { label: 'Destek Merkezi',     icon: LifeBuoy,      path: '/support',    isBeta: true, badge: unreadSupport },
     { label: 'Hakkında',           icon: Info,          path: '/about' },
     ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
 
   const visible = (items: LinkItem[]) => items.filter(l => isAdmin || isPageEnabled(l.path));
 
-  const totalBadge = unreadMessages + unreadAnnouncements;
+  const totalBadge = unreadMessages + unreadSupport + unreadAnnouncements;
 
   const handleLogout = async () => {
     await signOut();
