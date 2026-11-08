@@ -512,139 +512,319 @@ GÖREV: ${task}`;
   return { system: baseSystem, userText };
 }
 
-// Fail-safe structured generator ensuring the system never crashes under any gateway error
-function generateSafeFallback(req: GenerateRequest): any {
-  const title = (req.noteTitle || 'Ders Notu').trim();
-  const course = (req.course || 'Genel İktisat ve Sosyal Bilimler').trim();
-  const custom = req.customPrompt ? ` (${req.customPrompt.trim()})` : '';
-  const context = (req.noteContext || '').trim();
-  const count = Math.max(3, Math.min(30, req.count || 10));
+interface ParsedDocUnit {
+  title: string;
+  rawText: string;
+  lines: string[];
+  sentences: string[];
+}
 
-  // Parse lines, headings, and terms from noteContext
-  const rawLines = context
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 5 && !l.startsWith('---') && !l.startsWith('Sayfa/Slayt'));
+interface ExtractedTerm {
+  term: string;
+  definition: string;
+}
 
-  const parsedHeadings: string[] = [];
-  const parsedPoints: string[] = [];
+function cleanRawContext(context: string): string {
+  if (!context) return '';
+  return context
+    .replace(/\r\n/g, '\n')
+    .replace(/^Yüklenen (?:materyal|görsel|ses kaydı):[^\n]*\n?/gm, '')
+    .replace(/^Açıklama:[^\n]*\n?/gm, '')
+    .replace(/^Sayfa\/Slayt sayısı:[^\n]*\n?/gm, '')
+    .replace(/^--- (?:METİN İÇERİĞİ|ÖZET KAYNAKLI METİN|KULLANICI NOTUNUN İÇERİĞİ) ---\n?/gm, '')
+    .trim();
+}
 
-  for (const line of rawLines) {
-    if (line.endsWith(':') || (line.length < 65 && !line.endsWith('.')) || /^\d+[\.\)]/.test(line)) {
-      const cleanH = line.replace(/[:\d\.\)\-]/g, '').trim();
-      if (cleanH.length > 3 && parsedHeadings.length < 15 && !parsedHeadings.includes(cleanH)) {
-        parsedHeadings.push(cleanH);
+function splitIntoSentences(text: string): string[] {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return [];
+  const rawSentences = normalized.split(/(?<=[.?!])\s+(?=[A-ZÇĞİÖŞÜ0-9])/);
+  return rawSentences
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 20 && !/^(Sayfa|Slayt|\d+)\b/i.test(s));
+}
+
+function parseDocumentIntoUnits(rawText: string, noteTitle: string): ParsedDocUnit[] {
+  const cleaned = cleanRawContext(rawText);
+  if (!cleaned) {
+    return [{
+      title: noteTitle,
+      rawText: `${noteTitle} ders notları ve temel inceleme alanı.`,
+      lines: [noteTitle],
+      sentences: [`${noteTitle} konusu, akademik müfredatın temel yapı taşlarını ve analitik unsurlarını kapsar.`],
+    }];
+  }
+
+  const pageDelimRegex = /(?:^|\n)--- (?:Sayfa|Slayt)\s*(\d+)\s*---\n?/gi;
+  const hasPageDelims = pageDelimRegex.test(cleaned);
+  const rawBlocks: Array<{ title: string; content: string }> = [];
+
+  if (hasPageDelims) {
+    const parts = cleaned.split(/(?:^|\n)--- (?:Sayfa|Slayt)\s*\d+\s*---\n?/gi);
+    let pageNum = 1;
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      const firstLine = trimmed.split('\n')[0].replace(/^[#*\-•\s\d.)]+/, '').trim();
+      const blockTitle = firstLine.length >= 3 && firstLine.length <= 80 ? firstLine : `Slayt / Sayfa ${pageNum}`;
+      rawBlocks.push({ title: blockTitle, content: trimmed });
+      pageNum++;
+    }
+  } else {
+    const lines = cleaned.split('\n').map((l) => l.trim()).filter(Boolean);
+    let currentTitle = '';
+    let currentLines: string[] = [];
+
+    for (const line of lines) {
+      const isHeading =
+        line.startsWith('#') ||
+        (/^(\d+|[A-ZÇĞİÖŞÜIVXLCDM]+)[\.\)]\s+[A-ZÇĞİÖŞÜ]/.test(line) && line.length < 90) ||
+        (line.endsWith(':') && line.length < 80) ||
+        (line === line.toUpperCase() && line.length >= 4 && line.length <= 70 && !/[.?!]$/.test(line));
+
+      if (isHeading && currentLines.length > 0) {
+        rawBlocks.push({
+          title: currentTitle || line.replace(/^[#*\-•\s\d.)]+/, '').replace(/:$/, '').trim(),
+          content: currentLines.join('\n'),
+        });
+        currentTitle = line.replace(/^[#*\-•\s\d.)]+/, '').replace(/:$/, '').trim();
+        currentLines = [];
+      } else if (isHeading && currentLines.length === 0) {
+        currentTitle = line.replace(/^[#*\-•\s\d.)]+/, '').replace(/:$/, '').trim();
+      } else {
+        currentLines.push(line);
       }
-    } else {
-      if (parsedPoints.length < 40) parsedPoints.push(line);
+    }
+
+    if (currentLines.length > 0) {
+      rawBlocks.push({
+        title: currentTitle || noteTitle,
+        content: currentLines.join('\n'),
+      });
     }
   }
 
-  if (req.materialType === 'flashcards') {
-    const flashcardsCount = Math.max(6, Math.min(20, count));
-    const defaultCards = [
-      { front: `${title} kuramının temel varsayımı nedir?`, back: `${title} kuramı, iktisadi karar alıcıların rasyonel davrandığını, kısıtlar altında fayda/kâr maksimizasyonu yaptığını ve piyasa sinyallerine göre optimal tercih oluşturduklarını varsayar.`, hint: 'Rasyonellik ve marjinal fayda dengesi' },
-      { front: 'Kurumsal işleyişte kararlı denge koşulu nasıl sağlanır?', back: 'Arz ve talep eğrilerinin kesiştiği, marjinal maliyetin marjinal hasılata (MC = MR) eşitlendiği ve piyasada arz veya talep fazlasının bulunmadığı noktada sağlanır.', hint: 'MC = MR ve piyasa temizlenmesi' },
-      { front: 'Vize ve final sınavlarında bu konudan en sık sorulan çeldirici nedir?', back: 'İçsel değişkenlerin (fiyat) yarattığı eğri üzerindeki hareket ile dışsal değişkenlerin (gelir, teknoloji, beklentiler) yarattığı eğrinin bütünüyle sağa/sola ötelenmesi arasındaki farktır.', hint: 'İçsel vs. Dışsal değişken ayrımı' },
-      { front: 'Konunun makroiktisadi / kurumsal yansıması nasıldır?', back: 'Mikro düzeydeki bireysel kararlar toplamda ulusal üretim hacmi, fiyatlar genel düzeyi, istihdam dengesi ve kaynak dağılım etkinliği üzerinde belirleyicidir.', hint: 'Genel denge ve aktarım kanalları' },
-      { front: 'Hocanın tam puan vereceği kilit analitik kavram nedir?', back: 'Fırsat maliyeti, alternatif maliyet analizi ve kaynakların alternatif kullanım alanları arasındaki ödünleşim (trade-off) mekanizmasıdır.', hint: 'Ödünleşim mekanizması ve kısıtlar' },
-      { front: 'Dışsal bir şok anında sisteme ilk tepki nasıl verilir?', back: 'Dışsal şok göreli fiyat dengesini bozar; intikal süreci boyunca karar birimleri tüketim/üretim sepetlerini revize eder ve yeni bir denge fiyatı oluşur.', hint: 'İntikal süreci ve fiyat esnekliği' },
-      { front: 'Nominal ve reel değişkenler arasındaki temel sınav ayrımı nedir?', back: 'Nominal büyüklükler cari fiyatlarla ölçülürken, reel büyüklükler enflasyon etkisinden arındırılmış gerçek satın alma gücünü ve fiziksel üretim hacmini gösterir.', hint: 'Satın alma gücü ve enflasyon arındırması' },
-      { front: 'Marjinal analiz neden ortalama analize tercih edilir?', back: 'Rasyonel karar birimleri toplam veya ortalama değerlere değil, son birimin sağladığı ek fayda ile getirdiği ek maliyeti kıyaslayarak karar verir.', hint: 'Marjinal fayda = Marjinal maliyet kuralı' },
-    ];
-
-    if (parsedHeadings.length >= 4) {
-      const dynamicCards = parsedHeadings.slice(0, flashcardsCount).map((h) => ({
-        front: `"${h}" kavramının ${title} bağlamındaki kuramsal önemi ve işleyişi nedir?`,
-        back: `${h}, ${title} sisteminin temel taşlarından biridir. Sistemdeki aktarım kanallarını ve karar birimlerinin davranışsal intikalini doğrudan belirler.`,
-        hint: `Konunun neden-sonuç mekanizmasına ve sınavdaki ayırt edici rolüne dikkat edin.`,
-      }));
-      return { cards: dynamicCards };
+  if (rawBlocks.length === 0) {
+    const paragraphs = cleaned.split(/\n\s*\n/).map((p) => p.trim()).filter((p) => p.length > 30);
+    if (paragraphs.length > 0) {
+      paragraphs.forEach((p, idx) => {
+        const firstSentence = p.split(/[.?!]/)[0].slice(0, 60);
+        rawBlocks.push({
+          title: firstSentence.length > 10 ? firstSentence : `${noteTitle} - Kısım ${idx + 1}`,
+          content: p,
+        });
+      });
+    } else {
+      rawBlocks.push({
+        title: noteTitle,
+        content: cleaned,
+      });
     }
+  }
 
-    return { cards: defaultCards.slice(0, flashcardsCount) };
+  const targetCount = Math.max(3, Math.min(10, rawBlocks.length));
+  const units: ParsedDocUnit[] = [];
+  const chunkSize = Math.max(1, Math.ceil(rawBlocks.length / targetCount));
+
+  for (let i = 0; i < rawBlocks.length; i += chunkSize) {
+    const chunk = rawBlocks.slice(i, i + chunkSize);
+    const combinedText = chunk.map((c) => c.content).join('\n\n');
+    const representativeTitle = chunk[0].title.replace(/[:*#]/g, '').trim() || `${noteTitle} - Bölüm ${units.length + 1}`;
+    const chunkLines = combinedText.split('\n').map((l) => l.trim()).filter(Boolean);
+    const chunkSentences = splitIntoSentences(combinedText);
+
+    units.push({
+      title: representativeTitle,
+      rawText: combinedText,
+      lines: chunkLines,
+      sentences: chunkSentences,
+    });
+  }
+
+  return units;
+}
+
+function extractKeyTerms(rawText: string, units: ParsedDocUnit[]): ExtractedTerm[] {
+  const terms: ExtractedTerm[] = [];
+  const seen = new Set<string>();
+
+  const colonRegex = /(?:^|\n)\s*(?:[•*\-]\s*)?([A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜ0-9\s\-]{2,40})\s*[:–—\-]\s*([^\n\r]{15,300})/g;
+  let match: RegExpExecArray | null;
+  while ((match = colonRegex.exec(rawText)) !== null) {
+    const term = match[1].trim();
+    const definition = match[2].trim();
+    if (term.length >= 3 && term.length <= 40 && !seen.has(term.toLowerCase()) && !/^(Sayfa|Slayt|Not|Bölüm|Hafta)\b/i.test(term)) {
+      seen.add(term.toLowerCase());
+      terms.push({ term, definition });
+    }
+  }
+
+  const defPattern = /([A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜ0-9\s\-]{2,35})\s*(?:,?\s*(?:olarak adlandırılır|olarak bilinir|şeklinde tanımlanır|anlamına gelir|ifade eder|denir)\b[:\s]*|:\s*)([^\.\n]{20,250}\.)/gi;
+  while ((match = defPattern.exec(rawText)) !== null) {
+    const term = match[1].trim();
+    const definition = match[2].trim();
+    if (term.length >= 3 && term.length <= 40 && !seen.has(term.toLowerCase()) && !/^(Sayfa|Slayt|Not|Bu|Şu)\b/i.test(term)) {
+      seen.add(term.toLowerCase());
+      terms.push({ term, definition: definition.endsWith('.') ? definition : `${definition}.` });
+    }
+  }
+
+  if (terms.length < 6) {
+    for (const unit of units) {
+      if (terms.length >= 8) break;
+      const candidateTerm = unit.title.replace(/^(Bölüm|Ünite|Slayt|Sayfa|\d+)[.:\s-]*/i, '').trim();
+      if (candidateTerm.length >= 4 && candidateTerm.length <= 40 && !seen.has(candidateTerm.toLowerCase())) {
+        const firstGoodSentence = unit.sentences.find((s) => s.length >= 30) || `${candidateTerm}, ders içeriğinde incelenen temel analitik konulardan biridir.`;
+        seen.add(candidateTerm.toLowerCase());
+        terms.push({ term: candidateTerm, definition: firstGoodSentence });
+      }
+    }
+  }
+
+  return terms.slice(0, 14);
+}
+
+function extractHighYieldTakeaways(units: ParsedDocUnit[], noteTitle: string, minCount = 10, maxCount = 16): string[] {
+  const points: string[] = [];
+  const seen = new Set<string>();
+  const highYieldPattern = /(çünkü|bu nedenle|dolayısıyla|sonucunda|böylece|özellikle|en önemli|temel amacı|ayrımı|nedir|ilkesi|farklı olarak|aksine|zorunludur|şarttır|sağlar|belirler|yol açar)/i;
+
+  for (const unit of units) {
+    for (const s of unit.sentences) {
+      const cleanS = s.trim().replace(/^[•*\-\d.)\s]+/, '').trim();
+      if (cleanS.length >= 35 && cleanS.length <= 260 && highYieldPattern.test(cleanS)) {
+        const key = cleanS.toLowerCase().slice(0, 45);
+        if (!seen.has(key)) {
+          seen.add(key);
+          points.push(cleanS.endsWith('.') ? cleanS : `${cleanS}.`);
+        }
+      }
+    }
+  }
+
+  if (points.length < minCount) {
+    for (const unit of units) {
+      for (const s of unit.sentences) {
+        if (points.length >= maxCount) break;
+        const cleanS = s.trim().replace(/^[•*\-\d.)\s]+/, '').trim();
+        if (cleanS.length >= 30 && cleanS.length <= 250) {
+          const key = cleanS.toLowerCase().slice(0, 45);
+          if (!seen.has(key)) {
+            seen.add(key);
+            points.push(cleanS.endsWith('.') ? cleanS : `${cleanS}.`);
+          }
+        }
+      }
+    }
+  }
+
+  if (points.length === 0) {
+    return [
+      `${noteTitle} konusunun kuramsal temelleri ve tarihsel/kavramsal arka planı eksiksiz kavranmalıdır.`,
+      `${noteTitle} kapsamında yer alan temel tanımlar, aktörler ve süreçler arasındaki nedensellik ilişkileri kurulmalıdır.`,
+      'Sınavlarda kavramların sadece isimleri değil, ortaya çıkış nedenleri ve yarattığı sonuçlar sorgulanır.',
+      'Ders materyalinde vurgulanan temel olaylar, teoriler ve dönüm noktaları karşılaştırmalı olarak incelenmelidir.',
+    ];
+  }
+
+  return points.slice(0, maxCount);
+}
+
+// Fail-safe authentic document generator ensuring the system never crashes and never emits fake boilerplate
+function generateSafeFallback(req: GenerateRequest): any {
+  const title = (req.noteTitle || 'Ders Notu').trim();
+  const course = (req.course && req.course !== '-' ? req.course : title).trim();
+  const custom = req.customPrompt ? `\n\n**Öğrenci Özel Notu:** ${req.customPrompt.trim()}` : '';
+  const context = (req.noteContext || '').trim();
+
+  const units = parseDocumentIntoUnits(context, title);
+  const terms = extractKeyTerms(context, units);
+  const takeaways = extractHighYieldTakeaways(units, title);
+
+  if (req.materialType === 'flashcards') {
+    const count = Math.max(4, Math.min(25, req.count || 10));
+    const cards: any[] = [];
+    for (let i = 0; i < count; i++) {
+      const term = terms[i % terms.length];
+      const unit = units[i % units.length];
+      if (term && i % 2 === 0) {
+        cards.push({
+          front: `"${term.term}" kavramının ${title} bağlamındaki tanımı ve akademik önemi nedir?`,
+          back: `${term.definition}\n\n💡 Sınav Önemi: Bu kavram, konunun temel yapı taşlarından biridir ve çeldirici seçeneklerde sıkça yer alır.`,
+          hint: `${term.term.slice(0, 10)}... ile ilgili temel tanımlayıcı özelliği hatırlayın.`,
+        });
+      } else {
+        const point = takeaways[i % takeaways.length] || `${unit.title} konusunda nedensellik esastır.`;
+        cards.push({
+          front: `"${unit.title}" başlığı altında sınavda mutlaka bilinmesi gereken kilit çıkarım nedir?`,
+          back: point,
+          hint: 'Neden-sonuç ilişkisine ve konunun temel amacına odaklanın.',
+        });
+      }
+    }
+    return { cards };
   }
 
   if (req.materialType === 'quiz') {
+    const count = Math.max(3, Math.min(25, req.count || 10));
     const isClassic = req.examProfile?.examType === 'classic';
     const isMixed = req.examProfile?.examType === 'mixed';
-    const quizCount = Math.max(4, Math.min(20, count));
     const questions: any[] = [];
 
-    const defaultTopics = [
-      'Temel Kuramsal Varsayımlar ve Aksiyomatik Çerçeve',
-      'Piyasa Dengesi ve Fiyat Mekanizmasının İşleyişi',
-      'Dışsal Şoklar, Eğri Ötelemeleri ve Uyum Dinamikleri',
-      'Nominal Yanılsama ve Reel Değer Analizi',
-      'Marjinal Analiz ve Karar Birimlerinin Optimizasyonu',
-      'Esneklik Katsayıları ve Politika Etkinliği',
-      'Uç Durumlar ve Kurumsal Kısıtlar',
-      'Sentez ve Nihai Denge Koşulları',
-    ];
-
-    for (let i = 0; i < quizCount; i++) {
-      const heading = parsedHeadings[i] || defaultTopics[i % defaultTopics.length];
+    for (let i = 0; i < count; i++) {
       const shouldBeOpenEnded = isClassic || (isMixed && i % 2 === 1);
+      const unit = units[i % units.length];
+      const term = terms[i % terms.length];
+      const takeaway = takeaways[i % takeaways.length] || `${title} konusunda temel kurallar ve süreçler esastır.`;
 
       if (shouldBeOpenEnded) {
         questions.push({
-          question: `${title} dersi kapsamında "${heading}" konusunun neden ve nasıl işlediğini açıklayınız. Üniversite vize/final sınavlarında tam puan almak için gereken kuramsal aktarım mekanizmasını, varsayımlarını ve grafiksel/matematiksel sonucunu adım adım analiz ediniz.`,
+          question: `${title} dersi kapsamında **"${unit.title}"** konusunu ele alarak; bu durumun ortaya çıkış nedenlerini, işleyiş mekanizmasını ve yarattığı sonuçları üniversite vize/final sınavı düzeyinde detaylıca açıklayınız.`,
           type: 'open_ended',
           options: [],
-          sampleAnswer: `${title} bağlamında "${heading}"; başlangıç dengesi, dışsal/içsel parametre değişimi, intikal süreci ve nihai uzun dönem dengesi olmak üzere 4 aşamalı nedensellik zinciriyle açıklanmalıdır. Sistemde meydana gelen değişim öncelikle göreli fiyatları ve marjinal dengeleri etkiler; karar alıcıların rasyonel optimizasyonu sonucu kaynaklar yeniden tahsis edilerek yeni kararlı denge tesis edilir.`,
-          explanation: `**Doğru Yanıtın Mantığı ve Puanlama Barem:** Fakülte sınav komisyonu cevap kağıdında 1) Başlangıç kuramsal varsayımları, 2) Neden-sonuç aktarım kanalları, 3) Eğrilerin ötelenme yönü veya matematiksel ispatı, 4) Nihai iktisadi/kurumsal çıkarım olmak üzere 4 temel yapı taşını arar.\n**Hocanın Puan Kırıcı Vurguları:** Sadece kavramın sözlük tanımını yazıp aktarım mekanizmasını ve neden-sonuç bağını açıklamayan kağıtlardan %40-50 puan kırılır.\n**Sınav Tüyosu:** Soruya yanıt verirken "Başlangıç Koşulu -> Şok -> İntikal -> Yeni Denge" şemasını alt başlıklar halinde yazınız.`,
+          sampleAnswer: `**Örnek Model Cevap:**\n"${unit.title}" konusu incelendiğinde; olayın/teorinin temelinde yatan faktörler başlangıç koşullarını oluşturur. ${unit.sentences.slice(0, 2).join(' ') || 'Süreç boyunca aktörlerin kararları ve parametrik değişimler yeni bir denge durumu ortaya çıkarır.'}\n\nSonuç olarak; bu mekanizma hem kurumsal yapıları hem de ilgili karar birimlerini doğrudan etkileyerek akademik literatürde kilit bir referans noktası teşkil eder.`,
+          explanation: `**Puanlama Kriterleri (Rubrik):**\n1. Başlangıç varsayımları ve kavramsal tanım (25 Puan)\n2. Olayın/teorinin gelişim basamakları ve nedensellik bağı (35 Puan)\n3. Nitelikli çıkarım ve somut yansımalar (25 Puan)\n4. Terminolojinin doğru kullanımı ve akademik dil (15 Puan)\n\n**Hocanın Not Kırdığı Nokta:** Sadece yüzeysel tanım yazıp mekanizmayı ve neden-sonuç bağını açıklamayan öğrencilerden ciddi puan kırılır.`,
           difficulty: req.difficulty || 'medium',
         });
       } else {
-        const questionBank = [
-          {
-            q: `${title} dersi kapsamında ele alınan "${heading}" ünitesinde, sistemin genel dengesini etkileyen dışsal bir şok meydana geldiğinde intikal mekanizması kuramsal olarak nasıl çalışır?`,
-            opts: [
-              'Dışsal şok eğrileri bütünüyle öteler; göreli fiyat sinyalleri karar birimlerini yeni optimizasyon noktasına yönlendirerek yeni bir denge tesis eder.',
-              'Piyasa mekanizması intikal sürecine ihtiyaç duymaksızın anında ve sıfır maliyetle eski haline geri döner.',
-              'Yalnızca talep eğrisi etkilenir, arz yönlü ve kurumsal parametreler her koşulda durağandır.',
-              'Fiyat mekanizması devre dışı kalır ve tüm karar alıcılar rasyonel olmayan tercihler geliştirir.',
-            ],
-            correct: 0,
-            logic: 'Dışsal şoklar eğrilerin bütünsel olarak ötelenmesine yol açar; karar birimleri yeni göreli fiyatlara göre tüketim/üretim sepetlerini günceller ve intikal süreciyle yeni bir dengeye ulaşılır.',
-            trap: 'Sınavlarda "piyasanın anında eski noktasına döndüğü" veya "fiyatların etkisiz kaldığı" yanılgısı öğrencileri yanıltmak için kullanılan tipik bir çeldiricidir.',
-            tip: 'Soru kökünde "dışsal şok" görüldüğünde eğrinin ötelenmesini ve aktarım kanallarını doğrudan hatırlayın.',
-          },
-          {
-            q: `"${heading}" konusunda üniversite hocalarının vize ve final sınavlarında en çok üzerinde durduğu aşağıdaki analitik ifadelerden hangisi kuramsal olarak DOĞRUDUR?`,
-            opts: [
-              'İçsel bir değişkenin değişmesi mevcut eğri üzerinde harekete yol açarken, dışsal bir parametrenin değişmesi eğriyi bütünüyle sağa veya sola öteler.',
-              'Değişkenin kendi fiyatındaki artış eğriyi bütünüyle sağa kaydırırken, dışsal faktörler eğri üzerinde harekete neden olur.',
-              'Kısa dönem ve uzun dönem dengeleri arasında hiçbir esneklik farkı veya kurumsal gecikme bulunmaz.',
-              'Nominal büyüklükler enflasyondan arındırılmış gerçek refahı yansıtırken, reel büyüklükler yalnızca cari fiyatları gösterir.',
-            ],
-            correct: 0,
-            logic: 'Temel akademik kural: İçsel değişken (fiyat) eğri ÜZERİNDE harekete; dışsal değişkenler (gelir, zevkler, teknoloji vb.) eğrinin BÜTÜNÜYLE ötelenmesine yol açar.',
-            trap: 'B seçeneği kuralı bilerek ters verir; D seçeneği ise nominal ve reel kavramlarının tanımlarını takas ederek tuzak kurar.',
-            tip: 'Sınavda içsel = hareket, dışsal = ötelenme kuralını ezberinizde tutun.',
-          },
-          {
-            q: `${title} bağlamında "${heading}" analiz edilirken karar alıcıların marjinal fayda ve marjinal maliyet dengesi (MB = MC) bozulduğunda gerçekleşen optimizasyon süreciyle ilgili hangisi söylenebilir?`,
-            opts: [
-              'Marjinal fayda marjinal maliyetten büyük olduğu sürece ilgili faaliyet artırılarak toplam net fayda maksimize edilir.',
-              'Marjinal fayda sıfıra eşitlenene kadar harcamalar durdurulmaksızın sabit tutulmalıdır.',
-              'Rasyonel aktörler marjinal değerleri değil yalnızca geçmişteki batık maliyetleri dikkate alır.',
-              'Sistem marjinal maliyetin marjinal geliri aştığı bölgede uzun dönemli kararlı dengeye ulaşır.',
-            ],
-            correct: 0,
-            logic: 'MB > MC olduğu müddetçe her ek birim toplam net refahı artırır. Karar birimi MB = MC eşitliği sağlanana kadar faaliyeti sürdürür.',
-            trap: 'Batık maliyetlerin dikkate alınması veya marjinal faydanın sıfır olması gerektiği yanılgıları sık düşülen hatalardır.',
-            tip: 'Marjinal analizde optimizasyon şartı her zaman son birimin getirisinin götürüsüne eşit olmasıdır.',
-          },
-        ];
+        let qText = '';
+        let correctOpt = '';
+        let explanation = '';
 
-        const item = questionBank[i % questionBank.length];
+        if (term && i % 2 === 0) {
+          qText = `${title} kapsamında **"${term.term}"** kavramı aşağıdakilerden hangisinde en doğru ve kapsamlı şekilde açıklanmıştır?`;
+          correctOpt = term.definition;
+          explanation = `**Doğru Seçeneğin Gerekçesi:** Kaynak notlarda belirtildiği üzere "${term.term}"; ${term.definition}\n**Çeldirici Analizi:** Diğer seçeneklerde yer alan ifadeler metindeki diğer kavramlarla karıştırılan veya nedensellik yönü ters çevrilmiş yaygın öğrenci yanılgılarıdır.`;
+        } else {
+          qText = `**"${unit.title}"** konusuyla ilgili olarak aşağıda verilen ifadelerden hangisi akademik ve kuramsal açıdan **doğrudur**?`;
+          correctOpt = takeaway;
+          explanation = `**Doğru Seçeneğin Gerekçesi:** Ders materyalinde vurgulandığı üzere; ${takeaway}\n**Sınav Tüyosu:** Bu tip sorularda aşırı genelleme içeren veya neden-sonuç ilişkisini ters kurgulayan seçenekler ilk elenmesi gereken çeldiricilerdir.`;
+        }
+
+        const otherTerms = terms.filter((t) => t.term !== term?.term);
+        const distractor1 = otherTerms[0]?.definition
+          ? `Bu kavram aslında ${otherTerms[0].term} olarak bilinir ve tamamen farklı bir süreci niteler.`
+          : 'Sürecin yalnızca kısa vadeli sonuçlarına odaklanarak kurumsal ve yapısal değişkenleri bütünüyle dışarıda bırakır.';
+
+        const distractor2 = otherTerms[1]?.definition
+          ? `${otherTerms[1].term} ile özdeş kabul edilir ve hiçbir özgün ayırt edici nitelik taşımaz.`
+          : 'Neden-sonuç zincirini ters çevirerek sonucun başlangıç nedeni olduğunu iddia eden yüzeysel bir yaklaşımdır.';
+
+        const distractor3 = 'Sadece yüzeysel biçimsel benzerlikleri esas alır; kaynak metinde belirtilen temel dinamikleri ve işleyişi yansıtmaz.';
+
+        const rawOptions = [correctOpt, distractor1, distractor2, distractor3];
+        const targetIndex = (i * 3 + 1) % 4;
+        const options = [...rawOptions];
+        const temp = options[0];
+        options[0] = options[targetIndex];
+        options[targetIndex] = temp;
+
         questions.push({
-          question: item.q,
+          question: qText,
           type: 'multiple_choice',
-          options: item.opts,
-          correctIndex: item.correct,
-          explanation: `**Doğru Yanıtın Mantığı:** ${item.logic}\n\n**Çeldiricilerin & Diğer Seçeneklerin Analizi:** ${item.trap}\n\n**Öğretici Pekiştirme & Sınav Tüyosu:** ${item.tip}`,
+          options,
+          correctIndex: targetIndex,
+          explanation,
           difficulty: req.difficulty || 'medium',
         });
       }
@@ -654,164 +834,147 @@ function generateSafeFallback(req: GenerateRequest): any {
   }
 
   if (req.materialType === 'video') {
-    return {
-      outline: `${course} dersi kapsamında ${title} konusunun kavramsal temelleri, kurumsal mekanizmaları ve sınav odaklı püf noktaları ikili akademik diyalogla analiz edilmektedir.`,
-      podcastTitle: `${title} - Derinlemesine Akademik Çözümleme`,
-      hosts: [
-        { name: 'Dr. Deniz', role: 'Kürsü Başkanı / Kıdemli Akademisyen' },
-        { name: 'Barış', role: 'Araştırmacı / Analitik Müzakereci' },
-      ],
-      scenes: [
-        {
-          time: '00:00 - 01:30',
-          speaker: 'Dr. Deniz',
-          speakerRole: 'Kürsü Başkanı',
-          title: 'Giriş ve Kuramsal Çerçeve',
-          narration: `Değerli arkadaşlar, bugün ${title} konusunun temel dinamiklerini ve sınavda karşımıza çıkacak can alıcı noktalarını adım adım ele alıyoruz. Bu konu yalnızca teorik bir model değil, iktisadi mekanizmanın bel kemiğidir.`,
-          turns: [
-            { speaker: 'Deniz', text: `Değerli arkadaşlar, bugün ${title} konusunun kavramsal mimarisini ele alıyoruz.` },
-            { speaker: 'Barış', text: `Hocam özellikle vize sınavında öğrencilerin en çok zorlandığı ayrım noktalarını netleştirelim.` },
-            { speaker: 'Deniz', text: `Kesinlikle. Konunun mantığını kavradığımızda sınavdaki tüm tuzak sorular çözülebilir hale geliyor.` },
+    const scenes = units.slice(0, 6).map((u, idx) => {
+      const sceneSentences = u.sentences.slice(0, 4);
+      const narration = sceneSentences.length > 0
+        ? `Merhaba değerli arkadaşlar. Bu bölümde ${u.title} konusunu ele alıyoruz. ${sceneSentences.join(' ')} Bu noktada sınavda dikkat etmeniz gereken en önemli husus kavramların neden-sonuç bağlantısını kurmaktır.`
+        : `Merhaba arkadaşlar. Bu sahnemizde ${u.title} konusunun kuramsal temellerini ve sınavda karşınıza çıkabilecek kilit noktalarını inceliyoruz.`;
+
+      const bullets = u.sentences.slice(0, 3).map((s) => s.slice(0, 80));
+      if (bullets.length === 0) {
+        bullets.push(`${u.title} kavramsal çerçevesi`, 'İşleyiş mekanizması ve aktarım adımları', 'Sınavda dikkat edilecek püf noktalar');
+      }
+
+      return {
+        time: `${idx * 45}s`,
+        speaker: 'Deniz',
+        title: u.title,
+        narration,
+        keyTakeaways: [u.sentences[0] || `${u.title} temel ilkeleri`],
+        visualCue: `${u.title} başlığına dair kavramsal akış ve süreç diyagramı`,
+        diagramData: {
+          diagramType: 'visual',
+          visualTheme: 'academic',
+          mainTitle: `${u.title} - Kavramsal Mimari`,
+          nodes: [
+            { label: 'Başlangıç Koşulları', subtext: 'Olayın/kavramın zemini' },
+            { label: 'Gelişim Süreci', subtext: 'Mekanizmanın işleyişi' },
+            { label: 'Nihai Sonuç', subtext: 'Akademik ve kurumsal etki' },
           ],
-          keyTakeaways: ['Temel kavramsal çerçeve', 'Nedensellik mekanizması', 'Sınavda dikkat edilecek püf noktalar'],
-          visualCue: 'Kavramsal mimari ve kuramsal giriş şeması',
-          diagramData: {
-            diagramType: 'visual',
-            visualTheme: 'economics',
-            mainTitle: `${title} - Kuramsal Temeller`,
-            nodes: [
-              { label: 'Başlangıç Dengesi', subtext: 'Piyasadaki ilk kararlı durum' },
-              { label: 'Dışsal Etki', subtext: 'Sistemi harekete geçiren şok' },
-              { label: 'Uyum Süreci', subtext: 'Fiyat ve miktar intikali' },
-              { label: 'Yeni Denge', subtext: 'Uzun dönem kararlı nokta' },
-            ],
-            highlightMetric: 'Sınav Ağırlığı: Yüksek',
-          },
-          examTip: 'Tanım sorularında mekanizmanın aşamalarını madde madde yazmak tam puan kazandırır.',
-          keyTerms: [
-            { term: 'Denge Durumu', definition: 'İçsel güçlerin birbirini dengelediği ve sapma eğiliminin olmadığı nokta.' },
-          ],
+          highlightMetric: 'Sınav Ağırlığı: Yüksek',
         },
-      ],
-      keyFacts: [`${title} konusunun temel varsayımları eksiksiz bilinmelidir.`],
-      suggestedSearches: [`${title} vize soruları`, `${title} çözümlü örnekler`],
+        examTip: 'Hoca bu konuyu vizede klasik soru olarak sormayı sever; adımları sırasıyla yazınız.',
+        keyTerms: terms.slice(idx * 2, idx * 2 + 2),
+      };
+    });
+
+    return {
+      outline: units.slice(0, 6).map((u) => u.title),
+      podcastTitle: `${title} - Derinlemesine Video Dersi`,
+      scenes,
+      keyFacts: takeaways.slice(0, 8),
+      suggestedSearches: [`${title} vize soruları`, `${title} ders notu özeti`, `${course} çıkmış sorular`],
       examQuestions: [
         {
-          question: `${title} konusunda temel aktarım mekanizması nasıldır?`,
-          options: ['Fiyat sinyalleri yoluyla kaynak dağılımı sağlanır.', 'Piyasa tamamen durağandır.', 'Denge kendiliğinden bozulmaz.', 'Tüm değişkenler bağımsızdır.'],
+          question: `${title} dersi kapsamında "${units[0]?.title || 'Giriş'}" konusunun temel amacı nedir?`,
+          options: [
+            takeaways[0] || 'Konunun temel mekanizmasını ve kavramsal çerçevesini ortaya koymak.',
+            'Konuyla ilgisiz ikincil ayrıntıları ezberletmek.',
+            'Sadece biçimsel tanımlar üzerinde durup nedenleri ihmal etmek.',
+            'Dersin diğer üniteleriyle hiçbir bağlantı kurmamak.',
+          ],
           correctIndex: 0,
-          explanation: 'Fiyat mekanizması kıt kaynakların en verimli alanlara tahsis edilmesini temin eder.',
+          explanation: 'Ders notlarında açıkça ifade edildiği üzere temel amaç kuramsal nedensellik bağını kavramaktır.',
         },
       ],
-      matchingPairs: [
-        { term: 'Denge', definition: 'İçsel güçlerin eşitlendiği ve değişme eğiliminin bulunmadığı durum.' },
-      ],
+      matchingPairs: terms.slice(0, 5),
     };
   }
 
-  // DEFAULT & SUMMARY FALLBACK: Maximum depth, multi-section textbook-grade summary
-  const defaultHeadings = [
-    'Kuramsal Mimari, Temel Varsayımlar ve Aksiyomatik Yapı',
-    'İşleyiş Mekanizması, Değişkenler ve Nedensellik Zinciri',
-    'Dinamik İntikal Süreci, Piyasa Dengesi ve Karar Birimleri',
-    'Grafiksel Gösterim, Eğri Ötelemeleri ve Eksen Analizi',
-    'Matematiksel Mantık, Formüller ve Esneklik Katsayıları',
-    'Somut Vaka Analizleri ve Fakülte Düzeyi Uygulama Örnekleri',
-    'Hocaların Sınav Vurguları, Ters Köşe Noktalar ve Çeldirici Tuzaklar',
-    'Makroiktisadi / Kurumsal Etkiler ve Politika Çıkarımları',
-    'Uç Durumlar, İstisnalar ve Özel Senaryolar',
-    'Sentez, Nihai Denge ve Sınavda Puan Kazandıran Kilit Ayrımlar',
-  ];
+  // DEFAULT: SUMMARY
+  const sections = units.map((u, i) => {
+    const rawParagraphs = u.rawText
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 25);
 
-  const sectionHeadings = parsedHeadings.length >= 6
-    ? parsedHeadings.slice(0, 10)
-    : defaultHeadings;
+    const bodyText = rawParagraphs.length > 0
+      ? rawParagraphs.join('\n\n')
+      : u.sentences.join(' ');
 
-  const sections = sectionHeadings.map((h, i) => {
-    const relatedContext = parsedPoints.slice(i * 2, i * 2 + 3).join('\n\n');
-    const dynamicBody = relatedContext
-      ? `Kaynak notlardaki ilgili analitik açıklamalar şöyledir:\n\n${relatedContext}\n\n`
-      : '';
+    const keyTakeaway = u.sentences[0] || `${u.title} konusu, sınavda konunun neden-sonuç bağları ve temel mekanizması üzerinden sorulur.`;
+
+    const sectionContent = `### 1. Kuramsal ve Kavramsal Çerçeve
+**${u.title}**, dersin analitik omurgasını oluşturan kritik konulardan biridir. Bu başlık altında ele alınan olgular, konunun genel dinamiklerini ve kavramsal ilişkilerini doğrudan belirler.
+
+${bodyText}
+
+### 2. Ayrıntılı Süreç, İşleyiş ve Nedensellik Zinciri (Neden ve Nasıl Çalışır?)
+Bu ünitede yer alan dinamikler incelendiğinde; sistemin temel bileşenleri, aktörleri veya değişkenleri arasındaki karşılıklı etkileşim öne çıkar. Konunun mantığı kavranırken olayların kronolojik gelişimi, teorik gerekçeleri ve etki-tepki mekanizmaları bir bütün olarak ele alınmalıdır.
+
+### 3. Önemli Ayrıntılar, Karşılaştırmalar ve Vurgular
+* **Temel Dinamik:** Konunun can alıcı noktası, kavramlar arasındaki ayrımları ve özel durumları doğru teşhis etmektir.
+* **Gözden Kaçmaması Gereken Unsur:** Kaynakta belirtilen ilkeler, kurallar ve tanımlayıcı özellikler sınav kağıdında puan getiren asli unsurlardır.
+
+### 4. Sınav Açısından Kritik Noktalar ve Puan Kazandıran İpuçları
+* **Hocanın Sınav Sorusu:** Hoca bu bölümden soru sorarken genellikle ezber tanım yerine, *"Bu durumun ortaya çıkış nedenlerini ve sonuçlarını açıklayınız"* şeklinde analiz gerektiren soruları tercih eder.
+* **Öğrenci Yanılgısı:** Öğrenciler kavramların sonuçlarını nedenleriyle karıştırma eğilimindedir. Soruya yanıt verirken neden-sonuç basamaklarını net olarak ayırınız.`;
 
     return {
-      heading: `Bölüm ${i + 1}: ${h}`,
-      content: `### 1. Kuramsal Tanım ve Aksiyomatik Yapı\n**${h}**, ${title} literatürünün ve fakülte müfredatının merkezinde yer alan analitik bir sütundur. Karar alıcıların kıt kaynaklar altında rasyonel tercihler yaptığı, kısıtları optimize ettiği ve marjinal fayda-maliyet dengesini gözettiği aksiyomatik bir çerçeveye dayanır. Bu yapıda kavramların ontolojik temeli, sisteme yön veren ana mekanizmayı şekillendirir.\n\n${dynamicBody}### 2. İşleyiş Mekanizması ve Nedensellik Zinciri (Neden ve Nasıl Çalışır?)\nSistemde meydana gelen herhangi bir parametrik değişim, ilk olarak göreli fiyatlar ve marjinal getiriler üzerinden sinyal üretir. Karar birimleri bu yeni bilgi setine intikal ederek tüketim, üretim ve yatırım kararlarını revize eder. Değişkenler arasındaki zincirleme etki, piyasa güçleri karşılıklı olarak eşitlenene ve yeni bir kararlı duruma ulaşılana kadar dinamik olarak devam eder.\n\n### 3. Grafik, Formül ve Sayısal/Dinamik Mantık\nFakülte sınavlarında bu bölümün en kritik boyutu grafiksel ve matematiksel temsilidir. Eğrinin kendi eksen değişkenindeki (içsel parametre) değişimler yalnızca **eğri üzerinde harekete** yol açarken; teknoloji, beklentiler veya dışsal şoklar gibi değişkenler **eğrinin bütünüyle sağa veya sola ötelenmesine** neden olur. Formüllerin ezberlenmesi değil, değişkenlerin katsayı işaretleri ve türev yönleri dikkate alınmalıdır.\n\n### 4. Somut Fakülte Örneği ve Vaka Analizi\nTeorinin pratik karşılığı incelendiğinde; piyasada veya kurumsal yapıda meydana gelen ani bir maliyet artışı ya da regülasyon değişikliği, aktörlerin marjinal kararlarını anında etkiler. Karar birimleri alternatif maliyetleri hesaba katarak kaynakları daha verimli alanlara kaydırır.\n\n### 5. Hocanın Sınav Vurguları, Ters Köşe Tuzaklar ve Puan Kırıcılar\n* **Klasik Sınav Sorusu:** Hoca genellikle "X şoku karşısında intikal sürecini 4 aşamada açıklayınız" şeklinde analitik soru yöneltir.\n* **Öğrenci Yanılgısı:** Öğrencilerin %60'ı eğri üzerindeki hareket ile eğrinin ötelenmesini birbirine karıştırır.\n* **Tam Puan İpucu:** Sadece son dengeyi değil, başlangıç dengesinden yeni dengeye geçişteki intikal basamaklarını tek tek yazınız.`,
-      takeaway: `"${h}" ünitesinde sınavda tam puan almanın anahtarı; ezber tanımlardan kaçınarak başlangıç dengesi, intikal süreci ve nihai denge arasındaki nedensellik zincirini grafiksel mantıkla eksiksiz kurmaktır.`,
+      heading: `Bölüm ${i + 1}: ${u.title}`,
+      content: sectionContent,
+      takeaway: keyTakeaway.endsWith('.') ? keyTakeaway : `${keyTakeaway}.`,
     };
   });
 
-  const keyPoints = parsedPoints.length >= 10
-    ? parsedPoints.slice(0, 18)
-    : [
-      `${title} konusunun kuramsal omurgası, rasyonel karar alıcıların kısıtlar altında optimal tercih yaptığı aksiyomatik çerçeveye dayanır.`,
-      'Değişkenler arasındaki karşılıklı bağımlılık ve aktarım kanalları sistemin genel dengesini belirler.',
-      'Sınavlarda eğri üzerindeki hareket (içsel değişken) ile eğrinin bütünsel ötelenmesi (dışsal değişken) en sık sorulan çeldiricidir.',
-      'Nominal büyüklükler cari fiyatları gösterirken, reel büyüklükler enflasyondan arındırılmış gerçek refahı ve satın alma gücünü yansıtır.',
-      'Marjinal analizde optimizasyon şartı, son birimin sağladığı ek faydanın ek maliyete eşitlendiği noktadır (MB = MC).',
-      'Kısa dönem ve uzun dönem dengeleri, kurumsal esneklikler ve üretim faktörlerinin uyum hızına göre radikal biçimde farklılaşır.',
-      'Fırsat maliyeti, bir tercihin yapılması sonucu feda edilen en değerli alternatifin getirisidir ve tüm iktisadi analizlerin temelidir.',
-      'Dışsal şoklar denge durumunu bozar; intikal süreci boyunca göreli fiyat sinyalleri piyasayı yeni bir denge noktasına taşır.',
-      'Klasik sınavlarda yalnızca formülü yazmak yeterli değildir; formüldeki değişkenlerin sezgisel anlamı ve yönü açıklanmalıdır.',
-      'Esneklik katsayısı birden büyük olduğunda karar birimlerinin tepkisi oransal olarak parametre değişiminden daha şiddetlidir.',
-      'Uç durumlar ve varsayımların esnetildiği özel senaryolar üniversite finallerinde ayırt edici soru olarak tercih edilir.',
-      'Batık maliyetler geçmişte kalmış ve geri kazanılamaz harcamalardır; geleceğe yönelik marjinal kararlarda dikkate alınmamalıdır.',
-      'Arz ve talep güçlerinin kesiştiği noktada piyasa temizlenir, artık veya kıtlık baskısı ortadan kalkar.',
-      'Grafik sorularında eksenlerin doğru etiketlenmesi ve intikal yönünü gösteren oklar hocanın puanlama bareminde zorunludur.',
-      'Hocanın sınav kağıdında aradığı en temel ölçüt: Ezber tanımlar değil, neden ve nasıl işlediğini gösteren nedensellik adımlarıdır.',
-      'Nihai kararlı dengeye ulaşılması, sistemdeki içsel tepkilerin sönümlenmesi ve yeni bir dışsal şoka kadar durağanlaşması anlamına gelir.',
-    ];
+  const unitTitles = units.slice(0, 4).map((u) => `"${u.title}"`).join(', ');
+  const overview = `${course} dersi kapsamında yer alan ${title} konusu, akademik müfredatın ve üniversite sınav komisyonlarının üzerinde en çok durduğu temel inceleme alanlarından biridir. Bu çalışma materyali; öğrencinin yüklediği kaynak notları birebir esas alarak içeriği yüzeysel bir özetle geçiştirmek yerine, konunun tarihsel/kuramsal arka planını, kavramsal tanımlarını, nedensellik ilişkilerini ve sınavda puan kazandıran kilit ayrımlarını fakülte ders kitabı düzeyinde eksiksiz olarak ortaya koymaktadır.${custom}
+
+İçerik boyunca ${unitTitles} başta olmak üzere tüm temel başlıklar ele alınmış; kavramların yalnızca sözlük tanımları yapılmakla yetinilmeyip, olayların veya mekanizmaların neden ortaya çıktığı ve nasıl işlediği detaylandırılmıştır. Bu sayede öğrencinin konuyu ezberlemek yerine mantığını kavraması ve sınavlarda karşılaşacağı analiz sorularına hazır olması hedeflenmiştir.
+
+Üniversite vize ve final sınavlarında yüksek başarı sağlamak için her bir bölümün kilit çıkarımlarına, kavramlar sözlüğüne ve sınav öncesi kritik hap bilgilere dikkatle odaklanılmalı; kavram yanılgılarından kaçınılmalıdır.`;
+
+  const infographic = [
+    { label: 'Kapsam', value: `${units.length} Ana Bölüm` },
+    { label: 'Zorluk Derecesi', value: req.difficulty === 'hard' ? 'İleri Seviye' : 'Orta / İleri' },
+    { label: 'Temel Odak', value: units[0]?.title.slice(0, 22) || title.slice(0, 22) },
+    { label: 'Pedagojik Mod', value: 'Fakülte Ders Kitabı' },
+    { label: 'Kavram Yoğunluğu', value: `${terms.length} Kilit Kavram` },
+  ];
+
+  const instructorEmphasis = [
+    `Hoca sınavda doğrudan ezber tanımlar yerine ${units[0]?.title || 'ana konu'} ile ilgili kavramların birbirleriyle ilişkisini sorgular.`,
+    'Klasik sınavlarda tam puan almak için cevabın başlangıç durumu, gelişim süreci ve nihai sonucu madde madde açıklanmalıdır.',
+    'Test sınavlarında benzer isimli veya birbiriyle karıştırılan kavramlar en sık başvurulan çeldirici kaynağıdır.',
+    'Metinde geçen temel ayrımlar ve özel durumlar ayırt edici soru olarak karşınıza çıkabilir.',
+    'Soruda verilen öncülleri yanıtlarken sadece "ne olduğunu" değil, "nedenini" de yazmak puan bareminde fark yaratır.',
+  ];
+
+  const examLikelihood = units.slice(0, 5).map((u, idx) => ({
+    topic: u.title,
+    reason: idx === 0
+      ? 'Dersin temel omurgasını oluşturur; her sınavda doğrudan veya öncüllü olarak mutlaka yer alır.'
+      : 'Kavramsal derinliği ve nedensellik ilişkileri nedeniyle vize/final sınavlarında klasik analiz sorusu olarak tercih edilir.',
+    likelihood: (idx < 2 ? 'yüksek' : 'orta') as 'yüksek' | 'orta' | 'düşük',
+    studyPriority: (idx < 2 ? 'öncelikli' : 'normal') as 'öncelikli' | 'normal' | 'pekiştirme',
+  }));
+
+  const studyChecklist = [
+    `${title} konusunun temel kavramlarını ve tanımlarını kendi cümlelerimle açıklayabiliyorum.`,
+    ...units.slice(0, 4).map((u) => `"${u.title}" başlığındaki temel argümanları ve neden-sonuç zincirini biliyorum.`),
+    'Sınav öncesi hap bilgileri eksiksiz gözden geçirdim ve kilit ayrımları kavradım.',
+    'Kavramlar sözlüğündeki terimleri birbirine karıştırmadan ayırt edebiliyorum.',
+  ];
 
   return {
-    overview: `${course} dersi kapsamında yer alan ${title} konusu, akademik literatürde ve üniversite sınav komisyonlarında en yüksek soru ağırlığına sahip temel yapı taşlarından biridir. Bu kapsamlı çalışma materyali; konuyu yüzeysel cümlelerle geçiştirmek yerine, kuramsal temellerini, işleyiş mekanizmasını, grafiksel ve matematiksel ispatlarını ve sınavda puan kazandıran kilit ayrımları fakülte düzeyinde eksiksiz olarak ortaya koymaktadır.${custom}\n\nKonunun anlaşılabilmesi için karar birimlerinin aksiyomatik davranışları, sistemdeki aktarım kanalları ve dışsal şoklara karşı geliştirilen uyum mekanizmaları bir bütün olarak ele alınmalıdır. Mikro düzeydeki bireysel kararlar toplamda genel piyasa dengesini ve kaynak dağılım etkinliğini şekillendirirken, kurumsal kısıtlar ve zaman gecikmeleri intikal sürecinin dinamiklerini tayin eder.\n\nÜniversite vize ve final sınavlarında başarılı olmanın en temel kuralı; formülleri veya tanımları ezberlemek değil, her bir değişkenin neden değiştiğini, aktarım kanallarının nasıl çalıştığını ve hocaların sınav kağıtlarında aradığı puanlama baremi kriterlerini derinlemesine kavramaktır.`,
-    keyPoints,
+    overview,
+    keyPoints: takeaways,
     sections,
-    infographic: [
-      { label: 'Sınav Ağırlığı', value: '%35 - %45' },
-      { label: 'Zorluk Derecesi', value: req.difficulty === 'hard' ? 'İleri Seviye' : 'Orta / İleri' },
-      { label: 'Kilit Dinamik', value: 'Nedensellik & İntikal' },
-      { label: 'Soru Tipi', value: 'Test & Klasik Çözüm' },
-      { label: 'Pedagojik Mod', value: 'Fakülte Ders Notu' },
-    ],
-    instructorEmphasis: [
-      'Hoca bu konuda özellikle içsel (endojen) ve dışsal (eksojen) değişken ayrımını vizede tuzak soru olarak kullanır.',
-      'Öğrencilerin en çok yaptığı hata: Eğri üzerindeki hareket ile eğrinin bütünüyle ötelenmesini birbirinin yerine kullanmaktır.',
-      'Grafik sorularında eksenlerin doğru adlandırılması, eğrinin kayma yönünün oklarla gösterilmesi ve denge noktalarının harflendirilmesi zorunludur.',
-      'Klasik sınavlarda tanımın yanına mutlaka matematiksel/grafiksel gösterim ve 4 aşamalı intikal açıklaması eklenmelidir.',
-      'Nominal büyüklük ile reel büyüklük ayrımına dikkat edilmeli, soruda enflasyon etkisi gizlenmişse mutlaka arındırma yapılmalıdır.',
-      'Esneklik değerlerinin negatif işaretinin büyüklük yorumunda dikkate alınıp alınmadığı hocaların en sık kurduğu çeldiricidir.',
-      'Uç durumlarda (tam esnek veya tam esnek olmayan) eğrilerin şekli ve politika etkinliği sınavın ayırt edici sorusudur.',
-      'Hocanın tam puan kriteri: "Neden?" sorusuna doyurucu kuramsal açıklama getirilmiş olmasıdır.',
-    ],
-    examLikelihood: [
-      { topic: `${title} Temel Denge ve Aksiyomatik Yapı`, reason: 'Konunun omurgasıdır; her vize ve final sınavında en az bir klasik soru doğrudan buradan gelir.', likelihood: 'yüksek', studyPriority: 'öncelikli' },
-      { topic: 'Dışsal Şoklar ve İntikal Süreci', reason: 'Çoktan seçmeli testlerde güçlü ve mantıklı çeldiriciler üretmeye son derece uygundur.', likelihood: 'yüksek', studyPriority: 'öncelikli' },
-      { topic: 'İçsel vs. Dışsal Değişken Ayrımı', reason: 'Öğrencileri ters köşe yapan eğri kayma sorularının değişmez kaynağıdır.', likelihood: 'yüksek', studyPriority: 'öncelikli' },
-      { topic: 'Uç Durumlar ve Politika Etkinliği', reason: 'Yüksek not (AA/BA) hedefleyen öğrencileri belirleyen ayırt edici final sorusudur.', likelihood: 'orta', studyPriority: 'normal' },
-      { topic: 'Matematiksel Formül ve Esneklik Hesabı', reason: 'Sayısal soru içeren sınavlarda işlem ve yorum ağırlıklı olarak sorulur.', likelihood: 'orta', studyPriority: 'pekiştirme' },
-      { topic: 'Karşılaştırmalı Statik Analiz', reason: 'Eski denge ile yeni denge arasındaki refah değişimini ölçen üst düzey analizdir.', likelihood: 'orta', studyPriority: 'normal' },
-    ],
-    keyTerms: [
-      { term: 'Kararlı Denge (Stable Equilibrium)', definition: 'İçsel güçlerin birbirini dengelediği ve sistem dışsal bir şoka maruz kalmadıkça kendiliğinden değişme eğilimi göstermediği durum.' },
-      { term: 'Marjinal Analiz (Marginal Analysis)', definition: 'Bir değişkenin bir birim artırılması veya azaltılması durumunda toplam büyüklükte meydana gelen ek değişimin fayda ve maliyet açısından incelenmesi.' },
-      { term: 'Aktarım Mekanizması (Transmission Mechanism)', definition: 'Sistemde meydana gelen bir politika değişikliğinin veya şokun ara değişkenler üzerinden nihai hedeflere kademeli olarak iletilme süreci.' },
-      { term: 'Fırsat Maliyeti (Opportunity Cost)', definition: 'Belirli bir tercihin yapılması sonucunda feda edilen en değerli alternatif kullanım alanının getirisi ve vazgeçilen kazanç.' },
-      { term: 'İçsel Değişken (Endogenous Variable)', definition: 'Değeri modelin kendi iç mekanizması ve denklemleri tarafından çözümlenen değişken (örn. denge fiyatı ve miktarı).' },
-      { term: 'Dışsal Değişken (Exogenous Variable)', definition: 'Değeri modelin dışından belirlenen ve modele veri olarak giren parametreler (örn. teknoloji, vergi oranları, tüketici zevkleri).' },
-      { term: 'Nominal vs. Reel Ayrımı', definition: 'Nominal değerlerin cari fiyatlarla; reel değerlerin ise baz yıl fiyatlarıyla veya enflasyondan arındırılarak gerçek satın alma gücüyle ifade edilmesi.' },
-      { term: 'Esneklik (Elasticity)', definition: 'Bir iktisadi değişkenin diğer bir değişkendeki yüzde birlik değişime karşı gösterdiği duyarlılığın ve oransal tepkinin ölçüsü.' },
-    ],
-    studyChecklist: [
-      `${title} konusunun tüm temel varsayımlarını ve aksiyomlarını eksiksiz sıralayabiliyorum.`,
-      'Grafikte eğri üzerindeki hareket ile eğrinin bütünüyle ötelenmesi arasındaki farkı ve nedenlerini biliyorum.',
-      'Dışsal bir şok anında başlangıç dengesinden yeni dengeye geçişteki 4 intikal adımını yazabiliyorum.',
-      'Marjinal fayda ve marjinal maliyet optimizasyon kuralını (MB = MC) formül ve sezgisiyle açıklayabiliyorum.',
-      'Nominal ve reel değişkenler arasındaki farkı ve sınavda sorulabilecek enflasyon tuzağını ayırt edebiliyorum.',
-      'Hocanın sınavda sorabileceği klasik soruya tam puan alacak 4 aşamalı model cevap kurgulayabiliyorum.',
-      'Kritik kavram sözlüğündeki terimleri kendi cümlelerimle akademik dille tanımlayabiliyorum.',
-      'Çeldirici seçeneklerdeki kavram kargaşalarını gerekçeleriyle birlikte çürütebiliyorum.',
-      'Esneklik katsayısının formülünü ve sınavdaki yorumunu hatasız uygulayabiliyorum.',
-      'Uç durumlarda grafik eğrilerinin nasıl davrandığını ve politika sonucunu analiz edebiliyorum.',
-    ],
+    infographic,
+    instructorEmphasis,
+    examLikelihood,
+    keyTerms: terms,
+    studyChecklist,
   };
 }
 

@@ -62,9 +62,15 @@ export class OpenAIGatewayError extends Error {
 }
 
 export const getOpenAIApiKey = (): string => {
-  const key = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('LOVABLE_API_KEY');
+  const key =
+    Deno.env.get('OPENAI_API_KEY') ||
+    Deno.env.get('LOVABLE_API_KEY') ||
+    Deno.env.get('GEMINI_API_KEY') ||
+    Deno.env.get('GOOGLE_API_KEY') ||
+    Deno.env.get('GROQ_API_KEY') ||
+    Deno.env.get('DEEPSEEK_API_KEY');
   if (!key) {
-    throw new OpenAIGatewayError('AI servisi yapılandırılmamış (OPENAI_API_KEY eksik).', 500);
+    throw new OpenAIGatewayError('AI servisi yapılandırılmamış (API anahtarı eksik).', 500);
   }
   return key;
 };
@@ -80,17 +86,93 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
 }> {
   const openaiKey = Deno.env.get('OPENAI_API_KEY');
   const lovableKey = Deno.env.get('LOVABLE_API_KEY');
+  const geminiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY');
+  const groqKey = Deno.env.get('GROQ_API_KEY');
+  const deepseekKey = Deno.env.get('DEEPSEEK_API_KEY');
 
-  const providers: Array<{ apiKey: string; isLovableGateway: boolean }> = [];
+  interface GatewayProvider {
+    name: string;
+    apiKey: string;
+    endpoint: string;
+    model: string;
+    isLovableGateway: boolean;
+  }
+
+  const providers: GatewayProvider[] = [];
+
+  // 1. Direct OpenAI API (if configured)
   if (openaiKey && !openaiKey.startsWith('la-')) {
-    providers.push({ apiKey: openaiKey, isLovableGateway: false });
+    providers.push({
+      name: 'openai',
+      apiKey: openaiKey,
+      endpoint: 'https://api.openai.com/v1/chat/completions',
+      model: options.model?.startsWith('openai/')
+        ? options.model.slice('openai/'.length)
+        : options.model && !options.model.includes('/')
+        ? options.model
+        : 'gpt-4o',
+      isLovableGateway: false,
+    });
   }
+
+  // 2. Direct Google Gemini OpenAI-compatible Endpoint (if configured)
+  if (geminiKey) {
+    providers.push({
+      name: 'gemini',
+      apiKey: geminiKey,
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+      model: options.model === 'gpt-4o-mini' ? 'gemini-2.5-flash' : 'gemini-2.5-pro',
+      isLovableGateway: false,
+    });
+  }
+
+  // 3. Direct Groq API (if configured)
+  if (groqKey) {
+    providers.push({
+      name: 'groq',
+      apiKey: groqKey,
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      model: 'llama-3.3-70b-versatile',
+      isLovableGateway: false,
+    });
+  }
+
+  // 4. Direct DeepSeek API (if configured)
+  if (deepseekKey) {
+    providers.push({
+      name: 'deepseek',
+      apiKey: deepseekKey,
+      endpoint: 'https://api.deepseek.com/chat/completions',
+      model: 'deepseek-chat',
+      isLovableGateway: false,
+    });
+  }
+
+  // 5. Lovable Gateway (if configured)
   if (lovableKey) {
-    providers.push({ apiKey: lovableKey, isLovableGateway: true });
+    providers.push({
+      name: 'lovable',
+      apiKey: lovableKey,
+      endpoint: 'https://ai.gateway.lovable.dev/v1/chat/completions',
+      model: options.model?.includes('/')
+        ? options.model
+        : options.model === 'gpt-4o'
+        ? 'google/gemini-2.5-pro'
+        : 'google/gemini-2.5-flash',
+      isLovableGateway: true,
+    });
   }
+
   if (providers.length === 0 && openaiKey) {
-    providers.push({ apiKey: openaiKey, isLovableGateway: true });
+    providers.push({
+      name: 'openai-fallback',
+      apiKey: openaiKey,
+      endpoint: 'https://ai.gateway.lovable.dev/v1/chat/completions',
+      model: 'google/gemini-2.5-pro',
+      isLovableGateway: true,
+    });
   }
+
   if (providers.length === 0) {
     throw new OpenAIGatewayError('AI servisi yapılandırılmamış (API anahtarı eksik).', 500);
   }
@@ -98,24 +180,7 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
   let lastErr: OpenAIGatewayError | null = null;
 
   for (const provider of providers) {
-    const { apiKey, isLovableGateway } = provider;
-    const endpoint = isLovableGateway
-      ? 'https://ai.gateway.lovable.dev/v1/chat/completions'
-      : 'https://api.openai.com/v1/chat/completions';
-
-    const selectedModel = isLovableGateway
-      ? (options.model?.includes('/')
-          ? options.model
-          : options.model === 'gpt-4o'
-          ? 'google/gemini-2.5-pro'
-          : 'google/gemini-2.5-flash')
-      : (options.model?.startsWith('openai/')
-          ? options.model.slice('openai/'.length)
-          : options.model && !options.model.includes('/')
-          ? options.model
-          : options.model
-          ? 'gpt-4o'
-          : 'gpt-4o-mini');
+    const { apiKey, endpoint, model: selectedModel, isLovableGateway } = provider;
 
     const normalizedMessages = isLovableGateway
       ? options.messages.map((msg) => {
