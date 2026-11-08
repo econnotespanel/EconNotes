@@ -63,6 +63,26 @@ describe('FatalErrorScreen Component', () => {
     fireEvent.click(goHomeBtn);
     expect(handleGoHome).toHaveBeenCalledTimes(1);
   });
+
+  it('renders multilingual RSOD error notices across 19 languages', () => {
+    render(<FatalErrorScreen />);
+
+    // Shows multilingual header and initial notice
+    expect(screen.getByText(/MULTILINGUAL NOTICE/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ciddi bir hata oluştu/i)).toBeInTheDocument();
+
+    // Toggle full list view
+    const toggleBtn = screen.getByRole('button', { name: /Tümü/i });
+    fireEvent.click(toggleBtn);
+
+    // Verify presence of PS3 RSOD languages in the list
+    expect(screen.getAllByText(/Ocorreu um erro grave/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Произошла неустранимая ошибка/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ett allvarligt fel har uppstått/i)).toBeInTheDocument();
+    expect(screen.getByText(/予期せぬエラーが発生しました/i)).toBeInTheDocument();
+    expect(screen.getByText(/심각한 에러가 발생했습니다/i)).toBeInTheDocument();
+    expect(screen.getByText(/发生了严重错误/i)).toBeInTheDocument();
+  });
 });
 
 describe('ErrorBoundary with FatalErrorScreen integration', () => {
