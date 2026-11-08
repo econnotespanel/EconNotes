@@ -71,7 +71,7 @@ async function uploadImagesToGradioSpace(
     const img = images[i];
     const bytes = base64ToUint8Array(img.base64Data);
     const safeName = img.name || `soru_${i + 1}.jpg`;
-    form.append('files', new Blob([bytes], { type: img.mimeType || 'image/jpeg' }), safeName);
+    form.append('files', new Blob([new Uint8Array(bytes).buffer], { type: img.mimeType || 'image/jpeg' }), safeName);
   }
 
   const res = await fetch(`${baseUrl}/gradio_api/upload?upload_id=${encodeURIComponent(sessionHash)}`, {

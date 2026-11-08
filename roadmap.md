@@ -1,5 +1,11 @@
 # Roadmap
 
+## Yönetici özel mesajları
+
+- [x] Girişte okunmamış yönetici mesajını göster ve Destek Merkezi konuşmasına yönlendir
+- [x] Yönetici özel mesajlarını Destek Merkezi’ne otomatik dahil et; 15 kural testi geçti
+- [ ] Gerçek hesapla giriş → yönetici mesajı → Destek Merkezi akışını doğrula — önizlemede kullanıcı oturumu yok, oturum oluşturma isteği eşleşen hesap bulamadı
+
 - [x] Referans logoyu tüm uygulama yüzeylerinde tutarlı hale getir
 - [ ] Yönetici kontrollü şifre aktivasyon akışını güvenli biçimde ekle
 - [ ] Günlük seri hatırlatma ve bildirim akışını ekle

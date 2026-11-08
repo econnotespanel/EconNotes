@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ForcePasswordChange from "@/components/ForcePasswordChange";
 import { MfaGate } from "@/components/TwoFactor";
+import AdminMessageListener from "@/components/AdminMessageListener";
 import UserPenaltyMonitor from "@/components/UserPenaltyMonitor";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { SiteConfigProvider } from "@/contexts/SiteConfigContext";
@@ -90,6 +91,7 @@ const App = () => {
                 <Suspense fallback={<RouteLoader />}>
                   <SystemGate>
                     <PasswordChangeGate><MfaGate>
+                      <AdminMessageListener />
                       <Routes>
                       <Route path="/" element={<Index />} />
                       <Route path="/login" element={<Login />} />

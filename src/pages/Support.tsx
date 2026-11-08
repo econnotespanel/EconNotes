@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { directAdminTicketId, projectAdminConversations, verifyMessageAdmins } from '@/lib/adminMessages';
 import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 import {
   encodeSupportMessage,
@@ -20,7 +21,6 @@ import {
   getSupportTicketStage,
   isSupportMessageValid,
   parseSupportMessage,
-  SUPPORT_MESSAGE_PREFIX,
   type SupportMessagePayload,
   type SupportTicketCategory,
   type SupportTicketStatus,
@@ -136,6 +136,8 @@ const buildTickets = (rows: StoredMessage[], adminView: boolean, currentUserId: 
 const Support = () => {
   const { user, profile, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedTicket = searchParams.get('ticket');
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [userNames, setUserNames] = useState<Record<string, string>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -200,7 +202,6 @@ const Support = () => {
       .from('messages')
       .select('*')
       .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-      .like('content', `${SUPPORT_MESSAGE_PREFIX}%`)
       .order('created_at', { ascending: true });
     if (error) {
       console.error('Support messages load failed:', error);
@@ -210,10 +211,19 @@ const Support = () => {
     }
 
     const rows = data ?? [];
-    const nextTickets = buildTickets(rows, isAdmin, user.id);
+    let verifiedAdmins: string[];
+    try {
+      verifiedAdmins = await verifyMessageAdmins(rows.flatMap((row) => [row.sender_id, row.receiver_id]));
+    } catch (error) {
+      console.error('Support administrator verification failed:', error);
+      setLoadError('Yönetici mesajları doğrulanamadı. Lütfen tekrar deneyin.');
+      setLoading(false);
+      return;
+    }
+    const nextTickets = buildTickets(projectAdminConversations(rows, verifiedAdmins), isAdmin, user.id);
     setTickets(nextTickets);
     setLoadError(null);
-    setSelectedId((current) => (nextTickets.some((ticket) => ticket.id === current) ? current : nextTickets[0]?.id ?? null));
+    setSelectedId((current) => (nextTickets.some((ticket) => ticket.id === current) ? current : nextTickets.some((ticket) => ticket.id === requestedTicket) ? requestedTicket : nextTickets[0]?.id ?? null));
     if (isAdmin && nextTickets.length) {
       const profileResult = await supabase
         .from('profiles')
@@ -230,7 +240,7 @@ const Support = () => {
       setUserNames({});
     }
     setLoading(false);
-  }, [isAdmin, user]);
+  }, [isAdmin, user, requestedTicket]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -255,6 +265,29 @@ const Support = () => {
   }, [loadTickets, user]);
 
   const selectedTicket = useMemo(() => tickets.find((ticket) => ticket.id === selectedId) ?? null, [selectedId, tickets]);
+  useEffect(() => {
+    if (requestedTicket && tickets.some((ticket) => ticket.id === requestedTicket)) setSelectedId(requestedTicket);
+  }, [requestedTicket, tickets]);
+
+  useEffect(() => {
+    if (!user || !selectedTicket) return;
+    let active = true;
+    const markRead = async () => {
+      const { data, error } = await supabase.from('messages').select('id,sender_id,receiver_id,content,is_read,created_at')
+        .eq('receiver_id', user.id).eq('is_read', false)
+        .eq('sender_id', isAdmin ? selectedTicket.userId : selectedTicket.adminId);
+      if (error) { console.error('Support read state load failed:', error); return; }
+      const ids = (data ?? []).filter((row) => {
+        const payload = parseSupportMessage(row.content);
+        return payload ? payload.ticketId === selectedTicket.id : selectedTicket.id === directAdminTicketId(selectedTicket.adminId, selectedTicket.userId);
+      }).map((row) => row.id);
+      if (!active || ids.length === 0) return;
+      const result = await supabase.from('messages').update({ is_read: true }).eq('receiver_id', user.id).in('id', ids);
+      if (result.error) toast.error('Mesajın okundu bilgisi kaydedilemedi.');
+    };
+    void markRead();
+    return () => { active = false; };
+  }, [user?.id, isAdmin, selectedTicket]);
   const selectedReplies = selectedTicket?.replies ?? [];
   const selectedStage = selectedTicket
     ? getSupportTicketStage(selectedTicket.status, selectedTicket.firstResponseAt, selectedTicket.reviewingAt)
@@ -530,7 +563,7 @@ const Support = () => {
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                         <span className="flex items-center gap-2 text-xs font-semibold">
                           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary"><MessageSquareText className="h-3.5 w-3.5" /></span>
-                          {userNames[selectedTicket.userId] ?? profile?.full_name ?? 'Talep sahibi'}
+                          {selectedTicket.id === directAdminTicketId(selectedTicket.adminId, selectedTicket.userId) ? 'EconNotes Yönetim Ekibi' : userNames[selectedTicket.userId] ?? profile?.full_name ?? 'Talep sahibi'}
                         </span>
                         <span className="text-[11px] text-muted-foreground">{dateTime(selectedTicket.createdAt)}</span>
                       </div>
