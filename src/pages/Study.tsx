@@ -157,9 +157,9 @@ const AiCustomizationChatBox = ({
         </div>
         <div className="grid grid-cols-3 gap-2">
           {[
-            { id: 'short', label: '⚡ Kısa & Öz', desc: 'Hızlı hap bilgiler & kilit noktalar' },
+            { id: 'detailed', label: '📚 Kapsamlı & Uzun (Önerilen)', desc: 'Eksiksiz fakülte notu, tüm alt başlıklar & ispatlar' },
             { id: 'balanced', label: '⚖️ Dengeli', desc: 'Standart ders & konu anlatımı' },
-            { id: 'detailed', label: '📚 Kapsamlı & Uzun', desc: 'Derinlemesine, tüm ispatlar & detaylar' },
+            { id: 'short', label: '⚡ Hızlı Tekrar', desc: 'Sınav öncesi hap bilgiler & kilit noktalar' },
           ].map(opt => (
             <button
               key={opt.id}
@@ -312,7 +312,7 @@ const Study = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   // Not Özelleştirme & Chat İstasyonu State
-  const [summaryLength, setSummaryLength] = useState<'short' | 'balanced' | 'detailed'>('balanced');
+  const [summaryLength, setSummaryLength] = useState<'short' | 'balanced' | 'detailed'>('detailed');
   const [noteStyle, setNoteStyle] = useState<'academic' | 'exam_focused' | 'instructor_traps' | 'formula_concepts' | 'solved_cases'>('exam_focused');
   const [customPrompt, setCustomPrompt] = useState('');
 
