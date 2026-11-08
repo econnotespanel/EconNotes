@@ -509,6 +509,68 @@ const Study = () => {
     }
   };
 
+  const [isRegeneratingMaterial, setIsRegeneratingMaterial] = useState(false);
+
+  const handleRegenerateDetailed = async (target: StudyMaterial) => {
+    if (isRegeneratingMaterial) return;
+    setIsRegeneratingMaterial(true);
+    const cleanTitle = target.title.replace(/^[^:]+:\s*/, '');
+    const c = target.content || {};
+    let contextText = `${cleanTitle}\nDers: ${target.course || '-'}\n\n`;
+    if (c.overview) contextText += `GENEL BAKIŞ:\n${c.overview}\n\n`;
+    if (c.keyPoints?.length) contextText += `HAP BİLGİLER:\n${c.keyPoints.join('\n')}\n\n`;
+    if (c.sections?.length) {
+      contextText += c.sections.map((s: any) => `--- ${s.heading} ---\n${s.content}`).join('\n\n');
+    }
+
+    try {
+      const payload: any = {
+        materialType: target.material_type,
+        difficulty: 'medium',
+        count: 10,
+        summaryLength: 'detailed',
+        noteStyle: 'academic',
+        noteTitle: cleanTitle,
+        course: target.course || '-',
+        noteContext: contextText.slice(0, 150000),
+      };
+
+      toast.info('EconNotes Deep Academic AI ile kapsamlı ders kitabı hazırlanıyor...');
+      let content: any = null;
+      let model = 'EconNotes Deep Academic AI';
+
+      try {
+        const res = await supabase.functions.invoke('generate-study-material', { body: payload });
+        if (res.data?.content && !res.data?.error) {
+          content = res.data.content;
+          if (res.data.model) model = res.data.model;
+        }
+      } catch (err) {
+        console.warn('Edge Function error during regenerate:', err);
+      }
+
+      if (!content) {
+        content = generateClientStudyMaterial(payload);
+      }
+
+      const { data: updated, error } = await supabase
+        .from('study_materials')
+        .update({ content, model, updated_at: new Date().toISOString() })
+        .eq('id', target.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      setActiveMaterial(updated as StudyMaterial);
+      setMaterials(prev => prev.map(m => m.id === target.id ? (updated as StudyMaterial) : m));
+      toast.success('Ders özeti kapsamlı fakülte ders kitabı seviyesine yükseltildi!');
+    } catch (err: any) {
+      toast.error(err.message || 'Yeniden üretim başarısız.');
+    } finally {
+      setIsRegeneratingMaterial(false);
+    }
+  };
+
   const handleGenerate = async (overrides?: {
     file?: File;
     title?: string;
@@ -1584,6 +1646,8 @@ const Study = () => {
               onProgressSaved={() => void load()}
               onConvertToVideo={() => void convertMaterialTo(activeMaterial, 'video')}
               onConvertToQuiz={() => void convertMaterialTo(activeMaterial, 'quiz')}
+              onRegenerateDetailed={() => void handleRegenerateDetailed(activeMaterial)}
+              isRegenerating={isRegeneratingMaterial}
             />
           )}
         </DialogContent>
@@ -1705,6 +1769,8 @@ const MaterialViewer = ({
   onProgressSaved,
   onConvertToVideo,
   onConvertToQuiz,
+  onRegenerateDetailed,
+  isRegenerating,
 }: {
   material: StudyMaterial;
   onClose?: () => void;
@@ -1712,6 +1778,8 @@ const MaterialViewer = ({
   onProgressSaved: () => void;
   onConvertToVideo?: () => void;
   onConvertToQuiz?: () => void;
+  onRegenerateDetailed?: () => void;
+  isRegenerating?: boolean;
 }) => {
   const [coachOpen, setCoachOpen] = useState(false);
 
@@ -1724,6 +1792,8 @@ const MaterialViewer = ({
           material={material}
           onConvertToVideo={onConvertToVideo}
           onConvertToQuiz={onConvertToQuiz}
+          onRegenerateDetailed={onRegenerateDetailed}
+          isRegenerating={isRegenerating}
         />
       );
       default: return null;
@@ -2140,13 +2210,17 @@ const SummaryViewer = ({
   material,
   onConvertToVideo,
   onConvertToQuiz,
+  onRegenerateDetailed,
+  isRegenerating,
 }: {
   material: StudyMaterial;
   onConvertToVideo?: () => void;
   onConvertToQuiz?: () => void;
+  onRegenerateDetailed?: () => void;
+  isRegenerating?: boolean;
 }) => {
   const c = material.content || {};
-  const [activeTab, setActiveTab] = useState<'overview' | 'sections' | 'exam' | 'concepts'>('overview');
+  const [activeTab, setActiveTab] = useState<'all' | 'sections' | 'overview' | 'exam' | 'concepts'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedMd, setCopiedMd] = useState(false);
   const [checklist, setChecklist] = useState<Record<number, boolean>>(() => {
@@ -2387,6 +2461,19 @@ const SummaryViewer = ({
             {copiedMd ? <CheckCheck className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
             {copiedMd ? 'Kopyalandı' : 'Markdown Kopyala'}
           </Button>
+          {onRegenerateDetailed && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isRegenerating}
+              className="h-8 gap-1.5 rounded-xl border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold"
+              onClick={onRegenerateDetailed}
+              title="Bu özeti EconNotes Deep Academic AI ile 10-15 bölümlük tam ders kitabına yükselt"
+            >
+              <Sparkles className={`h-3.5 w-3.5 ${isRegenerating ? 'animate-spin' : ''}`} />
+              {isRegenerating ? 'Derinleştiriliyor...' : 'Kapsamlı Yeniden Üret'}
+            </Button>
+          )}
           <Button
             size="sm"
             className="h-8 gap-1.5 rounded-xl bg-gradient-to-r from-primary to-blue-600 text-white text-xs font-semibold shadow-sm"
@@ -2413,10 +2500,11 @@ const SummaryViewer = ({
       <div className="flex border-b border-border/70 pb-2">
         <div className="flex flex-wrap gap-2">
           {[
-            { id: 'overview', label: 'Genel Bakış & Hap Bilgiler', icon: Sparkles, count: c.keyPoints?.length || 0 },
-            { id: 'sections', label: 'Slayt & Konu Analizi', icon: FileTextIcon, count: c.sections?.length || 0 },
-            { id: 'exam', label: 'Hoca Vurguları & Sınav Tahmini', icon: Target, count: derivedEmphasis.length + derivedExamLikelihood.length },
-            { id: 'concepts', label: 'Kavramlar & Kontrol Listesi', icon: ListChecks, count: derivedKeyTerms.length + derivedChecklist.length },
+            { id: 'all', label: '📚 Tam Not (Ders Kitabı)', icon: BookOpen, count: c.sections?.length || 0 },
+            { id: 'sections', label: '📑 Slayt & Konu Bölümleri', icon: FileTextIcon, count: c.sections?.length || 0 },
+            { id: 'overview', label: '⚡ Hap Bilgiler & Özet', icon: Sparkles, count: c.keyPoints?.length || 0 },
+            { id: 'exam', label: '🎯 Hoca Vurguları & Sınav Tahmini', icon: Target, count: derivedEmphasis.length + derivedExamLikelihood.length },
+            { id: 'concepts', label: '📝 Kavramlar & Kontrol Listesi', icon: ListChecks, count: derivedKeyTerms.length + derivedChecklist.length },
           ].map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -2444,6 +2532,216 @@ const SummaryViewer = ({
         </div>
       </div>
 
+      {/* TAB ALL: KAPSAMLI DERS KİTABI (TÜM NOT TEK SAYFADA) */}
+      {activeTab === 'all' && (
+        <div className="space-y-5 animate-fade-in">
+          {c.overview && (
+            <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-secondary/5 p-4 sm:p-5 shadow-sm space-y-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" /> Kuramsal Çerçeve ve Genel Bakış
+              </p>
+              <div className="prose prose-sm max-w-none dark:prose-invert text-xs sm:text-sm leading-relaxed text-foreground/90 font-normal">
+                <ReactMarkdown>{c.overview}</ReactMarkdown>
+              </div>
+            </div>
+          )}
+
+          {c.infographic?.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              {c.infographic.map((it: any, i: number) => (
+                <div key={i} className="rounded-xl border border-border/80 bg-card/80 p-3 shadow-sm hover:border-primary/40 transition">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{it.label}</p>
+                  <p className="text-base sm:text-lg font-bold font-display text-foreground mt-1 truncate">{it.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {c.keyPoints?.length > 0 && (
+            <div className="rounded-2xl border border-border/80 bg-card/80 p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <Zap className="h-3.5 w-3.5 text-amber-500" /> Sınav Öncesi Kritik Hap Bilgiler
+                </p>
+                <span className="text-[11px] text-muted-foreground">{c.keyPoints.length} Madde</span>
+              </div>
+              <div className="grid gap-2">
+                {c.keyPoints.map((kp: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-muted/40 hover:bg-muted/70 transition border border-transparent hover:border-border text-xs sm:text-sm">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary text-[11px] font-bold mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="leading-relaxed text-foreground/90">{kp}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TÜM BÖLÜMLER */}
+          {c.sections?.length > 0 && (
+            <div className="space-y-3.5 pt-2">
+              <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                    <BookOpen className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                      Ayrıntılı Bölüm &amp; Slayt Çözümlemeleri
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Derinlemesine kuramsal tanımlar, işleyiş mekanizmaları ve sınav püf noktaları</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-primary/30 text-primary text-[10px] font-semibold">
+                  {c.sections.length} Bölüm
+                </Badge>
+              </div>
+
+              <div className="space-y-4">
+                {c.sections.map((s: any, i: number) => (
+                  <div key={i} className="rounded-2xl border border-border/80 bg-card/80 p-4 sm:p-5 shadow-sm hover:border-border transition space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary font-mono text-xs font-bold">
+                          {String(i + 1).padStart(2, '0')}
+                        </span>
+                        <h4 className="font-semibold text-sm sm:text-base text-foreground">{s.heading}</h4>
+                      </div>
+                    </div>
+
+                    <div className="prose prose-sm max-w-none dark:prose-invert text-xs sm:text-sm leading-relaxed text-foreground/90 space-y-2">
+                      <ReactMarkdown>{s.content}</ReactMarkdown>
+                    </div>
+
+                    {s.takeaway && (
+                      <div className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs">
+                        <span className="text-primary font-bold shrink-0 mt-0.5">💡 Sınav Çıkarımı:</span>
+                        <span className="text-foreground/90 font-medium leading-relaxed">{s.takeaway}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Hoca Vurguları */}
+          {derivedEmphasis?.length > 0 && (
+            <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-background p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-500">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                      Hocanın Özellikle Vurguladıkları &amp; Çeldirici Noktalar
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Sınavlarda en çok hata yapılan ve soru gelmesi muhtemel noktalar</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-semibold">
+                  {derivedEmphasis.length} Vurgu
+                </Badge>
+              </div>
+              <div className="space-y-2 pt-1">
+                {derivedEmphasis.map((item: string, i: number) => (
+                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-card border border-amber-500/20 text-xs sm:text-sm leading-relaxed shadow-sm hover:border-amber-500/40 transition">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[11px] font-bold mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span className="text-foreground/90 font-medium">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sınavda Çıkma Olasılığı Matrisi */}
+          {derivedExamLikelihood?.length > 0 && (
+            <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-background p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                    <Target className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                      Sınavda Çıkma Olasılığı Matrisi
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Konuların soru değeri ve sınav öncelik derecesi</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-semibold">
+                  {derivedExamLikelihood.length} Konu Analizi
+                </Badge>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 pt-1">
+                {derivedExamLikelihood.map((item: any, i: number) => (
+                  <div key={i} className="rounded-xl border border-border/80 bg-card p-3.5 shadow-sm space-y-2 hover:border-emerald-500/40 transition">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs sm:text-sm font-bold text-foreground truncate">{item.topic}</span>
+                      <Badge className={
+                        item.likelihood === 'yüksek'
+                          ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px]'
+                          : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]'
+                      }>
+                        {item.likelihood} olasılık
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{item.reason}</p>
+                    {item.studyPriority && (
+                      <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-border/40">
+                        <span className="text-muted-foreground">Çalışma Önceliği:</span>
+                        <span className="font-semibold text-primary capitalize">{item.studyPriority}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Kritik Terimler & Kontrol Listesi */}
+          {derivedKeyTerms?.length > 0 && (
+            <div className="rounded-2xl border border-border/80 bg-card/80 p-4 sm:p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                      Kritik Kavram Sözlüğü
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">Sınav kağıdına yazıldığında puan getiren akademik terimler</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-border text-muted-foreground text-[10px] font-semibold">
+                  {derivedKeyTerms.length} Terim
+                </Badge>
+              </div>
+
+              <div className="grid gap-2.5 sm:grid-cols-2 pt-1">
+                {derivedKeyTerms.map((t: any, i: number) => (
+                  <div key={i} className="rounded-xl border border-border/80 bg-card p-3 shadow-sm space-y-1 hover:border-primary/40 transition">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary text-[10px] font-mono font-bold">
+                        {i + 1}
+                      </span>
+                      <h4 className="text-xs sm:text-sm font-bold text-foreground truncate">{t.term}</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed pl-7">{t.definition}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-4 animate-fade-in">
@@ -2452,7 +2750,9 @@ const SummaryViewer = ({
               <p className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2 flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5" /> Kuramsal Çerçeve ve Genel Bakış
               </p>
-              <p className="text-sm leading-relaxed text-foreground/90 font-normal">{c.overview}</p>
+              <div className="prose prose-sm max-w-none dark:prose-invert text-xs sm:text-sm leading-relaxed text-foreground/90 font-normal">
+                <ReactMarkdown>{c.overview}</ReactMarkdown>
+              </div>
             </div>
           )}
 
