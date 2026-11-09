@@ -82,6 +82,7 @@ const AdminPanel = () => {
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [penaltyReason, setPenaltyReason] = useState('');
   const [penaltyLevel, setPenaltyLevel] = useState('1');
+  const [penaltySaving, setPenaltySaving] = useState(false);
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [roleUser, setRoleUser] = useState<any>(null);
   const [selectedRole, setSelectedRole] = useState('student');
@@ -448,29 +449,42 @@ const AdminPanel = () => {
 
 
   const issuePenalty = async () => {
-    if (!selectedUser || !penaltyReason) { toast.error('Lütfen tüm alanları doldurun.'); return; }
+    if (penaltySaving) return;
+    if (!selectedUser || !penaltyReason.trim()) { toast.error('Lütfen ceza sebebini yazın.'); return; }
+    if (!user) { toast.error('Oturum bulunamadı. Lütfen tekrar giriş yapın.'); return; }
+    setPenaltySaving(true);
+    try {
     const level = parseInt(penaltyLevel);
     const duration = PENALTY_DURATIONS.find(p => p.warning === level);
     const isPermanent = level >= 6;
     const penaltyUntil = isPermanent ? null : new Date(Date.now() + (duration?.minutes || 0) * 60000).toISOString();
     const { error } = await supabase.from('penalties').insert({
-      user_id: selectedUser.user_id, issued_by: user!.id, reason: penaltyReason,
+      user_id: selectedUser.user_id, issued_by: user.id, reason: penaltyReason.trim(),
       warning_number: level, penalty_until: penaltyUntil, is_permanent: isPermanent,
     });
     if (error) { toast.error('Ceza verilemedi: ' + error.message); return; }
+    toast.success(`Ceza verildi: ${duration?.label}`);
+    setPenaltyDialog(false); setPenaltyReason(''); fetchAll();
 
     // Instant eviction broadcast to kick out the user immediately if online
     try {
       const evictChannel = supabase.channel(`penalty-monitor-${selectedUser.user_id}`);
-      await evictChannel.subscribe();
-      await evictChannel.send({ type: 'broadcast', event: 'evict', payload: { reason: penaltyReason } });
-      await supabase.removeChannel(evictChannel);
+      evictChannel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await evictChannel.send({ type: 'broadcast', event: 'evict', payload: { reason: penaltyReason } });
+          supabase.removeChannel(evictChannel);
+        }
+      });
+      setTimeout(() => supabase.removeChannel(evictChannel), 8000);
     } catch (broadcastErr) {
       console.warn('Eviction broadcast error:', broadcastErr);
     }
-    await logActivity(user!.id, 'Admin', user!.email || '', 'penalty_issued', `${selectedUser.full_name} - ${duration?.label}. Sebep: ${penaltyReason}`, 'penalty');
-    toast.success(`Ceza verildi: ${duration?.label}`);
-    setPenaltyDialog(false); setPenaltyReason(''); fetchAll();
+    logActivity(user.id, 'Admin', user.email || '', 'penalty_issued', `${selectedUser.full_name} - ${duration?.label}. Sebep: ${penaltyReason}`, 'penalty').catch(() => {});
+    } catch (err: any) {
+      toast.error('Ceza verilemedi: ' + (err?.message || 'Bilinmeyen hata.'));
+    } finally {
+      setPenaltySaving(false);
+    }
   };
 
   const removePenalty = async (penaltyId: string) => {
@@ -1401,10 +1415,10 @@ const AdminPanel = () => {
           <DialogContent><DialogHeader><DialogTitle>Ceza Ver - {selectedUser?.full_name}</DialogTitle></DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2"><Label>Ceza Seviyesi</Label>
-                <Select value={penaltyLevel} onValueChange={setPenaltyLevel}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PENALTY_DURATIONS.map(p => <SelectItem key={p.warning} value={String(p.warning)}>{p.label}</SelectItem>)}</SelectContent></Select>
+                <Select value={penaltyLevel} onValueChange={setPenaltyLevel}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent className="z-[90]">{PENALTY_DURATIONS.map(p => <SelectItem key={p.warning} value={String(p.warning)}>{p.label}</SelectItem>)}</SelectContent></Select>
               </div>
               <div className="space-y-2"><Label>Sebep *</Label><Textarea value={penaltyReason} onChange={(e) => setPenaltyReason(e.target.value)} placeholder="Ceza sebebi..." /></div>
-              <Button className="w-full" onClick={issuePenalty}>Cezayı Uygula</Button>
+              <Button type="button" className="w-full" disabled={penaltySaving} onClick={issuePenalty}>{penaltySaving ? 'Uygulanıyor…' : 'Cezayı Uygula'}</Button>
             </div>
           </DialogContent>
         </Dialog>
