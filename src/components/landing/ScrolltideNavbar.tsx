@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '@/contexts/ThemeContext';
 import EconLogo from '@/components/EconLogo';
+import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
+import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Menu, X, Sun, Moon } from 'lucide-react';
 
@@ -11,6 +13,9 @@ interface ScrolltideNavbarProps {
 
 export const ScrolltideNavbar: React.FC<ScrolltideNavbarProps> = ({ onLoginClick }) => {
   const { theme, toggleTheme } = useTheme();
+  const { config } = useSiteConfig();
+  const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const isNovember10 = seasonalTheme?.id === 'november10';
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -21,8 +26,14 @@ export const ScrolltideNavbar: React.FC<ScrolltideNavbarProps> = ({ onLoginClick
       <nav className="relative flex items-center justify-between gap-2 rounded-full border border-slate-200/85 dark:border-white/15 bg-white/85 dark:bg-black/55 px-3 sm:px-6 py-2 sm:py-2.5 backdrop-blur-2xl shadow-[0_8px_32px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.25)] transition-all">
         {/* Brand Logo — optically centered inside the pill (wordmark sits low in the PNG) */}
         <div className="flex h-8 sm:h-9 shrink-0 items-center pl-1 sm:pl-1.5">
-          <Link to="/" className="flex h-full items-center group" aria-label="EconNotes ana sayfa">
-            <EconLogo className="h-6 w-24 sm:h-8 sm:w-32 -translate-y-[2.5px] sm:-translate-y-[3px] transition-transform duration-300 group-hover:scale-105" />
+          <Link to="/" className="flex h-full items-center gap-2 group" aria-label="EconNotes ana sayfa">
+            <EconLogo className="h-6 w-auto sm:h-8 -translate-y-[2.5px] sm:-translate-y-[3px] transition-transform duration-300 group-hover:scale-105" />
+            {isNovember10 && (
+              <span className="flex items-center gap-1.5 border-l border-slate-300 dark:border-white/20 pl-2 -translate-y-[1px]">
+                <Ataturk10KasimEmblem className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="hidden sm:inline font-mono text-[10px] text-muted-foreground font-bold">193∞</span>
+              </span>
+            )}
           </Link>
         </div>
 

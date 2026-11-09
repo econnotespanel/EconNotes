@@ -37,7 +37,7 @@ export const SEASONAL_THEMES: SeasonalTheme[] = [
   { id: 'october29', label: '29 Ekim Cumhuriyet', emoji: '🇹🇷', primary: '0 72% 48%', accent: '0 42% 20%', neon: '45 96% 58%' },
   { id: 'april23', label: '23 Nisan', emoji: '🎈', primary: '4 78% 55%', accent: '205 52% 24%', neon: '191 88% 62%' },
   { id: 'may19', label: '19 Mayıs', emoji: '🇹🇷', primary: '200 82% 45%', accent: '200 42% 20%', neon: '0 78% 58%' },
-  { id: 'november10', label: '10 Kasım', emoji: '🖤', primary: '220 18% 38%', accent: '220 18% 16%', neon: '42 70% 55%' },
+  { id: 'november10', label: '10 Kasım', emoji: '🖤', primary: '220 14% 28%', accent: '220 14% 15%', neon: '43 85% 55%' },
   { id: 'ramadan', label: 'Ramazan Bayramı', emoji: '🌙', primary: '262 65% 52%', accent: '262 35% 20%', neon: '45 92% 63%' },
   { id: 'sacrifice', label: 'Kurban Bayramı', emoji: '✨', primary: '160 62% 38%', accent: '160 32% 18%', neon: '42 92% 60%' },
   { id: 'newYear', label: 'Yılbaşı', emoji: '🎄', primary: '145 58% 34%', accent: '145 30% 17%', neon: '0 78% 60%' },
@@ -65,9 +65,9 @@ export function getSeasonalTheme(id: SeasonalThemeId, date = new Date()): Season
     ['april23', '04-23', '04-23'],
     ['may19', '05-19', '05-19'],
     ['october29', '10-29', '10-29'],
-    ['november10', '11-10', '11-10'],
+    ['november10', '11-09', '11-11'],
   ];
-  const match = fixed.find(([, from, to]) => from === to ? current === from : (current >= from || current <= to));
+  const match = fixed.find(([, from, to]) => from === to ? current === from : (from > to ? (current >= from || current <= to) : (current >= from && current <= to)));
   if (match) return SEASONAL_THEMES.find(theme => theme.id === match[0]) || null;
   const bayram = BAYRAM_DATES[year];
   if (bayram) {

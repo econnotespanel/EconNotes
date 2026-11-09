@@ -16,6 +16,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -199,23 +200,36 @@ const Header = () => {
       style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/80 to-transparent" />
+      {seasonalTheme?.id === 'november10' && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500/50 via-foreground/20 to-transparent opacity-80" />
+      )}
       <div className="flex h-[4.5rem] min-w-0 items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
         <div className="ml-14 flex min-w-0 cursor-pointer items-center rounded-xl px-2 py-1.5 transition-colors hover:bg-primary/5 md:ml-0" onClick={() => navigate('/')}>
-          <EconLogo className="h-6 w-24 sm:h-7 sm:w-32" />
-          {seasonalTheme?.id === 'november10' && (
-            <span className="ml-2 inline-flex items-center gap-1.5 rounded-full border border-foreground/20 bg-foreground/5 px-2 py-1 text-[10px] font-semibold text-foreground" title="Ulu Önder Mustafa Kemal Atatürk'ü saygı ve özlemle anıyoruz." aria-label="Atatürk'ü saygı ve özlemle anıyoruz">
-              <span className="seasonal-ribbon" aria-hidden="true" />
-              <span className="hidden sm:inline">Saygıyla anıyoruz · 10 Kasım</span>
-            </span>
-          )}
-          {seasonalTheme && seasonalTheme.id !== 'november10' && (
-            <span className="ml-2 hidden items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary lg:inline-flex">
-              {flagThemeIds.has(seasonalTheme.id) ? (
-                <span className="seasonal-flag" title={`${seasonalTheme.label} teması`} aria-label={`${seasonalTheme.label} teması`}>🇹🇷</span>
-              ) : seasonalTheme.emoji}
-              <span>{seasonalTheme.label}</span>
-            </span>
-          )}
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <EconLogo className="h-6 w-auto sm:h-7" />
+            {seasonalTheme?.id === 'november10' ? (
+              <div
+                className="flex items-center gap-1.5 sm:gap-2 border-l border-border/80 pl-2 sm:pl-2.5 transition-transform hover:scale-105"
+                title="Ulu Önder Mustafa Kemal Atatürk'ü saygı ve özlemle anıyoruz (1881-193∞)"
+              >
+                <Ataturk10KasimEmblem className="h-6 w-6 sm:h-7 sm:w-7" />
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide text-foreground/85">
+                  <span className="hidden sm:inline">Saygıyla anıyoruz · 10 Kasım</span>
+                  <span className="sm:hidden">10 Kasım</span>
+                  <span className="font-mono text-[10px] text-muted-foreground font-bold">193∞</span>
+                </span>
+              </div>
+            ) : seasonalTheme ? (
+              <span className="ml-2 hidden items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary lg:inline-flex">
+                {flagThemeIds.has(seasonalTheme.id) ? (
+                  <span className="seasonal-flag" title={`${seasonalTheme.label} teması`} aria-label={`${seasonalTheme.label} teması`}>🇹🇷</span>
+                ) : (
+                  seasonalTheme.emoji
+                )}
+                <span>{seasonalTheme.label}</span>
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

@@ -17,8 +17,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { APP_VERSION } from '@/lib/version';
-import { useSiteConfig } from '@/contexts/SiteConfigContext';
+import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import EconLogo from '@/components/EconLogo';
+import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
 import { toast } from 'sonner';
 import { parseSupportMessage, SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 
@@ -34,6 +35,8 @@ type LinkItem = {
 const Sidebar = () => {
   const { isAdmin, user, signOut } = useAuth();
   const { isPageEnabled, config } = useSiteConfig();
+  const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const isNovember10 = seasonalTheme?.id === 'november10';
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -296,7 +299,10 @@ const Sidebar = () => {
 
         <div className="p-3 pb-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] md:pb-3 border-t border-[hsl(var(--sidebar-border))] bg-card/40 backdrop-blur-sm">
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
-            <EconLogo className="h-4 w-20" />
+            <div className="flex items-center gap-1.5">
+              <EconLogo className="h-4 w-auto" />
+              {isNovember10 && <Ataturk10KasimEmblem className="h-4 w-4" />}
+            </div>
             <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)] font-semibold">Versiyon {APP_VERSION}</span>
           </div>
           <AlertDialog>
