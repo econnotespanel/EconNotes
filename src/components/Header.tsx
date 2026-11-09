@@ -212,10 +212,8 @@ const Header = () => {
             <span className="ml-2 hidden items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary lg:inline-flex">
               {flagThemeIds.has(seasonalTheme.id) ? (
                 <span className="seasonal-flag" title={`${seasonalTheme.label} teması`} aria-label={`${seasonalTheme.label} teması`}>🇹🇷</span>
-              ) : seasonalTheme.id === 'november10' ? (
-                <span className="seasonal-ribbon" title="Atatürk'ü Anma Günü" aria-label="Atatürk'ü Anma Günü" />
               ) : seasonalTheme.emoji}
-              <span>{seasonalTheme.id === 'november10' ? 'Atatürk • 10 Kasım' : seasonalTheme.label}</span>
+              <span>{seasonalTheme.label}</span>
             </span>
           )}
         </div>
