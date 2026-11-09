@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import lightLogo from '@/assets/econnotes-brand-light.png';
 import darkLogo from '@/assets/econnotes-brand-dark.png';
 import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
@@ -15,14 +16,32 @@ export default function EconLogo({
   allWhite?: boolean;
   show10Kasim?: boolean;
 }) {
+  const [is10KasimActive, setIs10KasimActive] = useState<boolean>(() => {
+    if (typeof document === 'undefined') return false;
+    return document.documentElement.dataset.seasonalTheme === 'november10';
+  });
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const checkTheme = () => {
+      setIs10KasimActive(document.documentElement.dataset.seasonalTheme === 'november10');
+    };
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-seasonal-theme'] });
+    return () => observer.disconnect();
+  }, []);
+
+  const shouldMonochrome = show10Kasim || is10KasimActive;
+
   return (
-    <span className={cn('inline-flex max-w-full shrink-0 items-center overflow-hidden', className)}>
+    <span className={cn('econnotes-logo inline-flex max-w-full shrink-0 items-center overflow-hidden', className)}>
       <img
         src={lightLogo}
         alt="EconNotes"
         className={cn(
-          'h-full w-auto max-h-full max-w-full object-contain object-center',
-          allWhite ? 'brightness-0 invert' : onDark ? 'hidden' : 'block dark:hidden'
+          'h-full w-auto max-h-full max-w-full object-contain object-center transition-all',
+          allWhite ? 'brightness-0 invert' : onDark ? 'hidden' : 'block dark:hidden',
+          shouldMonochrome && 'grayscale contrast-125'
         )}
       />
       {!allWhite && (
@@ -30,8 +49,9 @@ export default function EconLogo({
           src={darkLogo}
           alt="EconNotes"
           className={cn(
-            'h-full w-auto max-h-full max-w-full object-contain object-center',
-            onDark ? 'block' : 'hidden dark:block'
+            'h-full w-auto max-h-full max-w-full object-contain object-center transition-all',
+            onDark ? 'block' : 'hidden dark:block',
+            shouldMonochrome && 'grayscale contrast-125'
           )}
         />
       )}

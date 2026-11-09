@@ -155,16 +155,93 @@
       linear-gradient(315deg, hsl(var(--neon-cyan) / .1), transparent 55%);
   }
 
+  html[data-seasonal-theme="november10"] {
+    filter: grayscale(100%) !important;
+    -webkit-filter: grayscale(100%) !important;
+    --primary: 0 0% 14% !important;
+    --primary-foreground: 0 0% 100% !important;
+    --primary-glow: 0 0% 25% !important;
+    --secondary: 0 0% 24% !important;
+    --secondary-foreground: 0 0% 100% !important;
+    --accent: 0 0% 20% !important;
+    --accent-foreground: 0 0% 100% !important;
+    --ring: 0 0% 25% !important;
+    --sidebar-primary: 0 0% 14% !important;
+    --sidebar-primary-foreground: 0 0% 100% !important;
+    --sidebar-accent: 0 0% 92% !important;
+    --sidebar-accent-foreground: 0 0% 12% !important;
+    --sidebar-ring: 0 0% 25% !important;
+    --neon-cyan: 0 0% 40% !important;
+    --neon-blue: 0 0% 30% !important;
+    --neon-indigo: 0 0% 25% !important;
+    --neon-ice: 0 0% 75% !important;
+    --gradient-neon: linear-gradient(115deg, #18181b, #3f3f46) !important;
+    --gradient-neon-soft: linear-gradient(115deg, hsl(0 0% 20% / 0.12), hsl(0 0% 40% / 0.08)) !important;
+    --glow-cyan: 0 8px 24px hsl(0 0% 0% / 0.15) !important;
+    --glow-blue: 0 8px 28px hsl(0 0% 0% / 0.18) !important;
+  }
+
+  html[data-seasonal-theme="november10"].dark,
+  .dark html[data-seasonal-theme="november10"] {
+    --background: 0 0% 7% !important;
+    --foreground: 0 0% 96% !important;
+    --card: 0 0% 11% !important;
+    --card-foreground: 0 0% 96% !important;
+    --popover: 0 0% 11% !important;
+    --popover-foreground: 0 0% 96% !important;
+    --primary: 0 0% 94% !important;
+    --primary-foreground: 0 0% 8% !important;
+    --primary-glow: 0 0% 85% !important;
+    --secondary: 0 0% 78% !important;
+    --secondary-foreground: 0 0% 8% !important;
+    --muted: 0 0% 16% !important;
+    --muted-foreground: 0 0% 68% !important;
+    --accent: 0 0% 88% !important;
+    --accent-foreground: 0 0% 8% !important;
+    --border: 0 0% 20% !important;
+    --input: 0 0% 20% !important;
+    --ring: 0 0% 85% !important;
+    --sidebar-background: 0 0% 8% !important;
+    --sidebar-foreground: 0 0% 72% !important;
+    --sidebar-primary: 0 0% 94% !important;
+    --sidebar-primary-foreground: 0 0% 8% !important;
+    --sidebar-accent: 0 0% 100% / 0.12 !important;
+    --sidebar-accent-foreground: 0 0% 95% !important;
+    --sidebar-border: 0 0% 18% !important;
+    --sidebar-ring: 0 0% 85% !important;
+    --neon-cyan: 0 0% 80% !important;
+    --neon-blue: 0 0% 75% !important;
+    --neon-indigo: 0 0% 70% !important;
+    --neon-ice: 0 0% 90% !important;
+    --gradient-neon: linear-gradient(115deg, #27272a, #52525b) !important;
+    --gradient-neon-soft: linear-gradient(115deg, hsl(0 0% 90% / 0.14), hsl(0 0% 70% / 0.08)) !important;
+    --glow-cyan: 0 8px 30px hsl(0 0% 0% / 0.4) !important;
+    --glow-blue: 0 8px 32px hsl(0 0% 0% / 0.45) !important;
+  }
+
+  html[data-seasonal-theme="november10"] body,
+  html[data-seasonal-theme="november10"] [data-radix-portal],
+  html[data-seasonal-theme="november10"] [data-sonner-toaster] {
+    filter: grayscale(100%) !important;
+    -webkit-filter: grayscale(100%) !important;
+  }
+
+  html[data-seasonal-theme="november10"] img[alt="EconNotes"],
+  html[data-seasonal-theme="november10"] .econnotes-logo img {
+    filter: grayscale(100%) contrast(125%) !important;
+    -webkit-filter: grayscale(100%) contrast(125%) !important;
+  }
+
   html[data-seasonal-theme="november10"] body {
     background-image:
-      linear-gradient(180deg, hsl(220 20% 12% / .15), transparent 320px),
-      linear-gradient(135deg, hsl(220 18% 20% / .12), transparent 48%),
-      radial-gradient(circle at 85% 12%, hsl(43 85% 55% / .12), transparent 26rem);
+      linear-gradient(180deg, hsl(0 0% 10% / .12), transparent 320px),
+      linear-gradient(135deg, hsl(0 0% 18% / .1), transparent 48%),
+      radial-gradient(circle at 85% 12%, hsl(0 0% 40% / .08), transparent 26rem);
   }
 
   html[data-seasonal-theme="november10"] body::after {
-    opacity: .22;
-    background-image: radial-gradient(circle, hsl(43 85% 55% / .35) 0 1px, transparent 1.5px);
+    opacity: .2;
+    background-image: radial-gradient(circle, hsl(0 0% 50% / .3) 0 1px, transparent 1.5px);
     background-size: 80px 80px;
   }
 

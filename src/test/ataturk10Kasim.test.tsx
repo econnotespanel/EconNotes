@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
+import EconLogo from '@/components/EconLogo';
 import { getSeasonalTheme, SEASONAL_THEMES } from '@/contexts/SiteConfigContext';
 
 describe('10 Kasım Atatürk Commemoration Emblem & Theme', () => {
@@ -23,11 +24,13 @@ describe('10 Kasım Atatürk Commemoration Emblem & Theme', () => {
     expect(lightImage).toHaveClass('invert');
   });
 
-  it('retrieves november10 seasonal theme correctly from configuration', () => {
+  it('retrieves november10 seasonal theme correctly from configuration with monochrome tokens', () => {
     const theme = getSeasonalTheme('november10');
     expect(theme).not.toBeNull();
     expect(theme?.id).toBe('november10');
     expect(theme?.label).toBe('10 Kasım');
+    expect(theme?.primary).toBe('0 0% 14%');
+    expect(theme?.accent).toBe('0 0% 20%');
   });
 
   it('auto-activates 10 Kasım theme during November 9-11 commemoration period', () => {
@@ -46,5 +49,22 @@ describe('10 Kasım Atatürk Commemoration Emblem & Theme', () => {
     // Other non-holiday date should not be november10
     const nov15 = getSeasonalTheme('auto', new Date('2026-11-15T12:00:00+03:00'));
     expect(nov15?.id).not.toBe('november10');
+  });
+
+  it('renders EconLogo with grayscale monochrome filter when show10Kasim is true or 10 Kasım theme is active', () => {
+    const { unmount } = render(<EconLogo show10Kasim />);
+    const images = screen.getAllByAltText('EconNotes');
+    expect(images[0]).toHaveClass('grayscale');
+    unmount();
+
+    // Test when document attribute is active initially
+    document.documentElement.dataset.seasonalTheme = 'november10';
+    const view2 = render(<EconLogo />);
+    const themeImages = screen.getAllByAltText('EconNotes');
+    expect(themeImages[0]).toHaveClass('grayscale');
+    view2.unmount();
+    act(() => {
+      delete document.documentElement.dataset.seasonalTheme;
+    });
   });
 });
