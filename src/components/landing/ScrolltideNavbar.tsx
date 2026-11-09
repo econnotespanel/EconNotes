@@ -7,6 +7,7 @@ import AtaturkPortrait from '@/components/AtaturkPortrait';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Menu, X, Sun, Moon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ScrolltideNavbarProps {
   onLoginClick?: () => void;

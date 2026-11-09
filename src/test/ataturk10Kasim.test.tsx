@@ -16,6 +16,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { getSeasonalTheme, SEASONAL_THEMES } from '@/contexts/SiteConfigContext';
+import { ScrolltideNavbar } from '@/components/landing/ScrolltideNavbar';
+import { MemoryRouter } from 'react-router-dom';
 
 describe('10 Kasım Atatürk Commemoration Emblem & Theme', () => {
   it('renders Ataturk10KasimEmblem with transparent images for light and dark modes', () => {
@@ -112,6 +114,20 @@ describe('10 Kasım Atatürk Commemoration Emblem & Theme', () => {
       const content = title.closest('[role="alertdialog"]');
       expect(content).toBeInTheDocument();
       expect(content).toHaveClass('z-[100]');
+    } finally {
+      delete document.documentElement.dataset.seasonalTheme;
+    }
+  });
+
+  it('renders ScrolltideNavbar safely without cn reference errors in 10 Kasım theme', () => {
+    document.documentElement.dataset.seasonalTheme = 'november10';
+    try {
+      render(
+        <MemoryRouter>
+          <ScrolltideNavbar />
+        </MemoryRouter>
+      );
+      expect(screen.getByText('Hemen Başla')).toBeInTheDocument();
     } finally {
       delete document.documentElement.dataset.seasonalTheme;
     }
