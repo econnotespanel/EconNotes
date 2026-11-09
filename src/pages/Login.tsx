@@ -35,6 +35,8 @@ import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
 import SecurityCaptcha from '@/components/SecurityCaptcha';
 import { getReturningAccountName, rememberReturningAccount } from '@/lib/returningAccount';
 import { AmbientShaderBackground } from '@/components/landing/AmbientShaderBackground';
+import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
+import { cn } from '@/lib/utils';
 
 const Login = () => {
   const AUXILIARY_REQUEST_TIMEOUT = 5000;
@@ -62,6 +64,9 @@ const Login = () => {
   const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { config } = useSiteConfig();
+  const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const isNovember10 = seasonalTheme?.id === 'november10';
   const { user: currentUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -438,10 +443,13 @@ const Login = () => {
       <div
         className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 xl:p-14 relative overflow-hidden z-10"
         style={{
-          background:
-            theme === 'dark'
-              ? 'linear-gradient(145deg, #070b14 0%, #001f5c 50%, #003791 100%)'
-              : 'linear-gradient(145deg, #001845 0%, #002d7a 45%, #00439c 100%)',
+          background: isNovember10
+            ? (theme === 'dark'
+                ? 'linear-gradient(145deg, #09090b 0%, #18181b 50%, #27272a 100%)'
+                : 'linear-gradient(145deg, #18181b 0%, #27272a 50%, #3f3f46 100%)')
+            : (theme === 'dark'
+                ? 'linear-gradient(145deg, #070b14 0%, #001f5c 50%, #003791 100%)'
+                : 'linear-gradient(145deg, #001845 0%, #002d7a 45%, #00439c 100%)'),
         }}
       >
         <div className="relative z-10">
@@ -482,8 +490,14 @@ const Login = () => {
         </div>
 
         {/* Decorative ambient lighting */}
-        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#00f0ff]/15 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#003791]/35 blur-3xl pointer-events-none" />
+        <div className={cn(
+          "absolute -top-24 -right-24 h-96 w-96 rounded-full blur-3xl pointer-events-none",
+          isNovember10 ? "bg-white/5" : "bg-[#00f0ff]/15"
+        )} />
+        <div className={cn(
+          "absolute bottom-0 right-0 h-80 w-80 rounded-full blur-3xl pointer-events-none",
+          isNovember10 ? "bg-white/5" : "bg-[#003791]/35"
+        )} />
       </div>
 
       {/* Right panel - Frosted Glass Login Console */}
@@ -772,7 +786,12 @@ const Login = () => {
 
           <Button
             type="submit"
-            className="relative group w-full h-11 rounded-2xl border-0 bg-gradient-to-r from-[#00439c] via-[#0070d1] to-[#00c6ff] text-white font-bold text-sm shadow-[0_0_24px_rgba(0,112,243,0.35)] hover:shadow-[0_0_32px_rgba(0,198,255,0.5)] hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer"
+            className={cn(
+              "relative group w-full h-11 rounded-2xl border-0 text-white font-bold text-sm transition-all cursor-pointer",
+              isNovember10
+                ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-950 shadow-none hover:scale-[1.01] active:scale-[0.99]"
+                : "bg-gradient-to-r from-[#00439c] via-[#0070d1] to-[#00c6ff] shadow-[0_0_24px_rgba(0,112,243,0.35)] hover:shadow-[0_0_32px_rgba(0,198,255,0.5)] hover:scale-[1.01] active:scale-[0.99]"
+            )}
             disabled={loading || Boolean(oauthLoading)}
           >
             {loading ? (

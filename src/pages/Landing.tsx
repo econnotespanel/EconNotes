@@ -20,6 +20,8 @@ import {
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { AmbientShaderBackground } from '@/components/landing/AmbientShaderBackground';
 import { ScrolltideNavbar } from '@/components/landing/ScrolltideNavbar';
+import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
+import { cn } from '@/lib/utils';
 
 const modules = [
   {
@@ -107,6 +109,10 @@ const securityItems = [
 ];
 
 const Landing = () => {
+  const { config } = useSiteConfig();
+  const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const isNovember10 = seasonalTheme?.id === 'november10';
+
   return (
     <div
       className="relative min-h-screen overflow-x-clip bg-background text-foreground antialiased selection:bg-cyan-500/30 selection:text-cyan-200"
@@ -128,7 +134,12 @@ const Landing = () => {
           <div className="space-y-2 max-w-4xl mx-auto px-1">
             <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight text-foreground">
               Daha iyi notlar,{' '}
-              <span className="bg-gradient-to-r from-[#003791] via-[#0070d1] to-[#00f0ff] bg-clip-text text-transparent">
+              <span className={cn(
+                "bg-clip-text text-transparent",
+                isNovember10
+                  ? "bg-gradient-to-r from-neutral-900 via-neutral-700 to-neutral-500 dark:from-neutral-100 dark:via-neutral-300 dark:to-neutral-500"
+                  : "bg-gradient-to-r from-[#003791] via-[#0070d1] to-[#00f0ff]"
+              )}>
                 daha güçlü bir sen.
               </span>
             </h1>
@@ -145,7 +156,12 @@ const Landing = () => {
             <Button
               asChild
               size="lg"
-              className="w-full max-w-[260px] sm:w-auto relative group rounded-full bg-gradient-to-r from-[#00439c] via-[#0070d1] to-[#00c6ff] px-7 py-6 text-sm font-bold text-white shadow-[0_0_30px_rgba(0,112,243,0.35)] transition-all hover:shadow-[0_0_40px_rgba(0,198,255,0.55)] hover:scale-105 active:scale-95"
+              className={cn(
+                "w-full max-w-[260px] sm:w-auto relative group rounded-full px-7 py-6 text-sm font-bold text-white transition-all hover:scale-105 active:scale-95",
+                isNovember10
+                  ? "bg-zinc-900 shadow-none hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+                  : "bg-gradient-to-r from-[#00439c] via-[#0070d1] to-[#00c6ff] shadow-[0_0_30px_rgba(0,112,243,0.35)] hover:shadow-[0_0_40px_rgba(0,198,255,0.55)]"
+              )}
             >
               <Link to="/register" className="flex items-center justify-center gap-2">
                 <span>Hemen Başlayalım</span>
@@ -278,9 +294,20 @@ const Landing = () => {
         </section>
 
         {/* ─── BOTTOM CONVERSION BANNER ─── */}
-        <section className="relative overflow-hidden rounded-3xl border border-cyan-400/30 bg-gradient-to-br from-[#002f7a] via-[#0047b3] to-[#0070d1] dark:from-[#002f7a]/85 dark:via-[#0047b3]/75 dark:to-[#0070d1]/65 p-7 sm:p-14 text-center backdrop-blur-2xl shadow-[0_20px_70px_rgba(0,112,243,0.28)]">
-          <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-blue-600/30 blur-3xl" />
+        <section className={cn(
+          "relative overflow-hidden rounded-3xl p-7 sm:p-14 text-center backdrop-blur-2xl transition-colors",
+          isNovember10
+            ? "border border-neutral-700/50 bg-gradient-to-br from-neutral-900 via-neutral-950 to-neutral-900 dark:from-neutral-950 dark:via-neutral-900 dark:to-black shadow-[0_20px_70px_rgba(0,0,0,0.4)]"
+            : "border border-cyan-400/30 bg-gradient-to-br from-[#002f7a] via-[#0047b3] to-[#0070d1] dark:from-[#002f7a]/85 dark:via-[#0047b3]/75 dark:to-[#0070d1]/65 shadow-[0_20px_70px_rgba(0,112,243,0.28)]"
+        )}>
+          <div className={cn(
+            "pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full blur-3xl",
+            isNovember10 ? "bg-white/5" : "bg-cyan-400/20"
+          )} />
+          <div className={cn(
+            "pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full blur-3xl",
+            isNovember10 ? "bg-white/5" : "bg-blue-600/30"
+          )} />
 
           <div className="relative z-10 max-w-2xl mx-auto space-y-5">
             <h2 className="font-display text-2xl sm:text-5xl font-extrabold text-white tracking-tight">
@@ -294,7 +321,12 @@ const Landing = () => {
               <Button
                 asChild
                 size="lg"
-                className="w-full sm:w-auto rounded-full bg-white text-blue-900 hover:bg-white/90 font-bold px-8 shadow-xl"
+                className={cn(
+                  "w-full sm:w-auto rounded-full font-bold px-8 shadow-xl",
+                  isNovember10
+                    ? "bg-white text-zinc-950 hover:bg-neutral-200"
+                    : "bg-white text-blue-900 hover:bg-white/90"
+                )}
               >
                 <Link to="/register">Ücretsiz Kayıt Ol</Link>
               </Button>
@@ -302,7 +334,12 @@ const Landing = () => {
                 asChild
                 size="lg"
                 variant="ghost"
-                className="w-full sm:w-auto rounded-full border border-white/40 bg-white/15 text-white hover:bg-white/25 hover:text-white font-semibold px-8 backdrop-blur-md"
+                className={cn(
+                  "w-full sm:w-auto rounded-full border px-8 backdrop-blur-md font-semibold",
+                  isNovember10
+                    ? "border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+                    : "border-white/40 bg-white/15 text-white hover:bg-white/25 hover:text-white"
+                )}
               >
                 <Link to="/login">Giriş Yap</Link>
               </Button>

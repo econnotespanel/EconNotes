@@ -94,11 +94,16 @@ export const ScrolltideNavbar: React.FC<ScrolltideNavbarProps> = ({ onLoginClick
             </Link>
           </Button>
 
-          {/* Register Button with Neon Cyan-Blue Sheen */}
+          {/* Register Button with Neon Cyan-Blue Sheen (Monochrome in 10 Kasım) */}
           <Button
             asChild
             size="sm"
-            className="relative group overflow-hidden rounded-full bg-gradient-to-r from-[#00439c] via-[#0070d1] to-[#00c6ff] h-8 sm:h-9 px-3 sm:px-4 text-xs font-bold text-white shadow-[0_0_20px_rgba(0,112,243,0.3)] transition-all duration-300 hover:shadow-[0_0_28px_rgba(0,198,255,0.5)] hover:scale-[1.02] active:scale-95 whitespace-nowrap"
+            className={cn(
+              "relative group overflow-hidden rounded-full h-8 sm:h-9 px-3 sm:px-4 text-xs font-bold text-white transition-all duration-300 hover:scale-[1.02] active:scale-95 whitespace-nowrap",
+              isNovember10
+                ? "bg-zinc-900 shadow-none hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+                : "bg-gradient-to-r from-[#00439c] via-[#0070d1] to-[#00c6ff] shadow-[0_0_20px_rgba(0,112,243,0.3)] hover:shadow-[0_0_28px_rgba(0,198,255,0.5)]"
+            )}
           >
             <Link to="/register" className="flex items-center gap-1.5">
               <span>Hemen Başla</span>
@@ -163,7 +168,12 @@ export const ScrolltideNavbar: React.FC<ScrolltideNavbarProps> = ({ onLoginClick
             </Button>
             <Button
               asChild
-              className="flex-1 rounded-xl bg-gradient-to-r from-[#00439c] to-[#0070d1] text-white"
+              className={cn(
+                "flex-1 rounded-xl text-white",
+                isNovember10
+                  ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+                  : "bg-gradient-to-r from-[#00439c] to-[#0070d1]"
+              )}
               size="sm"
               onClick={() => setMobileMenuOpen(false)}
             >

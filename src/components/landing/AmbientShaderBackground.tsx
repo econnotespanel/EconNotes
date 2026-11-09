@@ -49,12 +49,14 @@ export const AmbientShaderBackground: React.FC<AmbientShaderBackgroundProps> = (
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
     window.addEventListener('resize', handleResize);
 
+    const isNovember10 = typeof document !== 'undefined' && document.documentElement.dataset.seasonalTheme === 'november10';
+
     // Glowing organic orbs
     const orbs = [
-      { x: width * 0.2, y: height * 0.3, radius: 360, vx: 0.3, vy: 0.25, baseColor: isDark ? [0, 85, 255] : [0, 112, 243] },
-      { x: width * 0.8, y: height * 0.4, radius: 420, vx: -0.25, vy: 0.35, baseColor: isDark ? [0, 240, 255] : [14, 165, 233] },
-      { x: width * 0.5, y: height * 0.75, radius: 400, vx: 0.2, vy: -0.3, baseColor: isDark ? [79, 70, 229] : [99, 102, 241] },
-      { x: width * 0.3, y: height * 0.6, radius: 300, vx: -0.3, vy: -0.2, baseColor: isDark ? [2, 132, 199] : [59, 130, 246] },
+      { x: width * 0.2, y: height * 0.3, radius: 360, vx: 0.3, vy: 0.25, baseColor: isNovember10 ? (isDark ? [80, 80, 80] : [160, 160, 160]) : (isDark ? [0, 85, 255] : [0, 112, 243]) },
+      { x: width * 0.8, y: height * 0.4, radius: 420, vx: -0.25, vy: 0.35, baseColor: isNovember10 ? (isDark ? [110, 110, 110] : [190, 190, 190]) : (isDark ? [0, 240, 255] : [14, 165, 233]) },
+      { x: width * 0.5, y: height * 0.75, radius: 400, vx: 0.2, vy: -0.3, baseColor: isNovember10 ? (isDark ? [60, 60, 60] : [140, 140, 140]) : (isDark ? [79, 70, 229] : [99, 102, 241]) },
+      { x: width * 0.3, y: height * 0.6, radius: 300, vx: -0.3, vy: -0.2, baseColor: isNovember10 ? (isDark ? [90, 90, 90] : [170, 170, 170]) : (isDark ? [2, 132, 199] : [59, 130, 246]) },
     ];
 
     let time = 0;

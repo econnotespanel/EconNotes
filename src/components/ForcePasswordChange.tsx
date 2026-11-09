@@ -7,10 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import EconLogo from '@/components/EconLogo';
+import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
+import { cn } from '@/lib/utils';
 
 /** Shown after an admin issued a temporary password; the user must set their own new password. */
 const ForcePasswordChange = () => {
   const { signOut } = useAuth();
+  const { config } = useSiteConfig();
+  const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const isNovember10 = seasonalTheme?.id === 'november10';
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -60,8 +65,14 @@ const ForcePasswordChange = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#00f0ff]/10 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-[#003791]/20 blur-3xl pointer-events-none" />
+      <div className={cn(
+        "absolute -top-24 -right-24 h-96 w-96 rounded-full blur-3xl pointer-events-none",
+        isNovember10 ? "bg-white/5" : "bg-[#00f0ff]/10"
+      )} />
+      <div className={cn(
+        "absolute bottom-0 left-0 h-80 w-80 rounded-full blur-3xl pointer-events-none",
+        isNovember10 ? "bg-white/5" : "bg-[#003791]/20"
+      )} />
 
       <form onSubmit={submit} className="w-full max-w-md space-y-5 rounded-2xl border border-border/80 bg-card/90 backdrop-blur-md p-6 sm:p-8 shadow-2xl relative z-10 animate-fade-in">
         <div className="flex items-center justify-between">
@@ -127,7 +138,12 @@ const ForcePasswordChange = () => {
 
         <Button
           type="submit"
-          className="w-full h-11 rounded-xl border-0 bg-no-repeat bg-gradient-to-r from-[#003791] via-[#004fb8] to-[#0070d1] hover:from-[#002f7a] hover:via-[#0043a0] hover:to-[#005fb8] text-white font-semibold shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all duration-200 cursor-pointer"
+          className={cn(
+            "w-full h-11 rounded-xl border-0 font-semibold active:scale-[0.99] transition-all duration-200 cursor-pointer text-white",
+            isNovember10
+              ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-950 shadow-none"
+              : "bg-no-repeat bg-gradient-to-r from-[#003791] via-[#004fb8] to-[#0070d1] hover:from-[#002f7a] hover:via-[#0043a0] hover:to-[#005fb8] shadow-md shadow-blue-500/20"
+          )}
           disabled={busy}
         >
           {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Kaydediliyor...</> : 'Yeni Şifreyi Kaydet ve Devam Et'}

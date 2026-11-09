@@ -17,6 +17,8 @@ import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building, ShieldCheck, Us
 import { useSystemStatus } from '@/hooks/useSystemStatus';
 import { useTheme } from '@/contexts/ThemeContext';
 import SecurityCaptcha from '@/components/SecurityCaptcha';
+import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
+import { cn } from '@/lib/utils';
 
 
 
@@ -55,6 +57,9 @@ const Register = () => {
   const navigate = useNavigate();
   const { systemOpen, closedUntil, closureTitle, closureMessage, closureImageUrl, closureMode } = useSystemStatus();
   const { theme, toggleTheme } = useTheme();
+  const { config } = useSiteConfig();
+  const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const isNovember10 = seasonalTheme?.id === 'november10';
   const { user: currentUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -180,9 +185,13 @@ const Register = () => {
       <div
         className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 xl:p-14 relative overflow-hidden"
         style={{
-          background: theme === 'dark'
-            ? 'linear-gradient(145deg, #070b14 0%, #001f5c 50%, #003791 100%)'
-            : 'linear-gradient(145deg, #001845 0%, #002d7a 45%, #00439c 100%)'
+          background: isNovember10
+            ? (theme === 'dark'
+                ? 'linear-gradient(145deg, #09090b 0%, #18181b 50%, #27272a 100%)'
+                : 'linear-gradient(145deg, #18181b 0%, #27272a 50%, #3f3f46 100%)')
+            : (theme === 'dark'
+                ? 'linear-gradient(145deg, #070b14 0%, #001f5c 50%, #003791 100%)'
+                : 'linear-gradient(145deg, #001845 0%, #002d7a 45%, #00439c 100%)')
         }}
       >
         <div className="relative z-10">
@@ -216,8 +225,14 @@ const Register = () => {
         </div>
 
         {/* Decorative ambient lighting */}
-        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#00f0ff]/15 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-[#003791]/35 blur-3xl pointer-events-none" />
+        <div className={cn(
+          "absolute -top-24 -right-24 h-96 w-96 rounded-full blur-3xl pointer-events-none",
+          isNovember10 ? "bg-white/5" : "bg-[#00f0ff]/15"
+        )} />
+        <div className={cn(
+          "absolute bottom-0 right-0 h-80 w-80 rounded-full blur-3xl pointer-events-none",
+          isNovember10 ? "bg-white/5" : "bg-[#003791]/35"
+        )} />
       </div>
 
       {/* Right panel - register form */}
@@ -406,7 +421,12 @@ const Register = () => {
             <SecurityCaptcha onVerifiedChange={setCaptchaOk} resetKey={captchaReset} />
             <Button
               type="submit"
-              className="w-full h-11 rounded-xl border-0 bg-no-repeat bg-gradient-to-r from-[#003791] via-[#004fb8] to-[#0070d1] hover:from-[#002f7a] hover:via-[#0043a0] hover:to-[#005fb8] text-white font-semibold shadow-md shadow-blue-500/20 active:scale-[0.99] transition-all duration-200 cursor-pointer"
+              className={cn(
+                "w-full h-11 rounded-xl border-0 font-semibold active:scale-[0.99] transition-all duration-200 cursor-pointer text-white",
+                isNovember10
+                  ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-950 shadow-none"
+                  : "bg-no-repeat bg-gradient-to-r from-[#003791] via-[#004fb8] to-[#0070d1] hover:from-[#002f7a] hover:via-[#0043a0] hover:to-[#005fb8] shadow-md shadow-blue-500/20"
+              )}
               disabled={loading}
             >
               {loading ? 'Kayıt yapılıyor...' : 'Kayıt Ol'}

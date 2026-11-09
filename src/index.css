@@ -310,6 +310,35 @@
     color: #09090b !important;
   }
 
+  /* 10 Kasım: Doğrulama (2FA) ve sistem CTA butonları monokrom uyumlu hale getirilir */
+  html[data-seasonal-theme="november10"] .gradient-cta {
+    background-image: none !important;
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25) !important;
+  }
+
+  html[data-seasonal-theme="november10"] .gradient-cta:hover {
+    background-color: #27272a !important;
+    color: #ffffff !important;
+  }
+
+  html[data-seasonal-theme="november10"].dark .gradient-cta {
+    background-color: #f4f4f5 !important;
+    color: #09090b !important;
+    box-shadow: 0 4px 14px rgba(255, 255, 255, 0.1) !important;
+  }
+
+  html[data-seasonal-theme="november10"].dark .gradient-cta:hover {
+    background-color: #ffffff !important;
+    color: #09090b !important;
+  }
+
+  /* 10 Kasım: Arka plan animasyonları ve canvas ögeleri gri tonlamaya alınır */
+  html[data-seasonal-theme="november10"] canvas {
+    filter: grayscale(100%);
+  }
+
   /* 10 Kasım: Notlar sayfasındaki üniversite ve ders kartları temiz kart arka planını ve kontrastını korur */
   html[data-seasonal-theme="november10"] button[class*="from-primary"] {
     background-color: transparent !important;

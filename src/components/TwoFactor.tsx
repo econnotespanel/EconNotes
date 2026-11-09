@@ -27,6 +27,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import EconLogo from '@/components/EconLogo';
 import { cn } from '@/lib/utils';
+import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
 
 type Factor = { id: string; factor_type: string; status: string };
 
@@ -138,6 +139,7 @@ const CodeInput = ({
 /** Shield emblem. */
 const ShieldEmblem = ({ success = false, size = 'lg' }: { success?: boolean; size?: 'lg' | 'sm' }) => {
   const lg = size === 'lg';
+  const isNovember10 = typeof document !== 'undefined' && document.documentElement.dataset.seasonalTheme === 'november10';
   return (
     <div className={cn('relative mx-auto flex items-center justify-center', lg ? 'h-20 w-20' : 'h-10 w-10')}>
       <div
@@ -145,8 +147,8 @@ const ShieldEmblem = ({ success = false, size = 'lg' }: { success?: boolean; siz
           'relative flex items-center justify-center text-white shadow-lg transition-colors duration-300',
           lg ? 'h-20 w-20 rounded-[1.4rem] border-4 border-card' : 'h-10 w-10 rounded-xl',
           success
-            ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/40'
-            : 'bg-gradient-to-br from-sky-400 via-primary to-indigo-600 shadow-primary/40',
+            ? (isNovember10 ? 'bg-zinc-800 text-white shadow-none' : 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/40')
+            : (isNovember10 ? 'bg-zinc-900 border-zinc-700 text-white shadow-none dark:bg-zinc-100 dark:text-zinc-950' : 'bg-gradient-to-br from-sky-400 via-primary to-indigo-600 shadow-primary/40'),
         )}
       >
         {success ? (
@@ -802,6 +804,10 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
+  const { config } = useSiteConfig();
+  const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const isNovember10 = seasonalTheme?.id === 'november10';
+
   const both = totp.length > 0 && !!phone;
   const canEnterCode = started && (method === 'totp' || sent);
   const description =
@@ -839,7 +845,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
             <div className="relative z-10 flex items-center justify-between gap-2.5">
               <EconLogo allWhite className="h-6 w-24 shrink-0 sm:h-7 sm:w-32 [&_img]:object-left" />
               <div className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white/95 shadow-[inset_0_1px_0_hsl(0_0%_100%/0.25),0_4px_14px_-4px_hsl(0_0%_0%/0.35)] backdrop-blur-md sm:px-3 sm:py-1.5 sm:text-[11px]">
-                <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+                <span className={cn("inline-flex h-2 w-2 shrink-0 rounded-full", isNovember10 ? "bg-neutral-300" : "bg-emerald-400")} />
                 <span className="whitespace-nowrap">Çift Faktörlü Güvenlik Modülü</span>
               </div>
             </div>
@@ -869,7 +875,10 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                     <span
                       aria-hidden
                       className={cn(
-                        'absolute bottom-1 top-1 w-[calc(50%-0.25rem)] rounded-xl bg-gradient-to-r from-sky-500 to-primary shadow-lg shadow-primary/30 transition-transform duration-300 ease-out',
+                        'absolute bottom-1 top-1 w-[calc(50%-0.25rem)] rounded-xl transition-transform duration-300 ease-out',
+                        isNovember10
+                          ? 'bg-zinc-900 shadow-none dark:bg-zinc-100'
+                          : 'bg-gradient-to-r from-sky-500 to-primary shadow-lg shadow-primary/30',
                         method === 'sms' ? 'translate-x-full' : 'translate-x-0',
                       )}
                       style={{ left: '0.25rem' }}
@@ -881,7 +890,9 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                         onClick={() => switchMethod(m)}
                         className={cn(
                           'relative z-10 flex h-10 items-center justify-center gap-1.5 rounded-xl text-sm font-semibold transition-colors',
-                          method === m ? 'text-white' : 'text-muted-foreground hover:text-foreground',
+                          method === m
+                            ? (isNovember10 ? 'text-white dark:text-zinc-950 font-bold' : 'text-white')
+                            : 'text-muted-foreground hover:text-foreground',
                         )}
                       >
                         {m === 'totp' ? <Smartphone className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
@@ -903,8 +914,11 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                       </div>
                     </div>
                     <Button
-                      variant="cta"
-                      className="h-12 w-full gap-2 rounded-xl text-base font-bold"
+                      variant={isNovember10 ? 'default' : 'cta'}
+                      className={cn(
+                        "h-12 w-full gap-2 rounded-xl text-base font-bold",
+                        isNovember10 && "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white shadow-none"
+                      )}
                       onClick={startTotpVerification}
                     >
                       <ShieldCheck className="h-4 w-4" />
@@ -923,8 +937,11 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                       </div>
                     </div>
                     <Button
-                      variant="cta"
-                      className="h-12 w-full gap-2 rounded-xl text-base font-bold"
+                      variant={isNovember10 ? 'default' : 'cta'}
+                      className={cn(
+                        "h-12 w-full gap-2 rounded-xl text-base font-bold",
+                        isNovember10 && "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white shadow-none"
+                      )}
                       disabled={busy}
                       onClick={sendSms}
                     >
@@ -963,8 +980,11 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
                       onComplete={(v) => void verify(v)}
                     />
                     <Button
-                      variant="cta"
-                      className="h-12 w-full gap-2 rounded-xl text-base font-bold"
+                      variant={isNovember10 ? 'default' : 'cta'}
+                      className={cn(
+                        "h-12 w-full gap-2 rounded-xl text-base font-bold",
+                        isNovember10 && "bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white shadow-none"
+                      )}
                       disabled={busy || code.length !== 6}
                       onClick={() => verify()}
                     >
