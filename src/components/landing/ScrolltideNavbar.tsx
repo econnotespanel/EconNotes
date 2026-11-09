@@ -31,9 +31,9 @@ export const ScrolltideNavbar: React.FC<ScrolltideNavbarProps> = ({ onLoginClick
             <EconLogo className="h-6 w-auto sm:h-8 -translate-y-[2.5px] sm:-translate-y-[3px] transition-transform duration-300 group-hover:scale-105" />
             {isNovember10 && (
               <span className="flex items-center gap-1.5 border-l border-slate-300 dark:border-white/20 pl-2 -translate-y-[1px]">
-                <AtaturkPortrait className="h-5 w-5 sm:h-6 sm:w-6" />
-                <Ataturk10KasimEmblem className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="hidden sm:inline font-mono text-[10px] text-muted-foreground font-bold">193∞</span>
+                <AtaturkPortrait className="h-6 w-auto sm:h-7" />
+                <Ataturk10KasimEmblem className="h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="hidden sm:inline font-sans text-xs text-muted-foreground font-bold">193&infin;</span>
               </span>
             )}
           </Link>

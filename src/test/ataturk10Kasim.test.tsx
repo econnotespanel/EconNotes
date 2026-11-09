@@ -81,11 +81,10 @@ describe('10 Kasım Atatürk Commemoration Emblem & Theme', () => {
   });
 
   it('renders AtaturkPortrait commemorative picture badge with high contrast portrait', () => {
-    render(<AtaturkPortrait className="h-7 w-7" />);
+    render(<AtaturkPortrait className="h-7 w-auto" />);
     const portrait = screen.getByAltText('Mustafa Kemal Atatürk');
     expect(portrait).toBeInTheDocument();
-    expect(portrait).toHaveClass('grayscale');
-    expect(portrait).toHaveClass('object-cover');
+    expect(portrait).toHaveClass('object-contain');
     const container = screen.getByTitle(/Ulu Önder Gazi Mustafa Kemal Atatürk/i);
     expect(container).toBeInTheDocument();
   });

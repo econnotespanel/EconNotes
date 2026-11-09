@@ -1,5 +1,5 @@
 import React from 'react';
-import ataturkPortrait from '@/assets/ataturk-portrait-square.png';
+import ataturkPortrait from '@/assets/ataturk-portrait-oval-bw.png';
 import { cn } from '@/lib/utils';
 
 export interface AtaturkPortraitProps {
@@ -9,16 +9,16 @@ export interface AtaturkPortraitProps {
 
 /**
  * Gazi Mustafa Kemal Atatürk'ün 10 Kasım anma portresi.
- * Dairesel rozet, yüksek çözünürlüklü monokrom fotoğraf.
+ * Şeffaf arka planlı, saygın monokrom oval portre.
  */
 export const AtaturkPortrait: React.FC<AtaturkPortraitProps> = ({
-  className = 'h-6 w-6 sm:h-7 sm:w-7',
+  className = 'h-7 w-auto sm:h-8',
   imageClassName = '',
 }) => {
   return (
     <span
       className={cn(
-        'relative inline-flex shrink-0 items-center justify-center rounded-full overflow-hidden border border-foreground/30 shadow-xs ring-1 ring-border/80 bg-black select-none',
+        'relative inline-flex shrink-0 items-center justify-center select-none',
         className
       )}
       title="Ulu Önder Gazi Mustafa Kemal Atatürk (1881 - 193∞)"
@@ -27,7 +27,10 @@ export const AtaturkPortrait: React.FC<AtaturkPortraitProps> = ({
       <img
         src={ataturkPortrait}
         alt="Mustafa Kemal Atatürk"
-        className={cn('h-full w-full object-cover grayscale contrast-125', imageClassName)}
+        className={cn(
+          'h-full w-auto object-contain filter drop-shadow-xs transition-transform hover:scale-105',
+          imageClassName
+        )}
         loading="eager"
       />
     </span>

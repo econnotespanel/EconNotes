@@ -304,7 +304,7 @@ const Sidebar = () => {
               <EconLogo className="h-4 w-auto" />
               {isNovember10 && (
                 <div className="flex items-center gap-1">
-                  <AtaturkPortrait className="h-4 w-4" />
+                  <AtaturkPortrait className="h-4 w-auto" />
                   <Ataturk10KasimEmblem className="h-3.5 w-3.5" />
                 </div>
               )}

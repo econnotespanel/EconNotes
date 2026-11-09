@@ -210,15 +210,14 @@ const Header = () => {
             <EconLogo className="h-6 w-auto sm:h-7" />
             {seasonalTheme?.id === 'november10' ? (
               <div
-                className="flex items-center gap-1.5 sm:gap-2 border-l border-border/80 pl-2 sm:pl-2.5 transition-transform hover:scale-105"
+                className="flex items-center gap-1.5 sm:gap-2.5 border-l border-border/80 pl-2 sm:pl-2.5 transition-transform hover:scale-105"
                 title="Ulu Önder Mustafa Kemal Atatürk'ü saygı ve özlemle anıyoruz (1881-193∞)"
               >
-                <AtaturkPortrait className="h-6 w-6 sm:h-7 sm:w-7" />
-                <Ataturk10KasimEmblem className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide text-foreground/85">
-                  <span className="hidden sm:inline">Saygıyla anıyoruz · 10 Kasım</span>
-                  <span className="sm:hidden">10 Kasım</span>
-                  <span className="font-mono text-[10px] text-muted-foreground font-bold">193∞</span>
+                <AtaturkPortrait className="h-7 w-auto sm:h-8" />
+                <Ataturk10KasimEmblem className="h-6 w-6 sm:h-7 sm:w-7" />
+                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide text-foreground/85 whitespace-nowrap">
+                  <span>Saygıyla anıyoruz</span>
+                  <span className="font-sans font-bold text-muted-foreground text-xs">1881 - 193&infin;</span>
                 </span>
               </div>
             ) : seasonalTheme ? (

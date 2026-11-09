@@ -251,23 +251,68 @@
     background-color: hsl(var(--muted)) !important;
   }
 
-  html[data-seasonal-theme="november10"] [class*="from-cyan-"],
-  html[data-seasonal-theme="november10"] [class*="from-blue-"],
-  html[data-seasonal-theme="november10"] [class*="from-indigo-"],
-  html[data-seasonal-theme="november10"] [class*="from-emerald-"],
-  html[data-seasonal-theme="november10"] [class*="from-amber-"],
-  html[data-seasonal-theme="november10"] [class*="from-[#00"] {
-    --tw-gradient-from: hsl(var(--card)) !important;
-    --tw-gradient-to: hsl(var(--muted)) !important;
-    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  /* 10 Kasım Monokrom: Butonlar ve vurgu ögelerinde yüksek kontrast güvenceye alınır (beyaz üstüne beyaz yazılar engellenir) */
+  html[data-seasonal-theme="november10"] button[class*="from-"],
+  html[data-seasonal-theme="november10"] a[class*="from-"],
+  html[data-seasonal-theme="november10"] .btn[class*="from-"],
+  html[data-seasonal-theme="november10"] [role="button"][class*="from-"],
+  html[data-seasonal-theme="november10"] button[class*="bg-gradient-"],
+  html[data-seasonal-theme="november10"] a[class*="bg-gradient-"] {
+    background-image: none !important;
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    border-color: #27272a !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
   }
 
-  html[data-seasonal-theme="november10"] [class*="to-blue-"],
-  html[data-seasonal-theme="november10"] [class*="to-cyan-"],
-  html[data-seasonal-theme="november10"] [class*="to-indigo-"],
-  html[data-seasonal-theme="november10"] [class*="to-teal-"],
-  html[data-seasonal-theme="november10"] [class*="to-orange-"] {
-    --tw-gradient-to: hsl(var(--muted)) !important;
+  html[data-seasonal-theme="november10"] button[class*="from-"]:hover,
+  html[data-seasonal-theme="november10"] a[class*="from-"]:hover,
+  html[data-seasonal-theme="november10"] button[class*="bg-gradient-"]:hover,
+  html[data-seasonal-theme="november10"] a[class*="bg-gradient-"]:hover {
+    background-color: #27272a !important;
+    color: #ffffff !important;
+  }
+
+  html[data-seasonal-theme="november10"].dark button[class*="from-"],
+  html[data-seasonal-theme="november10"].dark a[class*="from-"],
+  html[data-seasonal-theme="november10"].dark [role="button"][class*="from-"],
+  html[data-seasonal-theme="november10"].dark button[class*="bg-gradient-"],
+  html[data-seasonal-theme="november10"].dark a[class*="bg-gradient-"] {
+    background-image: none !important;
+    background-color: #f4f4f5 !important;
+    color: #09090b !important;
+    border-color: #e4e4e7 !important;
+  }
+
+  html[data-seasonal-theme="november10"].dark button[class*="from-"]:hover,
+  html[data-seasonal-theme="november10"].dark a[class*="from-"]:hover,
+  html[data-seasonal-theme="november10"].dark button[class*="bg-gradient-"]:hover,
+  html[data-seasonal-theme="november10"].dark a[class*="bg-gradient-"]:hover {
+    background-color: #ffffff !important;
+    color: #09090b !important;
+  }
+
+  /* Koyu renkli ikon kutucukları (Stüdyo vb.) */
+  html[data-seasonal-theme="november10"] div[class*="from-"][class*="text-white"],
+  html[data-seasonal-theme="november10"] span[class*="from-"][class*="text-white"] {
+    background-image: none !important;
+    background-color: #18181b !important;
+    color: #ffffff !important;
+  }
+
+  html[data-seasonal-theme="november10"].dark div[class*="from-"][class*="text-white"],
+  html[data-seasonal-theme="november10"].dark span[class*="from-"][class*="text-white"] {
+    background-image: none !important;
+    background-color: #27272a !important;
+    color: #f4f4f5 !important;
+  }
+
+  /* Renkli panel kartları ve arkaplan degrade alanları */
+  html[data-seasonal-theme="november10"] div[class*="from-"]:not(button):not(a):not([class*="text-white"]),
+  html[data-seasonal-theme="november10"] card[class*="from-"] {
+    --tw-gradient-from: hsl(var(--card)) !important;
+    --tw-gradient-to: hsl(var(--card)) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
   }
 
   html[data-seasonal-theme="november10"] body {
