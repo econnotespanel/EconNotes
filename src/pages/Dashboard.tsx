@@ -314,7 +314,12 @@ const Dashboard = () => {
                 Daha Sonra İncele
               </Button>
               <Button
-                className="w-full sm:flex-1 gap-2 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-cyan-500/20 text-xs sm:text-sm h-9"
+                className={cn(
+                  "w-full sm:flex-1 gap-2 font-medium text-xs sm:text-sm h-9 text-white shadow-lg",
+                  isNovember10
+                    ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-950 shadow-none"
+                    : "bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 shadow-cyan-500/20"
+                )}
                 onClick={() => handleDismissStudioUpdate(true)}
               >
                 <span>Çalışma Stüdyosuna Git</span>
