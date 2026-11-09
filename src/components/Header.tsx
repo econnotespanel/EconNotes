@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
 import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
+import AtaturkPortrait from '@/components/AtaturkPortrait';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -212,7 +213,8 @@ const Header = () => {
                 className="flex items-center gap-1.5 sm:gap-2 border-l border-border/80 pl-2 sm:pl-2.5 transition-transform hover:scale-105"
                 title="Ulu Önder Mustafa Kemal Atatürk'ü saygı ve özlemle anıyoruz (1881-193∞)"
               >
-                <Ataturk10KasimEmblem className="h-6 w-6 sm:h-7 sm:w-7" />
+                <AtaturkPortrait className="h-6 w-6 sm:h-7 sm:w-7" />
+                <Ataturk10KasimEmblem className="h-5 w-5 sm:h-6 sm:w-6" />
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide text-foreground/85">
                   <span className="hidden sm:inline">Saygıyla anıyoruz · 10 Kasım</span>
                   <span className="sm:hidden">10 Kasım</span>

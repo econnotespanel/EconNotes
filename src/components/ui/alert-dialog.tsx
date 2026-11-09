@@ -37,7 +37,7 @@ const AlertDialogContent = React.forwardRef<
         marginTop: "calc((env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 2)",
       }}
       className={cn(
-        "fixed left-[50%] top-[50%] z-[90] grid w-[calc(100%-1.5rem)] max-w-lg max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border border-border/80 dark:border-white/15 bg-card/95 dark:bg-slate-950/90 p-5 sm:p-6 text-card-foreground backdrop-blur-2xl shadow-[0_24px_80px_rgba(0,0,0,0.28)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
+        "fixed left-[50%] top-[50%] z-[100] grid w-[calc(100%-1.5rem)] max-w-lg max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border border-border/80 dark:border-white/15 bg-card/95 dark:bg-slate-950/90 p-5 sm:p-6 text-card-foreground backdrop-blur-2xl shadow-[0_24px_80px_rgba(0,0,0,0.28)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
         className,
       )}
       {...props}

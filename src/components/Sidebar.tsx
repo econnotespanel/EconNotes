@@ -20,6 +20,7 @@ import { APP_VERSION } from '@/lib/version';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import EconLogo from '@/components/EconLogo';
 import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
+import AtaturkPortrait from '@/components/AtaturkPortrait';
 import { toast } from 'sonner';
 import { parseSupportMessage, SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 
@@ -301,7 +302,12 @@ const Sidebar = () => {
           <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
             <div className="flex items-center gap-1.5">
               <EconLogo className="h-4 w-auto" />
-              {isNovember10 && <Ataturk10KasimEmblem className="h-4 w-4" />}
+              {isNovember10 && (
+                <div className="flex items-center gap-1">
+                  <AtaturkPortrait className="h-4 w-4" />
+                  <Ataturk10KasimEmblem className="h-3.5 w-3.5" />
+                </div>
+              )}
             </div>
             <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)] font-semibold">Versiyon {APP_VERSION}</span>
           </div>

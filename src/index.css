@@ -156,8 +156,6 @@
   }
 
   html[data-seasonal-theme="november10"] {
-    filter: grayscale(100%) !important;
-    -webkit-filter: grayscale(100%) !important;
     --primary: 0 0% 14% !important;
     --primary-foreground: 0 0% 100% !important;
     --primary-glow: 0 0% 25% !important;
@@ -219,17 +217,57 @@
     --glow-blue: 0 8px 32px hsl(0 0% 0% / 0.45) !important;
   }
 
-  html[data-seasonal-theme="november10"] body,
-  html[data-seasonal-theme="november10"] [data-radix-portal],
-  html[data-seasonal-theme="november10"] [data-sonner-toaster] {
-    filter: grayscale(100%) !important;
-    -webkit-filter: grayscale(100%) !important;
+  /* 10 Kasım Monokrom: Görseller ve ikonlar gri tonlama alır, fixed portalların koordinatları korunur */
+  html[data-seasonal-theme="november10"] img,
+  html[data-seasonal-theme="november10"] svg {
+    filter: grayscale(100%);
   }
 
   html[data-seasonal-theme="november10"] img[alt="EconNotes"],
   html[data-seasonal-theme="november10"] .econnotes-logo img {
     filter: grayscale(100%) contrast(125%) !important;
-    -webkit-filter: grayscale(100%) contrast(125%) !important;
+  }
+
+  /* Renkli panel sınıflarını (mavi, cyan, mor, sarı, yeşil) 10 Kasım temasına uygun monokrom yapar */
+  html[data-seasonal-theme="november10"] [class*="text-blue-"],
+  html[data-seasonal-theme="november10"] [class*="text-cyan-"],
+  html[data-seasonal-theme="november10"] [class*="text-indigo-"],
+  html[data-seasonal-theme="november10"] [class*="text-sky-"],
+  html[data-seasonal-theme="november10"] [class*="text-emerald-"],
+  html[data-seasonal-theme="november10"] [class*="text-amber-"],
+  html[data-seasonal-theme="november10"] [class*="text-purple-"],
+  html[data-seasonal-theme="november10"] [class*="text-teal-"] {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  html[data-seasonal-theme="november10"] [class*="bg-blue-"],
+  html[data-seasonal-theme="november10"] [class*="bg-cyan-"],
+  html[data-seasonal-theme="november10"] [class*="bg-indigo-"],
+  html[data-seasonal-theme="november10"] [class*="bg-sky-"],
+  html[data-seasonal-theme="november10"] [class*="bg-emerald-"],
+  html[data-seasonal-theme="november10"] [class*="bg-amber-"],
+  html[data-seasonal-theme="november10"] [class*="bg-purple-"],
+  html[data-seasonal-theme="november10"] [class*="bg-teal-"] {
+    background-color: hsl(var(--muted)) !important;
+  }
+
+  html[data-seasonal-theme="november10"] [class*="from-cyan-"],
+  html[data-seasonal-theme="november10"] [class*="from-blue-"],
+  html[data-seasonal-theme="november10"] [class*="from-indigo-"],
+  html[data-seasonal-theme="november10"] [class*="from-emerald-"],
+  html[data-seasonal-theme="november10"] [class*="from-amber-"],
+  html[data-seasonal-theme="november10"] [class*="from-[#00"] {
+    --tw-gradient-from: hsl(var(--card)) !important;
+    --tw-gradient-to: hsl(var(--muted)) !important;
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+  }
+
+  html[data-seasonal-theme="november10"] [class*="to-blue-"],
+  html[data-seasonal-theme="november10"] [class*="to-cyan-"],
+  html[data-seasonal-theme="november10"] [class*="to-indigo-"],
+  html[data-seasonal-theme="november10"] [class*="to-teal-"],
+  html[data-seasonal-theme="november10"] [class*="to-orange-"] {
+    --tw-gradient-to: hsl(var(--muted)) !important;
   }
 
   html[data-seasonal-theme="november10"] body {

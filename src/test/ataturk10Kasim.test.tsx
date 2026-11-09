@@ -2,7 +2,19 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import React from 'react';
 import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
+import AtaturkPortrait from '@/components/AtaturkPortrait';
 import EconLogo from '@/components/EconLogo';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { getSeasonalTheme, SEASONAL_THEMES } from '@/contexts/SiteConfigContext';
 
 describe('10 Kasım Atatürk Commemoration Emblem & Theme', () => {
@@ -66,5 +78,43 @@ describe('10 Kasım Atatürk Commemoration Emblem & Theme', () => {
     act(() => {
       delete document.documentElement.dataset.seasonalTheme;
     });
+  });
+
+  it('renders AtaturkPortrait commemorative picture badge with high contrast portrait', () => {
+    render(<AtaturkPortrait className="h-7 w-7" />);
+    const portrait = screen.getByAltText('Mustafa Kemal Atatürk');
+    expect(portrait).toBeInTheDocument();
+    expect(portrait).toHaveClass('grayscale');
+    expect(portrait).toHaveClass('object-cover');
+    const container = screen.getByTitle(/Ulu Önder Gazi Mustafa Kemal Atatürk/i);
+    expect(container).toBeInTheDocument();
+  });
+
+  it('renders logout AlertDialog with proper z-[100] layering without portal positioning issues under 10 Kasım theme', () => {
+    document.documentElement.dataset.seasonalTheme = 'november10';
+    try {
+      render(
+        <AlertDialog defaultOpen>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Çıkış Yapılsın mı?</AlertDialogTitle>
+              <AlertDialogDescription>Oturumunuz sonlandırılacaktır.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+              <AlertDialogAction>Çıkış Yap</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      );
+
+      const title = screen.getByText('Çıkış Yapılsın mı?');
+      expect(title).toBeInTheDocument();
+      const content = title.closest('[role="alertdialog"]');
+      expect(content).toBeInTheDocument();
+      expect(content).toHaveClass('z-[100]');
+    } finally {
+      delete document.documentElement.dataset.seasonalTheme;
+    }
   });
 });
