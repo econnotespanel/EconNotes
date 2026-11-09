@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { APP_VERSION } from '@/lib/version';
 import LoadingMessage from '@/components/ui/loading-message';
 import { cn } from '@/lib/utils';
+import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
 
 
 const BannerContent = ({ content }: { content: string }) => {
@@ -37,6 +38,9 @@ const Dashboard = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const { quota } = useDownloadQuota();
+  const { config } = useSiteConfig();
+  const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
+  const isNovember10 = seasonalTheme?.id === 'november10';
   const [stats, setStats] = useState({ notes: 0, announcements: 0 });
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
   const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([]);
@@ -152,28 +156,28 @@ const Dashboard = () => {
       label: 'Toplam Notlar',
       value: stats.notes,
       icon: FileText,
-      color: 'text-blue-500 dark:text-blue-400',
-      iconBg: 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20',
-      lineGradient: 'from-blue-600 via-blue-500 to-cyan-400',
-      borderHover: 'hover:border-blue-500/50 hover:shadow-[0_8px_24px_rgba(59,130,246,0.15)]',
+      color: isNovember10 ? 'text-foreground' : 'text-blue-500 dark:text-blue-400',
+      iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20',
+      lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-blue-600 via-blue-500 to-cyan-400',
+      borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-blue-500/50 hover:shadow-[0_8px_24px_rgba(59,130,246,0.15)]',
     },
     {
       label: 'Paylaşılan Notlar',
       value: stats.notes,
       icon: Users,
-      color: 'text-emerald-500 dark:text-emerald-400',
-      iconBg: 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
-      lineGradient: 'from-emerald-600 via-emerald-500 to-teal-400',
-      borderHover: 'hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(16,185,129,0.15)]',
+      color: isNovember10 ? 'text-foreground' : 'text-emerald-500 dark:text-emerald-400',
+      iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
+      lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-emerald-600 via-emerald-500 to-teal-400',
+      borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(16,185,129,0.15)]',
     },
     {
       label: 'Duyurular',
       value: stats.announcements,
       icon: Megaphone,
-      color: 'text-amber-500 dark:text-amber-400',
-      iconBg: 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20',
-      lineGradient: 'from-amber-600 via-amber-500 to-orange-400',
-      borderHover: 'hover:border-amber-500/50 hover:shadow-[0_8px_24px_rgba(245,158,11,0.15)]',
+      color: isNovember10 ? 'text-foreground' : 'text-amber-500 dark:text-amber-400',
+      iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20',
+      lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-amber-600 via-amber-500 to-orange-400',
+      borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-amber-500/50 hover:shadow-[0_8px_24px_rgba(245,158,11,0.15)]',
     },
   ];
 
@@ -321,11 +325,11 @@ const Dashboard = () => {
         </Dialog>
 
         {/* Çalışma Stüdyosu Hızlı Erişim & Yenilik Banner'ı */}
-        <Card className="glass-card border-primary/30 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 relative overflow-hidden">
+        <Card className={cn("glass-card border-primary/30 relative overflow-hidden", isNovember10 ? "bg-card border-border" : "bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10")}>
           <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-primary/10 to-transparent pointer-events-none" />
           <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20 shrink-0">
+              <div className={cn("p-2.5 rounded-xl text-white shadow-md shrink-0", isNovember10 ? "bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-950 shadow-none" : "bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/20")}>
                 <Brain className="h-5 w-5" />
               </div>
               <div>
@@ -336,7 +340,7 @@ const Dashboard = () => {
                 <p className="text-xs text-muted-foreground mt-0.5">İnteraktif ikili video dersleri, akıllı tahta şemaları ve slayt özetleriyle çalışmaya başlayın.</p>
               </div>
             </div>
-            <Button size="sm" className="gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shrink-0 w-full sm:w-auto shadow-sm" onClick={() => navigate('/study')}>
+            <Button size="sm" className={cn("gap-2 text-white shrink-0 w-full sm:w-auto shadow-sm", isNovember10 ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-950" : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500")} onClick={() => navigate('/study')}>
               <span>Stüdyoyu İncele</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
@@ -345,7 +349,7 @@ const Dashboard = () => {
 
         {/* PlayStation Gradient Hero Header */}
         <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-card via-card to-primary/10 p-5 sm:p-7 shadow-sm">
-          <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-gradient-to-br from-[#003791]/20 via-[#0070d1]/15 to-transparent blur-2xl" />
+          <div className={cn("pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full blur-2xl", isNovember10 ? "bg-gradient-to-br from-neutral-600/15 via-neutral-500/10 to-transparent" : "bg-gradient-to-br from-[#003791]/20 via-[#0070d1]/15 to-transparent")} />
 
           <div className="relative z-10 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div className="space-y-1">
@@ -382,32 +386,32 @@ const Dashboard = () => {
               detail: 'Dersine uygun kaynaklara göz at.',
               icon: BookOpen,
               path: '/notes',
-              iconClass: 'bg-primary/10 text-primary',
-              hoverGlow: 'hover:border-primary/40 hover:shadow-[0_8px_24px_hsl(var(--primary)/0.12)]',
+              iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-primary/10 text-primary',
+              hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-primary/40 hover:shadow-[0_8px_24px_hsl(var(--primary)/0.12)]',
             },
             {
               label: 'Çalışma Stüdyosu',
               detail: 'Notlarından yeni çalışma araçları üret.',
               icon: Brain,
               path: '/study',
-              iconClass: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
-              hoverGlow: 'hover:border-cyan-500/40 hover:shadow-[0_8px_24px_rgba(6,182,212,0.12)]',
+              iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
+              hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-cyan-500/40 hover:shadow-[0_8px_24px_rgba(6,182,212,0.12)]',
             },
             {
               label: 'KPSS Merkezi',
               detail: 'Sorularla sınava hazırlanmaya devam et.',
               icon: Target,
               path: '/kpss',
-              iconClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
-              hoverGlow: 'hover:border-indigo-500/40 hover:shadow-[0_8px_24px_rgba(99,102,241,0.12)]',
+              iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+              hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-indigo-500/40 hover:shadow-[0_8px_24px_rgba(99,102,241,0.12)]',
             },
             {
               label: 'Mesajlar',
               detail: 'Arkadaşlarınla iletişimde kal.',
               icon: MessageSquare,
               path: '/messages',
-              iconClass: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-              hoverGlow: 'hover:border-sky-500/40 hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)]',
+              iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+              hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-sky-500/40 hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)]',
             },
           ].map((item) => (
             <div
