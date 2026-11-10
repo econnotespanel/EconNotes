@@ -18,6 +18,7 @@ import RouteLoader, { prefetchRoutes } from "@/components/RouteLoader";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import SystemGate from "@/components/SystemGate";
 import ApprovalGate from "@/components/ApprovalGate";
+import DailyWelcomePosterModal from "@/components/DailyWelcomePosterModal";
 import ScrollToTop from "@/components/ScrollToTop";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -94,6 +95,7 @@ const App = () => {
                     <PasswordChangeGate><MfaGate>
                       <ApprovalGate>
                         <AdminMessageListener />
+                        <DailyWelcomePosterModal />
                         <Routes>
                         <Route path="/" element={<Index />} />
                         <Route path="/login" element={<Login />} />

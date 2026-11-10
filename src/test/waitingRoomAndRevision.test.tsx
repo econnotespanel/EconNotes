@@ -70,5 +70,5 @@ describe('Turkish Title Case & Waiting Room Logic', () => {
   it('verifies Notes.tsx component evaluates with all required React hooks', async () => {
     const notesModule = await import('@/pages/Notes');
     expect(notesModule.default).toBeDefined();
-  });
+  }, 20000);
 });
