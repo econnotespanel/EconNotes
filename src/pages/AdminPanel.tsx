@@ -1092,15 +1092,15 @@ const AdminPanel = () => {
                       <Input
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
-                        placeholder="Ad, e-posta, cihaz (iPhone, Android, Windows, Safari), üniversite ara..."
-                        className="h-10 border-border/60 bg-background pl-9"
+                        placeholder="Ad, e-posta, cihaz, üniversite ara..."
+                        className="h-9 border-border/60 bg-background pl-9 text-xs"
                       />
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <Select value={userApprovalFilter} onValueChange={(v) => setUserApprovalFilter(v as any)}>
-                          <SelectTrigger className="h-10 w-[170px] bg-background"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-9 w-[145px] text-xs bg-background"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">Tüm Durumlar</SelectItem>
                             <SelectItem value="pending">Bekleme Odası ({pendingUsers.length})</SelectItem>
@@ -1109,10 +1109,10 @@ const AdminPanel = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <SlidersHorizontal className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex items-center gap-1">
+                        <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
-                          <SelectTrigger className="h-10 w-[140px] bg-background"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-9 w-[125px] text-xs bg-background"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="all">Tüm roller</SelectItem>
                             <SelectItem value="student">Öğrenci</SelectItem>
@@ -1121,10 +1121,10 @@ const AdminPanel = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <ArrowUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex items-center gap-1">
+                        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         <Select value={userSortBy} onValueChange={(v) => setUserSortBy(v as any)}>
-                          <SelectTrigger className="h-10 w-[195px] bg-background"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-9 w-[170px] text-xs bg-background"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="last_login">Son Giriş (En Yeni)</SelectItem>
                             <SelectItem value="created_at">Kayıt Tarihi (En Yeni)</SelectItem>
@@ -1132,7 +1132,7 @@ const AdminPanel = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <Button variant="outline" size="sm" onClick={fetchAll} className="h-10 rounded-xl gap-1.5" title="Listeyi ve giriş kayıtlarını yenile">
+                      <Button variant="outline" size="sm" onClick={fetchAll} className="h-9 rounded-xl gap-1 text-xs" title="Listeyi ve giriş kayıtlarını yenile">
                         <RotateCcw className="h-3.5 w-3.5" /> Yenile
                       </Button>
                     </div>
@@ -1158,145 +1158,253 @@ const AdminPanel = () => {
                     )}
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                <table className="min-w-[1440px] w-full text-sm">
+                <div className="overflow-x-auto rounded-xl border border-border/60">
+                  <table className="w-full text-left text-sm">
                     <thead>
-                      <tr className="border-b border-border bg-muted/30">
-                        <th className="text-left p-3">Ad Soyad</th>
-                        <th className="text-left p-3">E-posta</th>
-                        <th className="text-left p-3">Son Giriş</th>
-                        <th className="text-left p-3">Giriş Cihazları</th>
-                        <th className="text-left p-3 hidden md:table-cell">Üniversite</th>
-                        <th className="text-left p-3 hidden md:table-cell">Bölüm</th>
-                        <th className="text-left p-3">Rol & Durum</th>
-                        <th className="text-left p-3">Kayıt Tarihi</th>
-                        <th className="text-left p-3">İşlemler</th>
+                      <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground font-semibold">
+                        <th className="p-3">Kullanıcı (Ad & E-posta)</th>
+                        <th className="p-3">Son Giriş & Cihaz</th>
+                        <th className="p-3 hidden sm:table-cell">Akademik Bilgi</th>
+                        <th className="p-3 hidden md:table-cell">Rol & Kayıt</th>
+                        <th className="p-3 text-right sticky right-0 bg-muted/95 backdrop-blur-md shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.3)]">İşlemler</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {usersLoading && <tr><td colSpan={9} className="p-10 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />Kullanıcılar yükleniyor…</span></td></tr>}
+                    <tbody className="divide-y divide-border/40">
+                      {usersLoading && (
+                        <tr>
+                          <td colSpan={5} className="p-10 text-center text-muted-foreground">
+                            <span className="inline-flex items-center gap-2">
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                              Kullanıcılar yükleniyor…
+                            </span>
+                          </td>
+                        </tr>
+                      )}
                       {filteredUsers.map((u) => {
                         const userSummary = summariesByUserId[u.user_id];
                         const isPending = u.approval_status === 'pending';
                         const isRej = u.approval_status === 'rejected';
                         return (
-                        <tr key={u.user_id || u.id} className={`border-b border-border/50 transition-colors hover:bg-primary/[0.04] ${
-                          isPending ? 'bg-amber-500/[0.03]' : ''
-                        }`}>
-                          <td className="p-3 font-medium align-top">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span>{u.full_name || '-'}</span>
-                              {isPending && (
-                                <Badge variant="outline" className="rounded-full text-[10px] px-2 py-0 border-amber-500/40 bg-amber-500/15 text-amber-500">
-                                  Beklemede
+                          <tr
+                            key={u.user_id || u.id}
+                            className={`transition-colors hover:bg-primary/[0.04] ${
+                              isPending ? 'bg-amber-500/[0.04]' : ''
+                            }`}
+                          >
+                            {/* 1. Kullanıcı: Ad Soyad & E-posta */}
+                            <td className="p-3 align-top min-w-[200px]">
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-foreground text-sm">{u.full_name || '-'}</span>
+                                  {isPending && (
+                                    <Badge variant="outline" className="rounded-full text-[10px] px-1.5 py-0 border-amber-500/40 bg-amber-500/15 text-amber-500 font-semibold">
+                                      Beklemede
+                                    </Badge>
+                                  )}
+                                  {isRej && (
+                                    <Badge variant="outline" className="rounded-full text-[10px] px-1.5 py-0 border-destructive/40 bg-destructive/15 text-destructive font-semibold">
+                                      Reddedildi
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="text-xs text-muted-foreground break-all" title={userEmails[u.user_id] || undefined}>
+                                  {userEmails[u.user_id] || '—'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* 2. Son Giriş & Cihaz */}
+                            <td className="p-3 align-top min-w-[190px]">
+                              <div className="flex flex-col gap-1.5">
+                                <UserLastLoginCell
+                                  summary={userSummary}
+                                  onOpenHistory={() => setHistoryModalUserId(u.user_id)}
+                                />
+                                <UserDevicesCell
+                                  summary={userSummary}
+                                  onOpenHistory={() => setHistoryModalUserId(u.user_id)}
+                                />
+                              </div>
+                            </td>
+
+                            {/* 3. Akademik Bilgi (Üniversite & Bölüm) */}
+                            <td className="p-3 align-top min-w-[170px] hidden sm:table-cell">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-medium text-xs text-foreground truncate max-w-[220px]" title={u.university || undefined}>
+                                  {u.university || '-'}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground truncate max-w-[220px]" title={u.department || undefined}>
+                                  {u.department || '-'} {u.grade ? `· ${u.grade}. Sınıf` : ''}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* 4. Rol & Kayıt Tarihi */}
+                            <td className="p-3 align-top whitespace-nowrap hidden md:table-cell">
+                              <div className="flex flex-col gap-1">
+                                <Badge variant="outline" className="rounded-full px-2 py-0.5 text-[10px] w-fit">
+                                  {getRoleLabel(getUserRole(u.user_id))}
                                 </Badge>
-                              )}
-                              {isRej && (
-                                <Badge variant="outline" className="rounded-full text-[10px] px-2 py-0 border-destructive/40 bg-destructive/15 text-destructive">
-                                  Reddedildi
-                                </Badge>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3 min-w-[210px] max-w-[270px] align-top text-xs whitespace-normal break-all" title={userEmails[u.user_id] || undefined}>{userEmails[u.user_id] || '—'}</td>
-                          <td className="p-3 min-w-[165px] align-top whitespace-nowrap">
-                            <UserLastLoginCell
-                              summary={userSummary}
-                              onOpenHistory={() => setHistoryModalUserId(u.user_id)}
-                            />
-                          </td>
-                          <td className="p-3 min-w-[230px] align-top">
-                            <UserDevicesCell
-                              summary={userSummary}
-                              onOpenHistory={() => setHistoryModalUserId(u.user_id)}
-                            />
-                          </td>
-                          <td className="p-3 min-w-[170px] max-w-[240px] align-top whitespace-normal break-words hidden md:table-cell" title={u.university || undefined}>{u.university || '-'}</td>
-                          <td className="p-3 min-w-[170px] max-w-[250px] align-top whitespace-normal break-words hidden md:table-cell" title={u.department || undefined}>{u.department || '-'}</td>
-                          <td className="p-3 align-top">
-                            <Badge variant="outline" className="rounded-full px-2.5 text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge>
-                          </td>
-                          <td className="p-3 align-top whitespace-nowrap"><span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5 text-primary" />{u.created_at ? new Date(u.created_at).toLocaleString('tr-TR') : '-'}</span></td>
-                          <td className="p-3 align-top">
-                            <div className="flex gap-1 flex-wrap">
-                              {isPending && (
-                                <>
+                                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                                  <CalendarDays className="h-3 w-3 text-primary/70 shrink-0" />
+                                  {u.created_at ? new Date(u.created_at).toLocaleDateString('tr-TR') : '-'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* 5. İşlemler (Sticky Right - Her zaman ekranda görünür) */}
+                            <td className="p-3 align-top text-right sticky right-0 bg-card/95 backdrop-blur-md shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.3)] min-w-[190px]">
+                              <div className="flex items-center justify-end gap-1 flex-wrap sm:flex-nowrap">
+                                {isPending && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => approveUser(u.user_id, u.full_name || '')}
+                                      title="Onayla ve Erişimi Aç"
+                                      className="h-8 w-8 p-0 text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/40 rounded-lg"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => rejectUser(u.user_id, u.full_name || '')}
+                                      title="Reddet"
+                                      className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:border-destructive/40 rounded-lg"
+                                    >
+                                      <Ban className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </>
+                                )}
+                                {isRej && (
                                   <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={() => approveUser(u.user_id, u.full_name || '')}
-                                    title="Onayla ve Erişimi Aç"
-                                    className="text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/40"
+                                    title="Yeniden Onayla"
+                                    className="h-8 w-8 p-0 text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/40 rounded-lg"
                                   >
                                     <Check className="h-3.5 w-3.5" />
                                   </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => rejectUser(u.user_id, u.full_name || '')}
-                                    title="Reddet"
-                                    className="text-destructive hover:bg-destructive/10 hover:border-destructive/40"
-                                  >
-                                    <Ban className="h-3.5 w-3.5" />
-                                  </Button>
-                                </>
-                              )}
-                              {isRej && (
+                                )}
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => approveUser(u.user_id, u.full_name || '')}
-                                  title="Yeniden Onayla"
-                                  className="text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/40"
+                                  onClick={() => setHistoryModalUserId(u.user_id)}
+                                  title="Giriş ve Cihaz Geçmişi"
+                                  className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary hover:border-primary/40 rounded-lg"
                                 >
-                                  <Check className="h-3.5 w-3.5" />
+                                  <Smartphone className="h-3.5 w-3.5 text-primary" />
                                 </Button>
-                              )}
-                              <Button size="sm" variant="outline" onClick={() => setHistoryModalUserId(u.user_id)} title="Giriş ve Cihaz Geçmişi" className="hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors"><Smartphone className="h-3.5 w-3.5 text-primary" /></Button>
-                              <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name || '', university: u.university || '', department: u.department || '', grade: u.grade || 1, download_quota: u.manual_download_quota ? String(u.manual_download_quota) : '' }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
-                              <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol"><UserCog className="h-3 w-3" /></Button>
-                              <Button size="sm" variant="outline" onClick={() => { setSelectedUser(u); setPenaltyDialog(true); }} title="Ceza"><Ban className="h-3 w-3" /></Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="outline" className="hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors" title="Geçici Giriş Anahtarı / Şifresi Oluştur" aria-label="Geçici Giriş Anahtarı / Şifresi Oluştur">
-                                    <KeyRound className="h-3.5 w-3.5 text-primary" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent className="rounded-2xl">
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle className="flex items-center gap-2 text-primary">
-                                      <KeyRound className="h-5 w-5" /> Geçici Giriş Anahtarı Oluştur
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription className="text-sm leading-relaxed space-y-2">
-                                      <span>
-                                        <strong>{u.full_name || 'Bu kullanıcı'}</strong> ({userEmails[u.user_id] || '—'}) şifresini unuttuğu için tek kullanımlık geçici bir giriş anahtarı üretilecek.
-                                      </span>
-                                      <span className="block text-xs text-muted-foreground">
-                                        Kullanıcı bu geçici şifre ile sisteme giriş yaptığında, güvenliği sağlamak için ilk adımda kendi yeni şifresini belirleyecektir.
-                                      </span>
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel className="rounded-xl">Vazgeç</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
-                                      onClick={() => createTempPassword(u.user_id, u.full_name || '', userEmails[u.user_id] || '')}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditUserData(u);
+                                    setEditUserForm({
+                                      full_name: u.full_name || '',
+                                      university: u.university || '',
+                                      department: u.department || '',
+                                      grade: u.grade || 1,
+                                      download_quota: u.manual_download_quota ? String(u.manual_download_quota) : '',
+                                    });
+                                    setEditUserDialog(true);
+                                  }}
+                                  title="Düzenle"
+                                  className="h-8 w-8 p-0 rounded-lg"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setRoleUser(u);
+                                    setSelectedRole(getUserRole(u.user_id));
+                                    setRoleDialogOpen(true);
+                                  }}
+                                  title="Rol Değiştir"
+                                  className="h-8 w-8 p-0 rounded-lg"
+                                >
+                                  <UserCog className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedUser(u);
+                                    setPenaltyDialog(true);
+                                  }}
+                                  title="Ceza Ver"
+                                  className="h-8 w-8 p-0 text-amber-500 hover:border-amber-500/40 hover:bg-amber-500/10 rounded-lg"
+                                >
+                                  <Ban className="h-3.5 w-3.5" />
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-8 w-8 p-0 hover:bg-primary/10 hover:text-primary hover:border-primary/40 rounded-lg"
+                                      title="Geçici Giriş Anahtarı / Şifresi Oluştur"
                                     >
-                                      Anahtar Şifre Oluştur
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
-                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Bu kullanıcıyı silmek istediğinize emin misiniz?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => deleteUser(u.user_id)}>Sil</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </td>
-                        </tr>
+                                      <KeyRound className="h-3.5 w-3.5 text-primary" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent className="rounded-2xl">
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle className="flex items-center gap-2 text-primary">
+                                        <KeyRound className="h-5 w-5" /> Geçici Giriş Anahtarı Oluştur
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription className="text-sm leading-relaxed space-y-2">
+                                        <span>
+                                          <strong>{u.full_name || 'Bu kullanıcı'}</strong> ({userEmails[u.user_id] || '—'}) şifresini unuttuğu için tek kullanımlık geçici bir giriş anahtarı üretilecek.
+                                        </span>
+                                        <span className="block text-xs text-muted-foreground">
+                                          Kullanıcı bu geçici şifre ile sisteme giriş yaptığında, güvenliği sağlamak için ilk adımda kendi yeni şifresini belirleyecektir.
+                                        </span>
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel className="rounded-xl">Vazgeç</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+                                        onClick={() => createTempPassword(u.user_id, u.full_name || '', userEmails[u.user_id] || '')}
+                                      >
+                                        Anahtar Şifre Oluştur
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="outline" className="h-8 w-8 p-0 text-destructive hover:border-destructive/40 hover:bg-destructive/10 rounded-lg" title="Kullanıcıyı Sil">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Bu kullanıcıyı silmek istediğinize emin misiniz?</AlertDialogTitle>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>İptal</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => deleteUser(u.user_id)}>Sil</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </td>
+                          </tr>
                         );
                       })}
-                      {!usersLoading && filteredUsers.length === 0 && <tr><td colSpan={9} className="p-10 text-center text-muted-foreground">{users.length === 0 ? 'Kullanıcı bulunamadı.' : 'Aramanızla eşleşen kullanıcı yok.'}</td></tr>}
+                      {!usersLoading && filteredUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="p-10 text-center text-muted-foreground">
+                            {users.length === 0 ? 'Kullanıcı bulunamadı.' : 'Aramanızla eşleşen kullanıcı yok.'}
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
