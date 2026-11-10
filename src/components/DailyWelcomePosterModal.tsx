@@ -76,7 +76,7 @@ export const DailyWelcomePosterModal: React.FC = () => {
           </button>
         </div>
 
-        <div className="space-y-1.5 px-1 pt-0.5">
+        <div className="px-1 pt-0.5">
           <Button
             onClick={handleClose}
             className="w-full h-10 sm:h-11 rounded-2xl gradient-primary text-primary-foreground font-semibold shadow-md shadow-primary/20 hover:opacity-95 text-xs sm:text-sm gap-2"
@@ -84,9 +84,6 @@ export const DailyWelcomePosterModal: React.FC = () => {
             <Sparkles className="h-4 w-4 animate-spin-slow" />
             <span>EconNotes'a Başla</span>
           </Button>
-          <p className="text-center text-[10px] sm:text-[11px] text-muted-foreground">
-            ✨ Bu karşılama görseli hesabınıza giriş yaptığınızda günde 1 kez gösterilir.
-          </p>
         </div>
       </DialogContent>
     </Dialog>
