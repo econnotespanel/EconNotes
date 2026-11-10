@@ -28,6 +28,11 @@ import { NOTE_EDITOR_SELECT, NOTE_SELECT } from '@/lib/noteColumns';
 import LoadingMessage from '@/components/ui/loading-message';
 import JSZip from 'jszip';
 import { normalizeUniversityName, POPULAR_UNIVERSITIES } from '@/lib/universityUtils';
+import {
+  getNoteRevisionDeadline,
+  getCleanRevisionNotes,
+  isRevisionExpired,
+} from '@/lib/revisionUtils';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
@@ -573,7 +578,8 @@ const Notes = () => {
     return notes.filter((n) => {
       if (n.user_id !== user?.id || n.status !== 'revision_requested') return false;
       // 72 saat süre dolmuşsa arşive gitmiştir, kullanıcıya kapatılır
-      if (n.revision_deadline && new Date(n.revision_deadline).getTime() <= Date.now()) {
+      const deadline = getNoteRevisionDeadline(n);
+      if (isRevisionExpired(deadline)) {
         return false;
       }
       return true;
@@ -752,14 +758,14 @@ const Notes = () => {
                   <div className="space-y-1.5 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-bold text-sm text-foreground truncate">{n.title}</h4>
-                      <RevisionTimer deadline={n.revision_deadline} />
+                      <RevisionTimer deadline={getNoteRevisionDeadline(n)} />
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {n.course} • {n.department || 'Bölüm belirtilmemiş'} • {n.university || 'Üniversite belirtilmemiş'}
+                      {n.course} • {n.department || 'Bölüm belirtilmemiş'} • {normalizeUniversityName(n.university)}
                     </p>
                     <div className="rounded-lg bg-amber-500/10 border border-amber-500/25 p-2 text-xs text-foreground">
                       <strong className="text-amber-600 dark:text-amber-400">Yönetici Geri Bildirimi: </strong>
-                      {n.rejection_reason || n.revision_notes || 'Lütfen notun eksik bilgilerini tamamlayın.'}
+                      {getCleanRevisionNotes(n)}
                     </div>
                   </div>
 

@@ -31,6 +31,13 @@ import { normalizeUniversityName, POPULAR_UNIVERSITIES } from '@/lib/universityU
 import { toTurkishTitleCase } from '@/lib/stringUtils';
 import { isLegacyUser } from '@/lib/approvalUtils';
 import {
+  calculate72HoursDeadline,
+  packRevisionReason,
+  getNoteRevisionDeadline,
+  getCleanRevisionNotes,
+  isRevisionExpired,
+} from '@/lib/revisionUtils';
+import {
   AdminLoginLogTab,
   DeviceCategoryIcon,
   UserDevicesCell,
@@ -527,13 +534,23 @@ const AdminPanel = () => {
     toast.success('Not silindi!'); fetchAll();
   };
   const approveNote = async (id: string) => {
-    const { error } = await supabase.from('notes').update({
+    let { error } = await supabase.from('notes').update({
       status: 'approved',
       approved_at: new Date().toISOString(),
       approved_by: user!.id,
       rejection_reason: null,
       revision_deadline: null,
     } as any).eq('id', id);
+
+    if (error && (error.message.includes('schema cache') || error.message.includes('revision_deadline'))) {
+      ({ error } = await supabase.from('notes').update({
+        status: 'approved',
+        approved_at: new Date().toISOString(),
+        approved_by: user!.id,
+        rejection_reason: null,
+      } as any).eq('id', id));
+    }
+
     if (error) { toast.error('Onaylanamadı: ' + error.message); return; }
     toast.success('Not onaylandı ve yayınlandı.');
     fetchAll();
@@ -547,14 +564,33 @@ const AdminPanel = () => {
   };
   const requestNoteRevision = async (id: string, reason: string) => {
     const now = new Date();
-    const deadline = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
-    const { error } = await supabase.from('notes').update({
+    const deadline = calculate72HoursDeadline(now.getTime());
+    const packedReason = packRevisionReason(reason, deadline);
+
+    // Try full schema update first
+    let { error } = await supabase.from('notes').update({
       status: 'revision_requested',
       revision_requested_at: now.toISOString(),
       revision_deadline: deadline,
-      rejection_reason: reason,
-      revision_notes: reason,
+      rejection_reason: packedReason,
+      revision_notes: reason.trim(),
     } as any).eq('id', id);
+
+    // If revision_deadline, revision_requested_at or revision_notes columns are not in schema cache,
+    // gracefully fall back to storing status and packed rejection_reason
+    if (
+      error &&
+      (error.message.includes('schema cache') ||
+        error.message.includes('revision_deadline') ||
+        error.message.includes('revision_requested_at') ||
+        error.message.includes('revision_notes'))
+    ) {
+      ({ error } = await supabase.from('notes').update({
+        status: 'revision_requested',
+        rejection_reason: packedReason,
+      } as any).eq('id', id));
+    }
+
     if (error) {
       toast.error('Düzeltme talebi gönderilemedi: ' + error.message);
       return;
@@ -1450,7 +1486,8 @@ const AdminPanel = () => {
 
                         <div className="space-y-2.5">
                           {notes.filter(n => n.status === 'revision_requested').map((n) => {
-                            const isExpired = n.revision_deadline && new Date(n.revision_deadline).getTime() <= Date.now();
+                            const deadline = getNoteRevisionDeadline(n);
+                            const isExpired = isRevisionExpired(deadline);
                             return (
                               <div
                                 key={n.id}
@@ -1464,10 +1501,10 @@ const AdminPanel = () => {
                                     </Badge>
                                   </div>
                                   <p className="text-xs text-muted-foreground truncate">
-                                    {n.uploader_name} • {n.course} • Talep Tarihi: {n.revision_requested_at ? new Date(n.revision_requested_at).toLocaleString('tr-TR') : '—'}
+                                    {n.uploader_name} • {n.course} • Kalan Süre: {deadline ? new Date(deadline).toLocaleString('tr-TR') : '72 saat'}
                                   </p>
                                   <p className="text-xs text-cyan-500 dark:text-cyan-300 bg-cyan-500/10 rounded-lg p-1.5 border border-cyan-500/20">
-                                    <strong>İstenen Düzeltme:</strong> {n.rejection_reason || n.revision_notes || 'Eksik bilgileri tamamlayınız'}
+                                    <strong>İstenen Düzeltme:</strong> {getCleanRevisionNotes(n)}
                                   </p>
                                 </div>
 
