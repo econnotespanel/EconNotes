@@ -45,9 +45,8 @@ export const ApprovalGate: React.FC<{ children: React.ReactNode }> = ({ children
     return <>{children}</>;
   }
 
-  // If user is pending or rejected, show Waiting Room
-  const status = profile?.approval_status || 'pending';
-  if (status === 'pending' || status === 'rejected' || !isApproved) {
+  // If user is pending or not approved, show Waiting Room
+  if (!isApproved) {
     return <WaitingRoomScreen />;
   }
 

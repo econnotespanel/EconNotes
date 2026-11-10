@@ -34,6 +34,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
 import SecurityCaptcha from '@/components/SecurityCaptcha';
 import { getReturningAccountName, rememberReturningAccount } from '@/lib/returningAccount';
+import { isLegacyUser } from '@/lib/approvalUtils';
 import { AmbientShaderBackground } from '@/components/landing/AmbientShaderBackground';
 import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
 import { cn } from '@/lib/utils';
@@ -397,12 +398,15 @@ const Login = () => {
 
     setLoading(false);
 
-    if (approvalStatus === 'pending') {
+    const isLegacy = isLegacyUser(data.user?.created_at, null);
+    const effectiveApprovalStatus = isLegacy ? 'approved' : approvalStatus;
+
+    if (effectiveApprovalStatus === 'pending') {
       toast.info(`Hoş Geldiniz, ${fullName}`, {
         description: 'Hesabınız yönetici onayı için Bekleme Odasındadır. İncelenip onaylandıktan sonra tam erişiminiz açılacaktır.',
         duration: 7000,
       });
-    } else if (approvalStatus === 'rejected') {
+    } else if (effectiveApprovalStatus === 'rejected') {
       toast.error('Kayıt Başvurunuz Onaylanmadı', {
         description: 'Ayrıntılı bilgi için Destek Merkezi üzerinden iletişime geçebilirsiniz.',
         duration: 7000,

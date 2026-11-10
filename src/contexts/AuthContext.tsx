@@ -4,6 +4,7 @@ import type { User, Session } from '@supabase/supabase-js';
 import { APP_VERSION } from '@/lib/version';
 import { rememberReturningAccount } from '@/lib/returningAccount';
 import { detectClientDevice, formatLoginDetails, serializeLoginMetadata } from '@/lib/deviceInfo';
+import { isLegacyUser, isUserApproved } from '@/lib/approvalUtils';
 
 interface Profile {
   id: string;
@@ -449,7 +450,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [user?.id]);
 
-  const isApproved = isAdmin || (user ? profile?.approval_status === 'approved' : true);
+  const isApproved = isUserApproved(
+    profile?.approval_status,
+    user?.created_at,
+    profile?.created_at,
+    isAdmin
+  );
+
+  // Önceki kayıtlı kullanıcıların veritabanındaki onay durumunu otomatik olarak senkronize et
+  useEffect(() => {
+    if (
+      user &&
+      profile &&
+      isLegacyUser(user.created_at, profile.created_at) &&
+      profile.approval_status !== 'approved'
+    ) {
+      supabase
+        .from('profiles')
+        .update({
+          approval_status: 'approved',
+          approved_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id)
+        .then(({ error }) => {
+          if (!error) {
+            setProfile((prev) => (prev ? { ...prev, approval_status: 'approved' } : prev));
+          }
+        });
+    }
+  }, [user?.id, user?.created_at, profile?.created_at, profile?.approval_status]);
 
   return (
     <AuthContext.Provider value={{ user, session, profile, isAdmin, isApproved, loading, signOut, refreshProfile }}>

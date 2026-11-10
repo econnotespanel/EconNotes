@@ -29,6 +29,7 @@ import { parseLoginLogDevice } from '@/lib/deviceInfo';
 import { buildLoginAnalytics, formatRelativeLoginTime, type AuthAdminUserMeta } from '@/lib/adminLoginAnalytics';
 import { normalizeUniversityName, POPULAR_UNIVERSITIES } from '@/lib/universityUtils';
 import { toTurkishTitleCase } from '@/lib/stringUtils';
+import { isLegacyUser } from '@/lib/approvalUtils';
 import {
   AdminLoginLogTab,
   DeviceCategoryIcon,
@@ -155,7 +156,10 @@ const AdminPanel = () => {
     };
   }, [historyModalUserId, users, summariesByUserId]);
 
-  const pendingUsers = useMemo(() => users.filter((u) => u.approval_status === 'pending'), [users]);
+  const pendingUsers = useMemo(
+    () => users.filter((u) => u.approval_status === 'pending' && !isLegacyUser(u.created_at, null)),
+    [users]
+  );
 
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLocaleLowerCase('tr-TR');
@@ -172,7 +176,7 @@ const AdminPanel = () => {
         .filter(Boolean)
         .join(' ')
         .toLocaleLowerCase('tr-TR');
-      const approvalStatus = u.approval_status || 'approved';
+      const approvalStatus = isLegacyUser(u.created_at, null) ? 'approved' : (u.approval_status || 'approved');
       const matchesApproval =
         userApprovalFilter === 'all' ||
         (userApprovalFilter === 'pending' && approvalStatus === 'pending') ||
@@ -591,6 +595,21 @@ const AdminPanel = () => {
     void logActivity(user!.id, 'Admin', user!.email || '', 'user_approved', `"${userName}" kullanıcısı onaylandı`, 'user', userId).catch(() => {});
     fetchAll();
   };
+  const approveAllLegacyUsers = async () => {
+    const t = toast.loading('Önceki kayıtlı kullanıcılar onaylanıyor...');
+    const { error } = await supabase.from('profiles').update({
+      approval_status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: user!.id,
+    } as any).eq('approval_status', 'pending');
+    toast.dismiss(t);
+    if (error) {
+      toast.error('Onaylama işlemi başarısız: ' + error.message);
+      return;
+    }
+    toast.success('Mevcut tüm kayıtlı kullanıcılar başarıyla onaylandı!');
+    fetchAll();
+  };
   const rejectUser = async (userId: string, userName: string) => {
     const { error } = await supabase.from('profiles').update({
       approval_status: 'rejected',
@@ -965,6 +984,15 @@ const AdminPanel = () => {
                           </p>
                         </div>
                       </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={approveAllLegacyUsers}
+                        className="rounded-xl border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 text-xs font-semibold gap-1.5"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        <span>Tümünü Otomatik Onayla</span>
+                      </Button>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
