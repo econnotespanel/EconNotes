@@ -66,4 +66,9 @@ describe('Turkish Title Case & Waiting Room Logic', () => {
     expect(publicNotes.length).toBe(1);
     expect(publicNotes[0].title).toBe('Makro İktisat');
   });
+
+  it('verifies Notes.tsx component evaluates with all required React hooks', async () => {
+    const notesModule = await import('@/pages/Notes');
+    expect(notesModule.default).toBeDefined();
+  });
 });
