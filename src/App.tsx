@@ -17,6 +17,7 @@ import SplashScreen from "@/components/SplashScreen";
 import RouteLoader, { prefetchRoutes } from "@/components/RouteLoader";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import SystemGate from "@/components/SystemGate";
+import ApprovalGate from "@/components/ApprovalGate";
 import ScrollToTop from "@/components/ScrollToTop";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -91,29 +92,31 @@ const App = () => {
                 <Suspense fallback={<RouteLoader />}>
                   <SystemGate>
                     <PasswordChangeGate><MfaGate>
-                      <AdminMessageListener />
-                      <Routes>
-                      <Route path="/" element={<Index />} />
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/register" element={<Register />} />
-                      <Route path="/forgot-password" element={<ForgotPassword />} />
-                      <Route path="/reset-password" element={<ResetPassword />} />
-                      <Route path="/notes" element={<PageGuard path="/notes"><Notes /></PageGuard>} />
-                      <Route path="/announcements" element={<PageGuard path="/announcements"><Announcements /></PageGuard>} />
-                      <Route path="/profile" element={<PageGuard path="/profile"><Profile /></PageGuard>} />
-                      <Route path="/messages" element={<PageGuard path="/messages"><Messages /></PageGuard>} />
-                      <Route path="/admin" element={<AdminPanel />} />
-                      <Route path="/about" element={<PageGuard path="/about"><About /></PageGuard>} />
-                      <Route path="/assistant" element={<PageGuard path="/assistant"><AcademicAssistant /></PageGuard>} />
-                      <Route path="/study" element={<PageGuard path="/study"><Study /></PageGuard>} />
-                      <Route path="/kpss" element={<PageGuard path="/kpss"><Kpss /></PageGuard>} />
-                      <Route path="/welcome" element={<Welcome />} />
-                      <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
-                      <Route path="/live-class" element={<PageGuard path="/live-class"><LiveClass /></PageGuard>} />
-                      <Route path="/support" element={<Support />} />
-                      <Route path="/install" element={<Install />} />
-                      <Route path="*" element={<NotFound />} />
-                      </Routes>
+                      <ApprovalGate>
+                        <AdminMessageListener />
+                        <Routes>
+                        <Route path="/" element={<Index />} />
+                        <Route path="/login" element={<Login />} />
+                        <Route path="/register" element={<Register />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/reset-password" element={<ResetPassword />} />
+                        <Route path="/notes" element={<PageGuard path="/notes"><Notes /></PageGuard>} />
+                        <Route path="/announcements" element={<PageGuard path="/announcements"><Announcements /></PageGuard>} />
+                        <Route path="/profile" element={<PageGuard path="/profile"><Profile /></PageGuard>} />
+                        <Route path="/messages" element={<PageGuard path="/messages"><Messages /></PageGuard>} />
+                        <Route path="/admin" element={<AdminPanel />} />
+                        <Route path="/about" element={<PageGuard path="/about"><About /></PageGuard>} />
+                        <Route path="/assistant" element={<PageGuard path="/assistant"><AcademicAssistant /></PageGuard>} />
+                        <Route path="/study" element={<PageGuard path="/study"><Study /></PageGuard>} />
+                        <Route path="/kpss" element={<PageGuard path="/kpss"><Kpss /></PageGuard>} />
+                        <Route path="/welcome" element={<Welcome />} />
+                        <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
+                        <Route path="/live-class" element={<PageGuard path="/live-class"><LiveClass /></PageGuard>} />
+                        <Route path="/support" element={<Support />} />
+                        <Route path="/install" element={<Install />} />
+                        <Route path="*" element={<NotFound />} />
+                        </Routes>
+                      </ApprovalGate>
                     </MfaGate></PasswordChangeGate>
                   </SystemGate>
                 </Suspense>

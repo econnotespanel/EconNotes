@@ -15,17 +15,20 @@ import AuditLogPanel from '@/components/admin/AuditLogPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal, KeyRound, Copy, Smartphone, RotateCcw, ArrowUpDown } from 'lucide-react';
+import { Shield, Users, FileText, Megaphone, AlertTriangle, Power, Trash2, Ban, Eye, Activity, Flag, UserCog, Check, Clock, Edit, GraduationCap, Plus, Image as ImageIcon, Sparkles, BookOpen, Sun, Palmtree, ArrowUpCircle, Palette, Download, CalendarDays, Search, SlidersHorizontal, KeyRound, Copy, Smartphone, RotateCcw, ArrowUpDown, Archive, RefreshCw, FolderArchive, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import SiteDesignPanel from '@/components/admin/SiteDesignPanel';
+import AdminNotePreviewDialog from '@/components/admin/AdminNotePreviewDialog';
 import FatalErrorScreen from '@/components/FatalErrorScreen';
 import { downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
 import { parseLoginLogDevice } from '@/lib/deviceInfo';
 import { buildLoginAnalytics, formatRelativeLoginTime, type AuthAdminUserMeta } from '@/lib/adminLoginAnalytics';
+import { normalizeUniversityName, POPULAR_UNIVERSITIES } from '@/lib/universityUtils';
+import { toTurkishTitleCase } from '@/lib/stringUtils';
 import {
   AdminLoginLogTab,
   DeviceCategoryIcon,
@@ -51,6 +54,9 @@ const AdminPanel = () => {
   const [notesLoading, setNotesLoading] = useState(true);
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('all');
+  const [userApprovalFilter, setUserApprovalFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [previewNote, setPreviewNote] = useState<any | null>(null);
+  const [notesSubTab, setNotesSubTab] = useState<'active' | 'archive'>('active');
   const [userEmails, setUserEmails] = useState<Record<string, string>>({});
   const [notePasswords, setNotePasswords] = useState<Record<string, string>>({});
   const [userRoles, setUserRoles] = useState<any[]>([]);
@@ -149,6 +155,8 @@ const AdminPanel = () => {
     };
   }, [historyModalUserId, users, summariesByUserId]);
 
+  const pendingUsers = useMemo(() => users.filter((u) => u.approval_status === 'pending'), [users]);
+
   const filteredUsers = useMemo(() => {
     const query = userSearch.trim().toLocaleLowerCase('tr-TR');
     const filtered = users.filter((u) => {
@@ -164,7 +172,14 @@ const AdminPanel = () => {
         .filter(Boolean)
         .join(' ')
         .toLocaleLowerCase('tr-TR');
-      return (!query || searchable.includes(query)) && (userRoleFilter === 'all' || role === userRoleFilter);
+      const approvalStatus = u.approval_status || 'approved';
+      const matchesApproval =
+        userApprovalFilter === 'all' ||
+        (userApprovalFilter === 'pending' && approvalStatus === 'pending') ||
+        (userApprovalFilter === 'approved' && approvalStatus === 'approved') ||
+        (userApprovalFilter === 'rejected' && approvalStatus === 'rejected');
+
+      return (!query || searchable.includes(query)) && (userRoleFilter === 'all' || role === userRoleFilter) && matchesApproval;
     });
 
     return filtered.sort((a, b) => {
@@ -186,7 +201,7 @@ const AdminPanel = () => {
       const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
       return bCreated - aCreated;
     });
-  }, [users, userEmails, userSearch, userRoleFilter, userRoles, summariesByUserId, userSortBy]);
+  }, [users, userEmails, userSearch, userRoleFilter, userApprovalFilter, userRoles, summariesByUserId, userSortBy]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -508,7 +523,13 @@ const AdminPanel = () => {
     toast.success('Not silindi!'); fetchAll();
   };
   const approveNote = async (id: string) => {
-    const { error } = await supabase.from('notes').update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: user!.id, rejection_reason: null } as any).eq('id', id);
+    const { error } = await supabase.from('notes').update({
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: user!.id,
+      rejection_reason: null,
+      revision_deadline: null,
+    } as any).eq('id', id);
     if (error) { toast.error('Onaylanamadı: ' + error.message); return; }
     toast.success('Not onaylandı ve yayınlandı.');
     fetchAll();
@@ -518,6 +539,68 @@ const AdminPanel = () => {
     const { error } = await supabase.from('notes').update({ status: 'rejected', rejection_reason: reason } as any).eq('id', id);
     if (error) { toast.error('Reddedilemedi: ' + error.message); return; }
     toast.success('Not reddedildi.');
+    fetchAll();
+  };
+  const requestNoteRevision = async (id: string, reason: string) => {
+    const now = new Date();
+    const deadline = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase.from('notes').update({
+      status: 'revision_requested',
+      revision_requested_at: now.toISOString(),
+      revision_deadline: deadline,
+      rejection_reason: reason,
+      revision_notes: reason,
+    } as any).eq('id', id);
+    if (error) {
+      toast.error('Düzeltme talebi gönderilemedi: ' + error.message);
+      return;
+    }
+    toast.success('Not kullanıcıya düzeltme için geri gönderildi (72 saat süre verildi).');
+    void logActivity(user!.id, 'Admin', user!.email || '', 'note_revision_requested', `Not ID ${id} için 72 saatlik revizyon istendi: ${reason}`, 'note', id).catch(() => {});
+    fetchAll();
+  };
+  const archiveNote = async (id: string) => {
+    const { error } = await supabase.from('notes').update({
+      status: 'archived',
+      visibility_status: 'permanent',
+    } as any).eq('id', id);
+    if (error) { toast.error('Not arşivlenemedi: ' + error.message); return; }
+    toast.success('Not yönetici arşivine kaldırıldı.');
+    fetchAll();
+  };
+  const restoreArchivedNote = async (id: string) => {
+    const { error } = await supabase.from('notes').update({
+      status: 'pending',
+      visibility_status: 'visible',
+    } as any).eq('id', id);
+    if (error) { toast.error('Not arşivden çıkarılamadı: ' + error.message); return; }
+    toast.success('Not arşivden çıkarıldı ve onay listesine alındı.');
+    fetchAll();
+  };
+  const approveUser = async (userId: string, userName: string) => {
+    const { error } = await supabase.from('profiles').update({
+      approval_status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: user!.id,
+    } as any).eq('user_id', userId);
+    if (error) {
+      toast.error('Kullanıcı onaylanamadı: ' + error.message);
+      return;
+    }
+    toast.success(`"${userName}" başarıyla onaylandı ve erişimi açıldı!`);
+    void logActivity(user!.id, 'Admin', user!.email || '', 'user_approved', `"${userName}" kullanıcısı onaylandı`, 'user', userId).catch(() => {});
+    fetchAll();
+  };
+  const rejectUser = async (userId: string, userName: string) => {
+    const { error } = await supabase.from('profiles').update({
+      approval_status: 'rejected',
+    } as any).eq('user_id', userId);
+    if (error) {
+      toast.error('Kullanıcı başvurusu reddedilemedi: ' + error.message);
+      return;
+    }
+    toast.success(`"${userName}" başvurusu reddedildi.`);
+    void logActivity(user!.id, 'Admin', user!.email || '', 'user_rejected', `"${userName}" başvurusu reddedildi`, 'user', userId).catch(() => {});
     fetchAll();
   };
   const deleteAnnouncement = async (id: string) => {
@@ -586,9 +669,9 @@ const AdminPanel = () => {
   const doUpdateUserProfile = async () => {
     if (!editUserData) return;
     const { error } = await supabase.from('profiles').update({
-      full_name: editUserForm.full_name,
-      university: editUserForm.university,
-      department: editUserForm.department,
+      full_name: toTurkishTitleCase(editUserForm.full_name.trim()),
+      university: normalizeUniversityName(editUserForm.university.trim()),
+      department: toTurkishTitleCase(editUserForm.department.trim()),
       grade: editUserForm.grade,
     }).eq('user_id', editUserData.user_id);
     if (error) { toast.error('Güncelleme başarısız: ' + error.message); return; }
@@ -861,7 +944,83 @@ const AdminPanel = () => {
 
           <TabsContent value="users">
             <Card className="glass-card">
-              <CardContent className="p-4">
+              <CardContent className="p-4 space-y-4">
+                {/* Bekleme Odası (Onay Bekleyen Kullanıcılar) Vurgulu Alanı */}
+                {!usersLoading && pendingUsers.length > 0 && (
+                  <div className="rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 sm:p-5 space-y-3 shadow-lg shadow-amber-500/5">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 pb-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                          <Clock className="h-5 w-5 animate-pulse" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-sm sm:text-base text-foreground flex items-center gap-2">
+                            <span>Bekleme Odası — Onay Bekleyen Yeni Kayıtlar</span>
+                            <Badge variant="outline" className="border-amber-500/50 bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
+                              {pendingUsers.length} Kullanıcı
+                            </Badge>
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Aşağıdaki kullanıcılar sisteme yeni kayıt olmuş olup EconNotes'a erişebilmek için yönetici onayı beklemektedir.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                      {pendingUsers.map((u) => (
+                        <div
+                          key={u.user_id || u.id}
+                          className="rounded-xl border border-amber-500/30 bg-card/90 p-3.5 space-y-2.5 shadow-sm transition-all hover:border-amber-500/60 hover:shadow-md"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-bold text-sm text-foreground truncate">{u.full_name || 'İsimsiz'}</p>
+                              <p className="text-xs text-muted-foreground truncate" title={userEmails[u.user_id]}>
+                                {userEmails[u.user_id] || '—'}
+                              </p>
+                            </div>
+                            <Badge variant="outline" className="text-[10px] bg-amber-500/15 border-amber-500/40 text-amber-500 shrink-0">
+                              Beklemede
+                            </Badge>
+                          </div>
+
+                          <div className="rounded-lg bg-muted/40 p-2 text-xs space-y-1 text-muted-foreground">
+                            <div className="flex items-center gap-1.5 truncate">
+                              <GraduationCap className="h-3 w-3 text-primary shrink-0" />
+                              <span className="truncate">{u.university || 'Üniversite yok'} • {u.department || 'Bölüm yok'}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span>Sınıf: {u.grade || 1}. Sınıf</span>
+                              <span>{u.created_at ? new Date(u.created_at).toLocaleDateString('tr-TR') : '—'}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+                            <Button
+                              size="sm"
+                              onClick={() => approveUser(u.user_id, u.full_name || '')}
+                              className="flex-1 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs gap-1.5 shadow-xs"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              <span>Onayla ve Aç</span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => rejectUser(u.user_id, u.full_name || '')}
+                              className="h-8 rounded-lg text-destructive border-destructive/40 hover:bg-destructive/10 text-xs px-2.5"
+                              title="Başvuruyu Reddet"
+                            >
+                              <Ban className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
                   <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
                     <div className="relative min-w-0 flex-1">
@@ -874,6 +1033,18 @@ const AdminPanel = () => {
                       />
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <Select value={userApprovalFilter} onValueChange={(v) => setUserApprovalFilter(v as any)}>
+                          <SelectTrigger className="h-10 w-[170px] bg-background"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tüm Durumlar</SelectItem>
+                            <SelectItem value="pending">Bekleme Odası ({pendingUsers.length})</SelectItem>
+                            <SelectItem value="approved">Onaylılar</SelectItem>
+                            <SelectItem value="rejected">Reddedilenler</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <SlidersHorizontal className="h-4 w-4 text-muted-foreground shrink-0" />
                         <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
@@ -908,6 +1079,11 @@ const AdminPanel = () => {
                     </Badge>
                     {!usersLoading && (
                       <>
+                        {pendingUsers.length > 0 && (
+                          <Badge variant="outline" className="h-7 rounded-full border-amber-500/40 bg-amber-500/15 px-3 text-amber-500 font-semibold animate-pulse">
+                            ⏳ Bekleme Odası: {pendingUsers.length}
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="h-7 rounded-full border-emerald-500/35 bg-emerald-500/10 px-3 text-emerald-600 dark:text-emerald-400">
                           Bugün aktif: {activeTodayCount}
                         </Badge>
@@ -928,7 +1104,7 @@ const AdminPanel = () => {
                         <th className="text-left p-3">Giriş Cihazları</th>
                         <th className="text-left p-3 hidden md:table-cell">Üniversite</th>
                         <th className="text-left p-3 hidden md:table-cell">Bölüm</th>
-                        <th className="text-left p-3">Rol</th>
+                        <th className="text-left p-3">Rol & Durum</th>
                         <th className="text-left p-3">Kayıt Tarihi</th>
                         <th className="text-left p-3">İşlemler</th>
                       </tr>
@@ -937,9 +1113,27 @@ const AdminPanel = () => {
                       {usersLoading && <tr><td colSpan={9} className="p-10 text-center text-muted-foreground"><span className="inline-flex items-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />Kullanıcılar yükleniyor…</span></td></tr>}
                       {filteredUsers.map((u) => {
                         const userSummary = summariesByUserId[u.user_id];
+                        const isPending = u.approval_status === 'pending';
+                        const isRej = u.approval_status === 'rejected';
                         return (
-                        <tr key={u.user_id || u.id} className="border-b border-border/50 transition-colors hover:bg-primary/[0.04]">
-                          <td className="p-3 font-medium align-top">{u.full_name || '-'}</td>
+                        <tr key={u.user_id || u.id} className={`border-b border-border/50 transition-colors hover:bg-primary/[0.04] ${
+                          isPending ? 'bg-amber-500/[0.03]' : ''
+                        }`}>
+                          <td className="p-3 font-medium align-top">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span>{u.full_name || '-'}</span>
+                              {isPending && (
+                                <Badge variant="outline" className="rounded-full text-[10px] px-2 py-0 border-amber-500/40 bg-amber-500/15 text-amber-500">
+                                  Beklemede
+                                </Badge>
+                              )}
+                              {isRej && (
+                                <Badge variant="outline" className="rounded-full text-[10px] px-2 py-0 border-destructive/40 bg-destructive/15 text-destructive">
+                                  Reddedildi
+                                </Badge>
+                              )}
+                            </div>
+                          </td>
                           <td className="p-3 min-w-[210px] max-w-[270px] align-top text-xs whitespace-normal break-all" title={userEmails[u.user_id] || undefined}>{userEmails[u.user_id] || '—'}</td>
                           <td className="p-3 min-w-[165px] align-top whitespace-nowrap">
                             <UserLastLoginCell
@@ -955,10 +1149,45 @@ const AdminPanel = () => {
                           </td>
                           <td className="p-3 min-w-[170px] max-w-[240px] align-top whitespace-normal break-words hidden md:table-cell" title={u.university || undefined}>{u.university || '-'}</td>
                           <td className="p-3 min-w-[170px] max-w-[250px] align-top whitespace-normal break-words hidden md:table-cell" title={u.department || undefined}>{u.department || '-'}</td>
-                          <td className="p-3 align-top"><Badge variant="outline" className="rounded-full px-2.5 text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge></td>
+                          <td className="p-3 align-top">
+                            <Badge variant="outline" className="rounded-full px-2.5 text-[10px]">{getRoleLabel(getUserRole(u.user_id))}</Badge>
+                          </td>
                           <td className="p-3 align-top whitespace-nowrap"><span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5 text-primary" />{u.created_at ? new Date(u.created_at).toLocaleString('tr-TR') : '-'}</span></td>
                           <td className="p-3 align-top">
-                            <div className="flex gap-1">
+                            <div className="flex gap-1 flex-wrap">
+                              {isPending && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => approveUser(u.user_id, u.full_name || '')}
+                                    title="Onayla ve Erişimi Aç"
+                                    className="text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/40"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => rejectUser(u.user_id, u.full_name || '')}
+                                    title="Reddet"
+                                    className="text-destructive hover:bg-destructive/10 hover:border-destructive/40"
+                                  >
+                                    <Ban className="h-3.5 w-3.5" />
+                                  </Button>
+                                </>
+                              )}
+                              {isRej && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => approveUser(u.user_id, u.full_name || '')}
+                                  title="Yeniden Onayla"
+                                  className="text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/40"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
                               <Button size="sm" variant="outline" onClick={() => setHistoryModalUserId(u.user_id)} title="Giriş ve Cihaz Geçmişi" className="hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-colors"><Smartphone className="h-3.5 w-3.5 text-primary" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setEditUserData(u); setEditUserForm({ full_name: u.full_name || '', university: u.university || '', department: u.department || '', grade: u.grade || 1, download_quota: u.manual_download_quota ? String(u.manual_download_quota) : '' }); setEditUserDialog(true); }} title="Düzenle"><Edit className="h-3 w-3" /></Button>
                               <Button size="sm" variant="outline" onClick={() => { setRoleUser(u); setSelectedRole(getUserRole(u.user_id)); setRoleDialogOpen(true); }} title="Rol"><UserCog className="h-3 w-3" /></Button>
@@ -1024,56 +1253,351 @@ const AdminPanel = () => {
           </TabsContent>
 
           <TabsContent value="notes">
-            <Card className="glass-card"><CardContent className="p-4 space-y-3">
-              {notesLoading && <div className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-muted/20 p-10 text-sm text-muted-foreground"><span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />Notlar yükleniyor…</div>}
-              {!notesLoading && notes.length === 0 && <p className="p-10 text-center text-muted-foreground">Not bulunamadı.</p>}
-              {/* Onay bekleyen notlar */}
-              {!notesLoading && notes.filter(n => n.status === 'pending').length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold flex items-center gap-2 text-warning">
-                    <Clock className="h-4 w-4" /> Onay Bekleyen Notlar ({notes.filter(n => n.status === 'pending').length})
-                  </h3>
-                  {notes.filter(n => n.status === 'pending').map((n) => (
-                    <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-warning/10 border border-warning/30">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{n.title} <Badge variant="outline" className="text-[10px] ml-1 bg-warning/20 text-warning">Beklemede</Badge> {n.has_password && (notePasswords[n.id]
-                          ? <Badge variant="outline" className="text-[10px] ml-1">🔒 {notePasswords[n.id]}</Badge>
-                          : <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] ml-1" onClick={() => revealNotePassword(n.id)}>🔒 Şifreyi göster</Button>)}</p>
-                        <p className="text-xs text-muted-foreground">{n.uploader_name} • {n.course} • {n.department} • {new Date(n.created_at).toLocaleString('tr-TR')}</p>
-                        {n.file_url && <button type="button" onClick={() => { void openSignedNote(n.file_url); }} className="text-xs text-primary hover:underline">Dosyayı görüntüle</button>}
+            <Card className="glass-card">
+              <CardContent className="p-4 sm:p-5 space-y-4">
+                {/* Alt Sekmeler (Aktif & Onay vs. Yönetici Not Arşivi) */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+                  <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/40 border border-border/50">
+                    <Button
+                      size="sm"
+                      variant={notesSubTab === 'active' ? 'default' : 'ghost'}
+                      onClick={() => setNotesSubTab('active')}
+                      className="rounded-lg h-8 px-3 text-xs gap-1.5"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      <span>Aktif & Bekleyen Notlar ({notes.filter(n => n.status !== 'archived').length})</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={notesSubTab === 'archive' ? 'default' : 'ghost'}
+                      onClick={() => setNotesSubTab('archive')}
+                      className="rounded-lg h-8 px-3 text-xs gap-1.5"
+                    >
+                      <FolderArchive className="h-3.5 w-3.5" />
+                      <span>Yönetici Not Arşivi ({notes.filter(n => n.status === 'archived').length})</span>
+                    </Button>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchAll}
+                    className="h-8 rounded-xl gap-1 text-xs"
+                    title="Notları yenile"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Yenile
+                  </Button>
+                </div>
+
+                {notesLoading && (
+                  <div className="flex items-center justify-center gap-2 rounded-xl border border-border/60 bg-muted/20 p-10 text-sm text-muted-foreground">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    Notlar yükleniyor…
+                  </div>
+                )}
+
+                {/* AKTİF & BEKLEYEN NOTLAR GÖRÜNÜMÜ */}
+                {!notesLoading && notesSubTab === 'active' && (
+                  <div className="space-y-5">
+                    {/* 1. Onay Bekleyen Notlar */}
+                    {notes.filter(n => n.status === 'pending').length > 0 && (
+                      <div className="space-y-3 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent p-4 sm:p-5">
+                        <div className="flex items-center justify-between border-b border-amber-500/30 pb-2.5">
+                          <h3 className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
+                            <Clock className="h-4 w-4 text-amber-500 animate-pulse" />
+                            <span>Onay Bekleyen Notlar</span>
+                            <Badge variant="outline" className="border-amber-500/40 bg-amber-500/20 text-amber-500 text-xs">
+                              {notes.filter(n => n.status === 'pending').length} Not
+                            </Badge>
+                          </h3>
+                          <span className="text-xs text-muted-foreground hidden sm:inline">
+                            Notları inceleyip onaylayabilir veya 72 saat süreyle düzeltmeye gönderebilirsiniz.
+                          </span>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {notes.filter(n => n.status === 'pending').map((n) => {
+                            const isMissingUni = !n.university || !n.university.trim();
+                            const isMissingDept = !n.department || !n.department.trim();
+                            return (
+                              <div
+                                key={n.id}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-amber-500/30 shadow-xs hover:border-amber-500/60 transition-colors"
+                              >
+                                <div className="flex-1 min-w-0 space-y-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-bold text-sm text-foreground truncate">{n.title}</p>
+                                    <Badge variant="outline" className="text-[10px] bg-amber-500/20 text-amber-500 border-amber-500/40">
+                                      Beklemede
+                                    </Badge>
+                                    {(isMissingUni || isMissingDept) && (
+                                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                        ⚠️ Eksik Bilgi {isMissingUni ? '(Üniversite)' : ''} {isMissingDept ? '(Bölüm)' : ''}
+                                      </Badge>
+                                    )}
+                                    {n.has_password && (
+                                      notePasswords[n.id] ? (
+                                        <Badge variant="outline" className="text-[10px] border-amber-500/40">
+                                          🔒 {notePasswords[n.id]}
+                                        </Badge>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-5 px-1.5 text-[10px]"
+                                          onClick={() => revealNotePassword(n.id)}
+                                        >
+                                          🔒 Şifreyi göster
+                                        </Button>
+                                      )
+                                    )}
+                                  </div>
+
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {n.uploader_name} • {n.course} • {n.department || 'Bölüm yok'} • {n.university || 'Üniversite yok'} • {new Date(n.created_at).toLocaleString('tr-TR')}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setPreviewNote(n)}
+                                    className="h-8 rounded-lg gap-1.5 text-xs text-primary border-primary/40 hover:bg-primary/10"
+                                    title="Not İçeriğini Önizle"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    <span>İçeriği İncele</span>
+                                  </Button>
+
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setPreviewNote(n)}
+                                    className="h-8 rounded-lg text-amber-500 border-amber-500/40 hover:bg-amber-500/10 text-xs px-2.5"
+                                    title="Düzeltme İste (72 Saat)"
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-1" />
+                                    <span className="hidden sm:inline">Düzeltme İste</span>
+                                  </Button>
+
+                                  <Button
+                                    size="sm"
+                                    onClick={() => approveNote(n.id)}
+                                    className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5"
+                                    title="Hızlı Onayla"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => rejectNote(n.id)}
+                                    className="h-8 rounded-lg text-destructive border-destructive/40 hover:bg-destructive/10 text-xs px-2"
+                                    title="Reddet"
+                                  >
+                                    <Ban className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="flex gap-1 ml-2">
-                        <Button size="sm" variant="outline" className="text-green-500" onClick={() => approveNote(n.id)} title="Onayla"><Check className="h-3 w-3" /></Button>
-                        <Button size="sm" variant="outline" className="text-destructive" onClick={() => rejectNote(n.id)} title="Reddet"><Ban className="h-3 w-3" /></Button>
+                    )}
+
+                    {/* 2. Düzeltme / Revizyon Bekleyen Notlar (72 Saat Süre) */}
+                    {notes.filter(n => n.status === 'revision_requested').length > 0 && (
+                      <div className="space-y-3 rounded-2xl border-2 border-cyan-500/40 bg-gradient-to-r from-cyan-500/10 via-cyan-500/5 to-transparent p-4 sm:p-5">
+                        <div className="flex items-center justify-between border-b border-cyan-500/30 pb-2.5">
+                          <h3 className="text-sm sm:text-base font-bold flex items-center gap-2 text-foreground">
+                            <RefreshCw className="h-4 w-4 text-cyan-400 animate-spin" />
+                            <span>Kullanıcı Düzeltmesi Bekleyen Notlar (72 Saatlik Süre)</span>
+                            <Badge variant="outline" className="border-cyan-500/40 bg-cyan-500/20 text-cyan-400 text-xs">
+                              {notes.filter(n => n.status === 'revision_requested').length} Not
+                            </Badge>
+                          </h3>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {notes.filter(n => n.status === 'revision_requested').map((n) => {
+                            const isExpired = n.revision_deadline && new Date(n.revision_deadline).getTime() <= Date.now();
+                            return (
+                              <div
+                                key={n.id}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-cyan-500/30 shadow-xs"
+                              >
+                                <div className="flex-1 min-w-0 space-y-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="font-bold text-sm text-foreground truncate">{n.title}</p>
+                                    <Badge variant="outline" className="text-[10px] bg-cyan-500/20 text-cyan-400 border-cyan-500/40">
+                                      {isExpired ? 'Süresi Doldu (Arşive Alınabilir)' : 'Revizyonda'}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {n.uploader_name} • {n.course} • Talep Tarihi: {n.revision_requested_at ? new Date(n.revision_requested_at).toLocaleString('tr-TR') : '—'}
+                                  </p>
+                                  <p className="text-xs text-cyan-500 dark:text-cyan-300 bg-cyan-500/10 rounded-lg p-1.5 border border-cyan-500/20">
+                                    <strong>İstenen Düzeltme:</strong> {n.rejection_reason || n.revision_notes || 'Eksik bilgileri tamamlayınız'}
+                                  </p>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setPreviewNote(n)}
+                                    className="h-8 rounded-lg gap-1 text-xs"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" /> İncele
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => archiveNote(n.id)}
+                                    className="h-8 rounded-lg text-amber-500 border-amber-500/40 hover:bg-amber-500/10 text-xs"
+                                    title="Doğrudan Arşive Kaldır"
+                                  >
+                                    <Archive className="h-3.5 w-3.5 mr-1" /> Arşive Kaldır
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => approveNote(n.id)}
+                                    className="h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                                    title="Onayla ve Yayınla"
+                                  >
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
+                    )}
+
+                    {/* 3. Yayınlanan & Diğer Notlar */}
+                    <div className="space-y-2.5">
+                      <h3 className="text-sm font-semibold pt-2 text-foreground">
+                        Yayınlanan & Kayıtlı Notlar ({notes.filter(n => n.status !== 'pending' && n.status !== 'revision_requested' && n.status !== 'archived').length})
+                      </h3>
+
+                      {notes.filter(n => n.status !== 'pending' && n.status !== 'revision_requested' && n.status !== 'archived').map((n) => (
+                        <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-accent/40 border border-border/40">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-medium text-sm truncate">{n.title}</p>
+                              {n.status === 'rejected' && <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive">Reddedildi</Badge>}
+                              {n.status === 'approved' && <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-500 border-emerald-500/30">Onaylı</Badge>}
+                              {n.has_password && (
+                                notePasswords[n.id] ? (
+                                  <Badge variant="outline" className="text-[10px]">🔒 {notePasswords[n.id]}</Badge>
+                                ) : (
+                                  <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={() => revealNotePassword(n.id)}>🔒 Şifreyi göster</Button>
+                                )
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">{n.uploader_name} • {n.course} • {n.university || 'Üniversite yok'} • {new Date(n.created_at).toLocaleDateString('tr-TR')}</p>
+                          </div>
+
+                          <div className="flex items-center gap-1 ml-2 shrink-0">
+                            <Button size="sm" variant="outline" onClick={() => setPreviewNote(n)} className="h-7 text-xs rounded-md" title="Önizle"><Eye className="h-3 w-3" /></Button>
+                            {n.status === 'rejected' && <Button size="sm" variant="outline" className="h-7 text-emerald-500" onClick={() => approveNote(n.id)} title="Onayla"><Check className="h-3 w-3" /></Button>}
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-amber-500" onClick={() => archiveNote(n.id)} title="Arşive Taşı"><Archive className="h-3 w-3" /></Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="h-7 text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
+                              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Bu notu silmek istediğinize emin misiniz?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => deleteNote(n.id)}>Sil</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-              {/* Diğer notlar */}
-              {!notesLoading && notes.length > 0 && <h3 className="text-sm font-semibold pt-2">Tüm Notlar</h3>}
-              {!notesLoading && notes.filter(n => n.status !== 'pending').map((n) => (
-                <div key={n.id} className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
-                  <div>
-                    <p className="font-medium text-sm">{n.title}
-                      {n.status === 'rejected' && <Badge variant="outline" className="text-[10px] ml-1 bg-destructive/10 text-destructive">Reddedildi</Badge>}
-                      {n.status === 'approved' && <Badge variant="outline" className="text-[10px] ml-1 bg-green-500/10 text-green-500">Onaylı</Badge>}
-                      {n.has_password && (notePasswords[n.id]
-                        ? <Badge variant="outline" className="text-[10px] ml-1">🔒 {notePasswords[n.id]}</Badge>
-                        : <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] ml-1" onClick={() => revealNotePassword(n.id)}>🔒 Şifreyi göster</Button>)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{n.uploader_name} • {n.course} • {new Date(n.created_at).toLocaleString('tr-TR')}</p>
                   </div>
-                  <div className="flex gap-1">
-                    {n.status === 'rejected' && <Button size="sm" variant="outline" className="text-green-500" onClick={() => approveNote(n.id)} title="Onayla"><Check className="h-3 w-3" /></Button>}
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild><Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3 w-3" /></Button></AlertDialogTrigger>
-                      <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Bu notu silmek istediğinize emin misiniz?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => deleteNote(n.id)}>Sil</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-                    </AlertDialog>
+                )}
+
+                {/* YÖNETİCİ NOT ARŞİVİ GÖRÜNÜMÜ */}
+                {!notesLoading && notesSubTab === 'archive' && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-border/70 bg-muted/20 p-4 space-y-1">
+                      <div className="flex items-center gap-2 font-bold text-sm text-foreground">
+                        <FolderArchive className="h-4 w-4 text-primary" />
+                        <span>Yönetici Not Arşivi</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Kullanıcıya 72 saat süre verilip bu süre zarfında düzenlenmeyen notlar ile yöneticiler tarafından arşive kaldırılan notlar burada tutulur. <strong>Bu notlar platformdaki kullanıcılara tamamen kapalıdır ve görünmez.</strong>
+                      </p>
+                    </div>
+
+                    {notes.filter(n => n.status === 'archived').length === 0 ? (
+                      <p className="p-10 text-center text-muted-foreground text-sm">Arşivde henüz not bulunmuyor.</p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {notes.filter(n => n.status === 'archived').map((n) => (
+                          <div
+                            key={n.id}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-border/70 shadow-xs"
+                          >
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-sm text-foreground truncate">{n.title}</span>
+                                <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">Arşivde / Kapalı</Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {n.uploader_name} • {n.course} • {n.university || 'Üniversite yok'} • {n.department || 'Bölüm yok'}
+                              </p>
+                              <p className="text-[11px] text-amber-500 bg-amber-500/10 rounded px-2 py-1 inline-block">
+                                Arşiv Sebebi: {n.rejection_reason || '72 saat içerisinde düzenlenmedi veya yönetici tarafından arşivlendi'}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setPreviewNote(n)}
+                                className="h-8 rounded-lg text-xs gap-1"
+                                title="İçeriği İncele"
+                              >
+                                <Eye className="h-3.5 w-3.5" /> İncele
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => restoreArchivedNote(n.id)}
+                                className="h-8 rounded-lg text-emerald-500 border-emerald-500/30 hover:bg-emerald-500/10 text-xs gap-1"
+                                title="Arşivden Çıkar ve Onay Bekleyenlere Al"
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" /> Onaya Al
+                              </Button>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="outline" className="h-8 rounded-lg text-destructive border-destructive/30 hover:bg-destructive/10 text-xs">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Bu arşiv notunu kalıcı olarak silmek istiyor musunuz?</AlertDialogTitle>
+                                    <AlertDialogDescription>Bu işlem geri alınamaz.</AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>İptal</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => deleteNote(n.id)}>Kalıcı Olarak Sil</AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
-            </CardContent></Card>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="announcements">
@@ -1435,9 +1959,48 @@ const AdminPanel = () => {
         <Dialog open={editUserDialog} onOpenChange={setEditUserDialog}>
           <DialogContent className="overflow-y-auto"><DialogHeader><DialogTitle>Kullanıcı Düzenle - {editUserData?.full_name}</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Ad Soyad</Label><Input value={editUserForm.full_name} onChange={e => setEditUserForm({...editUserForm, full_name: e.target.value})} /></div>
-              <div className="space-y-2"><Label>Üniversite</Label><Input value={editUserForm.university} onChange={e => setEditUserForm({...editUserForm, university: e.target.value})} /></div>
-              <div className="space-y-2"><Label>Bölüm</Label><Input value={editUserForm.department} onChange={e => setEditUserForm({...editUserForm, department: e.target.value})} /></div>
+              <div className="space-y-2">
+                <Label>Ad Soyad</Label>
+                <Input
+                  value={editUserForm.full_name}
+                  onChange={e => setEditUserForm({...editUserForm, full_name: e.target.value})}
+                  onBlur={() => {
+                    if (editUserForm.full_name.trim()) {
+                      setEditUserForm(prev => ({ ...prev, full_name: toTurkishTitleCase(prev.full_name) }));
+                    }
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Üniversite</Label>
+                <Input
+                  value={editUserForm.university}
+                  onChange={e => setEditUserForm({...editUserForm, university: e.target.value})}
+                  onBlur={() => {
+                    if (editUserForm.university.trim()) {
+                      setEditUserForm(prev => ({ ...prev, university: normalizeUniversityName(prev.university) }));
+                    }
+                  }}
+                  list="admin-popular-universities-list"
+                />
+                <datalist id="admin-popular-universities-list">
+                  {POPULAR_UNIVERSITIES.map((uni) => (
+                    <option key={uni} value={uni} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="space-y-2">
+                <Label>Bölüm</Label>
+                <Input
+                  value={editUserForm.department}
+                  onChange={e => setEditUserForm({...editUserForm, department: e.target.value})}
+                  onBlur={() => {
+                    if (editUserForm.department.trim()) {
+                      setEditUserForm(prev => ({ ...prev, department: toTurkishTitleCase(prev.department) }));
+                    }
+                  }}
+                />
+              </div>
               <div className="space-y-2"><Label>Sınıf</Label>
                 <Select value={String(editUserForm.grade)} onValueChange={v => setEditUserForm({...editUserForm, grade: parseInt(v)})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -1609,6 +2172,18 @@ const AdminPanel = () => {
           />
         </div>
       )}
+      <AdminNotePreviewDialog
+        note={previewNote}
+        open={Boolean(previewNote)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewNote(null);
+        }}
+        onApprove={approveNote}
+        onRequestRevision={requestNoteRevision}
+        onReject={rejectNote}
+        notePassword={previewNote ? notePasswords[previewNote.id] : undefined}
+        onRevealPassword={revealNotePassword}
+      />
       </Layout>
   );
 };

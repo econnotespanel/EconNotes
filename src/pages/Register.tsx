@@ -13,6 +13,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
 import { APP_VERSION_LABEL as APP_VERSION } from '@/lib/version';
+import { toTurkishTitleCase } from '@/lib/stringUtils';
+import { normalizeUniversityName, POPULAR_UNIVERSITIES } from '@/lib/universityUtils';
 import { Eye, EyeOff, Mail, Lock, User, GraduationCap, Building, ShieldCheck, UserPlus, BookOpen, Users, TrendingUp } from 'lucide-react';
 import { useSystemStatus } from '@/hooks/useSystemStatus';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -115,18 +117,31 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.fullName || !formData.email || !formData.password || !formData.university || !formData.department) {
-      toast.error('Lütfen tüm alanları doldurun.');
+    const cleanFullName = formData.fullName.trim();
+    const rawUniversity = formData.university.trim();
+    const rawDepartment = formData.department.trim();
+    const cleanUniversity = normalizeUniversityName(rawUniversity);
+    const cleanDepartment = toTurkishTitleCase(rawDepartment);
+    const parsedGrade = formData.grade ? parseInt(formData.grade) : null;
+
+    // Strict validation: Ad-Soyad, Üniversite, Bölüm ve Sınıf are required and cannot be empty
+    if (!cleanFullName || !rawUniversity || !rawDepartment || !parsedGrade || isNaN(parsedGrade)) {
+      toast.error('Kayıt tamamlanamadı. Ad-Soyad, Üniversite, Bölüm ve Sınıf bilgileri zorunludur ve eksiksiz doldurulmalıdır.');
       return;
     }
+    if (!formData.email.trim() || !formData.password) {
+      toast.error('Lütfen e-posta ve şifre alanlarını doldurun.');
+      return;
+    }
+
     // Name validation: only letters (incl. Turkish), spaces, hyphens, apostrophes. No ?, @, #, digits, emoji.
     const nameRegex = /^[A-Za-zÇĞİıÖŞÜçğıiöşü\s'’\-]{2,60}$/;
-    if (!nameRegex.test(formData.fullName.trim())) {
+    if (!nameRegex.test(cleanFullName)) {
       toast.error('Ad Soyad yalnızca harflerden oluşmalıdır. Özel karakter, rakam veya soru işareti içeremez.');
       return;
     }
     const uniDeptRegex = /^[A-Za-zÇĞİıÖŞÜçğıiöşü0-9\s'’\-\.\,\(\)]{2,100}$/;
-    if (!uniDeptRegex.test(formData.university.trim()) || !uniDeptRegex.test(formData.department.trim())) {
+    if (!uniDeptRegex.test(rawUniversity) || !uniDeptRegex.test(rawDepartment)) {
       toast.error('Üniversite ve bölüm bilgileri geçersiz karakter içeremez.');
       return;
     }
@@ -148,16 +163,21 @@ const Register = () => {
       setCaptchaReset((v) => v + 1);
       return;
     }
+
+    // Convert Turkish name to proper Title Case automatically (e.g. kaan çolakoğlu -> Kaan Çolakoğlu)
+    const formattedFullName = toTurkishTitleCase(cleanFullName);
+
     setLoading(true);
     const { error } = await supabase.auth.signUp({
       email: formData.email.trim().toLowerCase(),
       password: formData.password,
       options: {
         data: {
-          full_name: formData.fullName,
-          university: formData.university,
-          department: formData.department,
-          grade: parseInt(formData.grade),
+          full_name: formattedFullName,
+          university: cleanUniversity,
+          department: cleanDepartment,
+          grade: parsedGrade,
+          approval_status: 'pending',
         },
       },
     });
@@ -168,7 +188,10 @@ const Register = () => {
     } else {
       // Yeni kullanıcı bayrağı — ilk girişte /welcome kurulum ekranına yönlendirilecek
       try { localStorage.setItem('econnotes_welcome_pending', '1'); } catch {}
-      toast.success('Kayıt Başarıyla Tamamlandı. Giriş yapabilirsiniz.', { duration: 6000 });
+      toast.success(
+        'Kayıt başvurunuz başarıyla alındı! Güvenlik ve kalite standartlarımız gereği hesabınız Bekleme Odasına aktarılmıştır. Yönetici ekibimizin bizzat onay vermesinin ardından platforma erişim sağlayabileceksiniz.',
+        { duration: 9000 }
+      );
       navigate('/login');
     }
   };
@@ -284,20 +307,33 @@ const Register = () => {
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="fullName" className="text-xs font-semibold text-foreground/90">Ad Soyad</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="fullName" className="text-xs font-semibold text-foreground/90">
+                  Ad Soyad <span className="text-destructive">*</span>
+                </Label>
+                <span className="text-[10px] text-muted-foreground">İlk harfler otomatik büyütülür</span>
+              </div>
               <div className="relative">
                 <User className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="fullName"
-                  placeholder="Ad Soyad"
+                  placeholder="Örn: Kaan Çolakoğlu"
                   value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                  onBlur={() => {
+                    if (formData.fullName.trim()) {
+                      setFormData((prev) => ({ ...prev, fullName: toTurkishTitleCase(prev.fullName) }));
+                    }
+                  }}
                   className="pl-10 h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-all text-sm"
+                  required
                 />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs font-semibold text-foreground/90">E-posta</Label>
+              <Label htmlFor="email" className="text-xs font-semibold text-foreground/90">
+                E-posta <span className="text-destructive">*</span>
+              </Label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -307,39 +343,64 @@ const Register = () => {
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className="pl-10 h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-all text-sm"
+                  required
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="university" className="text-xs font-semibold text-foreground/90">Üniversite</Label>
+                <Label htmlFor="university" className="text-xs font-semibold text-foreground/90">
+                  Üniversite <span className="text-destructive">*</span>
+                </Label>
                 <div className="relative">
                   <Building className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="university"
-                    placeholder="Üniversite"
+                    placeholder="Örn: Düzce Üniversitesi"
                     value={formData.university}
                     onChange={(e) => setFormData({...formData, university: e.target.value})}
+                    onBlur={() => {
+                      if (formData.university.trim()) {
+                        setFormData(prev => ({ ...prev, university: normalizeUniversityName(prev.university) }));
+                      }
+                    }}
+                    list="register-universities-list"
                     className="pl-10 h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-all text-sm"
+                    required
                   />
+                  <datalist id="register-universities-list">
+                    {POPULAR_UNIVERSITIES.map((uni) => (
+                      <option key={uni} value={uni} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="department" className="text-xs font-semibold text-foreground/90">Bölüm</Label>
+                <Label htmlFor="department" className="text-xs font-semibold text-foreground/90">
+                  Bölüm <span className="text-destructive">*</span>
+                </Label>
                 <div className="relative">
                   <GraduationCap className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="department"
-                    placeholder="Bölüm"
+                    placeholder="Örn: İktisat"
                     value={formData.department}
                     onChange={(e) => setFormData({...formData, department: e.target.value})}
+                    onBlur={() => {
+                      if (formData.department.trim()) {
+                        setFormData(prev => ({ ...prev, department: toTurkishTitleCase(prev.department) }));
+                      }
+                    }}
                     className="pl-10 h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-all text-sm"
+                    required
                   />
                 </div>
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground/90">Sınıf</Label>
+              <Label className="text-xs font-semibold text-foreground/90">
+                Sınıf <span className="text-destructive">*</span>
+              </Label>
               <Select value={formData.grade} onValueChange={(v) => setFormData({...formData, grade: v})}>
                 <SelectTrigger className="h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 text-sm">
                   <SelectValue />
@@ -349,6 +410,7 @@ const Register = () => {
                   <SelectItem value="2">2. Sınıf</SelectItem>
                   <SelectItem value="3">3. Sınıf</SelectItem>
                   <SelectItem value="4">4. Sınıf</SelectItem>
+                  <SelectItem value="5">5. Sınıf / Yüksek Lisans</SelectItem>
                 </SelectContent>
               </Select>
             </div>

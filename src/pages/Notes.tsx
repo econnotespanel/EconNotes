@@ -27,6 +27,7 @@ import { Progress } from '@/components/ui/progress';
 import { NOTE_EDITOR_SELECT, NOTE_SELECT } from '@/lib/noteColumns';
 import LoadingMessage from '@/components/ui/loading-message';
 import JSZip from 'jszip';
+import { normalizeUniversityName, POPULAR_UNIVERSITIES } from '@/lib/universityUtils';
 
 const ACCEPTED_TYPES = '.pdf,.png,.jpg,.jpeg,.pptx';
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
@@ -39,13 +40,67 @@ const normalizeLegacyNoteAttribution = (note: any) => {
   const isResearchMethodsNote = fileName.includes('araştırma yöntemleri')
     || (title === 'araştırma yöntemleri' && fileName.includes('29.10.2026'));
 
-  if (!isResearchMethodsNote) return note;
+  const normalizedUni = normalizeUniversityName(note.university);
+
+  if (!isResearchMethodsNote) {
+    return {
+      ...note,
+      university: normalizedUni,
+    };
+  }
 
   return {
     ...note,
+    university: normalizedUni,
     uploader_name: 'Aylin Kesgin',
     edited_by_name: note.edited_by_name || 'Kaan Çolakoğulları',
   };
+};
+
+const RevisionTimer = ({ deadline }: { deadline: string | null }) => {
+  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number; expired: boolean }>({
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+    expired: false,
+  });
+
+  useEffect(() => {
+    if (!deadline) return;
+    const calc = () => {
+      const diff = new Date(deadline).getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft({ hours: 0, minutes: 0, seconds: 0, expired: true });
+        return;
+      }
+      const totalSec = Math.floor(diff / 1000);
+      const hours = Math.floor(totalSec / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      const seconds = totalSec % 60;
+      setTimeLeft({ hours, minutes, seconds, expired: false });
+    };
+
+    calc();
+    const interval = setInterval(calc, 1000);
+    return () => clearInterval(interval);
+  }, [deadline]);
+
+  if (!deadline) return null;
+
+  if (timeLeft.expired) {
+    return (
+      <Badge variant="destructive" className="text-[10px] gap-1 px-2 py-0.5">
+        <Clock className="h-3 w-3" /> 72 saatlik düzenleme süresi doldu (Arşivlendi)
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="outline" className="text-[11px] font-mono border-amber-500/50 bg-amber-500/20 text-amber-600 dark:text-amber-400 gap-1.5 px-2.5 py-1">
+      <Clock className="h-3.5 w-3.5 animate-pulse text-amber-500" />
+      <span>Kalan Süre: {timeLeft.hours}s {timeLeft.minutes}d {timeLeft.seconds}sn</span>
+    </Badge>
+  );
 };
 
 const Notes = () => {
@@ -288,10 +343,40 @@ const Notes = () => {
     await downloadWithWatermark(signed, note.file_name, note.file_type, fullName);
   };
 
+  const openNewNoteDialog = () => {
+    setEditingNote(null);
+    setConfirmUpload(false);
+    setAcceptOwnership(false);
+    const defaultUni = profile?.university ? normalizeUniversityName(profile.university) : '';
+    const defaultGrade = profile?.grade ? String(profile.grade) : '1';
+    setForm({
+      title: '',
+      description: '',
+      grade: defaultGrade,
+      course: '',
+      semester: 'Güz Dönemi',
+      file: null,
+      note_password: '',
+      university: defaultUni,
+    });
+    if (profile?.department) {
+      setDepartmentInputs([profile.department]);
+    } else {
+      setDepartmentInputs(['']);
+    }
+    const key = `econotes_upload_rules_${user?.id}`;
+    if (!localStorage.getItem(key)) {
+      setShowUploadRules(true);
+    } else {
+      setDialogOpen(true);
+    }
+  };
+
   const handleSubmit = async () => {
     const departments = departmentInputs.map((department) => department.trim()).filter(Boolean);
-    if (!form.title || departments.length === 0 || !form.course || !(form.university || profile?.university)) {
-      toast.error('Lütfen tüm zorunlu alanları doldurun.');
+    const chosenUniversity = normalizeUniversityName(form.university || profile?.university || '');
+    if (!form.title || departments.length === 0 || !form.course || !chosenUniversity || chosenUniversity === 'Üniversite bilgisi yok') {
+      toast.error('Lütfen tüm zorunlu alanları doldurun (Üniversite, Bölüm, Ders ve Başlık zorunludur).');
       return;
     }
     if (!acceptOwnership) {
@@ -320,23 +405,30 @@ const Notes = () => {
       }
 
       const noteData: any = {
-        title: form.title,
+        title: form.title.trim(),
         description: form.description,
         grade: parseInt(form.grade),
         department: departments.join(' | '),
-        course: form.course,
+        course: form.course.trim(),
         semester: form.semester,
         file_url: fileUrl,
         file_name: fileName,
         file_type: fileType,
         note_password: form.note_password || null,
-        university: form.university || profile?.university || '',
+        university: chosenUniversity,
       };
 
       if (editingNote) {
         noteData.edited_at = new Date().toISOString();
         const editorName = profile?.full_name || user?.user_metadata?.full_name || '';
         noteData.edited_by_name = editorName;
+
+        // Düzenleme / revizyon istenen not kullanıcı tarafından güncellenince tekrar admin onayına geçer
+        if (editingNote.status === 'revision_requested' || !isAdmin) {
+          noteData.status = isAdmin ? 'approved' : 'pending';
+          noteData.rejection_reason = null;
+        }
+
         let { error } = await supabase.from('notes').update(noteData).eq('id', editingNote.id);
         if (error?.message.includes('edited_by_name')) {
           delete noteData.edited_by_name;
@@ -344,7 +436,11 @@ const Notes = () => {
         }
         if (error) { toast.error('Not güncellenemedi.'); return; }
         await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_updated', `"${form.title}" notu güncellendi`, 'note', editingNote.id);
-        toast.success('Not güncellendi!');
+        toast.success(
+          editingNote.status === 'revision_requested'
+            ? 'Notunuz başarıyla güncellendi ve tekrar yönetici ekibinin onayına iletildi.'
+            : 'Not güncellendi!'
+        );
       } else {
         Object.assign(noteData, {
           user_id: user!.id,
@@ -362,14 +458,23 @@ const Notes = () => {
         if (isAdmin) {
           toast.success('Not başarıyla yayınlandı.');
         } else {
-          toast.success('Notunuz başarıyla yüklendi. Admin yönetici ekibinin onayının ardından, en geç 24 saat içerisinde yayınlanacaktır.', { duration: 9000 });
+          toast.success('Notunuz başarıyla yüklendi ve onay aşamasına alındı. Yönetici ekibinin inceleyip onaylamasının ardından paylaşılan notlara eklenecektir.', { duration: 8000 });
         }
       }
 
       setDialogOpen(false);
       setEditingNote(null);
-      setForm({ title: '', description: '', grade: '1', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
-      setDepartmentInputs(['']);
+      setForm({
+        title: '',
+        description: '',
+        grade: profile?.grade ? String(profile.grade) : '1',
+        course: '',
+        semester: 'Güz Dönemi',
+        file: null,
+        note_password: '',
+        university: profile?.university ? normalizeUniversityName(profile.university) : '',
+      });
+      setDepartmentInputs(profile?.department ? [profile.department] : ['']);
       setConfirmUpload(false);
       setAcceptOwnership(false);
       fetchNotes();
@@ -393,9 +498,14 @@ const Notes = () => {
   const handleEdit = (note: any) => {
     setEditingNote(note);
     setForm({
-      title: note.title, description: note.description || '', grade: String(note.grade),
-      course: note.course, semester: note.semester, file: null,
-      note_password: '', university: note.university || '',
+      title: note.title,
+      description: note.description || '',
+      grade: String(note.grade),
+      course: note.course,
+      semester: note.semester,
+      file: null,
+      note_password: '',
+      university: normalizeUniversityName(note.university || profile?.university || ''),
     });
     setDepartmentInputs(splitDepartments(note.department).length ? splitDepartments(note.department) : ['']);
     setAcceptOwnership(true);
@@ -451,23 +561,43 @@ const Notes = () => {
     }
   };
 
-  const universityOptions = Array.from(new Set(notes.map(n => (n.university || '').trim() || 'Üniversite bilgisi yok'))).sort();
+  // Yalnızca onaylanmış notlar paylaşılan notlar kataloğunda listelenir
+  const publicNotes = useMemo(() => notes.filter(n => n.status === 'approved'), [notes]);
+
+  const myPendingNotes = useMemo(
+    () => notes.filter(n => n.user_id === user?.id && n.status === 'pending'),
+    [notes, user?.id]
+  );
+
+  const myRevisionNotes = useMemo(() => {
+    return notes.filter((n) => {
+      if (n.user_id !== user?.id || n.status !== 'revision_requested') return false;
+      // 72 saat süre dolmuşsa arşive gitmiştir, kullanıcıya kapatılır
+      if (n.revision_deadline && new Date(n.revision_deadline).getTime() <= Date.now()) {
+        return false;
+      }
+      return true;
+    });
+  }, [notes, user?.id]);
+
+  const universityOptions = Array.from(new Set(publicNotes.map(n => normalizeUniversityName(n.university)))).sort();
   const departmentOptions = Array.from(new Set(
-    notes
-      .filter(n => filterUniversity === 'all' || ((n.university || '').trim() || 'Üniversite bilgisi yok') === filterUniversity)
+    publicNotes
+      .filter(n => filterUniversity === 'all' || normalizeUniversityName(n.university) === filterUniversity)
       .flatMap(n => splitDepartments(n.department))
       .filter(Boolean)
   )).sort();
 
-  const filteredNotes = notes.filter(n => {
+  const filteredNotes = publicNotes.filter(n => {
     const term = searchTerm.toLowerCase();
+    const noteUni = normalizeUniversityName(n.university);
     const matchesSearch = !term ||
       n.title.toLowerCase().includes(term) ||
       n.course.toLowerCase().includes(term) ||
       (n.department || '').toLowerCase().includes(term) ||
-      (n.university || '').toLowerCase().includes(term) ||
+      noteUni.toLowerCase().includes(term) ||
       (n.uploader_name || '').toLowerCase().includes(term);
-    const matchesUni = filterUniversity === 'all' || ((n.university || '').trim() || 'Üniversite bilgisi yok') === filterUniversity;
+    const matchesUni = filterUniversity === 'all' || noteUni === filterUniversity;
     const matchesDept = filterDepartment === 'all' || splitDepartments(n.department).includes(filterDepartment);
     return matchesSearch && matchesUni && matchesDept;
   });
@@ -497,7 +627,7 @@ const Notes = () => {
   }, [visibleCount, allDisplayNotes.length]);
   const displayNotes = allDisplayNotes.slice(0, visibleCount);
   const universityGroups = filteredNotes.reduce<Record<string, any[]>>((acc, note) => {
-    const key = (note.university || '').trim() || 'Üniversite bilgisi yok';
+    const key = normalizeUniversityName(note.university);
     if (!acc[key]) acc[key] = [];
     acc[key].push(note);
     return acc;
@@ -586,10 +716,94 @@ const Notes = () => {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Kapat</AlertDialogCancel>
-              <AlertDialogAction onClick={() => { setQuotaBlockOpen(false); setDialogOpen(true); }}>Not Yükle</AlertDialogAction>
+              <AlertDialogAction onClick={() => { setQuotaBlockOpen(false); openNewNoteDialog(); }}>Not Yükle</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Düzenleme / Revizyon Bekleyen Notlar (72 Saat Süre) */}
+        {myRevisionNotes.length > 0 && (
+          <div className="rounded-2xl border-2 border-amber-500/50 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent p-4 sm:p-5 space-y-3 shadow-lg shadow-amber-500/5 animate-fade-in">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                  <Clock className="h-5 w-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-foreground flex items-center gap-2">
+                    <span>Düzenleme / Revizyon Bekleyen Notlarınız</span>
+                    <Badge variant="outline" className="border-amber-500/50 bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold">
+                      {myRevisionNotes.length} Not
+                    </Badge>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Yönetici ekibi yüklediğiniz notta eksik veya hatalı bilgi tespit etti ve düzeltmeniz için 72 saat süre tanıdı.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {myRevisionNotes.map((n) => (
+                <div
+                  key={n.id}
+                  className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-amber-500/30 shadow-xs"
+                >
+                  <div className="space-y-1.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-bold text-sm text-foreground truncate">{n.title}</h4>
+                      <RevisionTimer deadline={n.revision_deadline} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {n.course} • {n.department || 'Bölüm belirtilmemiş'} • {n.university || 'Üniversite belirtilmemiş'}
+                    </p>
+                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/25 p-2 text-xs text-foreground">
+                      <strong className="text-amber-600 dark:text-amber-400">Yönetici Geri Bildirimi: </strong>
+                      {n.rejection_reason || n.revision_notes || 'Lütfen notun eksik bilgilerini tamamlayın.'}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleEdit(n)}
+                      className="rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-9 px-4 gap-1.5 shadow-sm shadow-amber-500/20"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                      <span>Notu Düzenle & Tekrar Gönder</span>
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Onay Aşamasındaki Notlar */}
+        {myPendingNotes.length > 0 && (
+          <div className="rounded-2xl border border-border/80 bg-muted/20 p-4 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Clock className="h-4 w-4 text-warning" />
+                <span>Onay Aşamasındaki Notlarınız ({myPendingNotes.length})</span>
+              </div>
+              <Badge variant="outline" className="text-[10px] bg-warning/15 text-warning border-warning/30">
+                Yönetici İncelemesinde
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Yüklediğiniz bu notlar yönetici ekibinin onay aşamasındadır. Yönetici ekibi onayladığı zaman paylaşılan yüklü notlar kataloğunda listelenecektir.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+              {myPendingNotes.map((n) => (
+                <div key={n.id} className="p-2.5 rounded-xl border border-border/60 bg-card/60 text-xs space-y-1">
+                  <p className="font-semibold text-foreground truncate">{n.title}</p>
+                  <p className="text-muted-foreground truncate">{n.course} • {n.department || 'Bölüm yok'} • {n.university || 'Üniversite yok'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -598,19 +812,7 @@ const Notes = () => {
           </div>
           <Button
             className="gradient-primary text-primary-foreground rounded-xl"
-            onClick={() => {
-              setEditingNote(null);
-              setConfirmUpload(false);
-              setAcceptOwnership(false);
-              setForm({ title: '', description: '', grade: '1', course: '', semester: 'Güz Dönemi', file: null, note_password: '', university: '' });
-              setDepartmentInputs(['']);
-              const key = `econotes_upload_rules_${user?.id}`;
-              if (!localStorage.getItem(key)) {
-                setShowUploadRules(true);
-              } else {
-                setDialogOpen(true);
-              }
-            }}
+            onClick={openNewNoteDialog}
           >
             <Plus className="h-4 w-4 mr-2" /> Not Ekle
           </Button>
@@ -657,11 +859,40 @@ const Notes = () => {
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold text-foreground/90">Üniversite *</Label>
-                      <Input className="rounded-xl bg-background/70" value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} placeholder={profile?.university || 'Üniversite adını yazın'} />
-                      {!form.university && profile?.university && (
-                        <p className="text-[11px] text-muted-foreground">Profilinizdeki üniversite kullanılacak: {profile.university}</p>
-                      )}
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-xs font-semibold text-foreground/90">Üniversite *</Label>
+                        {profile?.university && form.university !== normalizeUniversityName(profile.university) && (
+                          <button
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, university: normalizeUniversityName(profile.university) }))}
+                            className="text-[11px] text-primary hover:underline"
+                          >
+                            Kayıtlı üniversitemi kullan ({normalizeUniversityName(profile.university)})
+                          </button>
+                        )}
+                      </div>
+                      <Input
+                        className="rounded-xl bg-background/70"
+                        value={form.university}
+                        onChange={(e) => setForm({...form, university: e.target.value})}
+                        onBlur={() => {
+                          if (form.university.trim()) {
+                            setForm(prev => ({ ...prev, university: normalizeUniversityName(prev.university) }));
+                          }
+                        }}
+                        placeholder="Örn: Düzce Üniversitesi"
+                        list="notes-popular-universities-list"
+                      />
+                      <datalist id="notes-popular-universities-list">
+                        {POPULAR_UNIVERSITIES.map((uni) => (
+                          <option key={uni} value={uni} />
+                        ))}
+                      </datalist>
+                      <p className="text-[11px] text-muted-foreground">
+                        {profile?.university
+                          ? 'Kayıtlı üniversiteniz otomatik tanımlanmıştır. Başka bir üniversitenin ders notunu yüklüyorsanız alanı dilediğiniz gibi değiştirebilirsiniz.'
+                          : 'Notun ait olduğu üniversiteyi yazın veya listeden seçin.'}
+                      </p>
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-3">

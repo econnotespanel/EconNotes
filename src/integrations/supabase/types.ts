@@ -569,6 +569,9 @@ export type Database = {
           id: string
           note_password: string | null
           rejection_reason: string | null
+          revision_deadline: string | null
+          revision_notes: string | null
+          revision_requested_at: string | null
           semester: string
           status: string
           title: string
@@ -596,6 +599,9 @@ export type Database = {
           id?: string
           note_password?: string | null
           rejection_reason?: string | null
+          revision_deadline?: string | null
+          revision_notes?: string | null
+          revision_requested_at?: string | null
           semester: string
           status?: string
           title: string
@@ -623,6 +629,9 @@ export type Database = {
           id?: string
           note_password?: string | null
           rejection_reason?: string | null
+          revision_deadline?: string | null
+          revision_notes?: string | null
+          revision_requested_at?: string | null
           semester?: string
           status?: string
           title?: string

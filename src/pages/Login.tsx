@@ -377,9 +377,10 @@ const Login = () => {
 
     let fullName =
       data.user!.user_metadata?.full_name || data.user!.user_metadata?.name || '';
+    let approvalStatus: string | null = null;
     try {
       const profileResult = await Promise.race([
-        supabase.from('profiles').select('full_name').eq('user_id', data.user!.id).single(),
+        supabase.from('profiles').select('full_name, approval_status').eq('user_id', data.user!.id).single(),
         new Promise<never>((_, reject) => {
           window.setTimeout(
             () => reject(new Error('Profil sorgusu zaman aşımına uğradı.')),
@@ -388,15 +389,29 @@ const Login = () => {
         }),
       ]);
       fullName = profileResult.data?.full_name || fullName;
+      approvalStatus = profileResult.data?.approval_status || null;
     } catch (requestError) {
       console.warn('Profil adı yüklenemedi, metadata adı kullanılacak:', requestError);
     }
     await rememberReturningAccount(data.user!.email || email, fullName);
 
     setLoading(false);
-    toast.success(`Giriş Başarılı! Hoş Geldiniz, ${fullName}`, {
-      style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
-    });
+
+    if (approvalStatus === 'pending') {
+      toast.info(`Hoş Geldiniz, ${fullName}`, {
+        description: 'Hesabınız yönetici onayı için Bekleme Odasındadır. İncelenip onaylandıktan sonra tam erişiminiz açılacaktır.',
+        duration: 7000,
+      });
+    } else if (approvalStatus === 'rejected') {
+      toast.error('Kayıt Başvurunuz Onaylanmadı', {
+        description: 'Ayrıntılı bilgi için Destek Merkezi üzerinden iletişime geçebilirsiniz.',
+        duration: 7000,
+      });
+    } else {
+      toast.success(`Giriş Başarılı! Hoş Geldiniz, ${fullName}`, {
+        style: { background: 'hsl(142, 76%, 36%)', color: 'white', border: 'none' },
+      });
+    }
 
     let welcomePending = false;
     try {

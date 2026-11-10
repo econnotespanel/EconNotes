@@ -13,6 +13,9 @@ interface Profile {
   department: string;
   grade: number | null;
   avatar_url: string | null;
+  approval_status?: 'pending' | 'approved' | 'rejected' | string;
+  approved_at?: string | null;
+  approved_by?: string | null;
   last_login: string | null;
   created_at: string;
   updated_at: string;
@@ -23,6 +26,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   isAdmin: boolean;
+  isApproved: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -33,6 +37,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   profile: null,
   isAdmin: false,
+  isApproved: true,
   loading: true,
   signOut: async () => {},
   refreshProfile: async () => {},
@@ -419,8 +424,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel(`profile-approval-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            setProfile((prev) => (prev ? { ...prev, ...payload.new } : (payload.new as Profile)));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  const isApproved = isAdmin || (user ? profile?.approval_status === 'approved' : true);
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, isAdmin, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, isAdmin, isApproved, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
