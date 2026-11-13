@@ -7,8 +7,11 @@ import {
   segmentAcademicMarkdown,
 } from '@/lib/latexToMathml';
 
+import { cn } from '@/lib/utils';
+
 interface AcademicMarkdownProps {
   content: string;
+  className?: string;
 }
 
 const CodeBlockView: React.FC<{ language: string; code: string }> = ({ language, code }) => {
@@ -116,11 +119,11 @@ const MarkdownChunk: React.FC<{ text: string; inlineOnly?: boolean }> = ({ text,
   );
 };
 
-export const AcademicMarkdown: React.FC<AcademicMarkdownProps> = ({ content }) => {
+export const AcademicMarkdown: React.FC<AcademicMarkdownProps> = ({ content, className }) => {
   const segments = useMemo(() => segmentAcademicMarkdown(content), [content]);
 
   return (
-    <div className="academic-markdown space-y-2 text-sm leading-relaxed text-foreground">
+    <div className={cn('academic-markdown space-y-2 text-sm leading-relaxed text-foreground', className)}>
       {segments.map((seg, idx) => {
         if (seg.type === 'display-math') {
           return (

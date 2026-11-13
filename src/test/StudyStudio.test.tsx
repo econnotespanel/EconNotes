@@ -1,11 +1,11 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Study from '@/pages/Study';
-import { SummaryWorkspace } from '@/components/study/SummaryWorkspace';
-import { QuizWorkspace } from '@/components/study/QuizWorkspace';
-import { FlashcardWorkspace } from '@/components/study/FlashcardWorkspace';
+import { NeuralSummaryWorkspace } from '@/components/study/neural/NeuralSummaryWorkspace';
+import { NeuralQuizWorkspace } from '@/components/study/neural/NeuralQuizWorkspace';
+import { NeuralFlashcardWorkspace } from '@/components/study/neural/NeuralFlashcardWorkspace';
 import { generateClientStudyMaterial } from '@/lib/studyMaterialGenerator';
 import { generateMaterialWithOrchestration } from '@/lib/studyAiClient';
 import type { ProcessedStudyBundle, StudioGenerationSettings, StudyMaterial } from '@/types/study';
@@ -16,7 +16,7 @@ class ResizeObserverStub {
   unobserve() {}
   disconnect() {}
 }
-globalThis.ResizeObserver = ResizeObserverStub as any;
+globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
 Element.prototype.scrollIntoView = vi.fn();
 
 const mockUseAuth = vi.fn();
@@ -31,11 +31,11 @@ vi.mock('@/components/Layout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid="layout">{children}</div>,
 }));
 
-vi.mock('@/components/study/InteractiveVideoStudio', () => ({
+vi.mock('@/components/study/neural/NeuralVideoStudio', () => ({
   default: () => <div data-testid="video-studio">Video Studio</div>,
 }));
 
-vi.mock('@/components/study/LiveLectureCapture', () => ({
+vi.mock('@/components/study/neural/NeuralLiveCapture', () => ({
   default: () => <div data-testid="live-lecture-capture">Live Capture</div>,
 }));
 
@@ -46,9 +46,9 @@ vi.mock('@/integrations/supabase/client', () => ({
       refreshSession: vi.fn().mockResolvedValue({ data: { session: null } }),
     },
     functions: {
-      invoke: (...args: any[]) => mockInvoke(...args),
+      invoke: (...args: unknown[]) => mockInvoke(...args),
     },
-    from: (...args: any[]) => mockFrom(...args),
+    from: (...args: unknown[]) => mockFrom(...args),
     storage: {
       from: () => ({
         upload: vi.fn().mockResolvedValue({ error: null }),
@@ -159,14 +159,31 @@ const SAMPLE_FLASHCARDS: StudyMaterial = {
   },
 };
 
-function createChainMock(resolvedData: any) {
-  const chain: any = {
+interface ChainMock {
+  select: () => ChainMock;
+  eq: () => ChainMock;
+  order: () => ChainMock;
+  limit: () => Promise<{ data: unknown; error: null }>;
+  single: () => Promise<{ data: unknown; error: null }>;
+  insert: (payload: Record<string, unknown>) => {
+    select: () => {
+      single: () => Promise<{ data: Record<string, unknown>; error: null }>;
+    };
+  };
+  update: () => { eq: () => Promise<{ error: null }> };
+  delete: () => { eq: () => Promise<{ error: null }> };
+  then: (resolve: (val: { data: unknown; error: null }) => unknown) => unknown;
+}
+
+function createChainMock(resolvedData: unknown) {
+  const firstRow = Array.isArray(resolvedData) ? resolvedData[0] : resolvedData;
+  const chain: ChainMock = {
     select: () => chain,
     eq: () => chain,
     order: () => chain,
     limit: () => Promise.resolve({ data: resolvedData, error: null }),
-    single: () => Promise.resolve({ data: resolvedData?.[0] ?? resolvedData, error: null }),
-    insert: (payload: any) => ({
+    single: () => Promise.resolve({ data: firstRow, error: null }),
+    insert: (payload: Record<string, unknown>) => ({
       select: () => ({
         single: () =>
           Promise.resolve({
@@ -177,7 +194,7 @@ function createChainMock(resolvedData: any) {
     }),
     update: () => ({ eq: () => Promise.resolve({ error: null }) }),
     delete: () => ({ eq: () => Promise.resolve({ error: null }) }),
-    then: (resolve: any) => resolve({ data: resolvedData, error: null }),
+    then: (resolve) => resolve({ data: resolvedData, error: null }),
   };
   return chain;
 }
@@ -185,7 +202,9 @@ function createChainMock(resolvedData: any) {
 describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error('offline in unit tests')) as any;
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(new Error('offline in unit tests')) as unknown as typeof fetch;
     mockUseAuth.mockReturnValue({
       user: { id: 'u1', email: 'student@uni.edu.tr', user_metadata: { full_name: 'Deniz' } },
       isAdmin: false,
@@ -214,8 +233,12 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
       await screen.findByText(/Ders notlarını derin üniversite kaynaklarına dönüştür/i),
     ).toBeInTheDocument();
 
+    // Open Materyal Üret tab from the Command Rail
+    const rail = screen.getByRole('navigation', { name: /Stüdyo Komuta Rayı/i });
+    fireEvent.click(within(rail).getByRole('button', { name: /Materyal Üret/i }));
+
     // Activate Metin Yapıştır tab (Radix Tabs responds to mouseDown / keyDown)
-    const pasteTab = screen.getByRole('tab', { name: /Metin Yapıştır/i });
+    const pasteTab = await screen.findByRole('tab', { name: /Metin Yapıştır/i });
     fireEvent.mouseDown(pasteTab, { button: 0 });
     fireEvent.click(pasteTab);
 
@@ -243,7 +266,7 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
 
   it('renders SummaryWorkspace chapters, LaTeX/tables, and interactive mini-checkpoint', () => {
     render(
-      <SummaryWorkspace
+      <NeuralSummaryWorkspace
         material={SAMPLE_SUMMARY}
         onConvertTo={vi.fn()}
         convertingTo={null}
@@ -282,7 +305,7 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     });
 
     render(
-      <QuizWorkspace
+      <NeuralQuizWorkspace
         material={SAMPLE_QUIZ}
         onRecordProgress={onRecordProgress}
         onAskCoach={vi.fn()}
@@ -312,7 +335,7 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
   it('flips FlashcardWorkspace cards and supports mastery tracking', () => {
     const onRecordProgress = vi.fn();
     render(
-      <FlashcardWorkspace
+      <NeuralFlashcardWorkspace
         material={SAMPLE_FLASHCARDS}
         onRecordProgress={onRecordProgress}
         onAskCoach={vi.fn()}
@@ -343,6 +366,25 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     expect(mixed.questions[0].sampleAnswer.length).toBeGreaterThan(15);
     expect(mixed.questions[0].rubric.length).toBeGreaterThan(0);
   });
+
+  it('switches cleanly between Notlarıma Sor, Plan & Tekrar, and GPU & Performans tabs in Study', async () => {
+    render(
+      <MemoryRouter>
+        <Study />
+      </MemoryRouter>,
+    );
+
+    const rail = await screen.findByRole('navigation', { name: /Stüdyo Komuta Rayı/i });
+
+    fireEvent.click(within(rail).getByRole('button', { name: /Notlarıma Sor/i }));
+    expect(await screen.findByText(/Bilgi Tabanı/i)).toBeInTheDocument();
+
+    fireEvent.click(within(rail).getByRole('button', { name: /Plan & Tekrar/i }));
+    expect(await screen.findByText(/Akıllı Çalışma Planlayıcı & SM-2 Aralıklı Tekrar/i)).toBeInTheDocument();
+
+    fireEvent.click(within(rail).getByRole('button', { name: /GPU & Performans/i }));
+    expect(await screen.findByText(/Donanım Algılama & WebGPU Komuta Merkezi/i)).toBeInTheDocument();
+  });
 });
 
 describe('Study AI Orchestration Phase 2 (Legacy Edge Enrichment & Tier-2 Map-Reduce)', () => {
@@ -371,7 +413,7 @@ describe('Study AI Orchestration Phase 2 (Legacy Edge Enrichment & Tier-2 Map-Re
     materialType: 'summary',
     summaryDepth: 'comprehensive',
     deepResearch: true,
-    pedagogicalStyle: 'university_lecture',
+    pedagogicalStyle: 'academic_rigor',
     questionCount: 8,
     cardCount: 12,
     difficulty: 'medium',

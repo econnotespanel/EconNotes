@@ -901,6 +901,78 @@
   @media (prefers-reduced-motion: reduce) {
     .animate-fade-in, .animate-pulse-glow, .gradient-text, .marquee > *, .ps-activity-card:hover { animation: none; transform: none; }
   }
+
+  /* ---------------- Neural Studio 3.0 GPU-Composited Surfaces ---------------- */
+  .neural-shell {
+    position: relative;
+    border-radius: 1.5rem;
+    border: 1px solid hsl(var(--border) / 0.75);
+    background:
+      radial-gradient(900px 420px at 8% -8%, hsl(var(--neon-cyan) / 0.11), transparent 62%),
+      radial-gradient(760px 380px at 96% 4%, hsl(var(--neon-indigo) / 0.12), transparent 60%),
+      linear-gradient(180deg, hsl(var(--card) / 0.96), hsl(var(--background) / 0.94));
+    box-shadow: var(--panel-shadow);
+  }
+  .dark .neural-shell {
+    border-color: hsl(214 60% 24% / 0.55);
+    background:
+      radial-gradient(960px 440px at 8% -10%, hsl(192 95% 50% / 0.14), transparent 60%),
+      radial-gradient(800px 400px at 96% 2%, hsl(258 90% 66% / 0.14), transparent 58%),
+      linear-gradient(180deg, hsl(224 46% 8% / 0.98), hsl(225 48% 5% / 0.98));
+  }
+
+  .neural-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.15rem;
+    border: 1px solid hsl(var(--border) / 0.75);
+    background: hsl(var(--card) / 0.86);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: var(--panel-shadow);
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease, box-shadow 0.22s ease;
+    will-change: transform;
+  }
+  .dark .neural-card {
+    border-color: hsl(217 34% 22% / 0.75);
+    background: linear-gradient(155deg, hsl(224 38% 12% / 0.88), hsl(225 42% 8% / 0.92));
+  }
+  .neural-card:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--primary) / 0.45);
+    box-shadow: var(--panel-shadow-hover);
+  }
+
+  .neural-rail {
+    border-radius: 1.15rem;
+    border: 1px solid hsl(var(--border) / 0.75);
+    background: hsl(var(--card) / 0.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .dark .neural-rail {
+    border-color: hsl(217 36% 20% / 0.78);
+    background: hsl(224 44% 8% / 0.88);
+  }
+
+  .neural-glow-pill {
+    background: linear-gradient(110deg, hsl(var(--neon-cyan) / 0.16), hsl(var(--neon-blue) / 0.14), hsl(258 88% 65% / 0.14));
+    border: 1px solid hsl(var(--neon-cyan) / 0.32);
+  }
+
+  @keyframes neural-orb-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.75; }
+    50% { transform: scale(1.22); opacity: 1; }
+  }
+  .neural-pulse-dot {
+    animation: neural-orb-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    will-change: transform, opacity;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .neural-card:hover { transform: none; }
+    .neural-pulse-dot { animation: none; opacity: 1; }
+  }
 }
 
 /* Academic Math & Engineering Formula Typography */

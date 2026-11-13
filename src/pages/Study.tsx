@@ -1,12 +1,19 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
-import { Coffee } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Coffee, Loader2, LogIn, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 import Layout from '@/components/Layout';
-import { SourceComposerHub } from '@/components/study/SourceComposerHub';
-import { StudyHeroAndStats } from '@/components/study/StudyHeroAndStats';
-import { StudyMaterialLibrary } from '@/components/study/StudyMaterialLibrary';
-import { StudyReportDialog } from '@/components/study/StudyReportDialog';
-import { StudyWorkspace } from '@/components/study/StudyWorkspace';
+import { NeuralCommandShell, type NeuralTabId } from '@/components/study/neural/NeuralCommandShell';
+import { NeuralCreateView } from '@/components/study/neural/NeuralCreateView';
+import { NeuralEnginePanelView } from '@/components/study/neural/NeuralEnginePanelView';
+import { NeuralExamSimView } from '@/components/study/neural/NeuralExamSimView';
+import { NeuralHubView } from '@/components/study/neural/NeuralHubView';
+import { NeuralLibraryView } from '@/components/study/neural/NeuralLibraryView';
+import { NeuralPlannerView } from '@/components/study/neural/NeuralPlannerView';
+import { NeuralRagChatView } from '@/components/study/neural/NeuralRagChatView';
+import { NeuralReportDialog } from '@/components/study/neural/NeuralReportDialog';
+import { NeuralWorkspaceFrame } from '@/components/study/neural/NeuralWorkspaceFrame';
+import { useNeuralEngine } from '@/components/study/neural/useNeuralEngine';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -18,16 +25,22 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { signedNoteUrl } from '@/lib/storageUrl';
+import type { Json } from '@/integrations/supabase/types';
+import { extractFile } from '@/lib/extractFile';
 import {
-  expandSingleSummarySection,
-  generateMaterialWithOrchestration,
-} from '@/lib/studyAiClient';
+  extractSearchableTextFromMaterial,
+  indexDocumentInVectorStore,
+  routedGenerateMaterial,
+} from '@/lib/neural/engineRouter';
 import {
-  buildNoteSourceItem,
-  combineStudySources,
-  extractUploadedSource,
-} from '@/lib/studySourceProcessor';
+  analyzeWeakTopics,
+  getDueSrsCards,
+  syncSrsCardsFromMaterials,
+  type SrsCardState,
+} from '@/lib/neural/studyPlanner';
+import { getIndexedDocuments, removeDocumentIndex } from '@/lib/neural/vectorIndex';
+import { expandSingleSummarySection } from '@/lib/studyAiClient';
+import { buildNoteSourceItem, combineStudySources } from '@/lib/studySourceProcessor';
 import type {
   ExtractedSourceItem,
   MaterialType,
@@ -36,62 +49,16 @@ import type {
   StudioGenerationSettings,
   StudyMaterial,
   StudyProgressRow,
-  SummaryContent,
 } from '@/types/study';
-import { toast } from 'sonner';
 
-const LiveLectureCaptureLazy = lazy(() => import('@/components/study/LiveLectureCapture'));
-const InteractiveVideoStudioLazy = lazy(
-  () => import('@/components/study/InteractiveVideoStudio'),
-);
-
-const StudyChunkFallback = () => (
-  <div className="h-40 w-full animate-pulse rounded-xl bg-muted" aria-busy="true" />
-);
-
-interface LiveLectureCaptureProps {
-  userId: string;
-  onSaved: (material: StudyMaterial) => void;
-}
-
-interface InteractiveVideoStudioProps {
-  material: StudyMaterial;
-  onClose: () => void;
-  onReport: () => void;
-}
-
-const LiveLectureCapture = (props: LiveLectureCaptureProps) => (
-  <Suspense fallback={<StudyChunkFallback />}>
-    <LiveLectureCaptureLazy {...(props as unknown as Record<string, never>)} />
-  </Suspense>
-);
-
-const InteractiveVideoStudio = (props: InteractiveVideoStudioProps) => (
-  <Suspense fallback={<StudyChunkFallback />}>
-    <InteractiveVideoStudioLazy {...(props as unknown as Record<string, never>)} />
-  </Suspense>
-);
-
-interface DbNoteRow {
-  id: string;
-  title: string;
-  course: string | null;
-  description?: string | null;
-  department?: string | null;
-  semester?: string | null;
-  user_id: string;
-  status?: string | null;
-  file_name?: string | null;
-  file_url?: string | null;
-  file_type?: string | null;
-}
+const NeuralVideoStudioLazy = lazy(() => import('@/components/study/neural/NeuralVideoStudio'));
 
 const DEFAULT_SETTINGS: StudioGenerationSettings = {
   materialType: 'summary',
   summaryDepth: 'comprehensive',
   deepResearch: true,
-  pedagogicalStyle: 'balanced',
-  questionCount: 12,
+  pedagogicalStyle: 'academic_rigor',
+  questionCount: 10,
   cardCount: 16,
   difficulty: 'mixed',
   quizFormat: 'mixed',
@@ -99,28 +66,27 @@ const DEFAULT_SETTINGS: StudioGenerationSettings = {
   examFocus: '',
 };
 
-const Study = () => {
-  const { user, isAdmin } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+const VALID_TABS: NeuralTabId[] = ['hub', 'create', 'library', 'rag', 'planner', 'exam', 'engine'];
 
+export default function Study() {
+  const { user, isAdmin, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const engine = useNeuralEngine();
+
+  const [activeTab, setActiveTab] = useState<NeuralTabId>('hub');
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
+  const [progress, setProgress] = useState<StudyProgressRow[]>([]);
   const [ownNotes, setOwnNotes] = useState<NoteSourceOption[]>([]);
   const [platformNotes, setPlatformNotes] = useState<NoteSourceOption[]>([]);
-  const [progressRows, setProgressRows] = useState<StudyProgressRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true);
 
   const [activeMaterial, setActiveMaterial] = useState<StudyMaterial | null>(null);
-  const [reportOpen, setReportOpen] = useState(false);
-  const [breakOpen, setBreakOpen] = useState(false);
-
-  // Composer State
-  const [showComposer, setShowComposer] = useState(true);
   const [sources, setSources] = useState<ExtractedSourceItem[]>([]);
   const [settings, setSettings] = useState<StudioGenerationSettings>(DEFAULT_SETTINGS);
   const [customTitle, setCustomTitle] = useState('');
   const [customCourse, setCustomCourse] = useState('');
 
-  // Generation / Mutation Progress
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationPct, setGenerationPct] = useState(0);
   const [generationLabel, setGenerationLabel] = useState('');
@@ -128,230 +94,251 @@ const Study = () => {
   const [expandingSectionIdx, setExpandingSectionIdx] = useState<number | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
 
-  const composerRef = useRef<HTMLDivElement | null>(null);
-  const studyStartRef = useRef<number>(Date.now());
-  const handledDeepLinkRef = useRef<string | null>(null);
+  const [srsCards, setSrsCards] = useState<SrsCardState[]>([]);
+  const [indexedDocsCount, setIndexedDocsCount] = useState(0);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [breakDialogOpen, setBreakDialogOpen] = useState(false);
 
-  // 1-Hour study break reminder
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      const mins = (Date.now() - studyStartRef.current) / 60000;
-      if (mins >= 60) {
-        setBreakOpen(true);
-        studyStartRef.current = Date.now();
-      }
-    }, 30_000);
-    return () => window.clearInterval(timer);
+  const deepLinkAppliedRef = useRef(false);
+
+  const refreshIndexedDocsCount = useCallback(() => {
+    getIndexedDocuments()
+      .then((docs) => setIndexedDocsCount(docs.length))
+      .catch(() => {});
   }, []);
 
-  const fetchAll = useCallback(async () => {
+  // Load user materials, quiz progress, and note sources
+  useEffect(() => {
+    refreshIndexedDocsCount();
+    if (authLoading) return;
     if (!user) {
-      setLoading(false);
+      setLoadingData(false);
       return;
     }
-    setLoading(true);
-    try {
-      const [mRes, ownRes, platRes, progRes] = await Promise.all([
-        supabase
-          .from('study_materials')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(100),
-        supabase
-          .from('notes')
-          .select('id,title,course,description,department,semester,user_id,status,file_name,file_url,file_type')
-          .eq('user_id', user.id),
-        supabase
-          .from('notes')
-          .select('id,title,course,description,department,semester,user_id,status,file_name,file_url,file_type')
-          .eq('status', 'approved')
-          .limit(200),
-        supabase
-          .from('study_progress')
-          .select('id,material_id,score,total_questions,completed_at')
-          .eq('user_id', user.id)
-          .order('completed_at', { ascending: false }),
-      ]);
 
-      if (mRes.error) toast.error(`Çalışma materyalleri yüklenemedi: ${mRes.error.message}`);
-      if (ownRes.error) toast.error(`Notlarınız yüklenemedi: ${ownRes.error.message}`);
+    let cancelled = false;
+    setLoadingData(true);
 
-      if (mRes.data) setMaterials(mRes.data as unknown as StudyMaterial[]);
-      if (ownRes.data) {
-        setOwnNotes(
-          (ownRes.data as DbNoteRow[]).map((n) => ({
-            ...n,
-            origin: 'own' as const,
-          })),
-        );
+    const loadAll = async () => {
+      try {
+        const [matRes, progRes, ownRes, platRes] = await Promise.all([
+          supabase
+            .from('study_materials')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('study_progress')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('completed_at', { ascending: false }),
+          supabase
+            .from('notes')
+            .select('id, title, course, description, department, semester, file_url, file_name, file_type')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('notes')
+            .select('id, title, course, description, department, semester, file_url, file_name, file_type')
+            .eq('status', 'approved')
+            .eq('visibility_status', 'public')
+            .order('created_at', { ascending: false }),
+        ]);
+
+        if (cancelled) return;
+
+        if (Array.isArray(matRes.data)) {
+          setMaterials(matRes.data as unknown as StudyMaterial[]);
+        }
+        if (Array.isArray(progRes.data)) {
+          setProgress(progRes.data as unknown as StudyProgressRow[]);
+        }
+        if (Array.isArray(ownRes.data)) {
+          setOwnNotes(
+            ownRes.data.map((n) => ({ ...n, origin: 'own' as const })) as NoteSourceOption[],
+          );
+        }
+        if (Array.isArray(platRes.data)) {
+          setPlatformNotes(
+            platRes.data.map((n) => ({ ...n, origin: 'platform' as const })) as NoteSourceOption[],
+          );
+        }
+      } catch {
+        // Resilient load on partial network failure
+      } finally {
+        if (!cancelled) setLoadingData(false);
       }
-      if (platRes.data) {
-        setPlatformNotes(
-          (platRes.data as DbNoteRow[])
-            .filter((n) => n.user_id !== user.id)
-            .map((n) => ({
-              ...n,
-              origin: 'platform' as const,
-            })),
-        );
-      }
-      if (progRes.data) setProgressRows(progRes.data as StudyProgressRow[]);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+    };
+
+    void loadAll();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, authLoading, refreshIndexedDocsCount]);
+
+  // SM-2 Card synchronization whenever materials change
+  const refreshSrsCards = useCallback(() => {
+    setSrsCards(syncSrsCardsFromMaterials(materials));
+  }, [materials]);
 
   useEffect(() => {
-    void fetchAll();
-  }, [fetchAll]);
+    refreshSrsCards();
+  }, [refreshSrsCards]);
+
+  const dueCards = useMemo(() => getDueSrsCards(srsCards), [srsCards]);
+  const weakTopics = useMemo(
+    () => analyzeWeakTopics(materials, progress, srsCards),
+    [materials, progress, srsCards],
+  );
+
+  // 60-minute study break wellness reminder
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setBreakDialogOpen(true);
+    }, 60 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const handleExtractRemoteNoteFile = useCallback(
     async (note: NoteSourceOption): Promise<ExtractedSourceItem> => {
       if (!note.file_url) {
         return buildNoteSourceItem(note);
       }
-      const signedUrl = await signedNoteUrl(note.file_url);
-      if (!signedUrl) {
-        throw new Error(`"${note.title}" dosyasına erişilemedi.`);
+
+      try {
+        let blob: Blob | null = null;
+        if (/^https?:\/\//i.test(note.file_url)) {
+          const resp = await fetch(note.file_url);
+          if (resp.ok) blob = await resp.blob();
+        } else {
+          const { data } = await supabase.storage.from('notes').download(note.file_url);
+          if (data) blob = data;
+        }
+
+        if (!blob) return buildNoteSourceItem(note);
+        const filename = note.file_name || `${note.title}.pdf`;
+        const file = new File([blob], filename, { type: note.file_type || blob.type });
+        const extracted = await extractFile(file);
+
+        if (extracted.kind === 'text') {
+          return buildNoteSourceItem(note, extracted.text, extracted.images);
+        }
+        if (extracted.kind === 'image') {
+          return buildNoteSourceItem(note, undefined, [
+            { data: extracted.data, mimeType: extracted.mime, pageLabel: filename },
+          ]);
+        }
+      } catch {
+        // Fallback to note metadata/description text
       }
-      const fileResponse = await fetch(signedUrl);
-      if (!fileResponse.ok) {
-        throw new Error(`"${note.title}" dosyası indirilemedi.`);
-      }
-      const blob = await fileResponse.blob();
-      const noteFile = new File([blob], note.file_name || 'ders-notu.pdf', {
-        type: note.file_type || blob.type,
-      });
-      const extractedItem = await extractUploadedSource(noteFile);
-      return buildNoteSourceItem(note, extractedItem.text, extractedItem.images);
+      return buildNoteSourceItem(note);
     },
     [],
   );
 
-  // URL Deep-link handling (?create=video&noteId=...&sourceMode=...)
+  // URL Deep-link handling (?tab=..., ?create=video&noteId=...)
   useEffect(() => {
-    const createParam = searchParams.get('create');
-    const noteIdParam = searchParams.get('noteId');
-    const sourceModeParam = searchParams.get('sourceMode');
-    if (!createParam && !noteIdParam) return;
+    if (deepLinkAppliedRef.current || loadingData) return;
 
-    const deepKey = `${createParam || ''}|${noteIdParam || ''}|${sourceModeParam || ''}`;
-    if (handledDeepLinkRef.current === deepKey) return;
+    const tabParam = searchParams.get('tab') as NeuralTabId | null;
+    const createParam = searchParams.get('create') as MaterialType | null;
+    const noteId = searchParams.get('noteId');
 
-    if (createParam === 'video') {
-      setSettings((s) => ({ ...s, materialType: 'video' }));
-      setShowComposer(true);
-    }
-
-    if (noteIdParam) {
-      const targetNote =
-        ownNotes.find((n) => n.id === noteIdParam) ||
-        platformNotes.find((n) => n.id === noteIdParam);
-      if (!targetNote) return; // wait until notes load
-
-      handledDeepLinkRef.current = deepKey;
-      setShowComposer(true);
-      void handleExtractRemoteNoteFile(targetNote)
-        .then((item) => {
-          setSources((prev) =>
-            prev.some((s) => s.originNoteId === item.originNoteId) ? prev : [...prev, item],
-          );
-          if (!customTitle) setCustomTitle(targetNote.title);
-          if (!customCourse && targetNote.course) setCustomCourse(targetNote.course);
-          toast.success(`"${targetNote.title}" çalışma stüdyosuna eklendi.`);
-        })
-        .catch((err) => {
-          toast.error(err instanceof Error ? err.message : 'Not yüklenemedi.');
-        });
-      setSearchParams({}, { replace: true });
-    } else {
-      handledDeepLinkRef.current = deepKey;
-      setSearchParams({}, { replace: true });
-    }
-  }, [
-    searchParams,
-    setSearchParams,
-    ownNotes,
-    platformNotes,
-    handleExtractRemoteNoteFile,
-    customTitle,
-    customCourse,
-  ]);
-
-  const scrollToComposer = () => {
-    setShowComposer(true);
-    setTimeout(() => {
-      composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-  };
-
-  const handleGenerate = async (bundle: ProcessedStudyBundle) => {
-    if (!user) {
-      toast.error('Oluşturmak için giriş yapmalısınız.');
+    if (tabParam && VALID_TABS.includes(tabParam)) {
+      deepLinkAppliedRef.current = true;
+      setActiveTab(tabParam);
       return;
     }
 
+    if (!createParam && !noteId) return;
+    deepLinkAppliedRef.current = true;
+    setActiveTab('create');
+
+    if (
+      createParam &&
+      (['summary', 'quiz', 'flashcards', 'video'] as MaterialType[]).includes(createParam)
+    ) {
+      setSettings((prev) => ({ ...prev, materialType: createParam }));
+    }
+
+    if (noteId) {
+      const target =
+        ownNotes.find((n) => n.id === noteId) || platformNotes.find((n) => n.id === noteId);
+      if (target) {
+        void handleExtractRemoteNoteFile(target).then((src) => {
+          setSources([src]);
+          setCustomTitle(target.title);
+          if (target.course) setCustomCourse(target.course);
+          toast.info(`"${target.title}" kaynak olarak hazırlandı.`);
+        });
+      }
+    }
+  }, [loadingData, searchParams, ownNotes, platformNotes, handleExtractRemoteNoteFile]);
+
+  const indexMaterialSilent = useCallback(
+    async (mat: StudyMaterial) => {
+      try {
+        const text = extractSearchableTextFromMaterial(mat);
+        if (!text.trim()) return;
+        await indexDocumentInVectorStore({
+          docId: mat.id,
+          title: mat.title,
+          course: mat.course,
+          text,
+        });
+        refreshIndexedDocsCount();
+      } catch {
+        // Ignore non-fatal indexing errors
+      }
+    },
+    [refreshIndexedDocsCount],
+  );
+
+  const handleGenerate = async (bundle: ProcessedStudyBundle) => {
+    if (!user) {
+      toast.error('Materyal üretmek için giriş yapmalısınız.');
+      return;
+    }
     setIsGenerating(true);
     setGenerationPct(8);
-    setGenerationLabel('Kaynaklar analiz ediliyor...');
+    setGenerationLabel('Neural Studio başlatılıyor...');
 
     try {
-      const result = await generateMaterialWithOrchestration(
-        bundle,
-        settings,
-        (pct, lbl) => {
-          setGenerationPct(pct);
-          setGenerationLabel(lbl);
-        },
-      );
+      const result = await routedGenerateMaterial(bundle, settings, (pct, msg) => {
+        setGenerationPct(pct);
+        setGenerationLabel(msg);
+      });
 
-      setGenerationPct(98);
-      setGenerationLabel('Çalışma seti kütüphanenize kaydediliyor...');
-
-      const linkedNote = bundle.sources.find((s) => s.kind === 'note');
-      const sourceType: 'own' | 'platform' =
-        linkedNote?.originType === 'platform' ? 'platform' : 'own';
-      const sourceNoteId = linkedNote?.originNoteId || null;
-
-      const { data: inserted, error } = await supabase
+      const noteSource = bundle.sources.find((s) => s.kind === 'note');
+      const { data, error } = await supabase
         .from('study_materials')
         .insert({
           user_id: user.id,
-          source_type: sourceType,
-          source_note_id: sourceNoteId,
+          source_type: noteSource?.originType === 'platform' ? 'platform' : 'own',
+          source_note_id: noteSource?.originNoteId || null,
           material_type: settings.materialType,
           title: bundle.title,
           course: bundle.course || bundle.detectedDiscipline || null,
-          content: result.content,
+          content: result.content as unknown as Json,
           model: result.model,
-          exam_profile: {
-            deepResearch: settings.deepResearch,
-            summaryDepth: settings.summaryDepth,
-            pedagogicalStyle: settings.pedagogicalStyle,
-            quizFormat: settings.quizFormat,
-            sourceMode: result.sourceMode,
-            sourceCount: bundle.sourceCount,
-            wordCount: bundle.totalWords,
-          },
+          exam_profile: settings.examFocus
+            ? { examFocus: settings.examFocus, pedagogicalStyle: settings.pedagogicalStyle }
+            : null,
         })
-        .select('*')
+        .select()
         .single();
 
-      if (error || !inserted) {
+      if (error || !data) {
         throw new Error(error?.message || 'Materyal veritabanına kaydedilemedi.');
       }
 
-      const savedMaterial = inserted as StudyMaterial;
-      setMaterials((prev) => [savedMaterial, ...prev]);
-      setActiveMaterial(savedMaterial);
-      toast.success(
-        result.sourceMode === 'ai'
-          ? 'Derin öğrenme çalışma setiniz hazır!'
-          : 'Materyal yerel yapısal ayrıştırıcı ile oluşturuldu.',
-      );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Materyal oluşturulamadı.');
+      const saved = data as unknown as StudyMaterial;
+      setMaterials((prev) => [saved, ...prev]);
+      setActiveMaterial(saved);
+      void indexMaterialSilent(saved);
+      toast.success('Çalışma materyali hazırlandı ve RAG indeksine eklendi.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Materyal oluşturulurken bir hata oluştu.');
     } finally {
       setIsGenerating(false);
       setGenerationPct(0);
@@ -360,85 +347,63 @@ const Study = () => {
   };
 
   const handleDeleteMaterial = async (id: string) => {
-    const { error } = await supabase.from('study_materials').delete().eq('id', id);
-    if (error) {
-      toast.error(`Silinemedi: ${error.message}`);
-      return;
+    try {
+      const { error } = await supabase.from('study_materials').delete().eq('id', id);
+      if (error) throw error;
+      setMaterials((prev) => prev.filter((m) => m.id !== id));
+      if (activeMaterial?.id === id) setActiveMaterial(null);
+      await removeDocumentIndex(id);
+      refreshIndexedDocsCount();
+      toast.success('Materyal silindi.');
+    } catch {
+      toast.error('Materyal silinemedi.');
     }
-    setMaterials((prev) => prev.filter((m) => m.id !== id));
-    if (activeMaterial?.id === id) setActiveMaterial(null);
-    toast.success('Çalışma materyali silindi.');
-  };
-
-  const buildTextFromSummaryMaterial = (mat: StudyMaterial): string => {
-    const sc: SummaryContent = mat.content || {};
-    return [
-      sc.overview || '',
-      Array.isArray(sc.keyPoints) ? sc.keyPoints.join('\n') : '',
-      ...(Array.isArray(sc.sections)
-        ? sc.sections.map((s) => `## ${s.heading}\n${s.content}`)
-        : []),
-    ]
-      .filter(Boolean)
-      .join('\n\n');
   };
 
   const handleConvertTo = async (targetType: MaterialType) => {
     if (!activeMaterial || !user) return;
     setConvertingTo(targetType);
     try {
-      const sourceText = buildTextFromSummaryMaterial(activeMaterial);
-      const pseudoBundle = combineStudySources(
-        [
-          {
-            id: `mat-${activeMaterial.id}`,
-            name: activeMaterial.title,
-            kind: 'pasted',
-            course: activeMaterial.course,
-            text: sourceText,
-            pagesOrSlides: Math.max(1, activeMaterial.content?.sections?.length || 1),
-            wordCount: sourceText.split(/\s+/).filter(Boolean).length,
-            charCount: sourceText.length,
-          },
-        ],
-        `${activeMaterial.title} — ${
-          targetType === 'quiz'
-            ? 'Sınav'
-            : targetType === 'flashcards'
-            ? 'Bilgi Kartları'
-            : 'Video Ders'
-        }`,
-        activeMaterial.course || '',
-      );
-
-      const nextSettings: StudioGenerationSettings = {
-        ...settings,
-        materialType: targetType,
+      const text = extractSearchableTextFromMaterial(activeMaterial);
+      const source: ExtractedSourceItem = {
+        id: `conv-${activeMaterial.id}`,
+        name: activeMaterial.title,
+        kind: 'note',
+        originNoteId: activeMaterial.source_note_id || undefined,
+        originType: activeMaterial.source_type,
+        course: activeMaterial.course,
+        text: text || activeMaterial.title,
+        pagesOrSlides: 1,
+        wordCount: Math.max(1, text.split(/\s+/).filter(Boolean).length),
+        charCount: text.length,
       };
-      const result = await generateMaterialWithOrchestration(pseudoBundle, nextSettings);
+      const bundle = combineStudySources([source], activeMaterial.title, activeMaterial.course || '');
+      const nextSettings: StudioGenerationSettings = { ...settings, materialType: targetType };
+      const res = await routedGenerateMaterial(bundle, nextSettings);
 
-      const { data: inserted, error } = await supabase
+      const { data, error } = await supabase
         .from('study_materials')
         .insert({
           user_id: user.id,
           source_type: activeMaterial.source_type,
           source_note_id: activeMaterial.source_note_id,
           material_type: targetType,
-          title: pseudoBundle.title,
+          title: activeMaterial.title,
           course: activeMaterial.course,
-          content: result.content,
-          model: result.model,
+          content: res.content as unknown as Json,
+          model: res.model,
         })
-        .select('*')
+        .select()
         .single();
 
-      if (error || !inserted) throw new Error(error?.message || 'Dönüştürme kaydedilemedi.');
-      const newMat = inserted as StudyMaterial;
-      setMaterials((prev) => [newMat, ...prev]);
-      setActiveMaterial(newMat);
-      toast.success('Yeni çalışma materyali oluşturuldu ve açıldı.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Dönüştürme başarısız oldu.');
+      if (error || !data) throw new Error(error?.message || 'Dönüştürme kaydedilemedi.');
+      const saved = data as unknown as StudyMaterial;
+      setMaterials((prev) => [saved, ...prev]);
+      setActiveMaterial(saved);
+      void indexMaterialSilent(saved);
+      toast.success('Yeni format başarıyla oluşturuldu.');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Format dönüştürme başarısız oldu.');
     } finally {
       setConvertingTo(null);
     }
@@ -446,11 +411,8 @@ const Study = () => {
 
   const handleExpandSection = async (sectionIdx: number) => {
     if (!activeMaterial) return;
-    const sections = Array.isArray(activeMaterial.content?.sections)
-      ? [...activeMaterial.content.sections]
-      : [];
-    const targetSec = sections[sectionIdx];
-    if (!targetSec) return;
+    const sections = activeMaterial.content?.sections;
+    if (!Array.isArray(sections) || !sections[sectionIdx]) return;
 
     setExpandingSectionIdx(sectionIdx);
     try {
@@ -458,41 +420,42 @@ const Study = () => {
         title: activeMaterial.title,
         course: activeMaterial.course,
         sectionIndex: sectionIdx,
-        section: targetSec,
+        section: sections[sectionIdx],
         existingOverview: activeMaterial.content?.overview,
       });
 
       if (!expanded) {
-        toast.error('Bu bölüm şu an genişletilemedi, lütfen biraz sonra tekrar deneyin.');
+        toast.info('Bu bölüm zaten azami derinlikte.');
         return;
       }
 
-      sections[sectionIdx] = { ...targetSec, ...expanded };
-      const updatedContent = { ...activeMaterial.content, sections };
+      const nextSections = [...sections];
+      nextSections[sectionIdx] = { ...sections[sectionIdx], ...expanded };
+      const nextContent = { ...activeMaterial.content, sections: nextSections };
 
       const { error } = await supabase
         .from('study_materials')
-        .update({ content: updatedContent })
+        .update({ content: nextContent as unknown as Json })
         .eq('id', activeMaterial.id);
-
       if (error) throw error;
 
-      const updatedMaterial = { ...activeMaterial, content: updatedContent };
-      setActiveMaterial(updatedMaterial);
-      setMaterials((prev) => prev.map((m) => (m.id === activeMaterial.id ? updatedMaterial : m)));
-      toast.success(`"${targetSec.heading}" bölümü derinleştirildi ve kaydedildi.`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Bölüm güncellenemedi.');
+      const updated = { ...activeMaterial, content: nextContent };
+      setActiveMaterial(updated);
+      setMaterials((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      void indexMaterialSilent(updated);
+      toast.success('Bölüm ek örnek ve derin analizle genişletildi.');
+    } catch {
+      toast.error('Bölüm genişletilemedi.');
     } finally {
       setExpandingSectionIdx(null);
     }
   };
 
   const handleRegenerateDeep = async () => {
-    if (!activeMaterial || activeMaterial.material_type !== 'summary') return;
+    if (!activeMaterial) return;
     setIsRegenerating(true);
     try {
-      const rawText = buildTextFromSummaryMaterial(activeMaterial);
+      const text = extractSearchableTextFromMaterial(activeMaterial);
       const bundle = combineStudySources(
         [
           {
@@ -500,177 +463,270 @@ const Study = () => {
             name: activeMaterial.title,
             kind: 'pasted',
             course: activeMaterial.course,
-            text: rawText,
-            pagesOrSlides: Math.max(1, activeMaterial.content?.sections?.length || 1),
-            wordCount: rawText.split(/\s+/).filter(Boolean).length,
-            charCount: rawText.length,
+            text: text || activeMaterial.title,
+            pagesOrSlides: 1,
+            wordCount: Math.max(1, text.split(/\s+/).filter(Boolean).length),
+            charCount: text.length,
           },
         ],
         activeMaterial.title,
         activeMaterial.course || '',
       );
 
-      const deepSettings: StudioGenerationSettings = {
+      const res = await routedGenerateMaterial(bundle, {
         ...settings,
         materialType: 'summary',
-        summaryDepth: 'comprehensive',
+        summaryDepth: 'textbook',
         deepResearch: true,
-      };
+      });
 
-      const result = await generateMaterialWithOrchestration(bundle, deepSettings);
       const { error } = await supabase
         .from('study_materials')
-        .update({ content: result.content, model: result.model })
+        .update({ content: res.content as unknown as Json, model: res.model })
         .eq('id', activeMaterial.id);
-
       if (error) throw error;
 
-      const updated = { ...activeMaterial, content: result.content, model: result.model };
+      const updated: StudyMaterial = { ...activeMaterial, content: res.content, model: res.model };
       setActiveMaterial(updated);
-      setMaterials((prev) => prev.map((m) => (m.id === activeMaterial.id ? updated : m)));
-      toast.success('Ders özeti Derin Araştırma modunda yeniden sentezlendi.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Yeniden sentezleme başarısız oldu.');
+      setMaterials((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      void indexMaterialSilent(updated);
+      toast.success('Özet akademik ders kitabı derinliğiyle yenilendi.');
+    } catch {
+      toast.error('Yeniden sentezleme başarısız oldu.');
     } finally {
       setIsRegenerating(false);
     }
   };
 
-  const handleRecordProgress = async (score: number, totalQuestions: number) => {
-    if (!user || !activeMaterial) return;
-    const { data, error } = await supabase
-      .from('study_progress')
-      .insert({
+  const handleRecordProgress = async (materialId: string, score: number, total: number) => {
+    if (!user) return;
+    const nowIso = new Date().toISOString();
+    try {
+      await supabase.from('study_progress').insert({
         user_id: user.id,
-        material_id: activeMaterial.id,
+        material_id: materialId,
         score,
-        total_questions: totalQuestions,
-      })
-      .select('id,material_id,score,total_questions,completed_at')
-      .single();
-
-    if (!error && data) {
-      setProgressRows((prev) => [data as StudyProgressRow, ...prev]);
-      toast.success(`Çalışma puanınız kaydedildi (${score}/${totalQuestions}).`);
+        total_questions: total,
+        attempts: 1,
+        completed_at: nowIso,
+      });
+      setProgress((prev) => [
+        {
+          id: `local-${Date.now()}`,
+          user_id: user.id,
+          material_id: materialId,
+          score,
+          total_questions: total,
+          attempts: 1,
+          completed_at: nowIso,
+        },
+        ...prev,
+      ]);
+    } catch {
+      // Non-fatal progress telemetry error
     }
   };
 
+  const handleSavedLiveMaterial = (saved: StudyMaterial) => {
+    setMaterials((prev) => [saved, ...prev]);
+    setActiveMaterial(saved);
+    void indexMaterialSilent(saved);
+  };
+
+  if (authLoading) {
+    return (
+      <Layout>
+        <div className="flex min-h-[60vh] items-center justify-center gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span>EconNotes Neural Studio hazırlanıyor...</span>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Layout>
+        <div className="mx-auto my-12 max-w-lg rounded-3xl border border-border/70 bg-card p-8 text-center space-y-4 shadow-lg">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Sparkles className="h-6 w-6" />
+          </div>
+          <h1 className="text-xl font-bold">EconNotes Neural Studio</h1>
+          <p className="text-sm text-muted-foreground">
+            Çalışma materyali üretmek, WebGPU yerel AI ve çoklu kaynak RAG asistanını kullanmak
+            için oturum açmalısınız.
+          </p>
+          <Button onClick={() => navigate('/auth')} className="gap-2">
+            <LogIn className="h-4 w-4" />
+            Giriş Yap / Kayıt Ol
+          </Button>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
-      <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8">
-        {activeMaterial && activeMaterial.material_type !== 'video' ? (
-          <StudyWorkspace
+      <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
+        {activeMaterial?.material_type === 'video' ? (
+          <Suspense
+            fallback={
+              <div className="flex min-h-[55vh] items-center justify-center gap-2 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span>Video Stüdyosu Sahne Motoru yükleniyor...</span>
+              </div>
+            }
+          >
+            <NeuralVideoStudioLazy
+              material={activeMaterial}
+              onClose={() => setActiveMaterial(null)}
+              onReport={() => setReportOpen(true)}
+              onOpenCoach={() => {
+                setActiveMaterial(null);
+                setActiveTab('rag');
+              }}
+            />
+          </Suspense>
+        ) : activeMaterial ? (
+          <NeuralWorkspaceFrame
             material={activeMaterial}
             onBack={() => setActiveMaterial(null)}
-            onConvertTo={(target) => void handleConvertTo(target)}
+            onConvertTo={handleConvertTo}
             convertingTo={convertingTo}
             onExpandSection={handleExpandSection}
             expandingSectionIdx={expandingSectionIdx}
             onRegenerateDeep={handleRegenerateDeep}
             isRegenerating={isRegenerating}
-            onRecordProgress={handleRecordProgress}
+            onRecordProgress={(score, total) =>
+              handleRecordProgress(activeMaterial.id, score, total)
+            }
             onReportIssue={() => setReportOpen(true)}
           />
         ) : (
-          <>
-            <StudyHeroAndStats
-              materials={materials}
-              progress={progressRows}
-              showComposer={showComposer}
-              onStartCreate={scrollToComposer}
-              onReportIssue={() => setReportOpen(true)}
-            />
-
-            {isAdmin && user && (
-              <LiveLectureCapture
-                userId={user.id}
-                onSaved={(mat: StudyMaterial) => setMaterials((prev) => [mat, ...prev])}
-              />
-            )}
-
-            <div ref={composerRef}>
-              {showComposer && (
-                <SourceComposerHub
-                  ownNotes={ownNotes}
-                  platformNotes={platformNotes}
-                  sources={sources}
-                  onSourcesChange={setSources}
-                  settings={settings}
-                  onSettingsChange={setSettings}
-                  customTitle={customTitle}
-                  onCustomTitleChange={setCustomTitle}
-                  customCourse={customCourse}
-                  onCustomCourseChange={setCustomCourse}
-                  isGenerating={isGenerating}
-                  generationPct={generationPct}
-                  generationLabel={generationLabel}
-                  onGenerate={(bundle) => void handleGenerate(bundle)}
-                  onExtractRemoteNoteFile={handleExtractRemoteNoteFile}
-                />
-              )}
-            </div>
-
-            {loading ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-44 animate-pulse rounded-xl bg-muted" />
-                ))}
-              </div>
-            ) : (
-              <StudyMaterialLibrary
+          <NeuralCommandShell
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            engine={engine}
+            dueCardsCount={dueCards.length}
+            materialsCount={materials.length}
+            indexedDocsCount={indexedDocsCount}
+            onReportIssue={() => setReportOpen(true)}
+          >
+            {activeTab === 'hub' && (
+              <NeuralHubView
                 materials={materials}
-                progress={progressRows}
-                onOpenMaterial={(mat) => setActiveMaterial(mat)}
-                onDeleteMaterial={(id) => void handleDeleteMaterial(id)}
-                onCreateNew={scrollToComposer}
+                progress={progress}
+                dueCards={dueCards}
+                weakTopics={weakTopics}
+                engine={engine}
+                isAdmin={isAdmin}
+                userId={user.id}
+                onSavedLiveMaterial={handleSavedLiveMaterial}
+                onGoTab={setActiveTab}
+                onOpenMaterial={setActiveMaterial}
               />
             )}
-          </>
+
+            {activeTab === 'create' && (
+              <NeuralCreateView
+                ownNotes={ownNotes}
+                platformNotes={platformNotes}
+                sources={sources}
+                onSourcesChange={setSources}
+                settings={settings}
+                onSettingsChange={setSettings}
+                customTitle={customTitle}
+                onCustomTitleChange={setCustomTitle}
+                customCourse={customCourse}
+                onCustomCourseChange={setCustomCourse}
+                isGenerating={isGenerating}
+                generationPct={generationPct}
+                generationLabel={generationLabel}
+                onGenerate={handleGenerate}
+                onExtractRemoteNoteFile={handleExtractRemoteNoteFile}
+                engine={engine}
+              />
+            )}
+
+            {activeTab === 'library' && (
+              <NeuralLibraryView
+                materials={materials}
+                progress={progress}
+                onOpenMaterial={setActiveMaterial}
+                onDeleteMaterial={handleDeleteMaterial}
+                onCreateNew={() => setActiveTab('create')}
+                onIndexChanged={refreshIndexedDocsCount}
+              />
+            )}
+
+            {activeTab === 'rag' && (
+              <NeuralRagChatView
+                materials={materials}
+                onIndexChanged={refreshIndexedDocsCount}
+                onOpenMaterial={setActiveMaterial}
+              />
+            )}
+
+            {activeTab === 'planner' && (
+              <NeuralPlannerView
+                materials={materials}
+                progress={progress}
+                srsCards={srsCards}
+                dueCards={dueCards}
+                onSrsUpdated={refreshSrsCards}
+                onOpenMaterial={setActiveMaterial}
+                onStartExamSim={() => setActiveTab('exam')}
+              />
+            )}
+
+            {activeTab === 'exam' && (
+              <NeuralExamSimView
+                materials={materials}
+                onRecordExamProgress={handleRecordProgress}
+                onGoWeakPlanner={() => setActiveTab('planner')}
+              />
+            )}
+
+            {activeTab === 'engine' && <NeuralEnginePanelView engine={engine} />}
+          </NeuralCommandShell>
         )}
       </div>
 
-      {/* Interactive Video Studio Overlay */}
-      {activeMaterial && activeMaterial.material_type === 'video' && (
-        <InteractiveVideoStudio
-          key={activeMaterial.id}
-          material={activeMaterial}
-          onClose={() => setActiveMaterial(null)}
-          onReport={() => setReportOpen(true)}
-        />
-      )}
-
-      {/* Report Issue Dialog */}
-      <StudyReportDialog
+      <NeuralReportDialog
         open={reportOpen}
         onOpenChange={setReportOpen}
         materialId={activeMaterial?.id}
       />
 
-      {/* 1-Hour Study Break Reminder */}
-      <Dialog open={breakOpen} onOpenChange={setBreakOpen}>
-        <DialogContent className="max-w-md">
+      <Dialog open={breakDialogOpen} onOpenChange={setBreakDialogOpen}>
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Coffee className="h-5 w-5 text-amber-500" />
-              Küçük bir mola vermek ister misin?
+              60 Dakikalık Odak Molası Önerisi
             </DialogTitle>
             <DialogDescription>
-              Yoğun bir şekilde çalışıyorsun — iyi bir molayı hak ettin. Bir bardak su iç,
-              gözlerini dinlendir ve 5 dakika sonra kaldığın yerden verimle devam et.
+              Kesintisiz 60 dakikadır Çalışma Stüdyosu’ndasınız. Bilişsel hafıza pekişmesi için
+              5-10 dakikalık kısa bir mola verip ardından Aralıklı Tekrar (SM-2) kartlarına göz
+              atmanız önerilir.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setBreakOpen(false)}>
-              Devam edeyim
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBreakDialogOpen(false)}>
+              Devam Et
             </Button>
-            <Button onClick={() => setBreakOpen(false)} className="gap-2">
-              <Coffee className="h-4 w-4" />5 dakika mola
+            <Button
+              onClick={() => {
+                setBreakDialogOpen(false);
+                setActiveMaterial(null);
+                setActiveTab('planner');
+              }}
+            >
+              Tekrar Planına Geç
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </Layout>
   );
-};
-
-export default Study;
+}
