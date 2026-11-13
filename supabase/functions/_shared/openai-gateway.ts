@@ -26,10 +26,14 @@ export interface OpenAIChatOptions {
     | 'google/gemini-2.5-pro'
     | 'google/gemini-2.5-flash'
     | 'openai/gpt-4o'
-    | 'openai/gpt-4o-mini';
+    | 'openai/gpt-4o-mini'
+    | (string & {});
   messages: OpenAIMessage[];
   temperature?: number;
   max_tokens?: number;
+  timeoutMs?: number;
+  responseFormat?: 'json_object' | 'text';
+  allowPublicFallback?: boolean;
   jsonSchema?: {
     name: string;
     schema: Record<string, unknown>;
@@ -76,6 +80,71 @@ export const getOpenAIApiKey = (): string => {
 };
 
 /**
+ * Extract JSON object from raw model output (handles markdown fences and leading/trailing prose).
+ */
+export function extractJsonFromText(raw: string): unknown | undefined {
+  if (!raw || typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) return undefined;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // try fenced or substring recovery below
+  }
+
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch?.[1]) {
+    try {
+      return JSON.parse(fenceMatch[1].trim());
+    } catch {
+      // continue to brace scan
+    }
+  }
+
+  const firstObj = trimmed.indexOf('{');
+  const firstArr = trimmed.indexOf('[');
+  const start =
+    firstObj === -1 ? firstArr : firstArr === -1 ? firstObj : Math.min(firstObj, firstArr);
+  if (start === -1) return undefined;
+
+  const openChar = trimmed[start];
+  const closeChar = openChar === '[' ? ']' : '}';
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < trimmed.length; i++) {
+    const ch = trimmed[i];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\' && inString) {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === openChar) depth++;
+    if (ch === closeChar) {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(trimmed.slice(start, i + 1));
+        } catch {
+          return undefined;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
  * Execute a Chat Completion request with automatic multi-gateway fallback & structured schema support.
  */
 export async function createChatCompletion(options: OpenAIChatOptions): Promise<{
@@ -90,12 +159,17 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
   const groqKey = Deno.env.get('GROQ_API_KEY');
   const deepseekKey = Deno.env.get('DEEPSEEK_API_KEY');
 
+  const hasMultimodalImages = options.messages.some(
+    (m) => Array.isArray(m.content) && m.content.some((p) => p.type === 'image_url'),
+  );
+
   interface GatewayProvider {
     name: string;
     apiKey: string;
     endpoint: string;
     model: string;
     isLovableGateway: boolean;
+    supportsJsonSchema: boolean;
   }
 
   const providers: GatewayProvider[] = [];
@@ -112,6 +186,7 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
         ? options.model
         : 'gpt-4o',
       isLovableGateway: false,
+      supportsJsonSchema: true,
     });
   }
 
@@ -121,34 +196,16 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
       name: 'gemini',
       apiKey: geminiKey,
       endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
-      model: options.model === 'gpt-4o-mini' ? 'gemini-2.5-flash' : 'gemini-2.5-pro',
+      model:
+        options.model === 'gpt-4o-mini' || options.model === 'google/gemini-2.5-flash'
+          ? 'gemini-2.5-flash'
+          : 'gemini-2.5-pro',
       isLovableGateway: false,
+      supportsJsonSchema: false,
     });
   }
 
-  // 3. Direct Groq API (if configured)
-  if (groqKey) {
-    providers.push({
-      name: 'groq',
-      apiKey: groqKey,
-      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
-      model: 'llama-3.3-70b-versatile',
-      isLovableGateway: false,
-    });
-  }
-
-  // 4. Direct DeepSeek API (if configured)
-  if (deepseekKey) {
-    providers.push({
-      name: 'deepseek',
-      apiKey: deepseekKey,
-      endpoint: 'https://api.deepseek.com/chat/completions',
-      model: 'deepseek-chat',
-      isLovableGateway: false,
-    });
-  }
-
-  // 5. Lovable Gateway (if configured)
+  // 3. Lovable Gateway (supports multimodal + high context)
   if (lovableKey) {
     providers.push({
       name: 'lovable',
@@ -160,6 +217,31 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
         ? 'google/gemini-2.5-pro'
         : 'google/gemini-2.5-flash',
       isLovableGateway: true,
+      supportsJsonSchema: false,
+    });
+  }
+
+  // 4. Direct Groq API (text-only)
+  if (groqKey && !hasMultimodalImages) {
+    providers.push({
+      name: 'groq',
+      apiKey: groqKey,
+      endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      model: 'llama-3.3-70b-versatile',
+      isLovableGateway: false,
+      supportsJsonSchema: false,
+    });
+  }
+
+  // 5. Direct DeepSeek API (text-only)
+  if (deepseekKey && !hasMultimodalImages) {
+    providers.push({
+      name: 'deepseek',
+      apiKey: deepseekKey,
+      endpoint: 'https://api.deepseek.com/chat/completions',
+      model: 'deepseek-chat',
+      isLovableGateway: false,
+      supportsJsonSchema: false,
     });
   }
 
@@ -170,17 +252,19 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
       endpoint: 'https://ai.gateway.lovable.dev/v1/chat/completions',
       model: 'google/gemini-2.5-pro',
       isLovableGateway: true,
+      supportsJsonSchema: false,
     });
   }
 
-  if (providers.length === 0) {
+  if (providers.length === 0 && !options.allowPublicFallback) {
     throw new OpenAIGatewayError('AI servisi yapılandırılmamış (API anahtarı eksik).', 500);
   }
 
   let lastErr: OpenAIGatewayError | null = null;
+  const requestTimeoutMs = options.timeoutMs ?? 55_000;
 
   for (const provider of providers) {
-    const { apiKey, endpoint, model: selectedModel, isLovableGateway } = provider;
+    const { apiKey, endpoint, model: selectedModel, isLovableGateway, supportsJsonSchema } = provider;
 
     const normalizedMessages = isLovableGateway
       ? options.messages.map((msg) => {
@@ -196,38 +280,70 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
         })
       : options.messages;
 
-    const payload: Record<string, unknown> = {
-      model: selectedModel,
-      messages: normalizedMessages,
-      temperature: options.temperature ?? 0.2,
-      max_tokens: options.max_tokens ?? 4000,
+    const buildPayload = (mode: 'primary' | 'compat_json'): Record<string, unknown> => {
+      const payload: Record<string, unknown> = {
+        model: selectedModel,
+        messages: normalizedMessages,
+        temperature: options.temperature ?? 0.25,
+        max_tokens: options.max_tokens ?? 4000,
+      };
+
+      if (mode === 'compat_json') {
+        if (options.responseFormat === 'json_object' || options.jsonSchema || options.tools) {
+          payload.response_format = { type: 'json_object' };
+        }
+        return payload;
+      }
+
+      if (options.responseFormat === 'json_object') {
+        payload.response_format = { type: 'json_object' };
+      } else if (options.jsonSchema) {
+        if (supportsJsonSchema) {
+          payload.response_format = {
+            type: 'json_schema',
+            json_schema: {
+              name: options.jsonSchema.name,
+              strict: options.jsonSchema.strict ?? true,
+              schema: options.jsonSchema.schema,
+            },
+          };
+        } else {
+          payload.response_format = { type: 'json_object' };
+        }
+      } else if (options.tools) {
+        payload.tools = options.tools;
+        if (options.tool_choice) {
+          payload.tool_choice = options.tool_choice;
+        }
+      }
+
+      return payload;
     };
 
-    if (options.jsonSchema) {
-      payload.response_format = {
-        type: 'json_schema',
-        json_schema: {
-          name: options.jsonSchema.name,
-          strict: options.jsonSchema.strict ?? true,
-          schema: options.jsonSchema.schema,
-        },
-      };
-    } else if (options.tools) {
-      payload.tools = options.tools;
-      if (options.tool_choice) {
-        payload.tool_choice = options.tool_choice;
-      }
-    }
-
-    try {
+    const callGateway = async (mode: 'primary' | 'compat_json') => {
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(buildPayload(mode)),
+        signal: AbortSignal.timeout(requestTimeoutMs),
       });
+      return response;
+    };
+
+    try {
+      let response = await callGateway('primary');
+
+      // Auto-downgrade incompatible strict schemas or tool calling on 400/422 to json_object
+      if (
+        (response.status === 400 || response.status === 422) &&
+        (options.jsonSchema || options.tools)
+      ) {
+        await response.text().catch(() => '');
+        response = await callGateway('compat_json');
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -247,50 +363,56 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
 
       // Handle function calling response
       if (message?.tool_calls?.[0]?.function?.arguments) {
-        try {
-          const parsed = JSON.parse(message.tool_calls[0].function.arguments);
+        const rawArgs = message.tool_calls[0].function.arguments;
+        const parsed = extractJsonFromText(rawArgs);
+        if (parsed !== undefined) {
           return {
-            content: message.tool_calls[0].function.arguments,
+            content: rawArgs,
             parsedJson: parsed,
             usage: data.usage,
             model: selectedModel,
           };
-        } catch {
-          // return as text if JSON parse fails
         }
       }
 
-      // Handle json_schema response_format
-      if (message?.content && options.jsonSchema) {
-        try {
-          const parsed = JSON.parse(message.content);
+      const textContent = typeof message?.content === 'string' ? message.content : '';
+      const wantsJson =
+        Boolean(options.jsonSchema) || options.responseFormat === 'json_object';
+
+      if (textContent && wantsJson) {
+        const parsed = extractJsonFromText(textContent);
+        if (parsed !== undefined) {
           return {
-            content: message.content,
+            content: textContent,
             parsedJson: parsed,
             usage: data.usage,
             model: selectedModel,
           };
-        } catch {
-          // fallback
         }
       }
 
-      return {
-        content: message?.content || '',
-        usage: data.usage,
-        model: selectedModel,
-      };
+      if (textContent.trim().length > 0) {
+        return {
+          content: textContent,
+          usage: data.usage,
+          model: selectedModel,
+        };
+      }
+
+      lastErr = new OpenAIGatewayError('AI servisi boş yanıt döndürdü.', 502);
     } catch (err) {
       console.error(`AI Gateway network failure [${selectedModel}]:`, err);
       lastErr = new OpenAIGatewayError('AI servisine bağlanılamadı.', 502, err);
     }
   }
 
-  // Emergency zero-key reasoning fallback for plain-text chat when configured keys are exhausted (402/502)
-  const hasMultimodalImages = options.messages.some(
-    (m) => Array.isArray(m.content) && m.content.some((p) => p.type === 'image_url'),
-  );
-  if (!hasMultimodalImages && !options.tools && !options.jsonSchema) {
+  // Emergency zero-key reasoning fallback when configured keys are exhausted or unavailable
+  if (
+    !hasMultimodalImages &&
+    !options.tools &&
+    !options.jsonSchema &&
+    options.allowPublicFallback !== false
+  ) {
     try {
       const pubRes = await fetch('https://text.pollinations.ai/openai', {
         method: 'POST',
@@ -298,15 +420,22 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
         body: JSON.stringify({
           model: 'openai',
           messages: options.messages,
-          temperature: options.temperature ?? 0.2,
+          temperature: options.temperature ?? 0.25,
+          ...(options.responseFormat === 'json_object'
+            ? { response_format: { type: 'json_object' } }
+            : {}),
         }),
+        signal: AbortSignal.timeout(Math.min(requestTimeoutMs, 40_000)),
       });
       if (pubRes.ok) {
         const pubData = await pubRes.json();
         const pubText = pubData?.choices?.[0]?.message?.content;
         if (typeof pubText === 'string' && pubText.trim().length > 0) {
+          const parsed =
+            options.responseFormat === 'json_object' ? extractJsonFromText(pubText) : undefined;
           return {
             content: pubText.trim(),
+            parsedJson: parsed,
             usage: pubData.usage,
             model: 'econnotes-reasoning',
           };
@@ -348,6 +477,7 @@ export async function createSpeech(options: OpenAITtsOptions): Promise<{
       response_format: format,
       speed: options.speed || 1.0,
     }),
+    signal: AbortSignal.timeout(25_000),
   });
 
   if (!response.ok) {
