@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildStudioContent, MIN_LESSON_DURATION_SEC, shortLabel } from './sceneModel';
+import {
+  buildStudioContent,
+  inferVisualTheme,
+  MIN_LESSON_DURATION_SEC,
+  shortLabel,
+  type StudioScene,
+} from './sceneModel';
+import { renderStage, STAGE_H, STAGE_W, type StageFrame } from './renderStage';
 import {
   buildSceneSpeakerTurns,
   discoverTurkishVoices,
@@ -289,5 +296,250 @@ describe('video studio sceneModel & speechEngine', () => {
     streak = 0;
     expect(box).toBe(1);
     expect(streak).toBe(0);
+  });
+});
+
+
+function createMockCanvasContext() {
+  const fillTextCalls: string[] = [];
+  const gradient = {
+    addColorStop: () => undefined,
+  };
+  const base: Record<string, unknown> = {
+    canvas: { width: STAGE_W, height: STAGE_H },
+    fillStyle: '#000000',
+    strokeStyle: '#000000',
+    font: '400 16px sans-serif',
+    textAlign: 'left',
+    textBaseline: 'alphabetic',
+    lineWidth: 1,
+    lineCap: 'butt',
+    lineJoin: 'miter',
+    globalAlpha: 1,
+    shadowColor: 'transparent',
+    shadowBlur: 0,
+    shadowOffsetX: 0,
+    shadowOffsetY: 0,
+    lineDashOffset: 0,
+    createLinearGradient: () => gradient,
+    createRadialGradient: () => gradient,
+    measureText: (text: string) => ({ width: (text || '').length * 8 }) as TextMetrics,
+    getLineDash: () => [],
+    fillText: (text: string) => {
+      fillTextCalls.push(String(text));
+    },
+  };
+
+  const ctx = new Proxy(base, {
+    get(target, prop: string) {
+      if (prop in target) return target[prop];
+      return () => undefined;
+    },
+    set(target, prop: string, value: unknown) {
+      target[prop] = value;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+
+  return { ctx, fillTextCalls };
+}
+
+function makeTestFrame(scene: StudioScene, sceneIndex: number, sceneCount: number): StageFrame {
+  return {
+    scene,
+    sceneIndex,
+    sceneCount,
+    progress: 0.65,
+    overall: (sceneIndex + 0.65) / Math.max(1, sceneCount),
+    sceneTime: 18,
+    sentenceIndex: 0,
+    charInSentence: 12,
+    activeSpeaker: scene.speaker,
+    playing: true,
+    poster: false,
+    now: 1200,
+    courseLabel: 'Para Teorisi',
+    showSubtitles: true,
+    viseme: 'aa',
+    mouthOpen: 0.45,
+    inBreathPause: false,
+    layoutMode: 'standard',
+    subtitleSize: 'md',
+  };
+}
+
+describe('Video Studio Phase 2: Domain Classification, Visual Density & Stage Rendering', () => {
+  it('classifies Para Teorisi & monetary notes with historical mentions as economics, never history', () => {
+    const monetaryTheme = inferVisualTheme(
+      'Para Teorisi - 5. Hafta: Merkez bankası emisyon mekanizması, 20. yüzyıl tarihsel gelişim, likidite, faiz ve zorunlu karşılık oranları.',
+    );
+    expect(monetaryTheme).toBe('economics');
+
+    const historyTheme = inferVisualTheme(
+      'Selçuklu ikta sistemi 12. yüzyıl miri arazi, tımar ve dirlik düzeni üzerine tarihsel inceleme.',
+    );
+    expect(historyTheme).toBe('history');
+  });
+
+  it('filters opening greeting chatter from examTip and enforces dense nodes and varied diagram types', () => {
+    const rawMonetaryStudio = {
+      videoTitle: 'Para Teorisi - 5. Hafta',
+      outline: 'Merkez bankası bilançosu, emisyon ve para arzı mekanizması.',
+      scenes: [
+        {
+          title: 'Para Teorisi - 5. Hafta Giriş',
+          speaker: 'Deniz',
+          text:
+            'Merhaba arkadaşlar. Para Teorisi dersimizin 5. haftasında merkez bankalarının emisyon faaliyetlerini inceliyoruz. Emisyon hacmi, açık piyasa işlemleri ve zorunlu karşılık oranları para arzını ve piyasa likiditesini doğrudan şekillendirir. Para talebi ile para arzı dengelendiğinde denge faiz oranı oluşur.',
+          examTip:
+            'Merhaba arkadaşlar. Para Teorisi dersimizin 5. haftasında merkez bankalarının emisyon faaliyetlerini inceliyoruz.',
+          diagramData: {
+            diagramType: 'visual',
+            visualTheme: 'history',
+            mainTitle: 'Para Teorisi - 5. Hafta',
+            highlightMetric: 'Emisyon',
+            nodes: [
+              {
+                label: 'Para Teorisi',
+                subtext:
+                  'Merhaba arkadaşlar. Para Teorisi dersimizin 5. haftasında merkez bankalarının temel niteliklerini ve emisyon faaliyetlerini inceliyoruz.',
+              },
+            ],
+          },
+          keyTakeaways: ['Emisyon hacmi merkez bankası bilançosunun pasif kalemidir.'],
+          keyTerms: [
+            {
+              term: 'Emisyon İmtiyazı',
+              definition: 'Merkez bankasının banknot ihraç etme tekel yetkisidir.',
+            },
+            {
+              term: 'Zorunlu Karşılık',
+              definition: 'Bankaların mevduatlarının belli oranını merkez bankasında tutma yükümlülüğüdür.',
+            },
+            {
+              term: 'Açık Piyasa İşlemleri',
+              definition: 'Merkez bankasının tahvil alım-satımıyla piyasa likiditesini yönetmesidir.',
+            },
+          ],
+        },
+        {
+          title: 'Para Piyasası Dengesi ve Eğri Analizi',
+          speaker: 'Deniz',
+          text:
+            'Para arzı dikey Ms eğrisiyle, para talebi ise faize duyarlı negatif eğimli Md eğrisiyle gösterilir. Genişletici para politikası faiz oranını düşürürken likiditeyi artırır.',
+          diagramData: {
+            diagramType: 'curve',
+            mainTitle: 'Para Piyasası Faiz Dengesi',
+            nodes: [
+              { label: 'Dikey Para Arzı (Ms)', subtext: 'Merkez bankası tarafından dışsal belirlenir.' },
+              { label: 'Para Talebi (Md)', subtext: 'Faiz düştükçe işlem ve spekülasyon talebi artar.' },
+              { label: 'Denge Faiz (i*)', subtext: 'Ms ve Md kesişiminde piyasa temizlenir.' },
+            ],
+          },
+          keyTakeaways: ['Likidite genişlediğinde kısa vadeli faiz oranı geriler.'],
+        },
+      ],
+    };
+
+    const studio = buildStudioContent(rawMonetaryStudio, 'Para Teorisi - 5. Hafta', 'Para Teorisi');
+
+    // No greeting chatter in any scene examTip (SINAV NOTU)
+    for (const sc of studio.scenes) {
+      if (sc.examTip) {
+        expect(sc.examTip).not.toMatch(/^\s*(?:merhaba|hoş\s+geldiniz|selam)/i);
+      }
+    }
+
+    // Opening 'visual' scene must have >= 3 substantive nodes (no single lonely card)
+    expect(studio.scenes[0].diagram.type).toBe('visual');
+    expect(studio.scenes[0].diagram.visualTheme).toBe('economics');
+    expect(studio.scenes[0].diagram.nodes.length).toBeGreaterThanOrEqual(3);
+
+    // Chapter diversity must preserve both curve and chart diagrams across the lesson
+    const types = new Set(studio.scenes.map((sc) => sc.diagram.type));
+    expect(types.has('visual')).toBe(true);
+    expect(types.has('curve')).toBe(true);
+    expect(types.has('chart')).toBe(true);
+    expect(types.size).toBeGreaterThanOrEqual(5);
+  });
+
+  it('smoke-tests renderStage cleanly across visual (economics), curve, and history scenes', () => {
+    const studio = buildStudioContent(
+      {
+        videoTitle: 'Para Teorisi - 5. Hafta',
+        scenes: [
+          {
+            title: 'Merkez Bankası ve Emisyon',
+            speaker: 'Deniz',
+            text:
+              'Merkez bankası emisyon yetkisiyle banknot basar, zorunlu karşılık ve açık piyasa işlemleriyle likiditeyi yönlendirir.',
+            diagramData: {
+              diagramType: 'visual',
+              visualTheme: 'economics',
+              mainTitle: 'Merkez Bankası & Emisyon',
+              nodes: [
+                { label: 'Emisyon Yetkisi', subtext: 'Banknot ihracı ve rezerv yönetimi' },
+                { label: 'Likidite Kanalı', subtext: 'Açık piyasa işlemleri ve APİ mekanizması' },
+                { label: 'Fiyat İstikrarı', subtext: 'Enflasyon beklentilerinin çıpalanması' },
+              ],
+            },
+          },
+          {
+            title: 'Para Piyasası Dengesi',
+            speaker: 'Barış',
+            text: 'Ms ve Md eğrilerinin kesişiminde para piyasası denge faiz oranı i* oluşur.',
+            diagramData: {
+              diagramType: 'curve',
+              visualTheme: 'economics',
+              mainTitle: 'Ms / Md Denge Grafiği',
+              nodes: [
+                { label: 'Para Arzı (Ms)', subtext: 'Dikey dışsal arz doğrusu' },
+                { label: 'Para Talebi (Md)', subtext: 'Negatif eğimli likidite tercihi' },
+                { label: 'Denge Faizi (i*)', subtext: 'M^s/P = L(Y, i) eşitliği' },
+              ],
+            },
+          },
+        ],
+      },
+      'Para Teorisi - 5. Hafta',
+      'Para Teorisi',
+    );
+
+    const historyStudio = buildStudioContent(
+      {
+        videoTitle: 'Osmanlı Toprak Düzeni',
+        scenes: [
+          {
+            title: 'Miri Arazi ve Tımar',
+            speaker: 'Deniz',
+            text: 'Osmanlı iktisat tarihinde tımar sistemi devlet mülkiyetindeki miri arazilerin işletilmesini düzenler.',
+            diagramData: {
+              diagramType: 'visual',
+              visualTheme: 'history',
+              mainTitle: 'Tımar ve İkta Yapısı',
+              nodes: [
+                { label: 'Miri Arazi', subtext: 'Rakamı devlete ait toprak mülkiyeti' },
+                { label: 'Dirlik Dağıtımı', subtext: 'Hizmet karşılığı vergi toplama yetkisi' },
+                { label: 'Cebeli Sipahi', subtext: 'Tarımsal üretim ve taşra güvenliği' },
+              ],
+            },
+          },
+        ],
+      },
+      'Osmanlı Toprak Düzeni',
+      'İktisat Tarihi',
+    );
+
+    const scenesToDraw: StudioScene[] = [
+      studio.scenes[0],
+      studio.scenes.find((s) => s.diagram.type === 'curve') || studio.scenes[1],
+      historyStudio.scenes[0],
+    ];
+
+    scenesToDraw.forEach((scene, idx) => {
+      const { ctx, fillTextCalls } = createMockCanvasContext();
+      expect(() => renderStage(ctx, makeTestFrame(scene, idx, scenesToDraw.length))).not.toThrow();
+      expect(fillTextCalls.length).toBeGreaterThan(5);
+    });
   });
 });

@@ -45,7 +45,20 @@ function normalizeSourceText(raw: string): string {
     .split('\0')
     .join('')
     .replace(/\r\n/g, '\n')
+    // PDF satır sonu tirelemelerini birleştir (örn. "merkez-\nlemiş" -> "merkezlemiş")
+    .replace(/([A-Za-zÇĞİÖŞÜçğıöşü])-\n([a-zçğıöşü])/g, '$1$2')
+    // Yalnızca tek başına duran slayt/sayfa numarası ve tekrarlı altbilgi satırlarını ayıkla
+    .split('\n')
+    .filter((line) => {
+      const t = line.trim();
+      if (!t) return true;
+      if (/^\d{1,3}\s*(\/\s*\d{1,3})?$/.test(t)) return false;
+      if (/^(sayfa|slayt|page|slide)\s*:?\s*\d{1,3}(\s*\/\s*\d{1,3})?$/i.test(t)) return false;
+      return true;
+    })
+    .join('\n')
     .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -186,7 +199,7 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
       currentPageRange = undefined;
       continue;
     }
-    if (isHeadingCandidate(line) && currentLines.length >= 2) {
+    if (isHeadingCandidate(line) && currentLines.length >= 1) {
       rawBlocks.push({
         heading: currentHeading || `${fallbackTitle} — Bölüm ${rawBlocks.length + 1}`,
         pageRange: currentPageRange,
@@ -405,46 +418,101 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
 
   // ---------------- VIDEO ----------------
   if (req.materialType === 'video') {
-    const units = splitDocumentIntoUnits(cleanText, title, 5);
-    const visualTypes = [
-      'concept_diagram',
-      'process_flow',
-      'comparison_matrix',
-      'timeline_arc',
-      'case_callout',
-    ] as const;
+    let units = splitDocumentIntoUnits(cleanText, title, 6).filter(
+      (u) =>
+        u.sentences.some((st) => !/^\s*(?:merhaba|hoş\s+geldiniz|selam|günaydın)\b/i.test(st)) ||
+        u.bullets.length > 0,
+    );
+    if (units.length < 4 && sentences.length >= 6) {
+      const target = Math.min(6, Math.max(4, Math.floor(sentences.length / 2)));
+      const per = Math.max(1, Math.ceil(sentences.length / target));
+      units = Array.from({ length: target }, (_, i) => {
+        const sents = sentences.slice(i * per, (i + 1) * per).filter(Boolean);
+        const hWords = (sents[0] || '').split(/\s+/).slice(0, 5).join(' ').replace(/[,.;:!?]$/, '');
+        return {
+          heading: units[i]?.heading || (hWords ? `${title}: ${hWords}` : `${title} — Bölüm ${i + 1}`),
+          pageRange: units[i]?.pageRange,
+          paragraphs: [sents.join(' ')],
+          bullets: units[i]?.bullets || [],
+          formulas: units[i]?.formulas || [],
+          sentences: sents.length > 0 ? sents : [sentences[i % sentences.length]],
+        };
+      });
+    }
+    const isEconDoc = /iktisat|ekonomi|para|merkez bankas|enflasyon|faiz|piyasa|arz|talep|maliye|bütçe|vergi|kredi|likidite/i.test(
+      `${course} ${title} ${cleanText.slice(0, 1200)}`,
+    );
+    const diagramPalette = isEconDoc
+      ? (['visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'comparison'] as const)
+      : (['visual', 'table', 'shapes', 'scenario', 'timeline', 'comparison'] as const);
+    const badges = ['Temel İlke', 'Mekanizma', 'Kurumsal Koşul', 'Politika Çıktısı'];
 
-    const scenes = units.slice(0, 6).map((u, idx) => {
-      const narration = u.paragraphs.join(' ').slice(0, 650) || `${u.heading} bölümü inceleniyor.`;
-      const bullets = (u.bullets.length > 0 ? u.bullets : u.sentences).slice(0, 4).map((b) => b.slice(0, 110));
+    const scenes = units.slice(0, 7).map((u, idx) => {
+      const nonGreetingUnitSents = u.sentences.filter(
+        (st) => !/^\s*(?:merhaba|hoş\s+geldiniz|selam|günaydın)\b/i.test(st),
+      );
+      const unitSents =
+        nonGreetingUnitSents.length > 0
+          ? nonGreetingUnitSents
+          : u.sentences.length > 0
+          ? u.sentences
+          : [`${u.heading} bölümü incelenmektedir.`];
       const hostTerm = keyTerms[idx % Math.max(1, keyTerms.length)]?.term || u.heading;
-      const correctOption = u.sentences[0]?.slice(0, 120) || `${u.heading} ile doğrudan ilişkilidir.`;
-      const wrongOpts = buildSectionQuizDistractors(correctOption, sentences, idx).map((d) => d.slice(0, 110));
+      const facetSources = [...(u.bullets.length > 0 ? u.bullets : []), ...unitSents, ...sentences].filter(
+        (st) => st && !/^\s*(?:merhaba|hoş\s+geldiniz|selam|günaydın)\b/i.test(st),
+      );
+      const nodes = Array.from({ length: Math.min(4, Math.max(3, facetSources.length)) }, (_, ni) => {
+        const rawSent = facetSources[ni % facetSources.length] || u.heading;
+        const colonParts = rawSent.split(/[:–-]/);
+        const labelCandidate =
+          colonParts.length >= 2 && colonParts[0].trim().length <= 42
+            ? colonParts[0].trim()
+            : rawSent.split(/\s+/).slice(0, 4).join(' ').replace(/[,.;:!?]$/, '');
+        return {
+          label: labelCandidate || `${u.heading.slice(0, 24)} ${ni + 1}`,
+          subtext: rawSent.slice(0, 180),
+          badge: badges[ni % badges.length],
+          value: 86 - ni * 7,
+        };
+      });
+
+      const leadTurn = unitSents[0] || `${u.heading} temel çerçevesini oluşturur.`;
+      const deepTurn = unitSents.slice(1, 3).join(' ') || `${hostTerm} üzerinden neden-sonuç ilişkisi bu mekanizmada belirleyicidir.`;
+      const turns = [
+        { speaker: 'Deniz' as const, text: leadTurn },
+        {
+          speaker: 'Barış' as const,
+          text: `Deniz hocam, ${u.heading} kapsamında "${nodes[0]?.label || hostTerm}" kavramı pratikte hangi mekanizmayı tetikliyor?`,
+        },
+        { speaker: 'Deniz' as const, text: deepTurn },
+      ];
+      const narration = turns.map((t) => t.text).join(' ');
+      const correctOption = unitSents[0]?.slice(0, 130) || `${u.heading} ile doğrudan ilişkilidir.`;
+      const wrongOpts = buildSectionQuizDistractors(correctOption, sentences, idx).map((d) => d.slice(0, 115));
       const correctIndex = idx % 4;
       const opts = [...wrongOpts];
       opts.splice(correctIndex, 0, correctOption);
+      const examTip =
+        (unitSents.length > 1 ? unitSents[1] : `${u.heading} konusunda ${nodes[0]?.label} ve sonucu arasındaki ayrımı netleştirin.`).slice(
+          0,
+          175,
+        );
 
       return {
         id: `scene-${idx + 1}`,
         order: idx + 1,
         title: u.heading,
-        conceptTag: hostTerm,
-        visualType: visualTypes[idx % visualTypes.length],
-        visualData: {
-          bullets,
-          formula: u.formulas[0] || undefined,
-        },
+        turns,
         narration,
-        subtitleChunks: [
-          {
-            text: narration.slice(0, 160),
-            startOffsetSec: 0,
-            endOffsetSec: 18,
-          },
-        ],
-        estimatedDurationSec: 45,
-        keyTerms: keyTerms.slice(idx, idx + 2).map((k) => ({ term: k.term, definition: k.definition })),
-        examTip: u.sentences[1]?.slice(0, 140),
+        diagramData: {
+          diagramType: diagramPalette[idx % diagramPalette.length],
+          mainTitle: u.heading,
+          highlightMetric: examTip,
+          nodes,
+        },
+        keyTakeaways: nodes.slice(0, 3).map((nd) => `${nd.label}: ${nd.subtext.slice(0, 110)}`),
+        keyTerms: keyTerms.slice(idx, idx + 3).map((k) => ({ term: k.term, definition: k.definition })),
+        examTip,
         checkpointQuestion: {
           question: `"${u.heading}" bölümü kapsamında hangisi doğrudur?`,
           options: opts.slice(0, 4),
@@ -455,10 +523,13 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
     });
 
     return {
+      videoTitle: title,
+      outline: sentences.slice(0, 3).join(' ') || `${course} — ${title} etkileşimli video dersi.`,
       overview: sentences.slice(0, 2).join(' ') || `${course} — ${title} etkileşimli video dersi.`,
       videoScript: scenes.map((s) => s.narration).join('\n\n'),
-      totalEstimatedDurationSec: scenes.length * 45,
+      totalEstimatedDurationSec: scenes.length * 60,
       scenes,
+      keyFacts: sentences.slice(0, 5),
       keyTerms: keyTerms.slice(0, 8),
     };
   }
@@ -471,30 +542,54 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
   const sections = units.map((u, idx) => {
     const bodyBlocks: string[] = [];
     if (u.paragraphs.length > 0) {
-      bodyBlocks.push(u.paragraphs.join('\n\n'));
+      bodyBlocks.push(`#### Analitik Çerçeve\n\n${u.paragraphs.join('\n\n')}`);
     }
     if (u.bullets.length > 0) {
-      bodyBlocks.push(`#### Öne Çıkan Noktalar\n${u.bullets.map((b) => `- ${b}`).join('\n')}`);
+      bodyBlocks.push(`#### Öne Çıkan Mekanizmalar ve Maddeler\n${u.bullets.map((b) => `- ${b}`).join('\n')}`);
+    }
+    // Bölüm cümlelerinden ve kaynak terimlerinden yapısal özet tablosu türet
+    const unitJoinedLower = u.paragraphs.join(' ').toLowerCase();
+    const matchedTerms = keyTerms.filter(
+      (kt) => unitJoinedLower.includes(kt.term.toLowerCase()) || kt.definition.toLowerCase().includes(u.heading.toLowerCase().slice(0, 10)),
+    );
+    const tableTerms = (matchedTerms.length >= 2 ? matchedTerms : keyTerms.slice(idx, idx + 3)).slice(0, 4);
+    if (tableTerms.length >= 2) {
+      const tableRows = tableTerms
+        .map((kt) => `| **${kt.term.replace(/\|/g, '/')}** | ${kt.definition.replace(/\|/g, '/').slice(0, 140)} |`)
+        .join('\n');
+      bodyBlocks.push(
+        `#### Kavramsal Yapı Tablosu\n| Kavram / Unsur | Analitik İşlev ve Kapsam |\n| --- | --- |\n${tableRows}`,
+      );
     }
     if (u.formulas.length > 0) {
-      bodyBlocks.push(`#### Kaynak İfade / İlişki\n${u.formulas.map((f) => `> ${f}`).join('\n')}`);
+      bodyBlocks.push(`#### Kaynak İfade ve İlişki\n${u.formulas.map((f) => `> ${f}`).join('\n')}`);
+    }
+    const examHighlight = u.sentences.length > 1 ? u.sentences[u.sentences.length - 1] : u.sentences[0];
+    if (examHighlight) {
+      bodyBlocks.push(`> **Sınav Odağı:** ${examHighlight}`);
     }
 
     const takeaways = (u.bullets.length >= 2 ? u.bullets : u.sentences)
-      .slice(0, 3)
-      .map((t) => t.slice(0, 150));
+      .slice(0, 4)
+      .map((t) => t.slice(0, 165));
 
     const qSentence = u.sentences[0] || u.paragraphs[0] || '';
     const checkpointOpts = buildSectionQuizDistractors(qSentence, sentences, idx);
     const correctIndex = idx % 4;
     checkpointOpts.splice(correctIndex, 0, qSentence.slice(0, 130) || `${u.heading} temel bulgusu`);
 
+    const relatedTerms = tableTerms.map((t) => t.term).slice(0, 2);
+    const deepResearchNote = req.deepResearch && relatedTerms.length > 0
+      ? `[Kaynak Sentezi] "${u.heading}" başlığı, metindeki ${relatedTerms.join(' ve ')} kavramlarıyla doğrudan nedensel ilişki içindedir.`
+      : undefined;
+
     return {
       index: idx,
       heading: u.heading,
       pageRange: u.pageRange,
-      content: bodyBlocks.join('\n\n') || cleanText.slice(0, 800),
+      content: bodyBlocks.join('\n\n') || cleanText.slice(0, 900),
       takeaways,
+      deepResearchNote,
       checkpointQuestion:
         qSentence.length > 20
           ? {
@@ -512,25 +607,28 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
       ? {
           title: `${title} — Kavram Özeti Matrisi`,
           columns: ['Kavram / Başlık', 'Kaynak Notlardaki Tanım & İşlev'],
-          rows: keyTerms.slice(0, 5).map((kt) => [kt.term, kt.definition.slice(0, 140)]),
+          rows: keyTerms.slice(0, 6).map((kt) => [kt.term, kt.definition.slice(0, 150)]),
         }
       : undefined;
 
+  const synthLead = `**${title}** (${course}) dokümanının bütünsel incelenmesi, ${sections.length} ana analitik eksen etrafında şekillenmektedir.`;
+  const overviewText =
+    sentences.length > 0
+      ? `${synthLead} ${sentences.slice(0, 3).join(' ')}`
+      : cleanText.slice(0, 480) || synthLead;
+
   return {
-    overview:
-      sentences.slice(0, 3).join(' ') ||
-      cleanText.slice(0, 480) ||
-      `${course} — ${title} çalışma özeti.`,
-    keyPoints: (sentences.length > 0 ? sentences : [title]).slice(0, 8).map((s) => s.slice(0, 180)),
+    overview: overviewText,
+    keyPoints: (sentences.length > 0 ? sentences : [title]).slice(0, 8).map((s) => s.slice(0, 185)),
     sections,
-    teacherEmphasis: keyTerms.slice(0, 4).map((kt) => ({
+    teacherEmphasis: keyTerms.slice(0, 5).map((kt, idx) => ({
       point: kt.term,
-      whyImportant: kt.definition.slice(0, 150),
-      examProbability: 'Orta',
+      whyImportant: kt.definition.slice(0, 160),
+      examProbability: idx < 2 ? 'Yüksek' : 'Orta',
     })),
     comparativeMatrix,
     keyTerms: keyTerms.slice(0, 10),
-    studyChecklist: sections.map((s) => `"${s.heading}" bölümünün ana fikirlerini kendi cümlelerimle anlatabilirim.`),
+    studyChecklist: sections.map((s) => `"${s.heading}" bölümünün ana fikirlerini ve neden-sonuç mekanizmasını kendi cümlelerimle anlatabilirim.`),
     metadata: {
       sourceMode: 'local',
       deepResearch: Boolean(req.deepResearch),

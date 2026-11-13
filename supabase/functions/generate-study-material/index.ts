@@ -540,35 +540,50 @@ KRİTİK KURALLAR:
     return { system, userText, maxTokens: 10_000, temperature: 0.3 };
   }
 
-  // --- VIDEO (InteractiveVideoStudio compatible) ---
-  const system = `Sen 3Blue1Brown ve MIT OpenCourseWare tarzında etkileşimli akademik video ders senaristisin.
-Verilen ders materyalinden 5-7 sahneli, veri odaklı grafik/diyagram/formül sahneleri içeren İnteraktif Video Ders paketi oluştur.
+  // --- VIDEO (InteractiveVideoStudio compatible: turns + diagramData + 4-node visual schemas) ---
+  const system = `Sen 3Blue1Brown, Kurzgesagt ve MIT OpenCourseWare düzeyinde etkileşimli akademik video ders senaristi ve görsel yönetmensin.
+Verilen ders materyalinden 6-8 sahneli, HER SAHNEDE FARKLI GÖRSEL MOD ('visual', 'curve', 'chart', 'table', 'shapes', 'scenario', 'timeline', 'comparison') kullanan ve Dr. Deniz (anlatıcı akademisyen) ile Barış (meraklı öğrenci) arasında geçen doğal Türkçe Video Ders paketi oluştur.
 ${styleInstruction}
 ${customDirective}
 
+KESİN KURALLAR:
+1. Görsellik asla tekdüze olmasın: ardışık sahnelerde 'diagramData.diagramType' değerini sürekli değiştir ('visual' -> 'curve' -> 'table' -> 'shapes' -> 'chart' -> 'scenario' -> 'comparison'). Sayısal/iktisat derslerinde en az 1 'curve' (arz-talep/para piyasası) ve 1 'chart' sahnesi koy.
+2. Her sahnenin 'diagramData.nodes' dizisinde EN AZ 3-4 tane dolu, eksiksiz, kesintisiz kavram kartı üret (asla tek kart bırakma!).
+3. 'examTip' alanı KESİNLİKLE 'Merhaba arkadaşlar' veya selamlama olmasın; o sahneye özgü gerçek sınav tuzağını veya kavram ayrımını yaz.
+4. 'visualTheme' değerini dersin gerçek alanına göre seç: iktisat/para/banka/maliye için "economics", tarih/imparatorluk için "history", hukuk için "law", fen/veri için "science".
+
 YALNIZCA geçerli JSON döndür:
 {
+  "videoTitle": "Dersin net akademik video başlığı",
   "overview": "Video dersin amacı ve genel çerçevesi",
-  "videoScript": "Akıcı Türkçe tam seslendirme metni",
-  "totalEstimatedDurationSec": 360,
+  "outline": "3-4 cümlelik bütünsel ders kapsamı",
+  "keyFacts": ["Sınavlık kritik çıkarım 1", "Sınavlık kritik çıkarım 2", "Sınavlık kritik çıkarım 3"],
   "scenes": [
     {
       "id": "scene-1",
       "order": 1,
-      "title": "Sahne başlığı",
-      "conceptTag": "Konu etiketi",
-      "visualType": "concept_diagram" | "chart_trend" | "equation_breakdown" | "process_flow" | "comparison_matrix" | "timeline_arc" | "case_callout",
-      "visualData": {
-        "nodes": [{ "id": "n1", "label": "Kavram", "role": "ana", "x": 20, "y": 50 }],
-        "edges": [{ "from": "n1", "to": "n2", "label": "etkisi" }],
-        "bullets": ["Önemli nokta 1", "Önemli nokta 2"],
-        "formula": "Y = C + I + G + NX"
+      "title": "Somut ve çarpıcı sahne başlığı",
+      "turns": [
+        { "speaker": "Deniz", "text": "Konunun çekirdeğini kuran net akademik açıklama (50-90 kelime)" },
+        { "speaker": "Barış", "text": "Deniz hocam hitabıyla analitik veya neden-sonuç sorusu (20-35 kelime)" },
+        { "speaker": "Deniz", "text": "Soruyu somut mekanizma ve sınav ayrımıyla yanıtlayan devam cümlesi (45-80 kelime)" }
+      ],
+      "diagramData": {
+        "diagramType": "visual | curve | table | shapes | chart | scenario | timeline | comparison",
+        "visualTheme": "economics | history | law | science | society",
+        "mainTitle": "Tahta üzerindeki ana şema başlığı",
+        "highlightMetric": "Tek cümlelik analitik formül veya ana bulgu",
+        "nodes": [
+          { "label": "Kısa Terim 1", "subtext": "Tam cümlelik açık tanım veya işleyiş (80-150 karakter)", "badge": "Temel İlke", "value": 88 },
+          { "label": "Kısa Terim 2", "subtext": "İkinci bileşen veya aktarım kanalı", "badge": "Mekanizma", "value": 76 },
+          { "label": "Kısa Terim 3", "subtext": "Üçüncü yapısal etken veya koşul", "badge": "Koşul", "value": 69 },
+          { "label": "Kısa Terim 4", "subtext": "Sonuç veya politika çıktısı", "badge": "Çıktı", "value": 82 }
+        ]
       },
-      "narration": "Bu sahne için 80-150 kelimelik doğal Türkçe anlatım",
-      "subtitleChunks": [{ "text": "Altyazı parçası", "startOffsetSec": 0, "endOffsetSec": 8 }],
-      "estimatedDurationSec": 55,
-      "keyTerms": [{ "term": "Terim", "definition": "Tanım" }],
-      "examTip": "Sınav ipucu",
+      "keyTakeaways": ["Madde 1", "Madde 2", "Madde 3"],
+      "keyTerms": [{ "term": "Terim", "definition": "Tam tanım" }],
+      "examTip": "Bu sahneye özgü gerçek sınav ayrımı veya çeldirici uyarısı",
+      "visualCue": "Ekranda görülecek animasyon/şema tarifi",
       "checkpointQuestion": {
         "question": "Sahne sonu kontrol sorusu",
         "options": ["A", "B", "C", "D"],
@@ -577,6 +592,8 @@ YALNIZCA geçerli JSON döndür:
       }
     }
   ],
+  "matchingPairs": [{ "term": "Terim", "definition": "Kısa tam tanım" }],
+  "examQuestions": [{ "question": "Soru", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Açıklama" }],
   "keyTerms": [{ "term": "Terim", "definition": "Tanım" }]
 }`;
 
@@ -584,7 +601,7 @@ YALNIZCA geçerli JSON döndür:
     enrichedContext,
     60_000,
   )}`;
-  return { system, userText, maxTokens: 11_000, temperature: 0.3 };
+  return { system, userText, maxTokens: 12_500, temperature: 0.32 };
 }
 
 function normalizeMaterialContent(materialType: GenerateReq['materialType'], stage: string, raw: any, req: GenerateReq): any {
@@ -721,13 +738,32 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
   }
 
   if (materialType === 'video') {
-    const scenes = Array.isArray(raw.scenes) ? raw.scenes : [];
-    if (scenes.length === 0) return null;
+    const rawScenes = Array.isArray(raw.scenes) ? raw.scenes : [];
+    if (rawScenes.length === 0) return null;
+    const scenes = rawScenes.map((sc: any, idx: number) => {
+      const turns = Array.isArray(sc?.turns) ? sc.turns : [];
+      const narration =
+        String(sc?.narration || '').trim() ||
+        turns.map((t: any) => String(t?.text || '').trim()).filter(Boolean).join(' ');
+      return {
+        ...sc,
+        id: String(sc?.id || `scene-${idx + 1}`),
+        order: Number(sc?.order || idx + 1),
+        title: String(sc?.title || `Bölüm ${idx + 1}`),
+        narration,
+        turns,
+      };
+    });
     return {
-      overview: String(raw.overview || ''),
+      videoTitle: String(raw.videoTitle || req.noteTitle || ''),
+      overview: String(raw.overview || raw.outline || ''),
+      outline: String(raw.outline || raw.overview || ''),
       videoScript: String(raw.videoScript || scenes.map((s: any) => s.narration || '').join('\n\n')),
-      totalEstimatedDurationSec: Number(raw.totalEstimatedDurationSec || scenes.length * 55),
+      totalEstimatedDurationSec: Number(raw.totalEstimatedDurationSec || scenes.length * 60),
       scenes,
+      keyFacts: Array.isArray(raw.keyFacts) ? raw.keyFacts : [],
+      matchingPairs: Array.isArray(raw.matchingPairs) ? raw.matchingPairs : [],
+      examQuestions: Array.isArray(raw.examQuestions) ? raw.examQuestions : [],
       keyTerms: Array.isArray(raw.keyTerms) ? raw.keyTerms : [],
     };
   }
@@ -864,27 +900,45 @@ function buildServerFallback(req: GenerateReq, cleanText: string): any {
   }
 
   if (req.materialType === 'video') {
-    const chunkCount = Math.min(4, Math.max(2, Math.ceil(sentences.length / 4)));
+    const diagramPalette = ['visual', 'curve', 'table', 'shapes', 'scenario', 'comparison'] as const;
+    const chunkCount = Math.min(6, Math.max(3, Math.ceil(sentences.length / 3)));
     const scenes = Array.from({ length: chunkCount }, (_, i) => {
-      const seg = sentences.slice(i * 4, i * 4 + 4);
-      const narration = seg.join(' ') || `${title} — Sahne ${i + 1}`;
+      const seg = sentences.slice(i * 3, i * 3 + 4);
+      const safeSeg = seg.length > 0 ? seg : [`${title} dersinin ${i + 1}. analitik ekseni incelenmektedir.`];
+      const narration = safeSeg.join(' ');
+      const nodes = safeSeg.slice(0, 4).map((s, ni) => ({
+        label: s.split(/[:–-]/)[0]?.trim().split(/\s+/).slice(0, 4).join(' ') || `İlke ${ni + 1}`,
+        subtext: s.slice(0, 160),
+        badge: ['Temel İlke', 'Mekanizma', 'Koşul', 'Sonuç'][ni % 4],
+        value: 88 - ni * 8,
+      }));
       return {
         id: `scene-${i + 1}`,
         order: i + 1,
-        title: `${title} — Bölüm ${i + 1}`,
-        conceptTag: course,
-        visualType: 'concept_diagram',
-        visualData: { bullets: seg.map((s) => s.slice(0, 110)) },
+        title: nodes[0]?.label && nodes[0].label.length >= 6 ? `${title} — ${nodes[0].label}` : `${title} — Bölüm ${i + 1}`,
+        turns: [
+          { speaker: 'Deniz', text: safeSeg[0] },
+          { speaker: 'Barış', text: `Deniz hocam, ${nodes[0]?.label || 'bu başlık'} uygulamada nasıl işliyor?` },
+          { speaker: 'Deniz', text: safeSeg.slice(1).join(' ') || safeSeg[0] },
+        ],
+        diagramData: {
+          diagramType: diagramPalette[i % diagramPalette.length],
+          mainTitle: `${title} — Görsel Model ${i + 1}`,
+          highlightMetric: safeSeg[safeSeg.length - 1]?.slice(0, 140) || title,
+          nodes,
+        },
         narration,
-        subtitleChunks: [{ text: narration.slice(0, 160), startOffsetSec: 0, endOffsetSec: 15 }],
-        estimatedDurationSec: 45,
+        keyTakeaways: safeSeg.slice(0, 3),
+        examTip: (safeSeg[1] || safeSeg[0]).slice(0, 160),
         keyTerms: [],
       };
     });
     return {
+      videoTitle: title,
+      outline: sentences.slice(0, 2).join(' ') || `${course} — ${title}`,
       overview: sentences.slice(0, 2).join(' ') || `${course} — ${title}`,
       videoScript: scenes.map((s) => s.narration).join('\n\n'),
-      totalEstimatedDurationSec: scenes.length * 45,
+      totalEstimatedDurationSec: scenes.length * 60,
       scenes,
       keyTerms: [],
     };

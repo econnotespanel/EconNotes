@@ -84,25 +84,29 @@ async function invokeEdgeGenerate(body: Record<string, unknown>): Promise<{
   }
 }
 
-async function invokePublicJsonFallback(
+async function postPublicJsonAttempt(
   systemPrompt: string,
   userPrompt: string,
+  useResponseFormat: boolean,
 ): Promise<Record<string, unknown> | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 38_000);
+    const bodyPayload: Record<string, unknown> = {
+      model: 'openai',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt.slice(0, 15_500) },
+      ],
+      temperature: 0.28,
+    };
+    if (useResponseFormat) {
+      bodyPayload.response_format = { type: 'json_object' };
+    }
     const res = await fetch(PUBLIC_REASONING_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'openai',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.25,
-      }),
+      body: JSON.stringify(bodyPayload),
       signal: controller.signal,
     });
     clearTimeout(timer);
@@ -116,16 +120,212 @@ async function invokePublicJsonFallback(
   }
 }
 
+async function invokePublicJsonFallback(
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<Record<string, unknown> | null> {
+  const first = await postPublicJsonAttempt(systemPrompt, userPrompt, true);
+  if (first) return first;
+  // Bazı genel uç noktalar response_format: json_object ile 400 döndürür; kısıtsız JSON istemiyle tekrar dene
+  return postPublicJsonAttempt(
+    `${systemPrompt}\n\nKRİTİK: Yalnızca ham JSON nesnesi ({...}) döndür, ek sohbet veya markdown açıklaması yazma.`,
+    userPrompt,
+    false,
+  );
+}
+
+function averageSectionWords(sections: SummarySection[]): number {
+  if (!sections.length) return 0;
+  const totalWords = sections.reduce(
+    (sum, s) => sum + String(s.content || '').trim().split(/\s+/).filter(Boolean).length,
+    0,
+  );
+  return totalWords / sections.length;
+}
+
+function buildSectionExpansionSystemPrompt(settings: StudioGenerationSettings): string {
+  const wordsTarget =
+    settings.summaryDepth === 'short'
+      ? '180-250'
+      : settings.summaryDepth === 'textbook'
+      ? '360-520'
+      : settings.summaryDepth === 'comprehensive'
+      ? '300-440'
+      : '240-340';
+  return `Sen seçkin bir üniversite kürsü profesörüsün. Sana verilen ders bölümü taslağını ve kaynak metin kesitini kullanarak derin, akıcı, akademik ders kitabı düzeyinde Türkçe özet bölümleri yaz.
+${settings.deepResearch ? 'Derin Araştırma aktif: teorik arka plan, literatür bağlamı ve Türkiye/küresel uygulama örneğini "deepResearchNote" alanında sun.' : ''}
+Kurallar:
+- Her bölüm ${wordsTarget} kelime civarında eksiksiz Markdown prose olsun (### alt başlıklar, madde işaretleri, uygunsa formül $...$ veya $$...$$ ve Markdown karşılaştırma tablosu |...|...| kullan).
+- Kopya/yüzeysel cümle dizimi veya genel şablon klişeler asla kullanma; kaynak metindeki kavramları sebep-sonuç zinciriyle açıkla.
+YALNIZCA JSON döndür:
+{
+  "sections": [
+    {
+      "index": 0,
+      "heading": "Bölüm başlığı",
+      "pageRange": "Varsa sayfa",
+      "content": "Zengin Türkçe Markdown ders bölümü...",
+      "takeaways": ["Net çıkarım 1", "Net çıkarım 2", "Net çıkarım 3"],
+      "deepResearchNote": "Varsa ek akademik bağlam / vaka",
+      "commonPitfalls": ["Sınavda en sık karıştırılan tuzak"],
+      "checkpointQuestion": { "question": "Soru?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Açıklama" }
+    }
+  ]
+}`;
+}
+
+async function generatePublicMapReduceSummary(
+  bundle: ProcessedStudyBundle,
+  settings: StudioGenerationSettings,
+  onProgress?: ProgressCallback,
+): Promise<SummaryContent | null> {
+  const targetCount =
+    settings.summaryDepth === 'short'
+      ? 4
+      : settings.summaryDepth === 'textbook'
+      ? 8
+      : settings.summaryDepth === 'comprehensive'
+      ? 7
+      : 6;
+
+  onProgress?.(32, 'Bulut yapay zekâ ile ders planı ve kavram mimarisi çıkarılıyor...');
+  const bpSystem = `Sen seçkin bir üniversite profesörüsün. Verilen ders materyalini tarayarak ${targetCount} ana bölümlük kapsamlı bir özet mimarisi oluştur.
+YALNIZCA JSON döndür:
+{
+  "overview": "Konunun amacını, kuramsal çerçevesini ve büyük resmini anlatan 2 güçlü paragraf",
+  "disciplineTag": "Örn: Para Teorisi & Makroekonomi",
+  "keyPoints": ["6-8 kapsamlı anahtar çıkarım"],
+  "sectionsPlan": [
+    { "index": 0, "title": "Net akademik bölüm başlığı", "pageRange": "", "focusPoints": ["Odak 1", "Odak 2", "Odak 3"] }
+  ],
+  "teacherEmphasis": [{ "point": "Kritik kavram", "whyImportant": "Sınavda neden sorulur", "examProbability": "Yüksek" }],
+  "comparativeMatrix": { "title": "Karşılaştırma Tablosu", "columns": ["Boyut", "Özellik / Etki", "Sınav Ayrımı"], "rows": [["...", "...", "..."]] },
+  "keyTerms": [{ "term": "Terim", "definition": "Tam tanım", "formula": "" }],
+  "studyChecklist": ["Öğrenme hedefi 1", "Öğrenme hedefi 2"]
+}`;
+  const bpUser = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\n${
+    settings.customPrompt ? `ÖZEL İSTEK: ${settings.customPrompt}\n` : ''
+  }\nKAYNAK ÖZETİ:\n${sampleUniformContext(bundle.combinedText, 14_000)}`;
+
+  const bp = await invokePublicJsonFallback(bpSystem, bpUser);
+  const rawPlan = Array.isArray(bp?.sectionsPlan)
+    ? (bp.sectionsPlan as Array<{ index?: number; title?: string; pageRange?: string; focusPoints?: string[] }>)
+    : [];
+
+  if (rawPlan.length === 0) {
+    // Plan çıkarılamazsa kompakt tek seferlik bulut sentezini dene
+    const singlePrompt = buildPublicSummaryPrompt(bundle, settings);
+    const singleJson = await invokePublicJsonFallback(singlePrompt.system, singlePrompt.user);
+    if (singleJson && Array.isArray(singleJson.sections) && singleJson.sections.length > 0) {
+      return {
+        ...(singleJson as unknown as SummaryContent),
+        disciplineTag: String(singleJson.disciplineTag || bundle.detectedDiscipline),
+        metadata: {
+          sourceMode: 'ai',
+          deepResearch: settings.deepResearch,
+          summaryDepth: settings.summaryDepth,
+          sourceStats: {
+            sourceCount: bundle.sourceCount,
+            wordCount: bundle.totalWords,
+            pagesOrSlides: bundle.totalPagesOrSlides,
+            sectionCount: singleJson.sections.length,
+          },
+        },
+      };
+    }
+    return null;
+  }
+
+  const normalizedPlan = rawPlan.map((p, idx) => ({
+    index: typeof p.index === 'number' ? p.index : idx,
+    title: String(p.title || `Bölüm ${idx + 1}`),
+    pageRange: p.pageRange ? String(p.pageRange) : undefined,
+    focusPoints: Array.isArray(p.focusPoints) ? p.focusPoints.map(String) : [],
+  }));
+
+  const expandSys = buildSectionExpansionSystemPrompt(settings);
+  const expandedSections: SummarySection[] = [];
+  const batchSize = 2;
+
+  for (let i = 0; i < normalizedPlan.length; i += batchSize) {
+    const batch = normalizedPlan.slice(i, i + batchSize);
+    const pct = Math.min(92, Math.round(45 + ((i + batch.length) / Math.max(1, normalizedPlan.length)) * 45));
+    onProgress?.(pct, `Bulut ders kitabı bölümleri yazılıyor (${i + 1}-${Math.min(i + batchSize, normalizedPlan.length)}/${normalizedPlan.length})...`);
+
+    const batchPayload = batch.map((b) => ({
+      index: b.index,
+      heading: b.title,
+      focusPoints: b.focusPoints,
+      sourceExcerpt: sliceContextForSection(bundle.combinedText, b.title, b.index, normalizedPlan.length, b.focusPoints, 4_200),
+    }));
+
+    const batchUser = `DERS: ${bundle.course || bundle.detectedDiscipline} | BAŞLIK: ${bundle.title}\nGENEL ÖZET: ${String(
+      bp?.overview || '',
+    )}\nBÖLÜMLER:\n${JSON.stringify(batchPayload)}`;
+    const expandedJson = await invokePublicJsonFallback(expandSys, batchUser);
+    const gotSections = Array.isArray(expandedJson?.sections)
+      ? (expandedJson.sections as SummarySection[])
+      : [];
+
+    batch.forEach((b, bi) => {
+      const matched = gotSections.find((s) => s.index === b.index) || gotSections[bi];
+      if (matched && String(matched.content || '').trim().length > 40) {
+        expandedSections.push({
+          ...matched,
+          index: b.index,
+          heading: matched.heading || b.title,
+          pageRange: matched.pageRange || b.pageRange,
+        });
+      } else {
+        expandedSections.push({
+          index: b.index,
+          heading: b.title,
+          pageRange: b.pageRange,
+          content: batchPayload[bi].sourceExcerpt,
+          takeaways: b.focusPoints.slice(0, 3),
+        });
+      }
+    });
+  }
+
+  expandedSections.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+
+  return {
+    overview: String(bp?.overview || `${bundle.title} çalışma özeti`),
+    disciplineTag: String(bp?.disciplineTag || bundle.detectedDiscipline),
+    keyPoints: Array.isArray(bp?.keyPoints) ? bp.keyPoints.map(String) : [],
+    sections: expandedSections,
+    teacherEmphasis: Array.isArray(bp?.teacherEmphasis) ? (bp.teacherEmphasis as SummaryContent['teacherEmphasis']) : [],
+    comparativeMatrix: bp?.comparativeMatrix as SummaryContent['comparativeMatrix'],
+    deepResearchTopics: Array.isArray(bp?.deepResearchTopics)
+      ? (bp.deepResearchTopics as SummaryContent['deepResearchTopics'])
+      : [],
+    keyTerms: Array.isArray(bp?.keyTerms) ? (bp.keyTerms as SummaryContent['keyTerms']) : [],
+    studyChecklist: Array.isArray(bp?.studyChecklist) ? bp.studyChecklist.map(String) : [],
+    metadata: {
+      sourceMode: 'ai',
+      deepResearch: settings.deepResearch,
+      summaryDepth: settings.summaryDepth,
+      sourceStats: {
+        sourceCount: bundle.sourceCount,
+        wordCount: bundle.totalWords,
+        pagesOrSlides: bundle.totalPagesOrSlides,
+        sectionCount: expandedSections.length,
+      },
+    },
+  };
+}
+
 function buildPublicSummaryPrompt(
   bundle: ProcessedStudyBundle,
   settings: StudioGenerationSettings,
 ): { system: string; user: string } {
   const depthHint =
     settings.summaryDepth === 'short'
-      ? '4-5 bölüm, bölüm başına 180-250 kelime'
+      ? '4 bölüm, bölüm başına 180-240 kelime'
       : settings.summaryDepth === 'textbook'
-      ? '7-10 bölüm, bölüm başına 350-550 kelime, çok derin ders kitabı düzeyi'
-      : '6-8 bölüm, bölüm başına 280-450 kelime, kapsamlı fakülte düzeyi';
+      ? '6-7 bölüm, bölüm başına 280-420 kelime, çok derin ders kitabı düzeyi'
+      : '5-6 bölüm, bölüm başına 240-350 kelime, kapsamlı fakülte düzeyi';
 
   const system = `Sen seçkin bir üniversite kürsü profesörüsün. Verilen notlardan kapsamlı, formüllü ($...$, $$...$$), Markdown tablolu ve sıfır şablon cümleli Türkçe Çalışma Özeti üret.
 ${
@@ -136,8 +336,8 @@ ${
 Hedef uzunluk: ${depthHint}.
 YALNIZCA geçerli JSON döndür:
 {
-  "overview": "2-3 paragraf yönetici özeti",
-  "keyPoints": ["6-10 madde"],
+  "overview": "2 paragraf yönetici özeti",
+  "keyPoints": ["6-8 madde"],
   "sections": [{
     "heading": "Bölüm başlığı",
     "content": "Zengin Markdown + LaTeX + örnek + tablo metni",
@@ -148,16 +348,74 @@ YALNIZCA geçerli JSON döndür:
   }],
   "teacherEmphasis": [{ "point": "...", "whyImportant": "...", "examProbability": "Yüksek" }],
   "comparativeMatrix": { "title": "...", "columns": ["Boyut","A","B"], "rows": [["...","...","..."]] },
-  "deepResearchTopics": [{ "topic": "...", "literatureContext": "...", "realWorldApplication": "..." }],
   "keyTerms": [{ "term": "...", "definition": "...", "formula": "..." }],
   "studyChecklist": ["Kendini değerlendirme maddesi"]
 }`;
 
   const user = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\n${
     settings.customPrompt ? `ÖZEL İSTEK: ${settings.customPrompt}\n` : ''
-  }\nKAYNAK METİN:\n${sampleUniformContext(bundle.combinedText, 24_000)}`;
+  }\nKAYNAK METİN:\n${sampleUniformContext(bundle.combinedText, 14_000)}`;
 
   return { system, user };
+}
+
+async function enrichThinAiSections(
+  rawSummary: SummaryContent,
+  bundle: ProcessedStudyBundle,
+  settings: StudioGenerationSettings,
+  onProgress?: ProgressCallback,
+): Promise<SummaryContent> {
+  const existing = Array.isArray(rawSummary.sections) ? rawSummary.sections : [];
+  if (existing.length === 0) return rawSummary;
+
+  const avgWords = averageSectionWords(existing);
+  const needsDeepening =
+    (settings.summaryDepth !== 'short' && avgWords < 175) ||
+    (settings.deepResearch && !existing.some((s) => Boolean(s.deepResearchNote)));
+
+  if (!needsDeepening || bundle.images.length > 0) {
+    return rawSummary;
+  }
+
+  onProgress?.(68, 'Yapay zekâ özet bölümleri fakülte ders kitabı düzeyine derinleştiriliyor...');
+  const expandSys = buildSectionExpansionSystemPrompt(settings);
+  const enriched: SummarySection[] = [];
+  const batchSize = 2;
+
+  for (let i = 0; i < existing.length; i += batchSize) {
+    const batch = existing.slice(i, i + batchSize);
+    const batchPayload = batch.map((sec, bi) => ({
+      index: i + bi,
+      heading: sec.heading,
+      existingDraft: sec.content,
+      sourceExcerpt: sliceContextForSection(bundle.combinedText, sec.heading, i + bi, existing.length, sec.takeaways || [], 3_800),
+    }));
+    const res = await invokePublicJsonFallback(
+      expandSys,
+      `DERS: ${bundle.course || bundle.detectedDiscipline} | BAŞLIK: ${bundle.title}\nMEVCUT BÖLÜMLERİ GENİŞLET:\n${JSON.stringify(
+        batchPayload,
+      )}`,
+    );
+    const expanded = Array.isArray(res?.sections) ? (res.sections as SummarySection[]) : [];
+    batch.forEach((orig, bi) => {
+      const match = expanded.find((s) => s.index === i + bi) || expanded[bi];
+      if (match && String(match.content || '').length > String(orig.content || '').length) {
+        enriched.push({
+          ...orig,
+          ...match,
+          index: i + bi,
+          heading: match.heading || orig.heading,
+        });
+      } else {
+        enriched.push({ ...orig, index: i + bi });
+      }
+    });
+  }
+
+  return {
+    ...rawSummary,
+    sections: enriched,
+  };
 }
 
 async function generateSummaryMapReduce(
@@ -274,15 +532,26 @@ async function generateSummaryMapReduce(
           expandedSections.push(sec);
         }
       } else {
-        allBatchesAi = false;
-        for (const target of sectionTargets) {
-          expandedSections.push({
-            index: target.index,
-            heading: target.title,
-            pageRange: target.pageRange,
-            content: target.contextSlice || '',
-            takeaways: (target.focusPoints || []).slice(0, 3),
-          });
+        // Edge expand_batch başarısız olduysa Tier-2 Public AI ile bu bölümü kurtar
+        const pubBatch = await invokePublicJsonFallback(
+          buildSectionExpansionSystemPrompt(settings),
+          `DERS: ${bundle.course || bundle.detectedDiscipline}\nBÖLÜMLER:\n${JSON.stringify(sectionTargets)}`,
+        );
+        if (Array.isArray(pubBatch?.sections) && pubBatch.sections.length > 0) {
+          for (const sec of pubBatch.sections as SummarySection[]) {
+            expandedSections.push(sec);
+          }
+        } else {
+          allBatchesAi = false;
+          for (const target of sectionTargets) {
+            expandedSections.push({
+              index: target.index,
+              heading: target.title,
+              pageRange: target.pageRange,
+              content: target.contextSlice || '',
+              takeaways: (target.focusPoints || []).slice(0, 3),
+            });
+          }
         }
       }
     }
@@ -320,28 +589,46 @@ async function generateSummaryMapReduce(
     };
   }
 
-  // Tier-2 Client Public AI Synthesis fallback (if Edge returned fallback or is unreachable)
-  if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
-    onProgress?.(55, 'Bulut akademik sentez motoruna bağlanılıyor...');
-    const { system, user } = buildPublicSummaryPrompt(bundle, settings);
-    const pubJson = await invokePublicJsonFallback(system, user);
-    if (pubJson && Array.isArray(pubJson.sections) && pubJson.sections.length > 0) {
-      return {
-        content: {
-          ...pubJson,
-          disciplineTag: pubJson.disciplineTag || bundle.detectedDiscipline,
-          metadata: {
-            sourceMode: 'ai',
-            deepResearch: settings.deepResearch,
-            summaryDepth: settings.summaryDepth,
-            sourceStats: {
-              sourceCount: bundle.sourceCount,
-              wordCount: bundle.totalWords,
-              pagesOrSlides: bundle.totalPagesOrSlides,
-              sectionCount: pubJson.sections.length,
-            },
+  // Eski/tek-atışlı Supabase Edge sürümü sectionsPlan yerine doğrudan sections döndürdüyse kurtar ve derinleştir!
+  if (
+    blueprintRes &&
+    blueprintRes.sourceMode === 'ai' &&
+    Array.isArray(blueprintRes.content?.sections) &&
+    blueprintRes.content.sections.length > 0
+  ) {
+    const deepened = await enrichThinAiSections(
+      blueprintRes.content as unknown as SummaryContent,
+      bundle,
+      settings,
+      onProgress,
+    );
+    return {
+      content: {
+        ...deepened,
+        disciplineTag: deepened.disciplineTag || bundle.detectedDiscipline,
+        metadata: {
+          sourceMode: 'ai',
+          deepResearch: settings.deepResearch,
+          summaryDepth: settings.summaryDepth,
+          sourceStats: {
+            sourceCount: bundle.sourceCount,
+            wordCount: bundle.totalWords,
+            pagesOrSlides: bundle.totalPagesOrSlides,
+            sectionCount: deepened.sections?.length || 0,
           },
         },
+      },
+      model: blueprintRes.model,
+      sourceMode: 'ai',
+    };
+  }
+
+  // Tier-2 Client Public AI Map-Reduce Synthesis (Blueprint + Batched Expansion)
+  if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
+    const pubSummary = await generatePublicMapReduceSummary(bundle, settings, onProgress);
+    if (pubSummary && pubSummary.sections.length > 0) {
+      return {
+        content: pubSummary,
         model: 'EconNotes Cloud Academic AI',
         sourceMode: 'ai',
       };
@@ -396,7 +683,7 @@ export async function generateMaterialWithOrchestration(
       ? 'Soru bankası ve rubrikler oluşturuluyor...'
       : settings.materialType === 'flashcards'
       ? 'Aktif hatırlama kartları sentezleniyor...'
-      : 'İnteraktif video ders sahneleri hazırlanıyor...',
+      : 'İnteraktif video ders sahneleri ve görsel diyagramlar hazırlanıyor...',
   );
 
   const edgeRes = await invokeEdgeGenerate({
@@ -432,28 +719,73 @@ export async function generateMaterialWithOrchestration(
     };
   }
 
-  // Tier-2 Public Cloud AI fallback for quiz / flashcards when Edge unreachable
-  if (
-    bundle.images.length === 0 &&
-    (settings.materialType === 'quiz' || settings.materialType === 'flashcards')
-  ) {
-    onProgress?.(60, 'Alternatif bulut zekâ üzerinden üretiliyor...');
-    const isQuiz = settings.materialType === 'quiz';
-    const system = isQuiz
-      ? `Üniversite hocası olarak ${settings.questionCount} adet ${settings.difficulty} zorlukta Türkçe sınav sorusu üret. Şık sırasını (correctIndex: 0..3) dengeli dağıt. JSON döndür: { "questions": [{ "type": "multiple_choice", "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "...", "topic": "...", "difficulty": "medium", "bloomLevel": "Analiz" }] }`
-      : `Aktif hatırlama uzmanı olarak ${settings.cardCount} adet Türkçe flashcard üret. JSON döndür: { "cards": [{ "front": "...", "back": "...", "hint": "...", "topic": "...", "difficulty": "medium" }] }`;
-    const user = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\n\n${sampleUniformContext(
-      bundle.combinedText,
-      22_000,
-    )}`;
+  // Tier-2 Public Cloud AI fallback (quiz / flashcards / interactive video!)
+  if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
+    onProgress?.(60, 'Alternatif bulut zekâ üzerinden zenginleştirilerek üretiliyor...');
+    if (settings.materialType === 'video') {
+      const videoSys = `Sen 3Blue1Brown ve MIT OpenCourseWare tarzında etkileşimli video ders senaristisin.
+Verilen ders notlarından 6 sahneli, HER SAHNEDE FARKLI GÖRSEL ŞEMA ('visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'comparison') kullanan ve Dr. Deniz ile Barış arasındaki diyalogla ilerleyen JSON üret.
+KESİN KURAL: Her sahnenin 'diagramData.nodes' dizisinde 3-4 dolu kavram kartı olmalı; 'examTip' asla selamlama veya 'Merhaba' içermemeli; iktisat/para konularında 'visualTheme': 'economics' olmalı.
+YALNIZCA JSON döndür:
+{
+  "videoTitle": "...",
+  "outline": "...",
+  "keyFacts": ["...","...","..."],
+  "scenes": [{
+    "title": "...",
+    "turns": [
+      { "speaker": "Deniz", "text": "..." },
+      { "speaker": "Barış", "text": "..." },
+      { "speaker": "Deniz", "text": "..." }
+    ],
+    "diagramData": {
+      "diagramType": "visual | curve | table | shapes | chart | scenario | comparison",
+      "visualTheme": "economics | history | law | science | society",
+      "mainTitle": "...",
+      "highlightMetric": "...",
+      "nodes": [
+        { "label": "Kavram 1", "subtext": "Açıklama", "badge": "Temel İlke", "value": 85 },
+        { "label": "Kavram 2", "subtext": "Açıklama", "badge": "Mekanizma", "value": 78 },
+        { "label": "Kavram 3", "subtext": "Açıklama", "badge": "Koşul", "value": 72 }
+      ]
+    },
+    "keyTakeaways": ["...","..."],
+    "keyTerms": [{ "term": "...", "definition": "..." }],
+    "examTip": "Sınav ayrımı"
+  }],
+  "matchingPairs": [{ "term": "...", "definition": "..." }],
+  "examQuestions": [{ "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }]
+}`;
+      const videoUser = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\n\nKAYNAK:\n${sampleUniformContext(
+        bundle.combinedText,
+        14_000,
+      )}`;
+      const pubVideo = await invokePublicJsonFallback(videoSys, videoUser);
+      if (Array.isArray(pubVideo?.scenes) && pubVideo.scenes.length > 0) {
+        return {
+          content: { ...pubVideo, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
+          model: 'EconNotes Cloud Academic AI',
+          sourceMode: 'ai',
+        };
+      }
+    } else {
+      const isQuiz = settings.materialType === 'quiz';
+      const system = isQuiz
+        ? `Üniversite hocası olarak ${settings.questionCount} adet ${settings.difficulty} zorlukta Türkçe sınav sorusu üret. Şık sırasını (correctIndex: 0..3) dengeli dağıt. JSON döndür: { "questions": [{ "type": "multiple_choice", "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "...", "topic": "...", "difficulty": "medium", "bloomLevel": "Analiz" }] }`
+        : `Aktif hatırlama uzmanı olarak ${settings.cardCount} adet Türkçe flashcard üret. JSON döndür: { "cards": [{ "front": "...", "back": "...", "hint": "...", "topic": "...", "difficulty": "medium" }] }`;
+      const user = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\n\n${sampleUniformContext(
+        bundle.combinedText,
+        14_500,
+      )}`;
 
-    const pub = await invokePublicJsonFallback(system, user);
-    if ((isQuiz && Array.isArray(pub?.questions) && pub.questions.length > 0) || (!isQuiz && Array.isArray(pub?.cards) && pub.cards.length > 0)) {
-      return {
-        content: { ...pub, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
-        model: 'EconNotes Cloud Academic AI',
-        sourceMode: 'ai',
-      };
+      const pub = await invokePublicJsonFallback(system, user);
+      if ((isQuiz && Array.isArray(pub?.questions) && pub.questions.length > 0) || (!isQuiz && Array.isArray(pub?.cards) && pub.cards.length > 0)) {
+        return {
+          content: { ...pub, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
+          model: 'EconNotes Cloud Academic AI',
+          sourceMode: 'ai',
+        };
+      }
     }
   }
 
@@ -515,7 +847,13 @@ export async function expandSingleSummarySection(params: {
   if (edgeRes?.sourceMode === 'ai' && Array.isArray(edgeRes.content?.sections) && edgeRes.content.sections[0]) {
     return edgeRes.content.sections[0];
   }
-  return null;
+
+  const pub = await invokePublicJsonFallback(
+    'Üniversite profesörü olarak verilen ders özet bölümünü çözümlü somut örnek, formül ve Markdown karşılaştırma tablosu ekleyerek iki kat derinleştir. YALNIZCA JSON döndür: { "sections": [{ "index": 0, "heading": "...", "content": "...", "takeaways": ["..."], "deepResearchNote": "..." }] }',
+    `DERS: ${params.course || '-'} | BAŞLIK: ${params.title}\nBÖLÜM: ${params.section.heading}\nMEVCUT METİN:\n${params.section.content}`,
+  );
+  const pubSec = Array.isArray(pub?.sections) ? (pub.sections[0] as SummarySection | undefined) : undefined;
+  return pubSec || null;
 }
 
 export async function gradeOpenEndedAnswer(params: {

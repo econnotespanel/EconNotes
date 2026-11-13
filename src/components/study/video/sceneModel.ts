@@ -415,29 +415,91 @@ function normalizeSpeaker(raw: unknown, _idx?: number): Speaker {
   return 'Deniz';
 }
 
+const GREETING_CHATTER_RE =
+  /^(merhaba|bugün|hoş geldiniz|selam|arkadaşlar|şimdi dersimizin|bu derste|bu bölümde|öncelikle|dersimizin\s+\d+\.?\s*hafta)/i;
+
+function isGreetingOrChatter(text: string): boolean {
+  const t = cleanText(text);
+  if (!t || t.length < 10) return true;
+  if (GREETING_CHATTER_RE.test(t)) return true;
+  const lower = t.toLocaleLowerCase('tr-TR');
+  return (lower.includes('merhaba arkadaşlar') || lower.includes('hoş geldiniz')) && t.length < 240;
+}
+
+function pickAnalyticalExamTip(
+  explicitTip: string,
+  terms: KeyTerm[],
+  takeaways: string[],
+  nodes: DiagramNode[],
+  title: string,
+): string {
+  const cleanExplicit = cleanText(explicitTip);
+  if (cleanExplicit && !isGreetingOrChatter(cleanExplicit)) {
+    return ensureSentenceEnd(cleanExplicit);
+  }
+  const goodTakeaway = takeaways.find(t => !isGreetingOrChatter(t) && t.length >= 24);
+  if (goodTakeaway) return ensureSentenceEnd(goodTakeaway);
+  if (terms.length >= 2) {
+    return `${terms[0].term} ile ${terms[1].term} arasındaki mekanizma farkı sınavda en sık sorulan ayrımdır.`;
+  }
+  if (terms[0]?.definition && !isGreetingOrChatter(terms[0].definition)) {
+    return `${terms[0].term}: ${ensureSentenceEnd(lowerFirstIfNotProper(terms[0].definition))}`;
+  }
+  const goodNode = nodes.find(n => n.subtext && !isGreetingOrChatter(n.subtext));
+  if (goodNode) {
+    return `${goodNode.label}: ${ensureSentenceEnd(lowerFirstIfNotProper(goodNode.subtext))}`;
+  }
+  return `${title} konusunda temel tanımlar ile politika araçlarının nedensel sonuçlarını ayrı tutun.`;
+}
+
 export function inferVisualTheme(text: string): VisualTheme {
   const t = text.toLocaleLowerCase('tr-TR');
+  const scoreMatches = (patterns: Array<[RegExp, number]>) =>
+    patterns.reduce((sum, [re, weight]) => {
+      const m = t.match(re);
+      return sum + (m ? m.length * weight : 0);
+    }, 0);
+
+  const scores: Record<VisualTheme, number> = {
+    economics: scoreMatches([
+      [/para teorisi|merkez bankası|para politikası|emisyon|likidite|monetarizm|keynesyen|fisher|taylor|phillips|is-lm|ad-as/g, 4],
+      [/iktisat|ekonomi|piyasa|enflasyon|faiz|fiyat|arz|talep|maliye|vergi|bütçe|sermaye|yatırım|gsyh|para|banka|kredi|rezerv|döviz|esneklik|marjinal|hasıla|büyüme|işsizlik/g, 2],
+    ]),
+    history: scoreMatches([
+      [/selçuklu|osmanlı|bizans|moğol|imparatorluk|sultan|fetih|ikta|tımar|miri|vakıf|kervansaray|devlet-i|hanedan|lonca|gedik|ahilik/g, 4],
+      [/padişah|vezir|sancak|eyalet|antlaşma|savaş|hilafet/g, 2],
+      [/\b\d+\.\s*yüzyıl|\byüzyıl|\btarihçe|\btarihi\b/g, 1],
+    ]),
+    law: scoreMatches([
+      [/anayasa|yargıtay|danıştay|mevzuat|borçlar hukuku|ceza hukuku|medeni kanun|idare hukuku/g, 4],
+      [/hukuk|kanun|mahkeme|yargı|tüzük|haklar|sözleşme|madde|meclis|içtihat|dava/g, 2],
+    ]),
+    science: scoreMatches([
+      [/algoritma|termodinamik|kuantum|elektromanyetik|molekül|kinetik|teorem|türev|integral|regresyon|ekonometri/g, 4],
+      [/bilim|fizik|kimya|biyoloji|matematik|veri|istatistik|deney|formül|enerji|hipotez/g, 2],
+    ]),
+    society: scoreMatches([
+      [/sosyoloji|demografi|kentleşme|toplumsal sınıf|kültür|eğitim politikası|kurumlar/g, 2],
+    ]),
+  };
+
+  let bestTheme: VisualTheme = 'society';
+  let bestScore = 0;
+  (['economics', 'history', 'law', 'science', 'society'] as VisualTheme[]).forEach(theme => {
+    if (scores[theme] > bestScore) {
+      bestScore = scores[theme];
+      bestTheme = theme;
+    }
+  });
+
   if (
-    /selçuklu|osmanlı|bizans|moğol|imparatorluk|sultan|fetih|ikta|tımar|miri|vakıf|kervansaray|yüzyıl|tarih|savaş|antlaşma|devlet-i|hanedan/.test(
-      t,
-    )
-  ) {
-    return 'history';
-  }
-  if (
-    /iktisat|ekonomi|piyasa|enflasyon|faiz|fiyat|arz|talep|maliye|vergi|bütçe|sermaye|yatırım|ticaret|üretim|gelir|gsyh|para|banka/.test(
-      t,
-    )
+    bestTheme === 'history' &&
+    scores.economics >= 4 &&
+    !/selçuklu|osmanlı|bizans|moğol|imparatorluk|sultan|ikta|tımar|miri|kervansaray|hanedan/.test(t)
   ) {
     return 'economics';
   }
-  if (/hukuk|anayasa|kanun|meclis|mahkeme|yargı|idare|kamu|mevzuat|tüzük|haklar|sözleşme/.test(t)) {
-    return 'law';
-  }
-  if (/bilim|fizik|kimya|biyoloji|matematik|algoritma|veri|istatistik|deney|formül|enerji/.test(t)) {
-    return 'science';
-  }
-  return 'society';
+  return bestTheme;
 }
 
 const VALID_DIAGRAM_TYPES: DiagramType[] = [
@@ -455,8 +517,13 @@ const VALID_DIAGRAM_TYPES: DiagramType[] = [
 
 function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   const t = text.toLocaleLowerCase('tr-TR');
-  if (isGraphDiagramAllowed(t) && /arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh/.test(t)) {
-    return /denge|arz|talep|esneklik/.test(t) ? 'curve' : 'chart';
+  if (
+    isGraphDiagramAllowed(t) &&
+    /arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|para arzı|para talebi|emisyon|likidite|is-lm|phillips/.test(
+      t,
+    )
+  ) {
+    return /denge|arz|talep|esneklik|faiz|para|emisyon|likidite|is-lm|phillips/.test(t) ? 'curve' : 'chart';
   }
   if (/sultan|hanedan|fetih|tanzimat|antlaşma|yüzyıl|dönem|kronoloji|tarih/.test(t)) return 'timeline';
   if (/kurum|devlet|bakanlık|merkez bankası|hiyerarşi|yapı/.test(t)) return 'structure';
@@ -468,14 +535,14 @@ function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   if (/\b(1[0-9]{3}|20[0-9]{2})\b/.test(t) || /kronoloji|yüzyıl|dönem|aşama|süreç/.test(t)) return 'timeline';
 
   const richCycle: DiagramType[] = isGraphDiagramAllowed(t)
-    ? ['visual', 'shapes', 'table', 'chart', 'scenario', 'timeline', 'comparison']
+    ? ['visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'timeline', 'comparison']
     : ['visual', 'shapes', 'table', 'scenario', 'timeline', 'comparison'];
   return richCycle[sceneIdx % richCycle.length];
 }
 
 /** Grafik yalnızca konu gerçekten sayısal ilişki, eğilim veya ekonomik model içeriyorsa kullanılır. */
 function supportsQuantitativeDiagram(text: string): boolean {
-  return /iktisat|ekonomi|piyasa|arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|üretim|gelir|fiyat|oran|yüzde|istatistik|veri|formül|fonksiyon|koordinat|ölçüm|deney|enerji|hız|mesafe|zaman serisi|dağılım|regresyon/.test(
+  return /iktisat|ekonomi|piyasa|arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|üretim|gelir|fiyat|oran|yüzde|istatistik|veri|formül|fonksiyon|koordinat|ölçüm|deney|enerji|hız|mesafe|zaman serisi|dağılım|regresyon|para|emisyon|likidite|merkez bankası|rezerv|kredi/.test(
     text.toLocaleLowerCase('tr-TR'),
   );
 }
@@ -483,11 +550,17 @@ function supportsQuantitativeDiagram(text: string): boolean {
 function isGraphDiagramAllowed(text: string): boolean {
   const t = text.toLocaleLowerCase('tr-TR');
   const hasQuantitativeSignal =
-    /oran|yüzde|artış|düşüş|eğilim|grafik|denge|etki düzeyi|mali|sacayak|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|üretim|gelir|fiyat|miktar|istatistik|veri|formül|fonksiyon|koordinat|ölçüm|regresyon/.test(
+    /oran|yüzde|artış|düşüş|eğilim|grafik|denge|etki düzeyi|mali|sacayak|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|üretim|gelir|fiyat|miktar|istatistik|veri|formül|fonksiyon|koordinat|ölçüm|regresyon|para|emisyon|likidite|rezerv|çarpan|kredi|arz|talep/.test(
       t,
     );
-  const isEconomics = /iktisat|iktisadi|ekonomi|piyasa|arz|talep|maliye|para politikası|makroekonomi|mikroekonomi/.test(t);
-  const isScience = /bilim|fizik|kimya|biyoloji|matematik|veri analizi|laboratuvar|deney|formül|fonksiyon|koordinat|ölçüm|regresyon/.test(t);
+  const isEconomics =
+    /iktisat|iktisadi|ekonomi|piyasa|arz|talep|maliye|para politikası|para teorisi|merkez bankası|makroekonomi|mikroekonomi|enflasyon|faiz|banka|likidite|emisyon/.test(
+      t,
+    );
+  const isScience =
+    /bilim|fizik|kimya|biyoloji|matematik|veri analizi|laboratuvar|deney|formül|fonksiyon|koordinat|ölçüm|regresyon/.test(
+      t,
+    );
   return hasQuantitativeSignal && (isEconomics || isScience);
 }
 
@@ -547,6 +620,91 @@ function sanitizeNode(n: any, idx: number): DiagramNode {
   };
 }
 
+function asRecord(val: unknown): Record<string, unknown> | null {
+  return val && typeof val === 'object' && !Array.isArray(val) ? (val as Record<string, unknown>) : null;
+}
+
+function extractVisualDataNodes(rawSceneInput: unknown): { typeHint: DiagramType | null; nodes: DiagramNode[] } {
+  const rawScene = asRecord(rawSceneInput);
+  const vt = cleanText(typeof rawScene?.visualType === 'string' ? rawScene.visualType : '').toLocaleLowerCase('tr-TR');
+  const vd = asRecord(rawScene?.visualData);
+  const typeMap: Record<string, DiagramType> = {
+    comparison: 'comparison',
+    timeline: 'timeline',
+    concept_map: 'shapes',
+    network: 'network',
+    process: 'scenario',
+    scenario: 'scenario',
+    table: 'table',
+    metrics: 'chart',
+    chart: 'chart',
+    equation: 'curve',
+    curve: 'curve',
+    visual: 'visual',
+  };
+  const typeHint = typeMap[vt] ?? null;
+  if (!vd) return { typeHint, nodes: [] };
+
+  const out: DiagramNode[] = [];
+  const pushItem = (item: unknown, idx: number, badgeOverride?: string) => {
+    if (typeof item === 'string') {
+      const ex = extractNodeFromSentence(item, idx);
+      out.push(sanitizeNode({ ...ex, badge: badgeOverride || DEFAULT_BADGES[idx % DEFAULT_BADGES.length] }, idx));
+      return;
+    }
+    const obj = asRecord(item);
+    if (obj) {
+      const label = obj.label || obj.title || obj.name || obj.term || obj.year || obj.stage || obj.left;
+      const subtext =
+        obj.subtext || obj.description || obj.definition || obj.detail || obj.text || obj.summary || obj.right || '';
+      const badge = badgeOverride || obj.badge || obj.tag || obj.role || obj.metric;
+      const value = obj.value ?? obj.score ?? obj.weight;
+      if (label || subtext) {
+        out.push(sanitizeNode({ label: label || subtext, subtext: subtext || label, badge, value }, idx));
+      }
+    }
+  };
+
+  const arrayKeys = ['nodes', 'items', 'points', 'rows', 'steps', 'events', 'metrics', 'pillars', 'concepts', 'stages'];
+  arrayKeys.forEach(k => {
+    const arr = vd[k];
+    if (Array.isArray(arr)) {
+      arr.forEach((el, i) => pushItem(el, i));
+    }
+  });
+
+  if (vd.left && vd.right) {
+    const pushSide = (side: unknown, sideLabel: string) => {
+      if (Array.isArray(side)) {
+        side.forEach((s, i) => pushItem(s, out.length + i, sideLabel));
+      } else if (typeof side === 'string') {
+        pushItem({ label: sideLabel, subtext: side }, out.length, sideLabel);
+      } else {
+        const sideObj = asRecord(side);
+        if (sideObj) {
+          const title = typeof sideObj.title === 'string' ? sideObj.title : sideLabel;
+          const points = Array.isArray(sideObj.points)
+            ? sideObj.points
+            : Array.isArray(sideObj.items)
+            ? sideObj.items
+            : [sideObj.description || sideObj.text];
+          points.filter(Boolean).forEach((p, i) =>
+            pushItem(
+              { label: i === 0 ? title : extractNodeFromSentence(String(p), i).label, subtext: String(p) },
+              out.length + i,
+              title,
+            ),
+          );
+        }
+      }
+    };
+    pushSide(vd.left, cleanText(typeof vd.leftTitle === 'string' ? vd.leftTitle : '') || 'Boyut A');
+    pushSide(vd.right, cleanText(typeof vd.rightTitle === 'string' ? vd.rightTitle : '') || 'Boyut B');
+  }
+
+  return { typeHint, nodes: out.filter(n => n.label && n.subtext && !isGreetingOrChatter(n.subtext)) };
+}
+
 function buildDiagram(
   s: any,
   sceneIdx: number,
@@ -557,7 +715,10 @@ function buildDiagram(
   terms: KeyTerm[],
 ): StudioDiagram {
   const dd = s?.diagramData;
-  const metric = cleanText(dd?.highlightMetric) || cleanText(s?.examTip) || takeaways[0] || '';
+  const nonGreetingTakeaway = takeaways.find(t => !isGreetingOrChatter(t)) || '';
+  const explicitTip = cleanText(s?.examTip);
+  const metricCandidate = cleanText(dd?.highlightMetric) || (explicitTip && !isGreetingOrChatter(explicitTip) ? explicitTip : '') || nonGreetingTakeaway;
+  const metric = isGreetingOrChatter(metricCandidate) ? `${title} analitik özeti` : metricCandidate;
   const rootBadge = cleanText(courseLabel) || 'AKADEMİK STÜDYO';
   const themeText = `${courseLabel} ${title} ${narration}`;
   const visualTheme: VisualTheme =
@@ -566,7 +727,9 @@ function buildDiagram(
       : inferVisualTheme(themeText);
 
   if (dd && Array.isArray(dd.nodes) && dd.nodes.length >= 2) {
-    const nodes = dd.nodes.map((n: any, i: number) => sanitizeNode(n, i)).filter((n: DiagramNode) => n.label);
+    const nodes = dd.nodes
+      .map((n: any, i: number) => sanitizeNode(n, i))
+      .filter((n: DiagramNode) => n.label && !isGreetingOrChatter(n.subtext));
     if (nodes.length >= 2) {
       let type: DiagramType = VALID_DIAGRAM_TYPES.includes(dd.diagramType)
         ? dd.diagramType
@@ -574,7 +737,6 @@ function buildDiagram(
       if (!isGraphDiagramAllowed(`${courseLabel} ${title} ${narration}`) && (type === 'chart' || type === 'curve')) {
         type = inferDiagramType(`${title} ${narration}`, sceneIdx);
       }
-      if (type === 'curve') type = 'chart';
       return {
         type,
         visualTheme,
@@ -586,12 +748,16 @@ function buildDiagram(
     }
   }
 
+  const fromVisual = extractVisualDataNodes(s);
   let nodes: DiagramNode[] = terms.map((t, i) =>
     sanitizeNode({ label: t.term, subtext: t.definition, badge: DEFAULT_BADGES[i % DEFAULT_BADGES.length] }, i),
   );
 
+  fromVisual.nodes.forEach(vn => nodes.push(vn));
+
   if (nodes.length < 4) {
     takeaways.forEach((tk, i) => {
+      if (isGreetingOrChatter(tk)) return;
       const ex = extractNodeFromSentence(tk, i);
       nodes.push({
         ...ex,
@@ -602,7 +768,9 @@ function buildDiagram(
   }
 
   if (nodes.length < 4) {
-    splitSentences(narration).forEach((sentence, i) => {
+    const analyticSentences = splitSentences(narration).filter(st => !isGreetingOrChatter(st));
+    const sourceSentences = analyticSentences.length > 0 ? analyticSentences : splitSentences(narration);
+    sourceSentences.forEach((sentence, i) => {
       const ex = extractNodeFromSentence(sentence, i);
       nodes.push({
         ...ex,
@@ -620,8 +788,13 @@ function buildDiagram(
     return true;
   });
 
+  let inferredType = fromVisual.typeHint || inferDiagramType(`${courseLabel} ${title} ${narration}`, sceneIdx);
+  if (!isGraphDiagramAllowed(`${courseLabel} ${title} ${narration}`) && (inferredType === 'chart' || inferredType === 'curve')) {
+    inferredType = inferDiagramType(`${courseLabel} ${title} ${narration}`, sceneIdx);
+  }
+
   return {
-    type: inferDiagramType(`${courseLabel} ${title} ${narration}`, sceneIdx),
+    type: inferredType,
     visualTheme,
     title,
     rootBadge,
@@ -997,10 +1170,18 @@ function ensureRichFiveMinuteCurriculum(
     });
   });
 
-  const allTakeaways = Array.from(new Set(coreScenes.flatMap(sc => sc.keyTakeaways).filter(Boolean)));
-  const allExamTips = Array.from(new Set(coreScenes.map(sc => sc.examTip).filter(Boolean)));
-  const allFacts = Array.from(new Set([...keyFacts, ...allExamTips, ...allTakeaways])).filter(Boolean);
-  const allNodes = coreScenes.flatMap(sc => sc.diagram.nodes).filter(n => n.label && n.subtext);
+  const allTakeaways = Array.from(
+    new Set(coreScenes.flatMap(sc => sc.keyTakeaways).filter(tk => tk && !isGreetingOrChatter(tk))),
+  );
+  const allExamTips = Array.from(
+    new Set(coreScenes.map(sc => sc.examTip).filter(tip => tip && !isGreetingOrChatter(tip))),
+  );
+  const allFacts = Array.from(new Set([...keyFacts, ...allExamTips, ...allTakeaways])).filter(
+    f => f && !isGreetingOrChatter(f),
+  );
+  const allNodes = coreScenes
+    .flatMap(sc => sc.diagram.nodes)
+    .filter(n => n.label && n.subtext && !isGreetingOrChatter(n.subtext));
   const chapterTitles = coreScenes
     .map(s => cleanLabel(s.title).replace(/…|\.{2,}/g, '').trim())
     .filter(Boolean);
@@ -1016,7 +1197,7 @@ function ensureRichFiveMinuteCurriculum(
       const lbl = cleanLabel(n.label).replace(/…|\.{2,}/g, '').trim();
       const sub = cleanText(n.subtext).replace(/…|\.{2,}/g, '').trim();
       const k = lbl.toLocaleLowerCase('tr-TR');
-      if (!lbl || !sub || seen.has(k)) return;
+      if (!lbl || !sub || isGreetingOrChatter(sub) || seen.has(k)) return;
       seen.add(k);
       const normalized = { ...n, label: lbl, subtext: sub };
       if (isValidConceptTerm(lbl)) {
@@ -1044,6 +1225,23 @@ function ensureRichFiveMinuteCurriculum(
       });
     });
 
+    // Hâlâ az sayıda aday varsa bölüm başlıkları ve analitik eksenlerden tamamla (tek kart kalmasın)
+    if (genuineCandidates.length + fallbackCandidates.length < Math.min(3, count)) {
+      chapterTitles.forEach((ct, i) => {
+        const sc = coreScenes[i];
+        const summarySentence =
+          sc?.sentences.find(st => !isGreetingOrChatter(st)) ||
+          outline ||
+          `${ct} kapsamındaki kurumsal ve teorik işleyiş.`;
+        pushCandidate({
+          label: shortLabel(ct, 4, 38) || `Bölüm ${i + 1}`,
+          subtext: ensureSentenceEnd(summarySentence),
+          badge: badges?.[i % badges.length] || DEFAULT_BADGES[i % DEFAULT_BADGES.length],
+          value: deterministicValue(ct, i + 5),
+        });
+      });
+    }
+
     const candidates =
       genuineCandidates.length >= count
         ? genuineCandidates
@@ -1055,9 +1253,15 @@ function ensureRichFiveMinuteCurriculum(
         { ...base, badge: badges?.[0] || 'Ana Eksen', value: 89 },
         {
           label: shortLabel(title, 5, 40) || 'Kuramsal Çerçeve',
-          subtext: outline || title,
+          subtext: outline || `${title} konusunun temel kurumsal ve analitik ilkeleri.`,
           badge: badges?.[1] || 'Kapsam',
           value: 78,
+        },
+        {
+          label: 'Mekanizma ve Araçlar',
+          subtext: 'Temel kavramların aktarım kanalları ve piyasa/kurum üzerindeki etkileri.',
+          badge: badges?.[2] || 'İşleyiş',
+          value: 72,
         },
       ];
     }
@@ -1120,19 +1324,29 @@ function ensureRichFiveMinuteCurriculum(
       },
     ]);
 
+    const leadConcept = spokenNodeName(vNodes[0], '');
+    const openingTitle = leadConcept
+      ? `${displayTitle} — ${shortLabel(leadConcept, 4, 34)}`
+      : `${displayTitle} — Kuramsal Zemin ve Büyük Resim`;
+    const introExamTip = pickAnalyticalExamTip(
+      allFacts[0] || '',
+      allTerms,
+      allTakeaways,
+      vNodes,
+      title,
+    );
+
     extraScenes.push({
       slot: 'opening',
       scene: finalizeSceneObject({
         id: 'scene-visual-architecture',
         index: 0,
-        title: `${displayTitle}: Kavramsal Mimari ve Analitik Çerçeve`,
+        title: openingTitle,
         sentences,
         speakers,
         keyTakeaways: vNodes.slice(0, 3).map(formatNodeTakeaway),
         keyTerms: allTerms.slice(0, 3),
-        examTip:
-          allFacts[0] ||
-          `${title} başlığında unsurların tekil tanımlarından çok birbirleriyle kurduğu ${domainNoun} bütünlük sorgulanır.`,
+        examTip: introExamTip,
         visualCue: 'Konunun bütünsel mimarisini sunan illüstratif görsel analiz sahnesi',
         diagram: {
           type: 'visual',
@@ -1140,7 +1354,7 @@ function ensureRichFiveMinuteCurriculum(
           title: `${displayTitle} — Bütünsel Model`,
           rootBadge,
           nodes: vNodes,
-          metric: allFacts[0] || outline || title,
+          metric: introExamTip,
         },
       }),
     });
@@ -1633,6 +1847,13 @@ export function buildStudioContent(
     });
 
     const finalTerms = terms.length > 0 ? terms : extractedSceneTerms.slice(0, 5);
+    const resolvedExamTip = pickAnalyticalExamTip(
+      examTip,
+      finalTerms,
+      finalTakeaways,
+      diagram.nodes,
+      sceneTitle,
+    );
 
     return finalizeSceneObject({
       id: `scene-${idx}`,
@@ -1642,19 +1863,24 @@ export function buildStudioContent(
       speakers: conv.speakers,
       keyTakeaways: finalTakeaways,
       keyTerms: finalTerms,
-      examTip: examTip || diagram.metric,
+      examTip: resolvedExamTip,
       visualCue: cleanText(s?.visualCue),
-      diagram,
+      diagram: {
+        ...diagram,
+        metric: isGreetingOrChatter(diagram.metric) ? resolvedExamTip : diagram.metric,
+      },
     });
   });
 
-  const rawFacts: string[] = (Array.isArray(c.keyFacts) ? c.keyFacts : []).map(cleanLabel).filter(Boolean);
+  const rawFacts: string[] = (Array.isArray(c.keyFacts) ? c.keyFacts : [])
+    .map(cleanLabel)
+    .filter(f => Boolean(f) && !isGreetingOrChatter(f));
   const fallbackFacts = Array.from(
     new Set(
       baseScenes
         .flatMap(sc => [sc.examTip, ...sc.keyTakeaways.slice(0, 2)])
         .map(cleanLabel)
-        .filter(Boolean),
+        .filter(f => Boolean(f) && !isGreetingOrChatter(f)),
     ),
   ).slice(0, 10);
 

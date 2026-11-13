@@ -129,7 +129,7 @@ const DIAGRAM_BADGE_TR: Record<DiagramType, string> = {
   shapes: 'Şekiller & Döngü',
   table: 'Karşılaştırma Tablosu',
   chart: 'Analitik Grafik',
-  curve: 'Analitik Grafik',
+  curve: 'Ekonomik Eğri & Denge',
   scenario: 'Vaka Senaryosu',
   timeline: 'Zaman Akışı',
   comparison: 'İkili Kıyaslama',

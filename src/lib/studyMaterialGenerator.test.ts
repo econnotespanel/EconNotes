@@ -116,4 +116,74 @@ Smith, merkantilist korumacılığa şiddetle karşı çıkmış ve serbest dı�
     expect(videoText).not.toContain('eğri üzerindeki hareket');
     expect(videoText).toMatch(/Merkantilizm|Sanayi Devrimi|Adam Smith/i);
   });
+
+  it('formats deterministic summary sections with Analitik Çerçeve, concept table, Sınav Odağı, and zero greeting chatter', () => {
+    const monetaryNote = `
+Merhaba arkadaşlar. Bugün Para Teorisi dersimizde merkez bankası emisyon mekanizmasını inceliyoruz.
+
+--- Sayfa 1 ---
+# Merkez Bankası ve Emisyon Yetkisi
+Merkez bankası ülkedeki yasal banknot ihracı tekeline sahiptir. Zorunlu karşılık oranları ticari bankaların kredi yaratma kapasitesini ve para çarpanını doğrudan belirler. Likidite yönetimi fiyat istikrarının temel aracıdır.
+
+--- Sayfa 2 ---
+# Açık Piyasa İşlemleri ve Faiz Aktarım Kanalı
+Açık piyasa işlemleri merkez bankasının tahvil alım-satımıyla piyasadaki rezerv miktarını artırması veya çekmesidir. Politika faizi değişimi kısa vadeli piyasa faizlerini ve enflasyon beklentilerini yönlendirir.
+`;
+
+    const result = generateClientStudyMaterial({
+      materialType: 'summary',
+      noteTitle: 'Para Teorisi - 5. Hafta',
+      course: 'Para Teorisi',
+      noteContext: monetaryNote,
+      summaryDepth: 'comprehensive',
+    });
+
+    expect(result.overview).toContain('Para Teorisi - 5. Hafta');
+    expect(result.sections.length).toBeGreaterThanOrEqual(2);
+
+    const joinedContent = result.sections.map((s: { content: string }) => s.content).join('\n');
+    expect(joinedContent).toContain('Analitik Çerçeve');
+    expect(joinedContent).toContain('Kavramsal Yapı Tablosu');
+    expect(joinedContent).toContain('|');
+    expect(joinedContent).toContain('> **Sınav Odağı:**');
+
+    for (const emp of result.teacherEmphasis || []) {
+      expect(String(emp.point)).not.toMatch(/^\s*merhaba/i);
+    }
+  });
+
+  it('generates video scenes with turns, diverse diagramType values, >=3 nodes, and greeting-free examTip', () => {
+    const monetaryNote = `
+Merhaba arkadaşlar. Para Teorisi 5. hafta notlarımıza başlıyoruz.
+# Emisyon ve Merkez Bankası Bilançosu
+Emisyon hacmi merkez bankası pasif kalemidir. Rezervler ve açık piyasa işlemleri likiditeyi ayarlar.
+# Para Arzı ve Likidite Tercihi
+Para arzı Ms dışsal iken para talebi Md faiz ve gelir düzeyine bağlıdır.
+# Enflasyon ve Parasal Aktarım
+Parasal genişleme kısa dönemde çıktı açığını daraltırken uzun dönemde fiyatlar genel düzeyini etkiler.
+`;
+
+    const result = generateClientStudyMaterial({
+      materialType: 'video',
+      noteTitle: 'Para Teorisi - 5. Hafta',
+      course: 'Para Teorisi',
+      noteContext: monetaryNote,
+    });
+
+    expect(result.scenes.length).toBeGreaterThanOrEqual(4);
+    const seenTypes = new Set<string>();
+
+    for (const sc of result.scenes) {
+      expect(Array.isArray(sc.turns)).toBe(true);
+      expect(sc.turns.length).toBeGreaterThanOrEqual(2);
+      expect(sc.diagramData).toBeDefined();
+      expect(sc.diagramData.nodes.length).toBeGreaterThanOrEqual(3);
+      seenTypes.add(sc.diagramData.diagramType);
+      if (sc.examTip) {
+        expect(String(sc.examTip)).not.toMatch(/^\s*merhaba/i);
+      }
+    }
+
+    expect(seenTypes.size).toBeGreaterThanOrEqual(3);
+  });
 });

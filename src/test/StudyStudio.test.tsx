@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Study from '@/pages/Study';
@@ -7,7 +7,8 @@ import { SummaryWorkspace } from '@/components/study/SummaryWorkspace';
 import { QuizWorkspace } from '@/components/study/QuizWorkspace';
 import { FlashcardWorkspace } from '@/components/study/FlashcardWorkspace';
 import { generateClientStudyMaterial } from '@/lib/studyMaterialGenerator';
-import type { StudyMaterial } from '@/types/study';
+import { generateMaterialWithOrchestration } from '@/lib/studyAiClient';
+import type { ProcessedStudyBundle, StudioGenerationSettings, StudyMaterial } from '@/types/study';
 
 // JSDOM stubs for ResizeObserver and scrollIntoView
 class ResizeObserverStub {
@@ -341,5 +342,173 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     expect(mixed.questions[0].type).toBe('short_answer');
     expect(mixed.questions[0].sampleAnswer.length).toBeGreaterThan(15);
     expect(mixed.questions[0].rubric.length).toBeGreaterThan(0);
+  });
+});
+
+describe('Study AI Orchestration Phase 2 (Legacy Edge Enrichment & Tier-2 Map-Reduce)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    mockInvoke.mockReset();
+  });
+
+  const sampleBundle: ProcessedStudyBundle = {
+    title: 'Para Teorisi - 5. Hafta',
+    course: 'Para Teorisi',
+    combinedText:
+      'Merkez bankası emisyon yetkisine sahiptir. Zorunlu karşılık oranları ve açık piyasa işlemleri para arzını ve bankacılık likiditesini doğrudan belirler. Para piyasasında Ms ile Md kesişimi denge faiz oranını tayin eder.',
+    totalWords: 320,
+    totalChars: 2400,
+    totalPagesOrSlides: 5,
+    sourceCount: 1,
+    detectedDiscipline: 'İktisat',
+    outlinePreview: ['1. Emisyon ve Rezervler', '2. Açık Piyasa İşlemleri'],
+    images: [],
+    sources: [],
+    hasScannedOcr: false,
+  };
+
+  const sampleSettings: StudioGenerationSettings = {
+    materialType: 'summary',
+    summaryDepth: 'comprehensive',
+    deepResearch: true,
+    pedagogicalStyle: 'university_lecture',
+    questionCount: 8,
+    cardCount: 12,
+    difficulty: 'medium',
+    quizFormat: 'mixed',
+    customPrompt: '',
+    examFocus: '',
+  };
+
+  it('rescues and deepens thin legacy single-shot Edge summary via Tier-2 expansion', async () => {
+    mockInvoke.mockResolvedValueOnce({
+      data: {
+        sourceMode: 'ai',
+        model: 'legacy-edge-v1',
+        content: {
+          overview: 'Para Teorisi özet girişi.',
+          keyPoints: ['Emisyon tekel yetkisidir.'],
+          sections: [
+            {
+              index: 0,
+              heading: '1. Merkez Bankası Bilançosu',
+              pageRange: 'Sayfa 1',
+              content: 'Çok kısa özet taslağı.',
+            },
+          ],
+        },
+      },
+      error: null,
+    });
+
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                sections: [
+                  {
+                    index: 0,
+                    heading: '1. Merkez Bankası Bilançosu',
+                    content:
+                      '#### Analitik Çerçeve\nMerkez bankası bilançosunun pasif kaleminde yer alan emisyon hacmi $M_0 = C + R$ parasal tabanının temel unsurudur.\n\n> **Sınav Odağı:** Zorunlu karşılık artışı para çarpanını düşürür.',
+                    takeaways: ['Parasal taban emisyon ve rezerv toplamıdır.'],
+                    deepResearchNote: '[Derin Akademik Araştırma] TCMB enflasyon hedeflemesi rejimi.',
+                    commonPitfalls: ['Emisyonu aktif kalem sanmak.'],
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await generateMaterialWithOrchestration(sampleBundle, sampleSettings);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(res.sourceMode).toBe('ai');
+    expect(res.content.sections?.[0].content).toContain('Analitik Çerçeve');
+    expect(res.content.sections?.[0].deepResearchNote).toContain('TCMB');
+  });
+
+  it('executes Tier-2 2-stage Map-Reduce (blueprint + batched expansion) when Edge fails', async () => {
+    mockInvoke.mockResolvedValue({ data: null, error: { message: 'Edge function unavailable' } });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  overview: 'Para Teorisi 5. hafta kapsamlı ders özeti.',
+                  disciplineTag: 'İktisat',
+                  keyPoints: ['Emisyon hacmi', 'Açık piyasa işlemleri'],
+                  sectionsPlan: [
+                    { index: 0, title: '1. Emisyon ve Rezervler', pageRange: 'Sayfa 1-2', focusPoints: ['Parasal taban'] },
+                    { index: 1, title: '2. Açık Piyasa İşlemleri', pageRange: 'Sayfa 3-5', focusPoints: ['Faiz koridoru'] },
+                  ],
+                  teacherEmphasis: [{ point: 'Ms dışsallığı', whyImportant: 'Vize konusu', examProbability: 'Yüksek' }],
+                  comparativeMatrix: {
+                    title: 'Para Politikası Araçları',
+                    columns: ['Araç', 'Likidite Etkisi'],
+                    rows: [['APİ Alımı', 'Genişletici']],
+                  },
+                  deepResearchTopics: [],
+                  keyTerms: [{ term: 'Emisyon', definition: 'Banknot ihracı' }],
+                  studyChecklist: ['Ms-Md dengesini analiz et'],
+                }),
+              },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  sections: [
+                    {
+                      index: 0,
+                      heading: '1. Emisyon ve Rezervler',
+                      pageRange: 'Sayfa 1-2',
+                      content: '#### Analitik Çerçeve\nParasal taban $B = C + R$ eşitliği üzerinden para arzı çarpanını besler.',
+                      takeaways: ['Emisyon parasal tabanın ana bileşenidir.'],
+                      deepResearchNote: '[Derin Akademik Araştırma] Likidite yönetimi.',
+                    },
+                    {
+                      index: 1,
+                      heading: '2. Açık Piyasa İşlemleri',
+                      pageRange: 'Sayfa 3-5',
+                      content: '#### Politika İletimi\nMerkez bankası DİBS alımıyla bankacılık sistemine kalıcı veya geçici likidite sağlar.',
+                      takeaways: ['DİBS alımı piyasa faizini aşağı çeker.'],
+                      commonPitfalls: ['Tahvil fiyatı ile faiz arasındaki ters yönlü ilişkiyi gözden kaçırmak.'],
+                    },
+                  ],
+                }),
+              },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await generateMaterialWithOrchestration(sampleBundle, sampleSettings);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(res.sourceMode).toBe('ai');
+    expect(res.model).toBe('EconNotes Cloud Academic AI');
+    expect(res.content.sections).toHaveLength(2);
+    expect(res.content.sections?.[0].content).toContain('$B = C + R$');
+    expect(res.content.sections?.[1].heading).toBe('2. Açık Piyasa İşlemleri');
   });
 });

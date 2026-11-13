@@ -157,25 +157,176 @@ function activeIndex(n: number, progress: number) {
 }
 
 // ---------------------------------------------------------------- Stüdyo Arka Planı
-function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: number, energy = 0) {
+interface SceneMood {
+  bgTop: string;
+  bgMid: string;
+  bgBottom: string;
+  spotA: string;
+  spotB: string;
+  spotC: string;
+  accent: string;
+  secondary: string;
+  pattern: 'radar' | 'mathgrid' | 'columns' | 'matrix' | 'constellation' | 'pulse' | 'horizon' | 'split';
+}
+
+const SCENE_MOODS: Record<DiagramType, SceneMood> = {
+  visual: {
+    bgTop: '#061322',
+    bgMid: '#050915',
+    bgBottom: '#02040a',
+    spotA: '20, 184, 166',
+    spotB: '56, 189, 248',
+    spotC: '99, 102, 241',
+    accent: '#22d3ee',
+    secondary: '#2dd4bf',
+    pattern: 'radar',
+  },
+  curve: {
+    bgTop: '#05191d',
+    bgMid: '#050c14',
+    bgBottom: '#020509',
+    spotA: '16, 185, 129',
+    spotB: '245, 158, 11',
+    spotC: '34, 211, 238',
+    accent: '#34d399',
+    secondary: '#fbbf24',
+    pattern: 'mathgrid',
+  },
+  chart: {
+    bgTop: '#071127',
+    bgMid: '#050916',
+    bgBottom: '#02040a',
+    spotA: '59, 130, 246',
+    spotB: '251, 191, 36',
+    spotC: '34, 211, 238',
+    accent: '#38bdf8',
+    secondary: '#fbbf24',
+    pattern: 'columns',
+  },
+  table: {
+    bgTop: '#0a0f26',
+    bgMid: '#060917',
+    bgBottom: '#03040b',
+    spotA: '99, 102, 241',
+    spotB: '56, 189, 248',
+    spotC: '168, 85, 247',
+    accent: '#818cf8',
+    secondary: '#38bdf8',
+    pattern: 'matrix',
+  },
+  shapes: {
+    bgTop: '#100c26',
+    bgMid: '#070816',
+    bgBottom: '#03040a',
+    spotA: '168, 85, 247',
+    spotB: '34, 211, 238',
+    spotC: '236, 72, 153',
+    accent: '#c084fc',
+    secondary: '#22d3ee',
+    pattern: 'constellation',
+  },
+  network: {
+    bgTop: '#0e0f28',
+    bgMid: '#060816',
+    bgBottom: '#03040a',
+    spotA: '139, 92, 246',
+    spotB: '34, 211, 238',
+    spotC: '52, 211, 153',
+    accent: '#a78bfa',
+    secondary: '#22d3ee',
+    pattern: 'constellation',
+  },
+  structure: {
+    bgTop: '#091426',
+    bgMid: '#050915',
+    bgBottom: '#02040a',
+    spotA: '56, 189, 248',
+    spotB: '129, 140, 248',
+    spotC: '45, 212, 191',
+    accent: '#38bdf8',
+    secondary: '#818cf8',
+    pattern: 'matrix',
+  },
+  scenario: {
+    bgTop: '#1a1019',
+    bgMid: '#0c0812',
+    bgBottom: '#040308',
+    spotA: '249, 115, 22',
+    spotB: '244, 63, 94',
+    spotC: '251, 191, 36',
+    accent: '#fb923c',
+    secondary: '#fb7185',
+    pattern: 'pulse',
+  },
+  timeline: {
+    bgTop: '#071429',
+    bgMid: '#050917',
+    bgBottom: '#02040b',
+    spotA: '14, 165, 233',
+    spotB: '139, 92, 246',
+    spotC: '52, 211, 153',
+    accent: '#38bdf8',
+    secondary: '#a78bfa',
+    pattern: 'horizon',
+  },
+  comparison: {
+    bgTop: '#0b1024',
+    bgMid: '#060814',
+    bgBottom: '#02040a',
+    spotA: '34, 211, 238',
+    spotB: '236, 72, 153',
+    spotC: '168, 85, 247',
+    accent: '#22d3ee',
+    secondary: '#f472b6',
+    pattern: 'split',
+  },
+};
+
+function getSceneMood(type?: DiagramType): SceneMood {
+  return (type && SCENE_MOODS[type]) || SCENE_MOODS.visual;
+}
+
+function drawBroadcastStudioBackground(
+  ctx: CanvasRenderingContext2D,
+  now: number,
+  energy = 0,
+  diagramType?: DiagramType,
+  sceneIndex = 0,
+) {
+  const mood = getSceneMood(diagramType);
   const bg = ctx.createLinearGradient(0, 0, 0, STAGE_H);
-  bg.addColorStop(0, '#080e1c');
-  bg.addColorStop(0.55, '#050813');
-  bg.addColorStop(1, '#02040a');
+  bg.addColorStop(0, mood.bgTop);
+  bg.addColorStop(0.55, mood.bgMid);
+  bg.addColorStop(1, mood.bgBottom);
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, STAGE_W, STAGE_H);
 
-  // Akustik ahşap/kompozit duvar panelleri
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.018)';
-  for (let x = 24; x < STAGE_W; x += 36) {
-    ctx.fillRect(x, 0, 10, STAGE_H - 130);
+  // Bölüme göre değişen mimari arka plan geometrisi (tekdüzelik kırılır)
+  ctx.fillStyle = 'rgba(148, 163, 184, 0.02)';
+  if (mood.pattern === 'split') {
+    const splitLeft = ctx.createLinearGradient(0, 0, STAGE_W * 0.5, 0);
+    splitLeft.addColorStop(0, 'rgba(34, 211, 238, 0.06)');
+    splitLeft.addColorStop(1, 'rgba(34, 211, 238, 0)');
+    ctx.fillStyle = splitLeft;
+    ctx.fillRect(0, 0, STAGE_W * 0.5, STAGE_H);
+
+    const splitRight = ctx.createLinearGradient(STAGE_W * 0.5, 0, STAGE_W, 0);
+    splitRight.addColorStop(0, 'rgba(236, 72, 153, 0)');
+    splitRight.addColorStop(1, 'rgba(236, 72, 153, 0.06)');
+    ctx.fillStyle = splitRight;
+    ctx.fillRect(STAGE_W * 0.5, 0, STAGE_W * 0.5, STAGE_H);
+  } else {
+    for (let x = 24; x < STAGE_W; x += mood.pattern === 'columns' ? 48 : 36) {
+      ctx.fillRect(x, 0, mood.pattern === 'columns' ? 14 : 9, STAGE_H - 130);
+    }
   }
 
-  // Yumuşak stüdyo tavan spot ışıkları
+  // Yumuşak stüdyo tavan spot ışıkları (sahne temasına göre kayar)
+  const drift = (sceneIndex % 3) * 65 - 65;
   const spots = [
-    { x: 240, y: -60, r: 680, c: '34, 211, 238', a: 0.10 },
-    { x: STAGE_W / 2, y: -120, r: 840, c: '59, 130, 246', a: 0.09 },
-    { x: STAGE_W - 240, y: -60, r: 680, c: '168, 85, 247', a: 0.10 },
+    { x: 260 + drift, y: -60, r: 720, c: mood.spotA, a: 0.13 },
+    { x: STAGE_W / 2 - drift * 0.5, y: -110, r: 880, c: mood.spotB, a: 0.10 },
+    { x: STAGE_W - 260 - drift, y: -60, r: 720, c: mood.spotC, a: 0.12 },
   ];
   spots.forEach((s, i) => {
     const ox = s.x + Math.sin(now / 6500 + i * 2) * 35;
@@ -187,23 +338,22 @@ function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: numbe
   });
 
   const horizonGrad = ctx.createLinearGradient(0, 0, STAGE_W, 0);
-  horizonGrad.addColorStop(0, 'rgba(34, 211, 238, 0)');
-  horizonGrad.addColorStop(0.25, 'rgba(34, 211, 238, 0.13)');
-  horizonGrad.addColorStop(0.75, 'rgba(168, 85, 247, 0.13)');
-  horizonGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
+  horizonGrad.addColorStop(0, `rgba(${mood.spotA}, 0)`);
+  horizonGrad.addColorStop(0.28, `rgba(${mood.spotA}, 0.22)`);
+  horizonGrad.addColorStop(0.72, `rgba(${mood.spotB}, 0.20)`);
+  horizonGrad.addColorStop(1, `rgba(${mood.spotB}, 0)`);
   ctx.fillStyle = horizonGrad;
-  ctx.fillRect(0, 816, STAGE_W, 1.5);
+  ctx.fillRect(0, 816, STAGE_W, 1.8);
 
-  // Sahnede derinlik hissi veren yavaş hareketli parçacıklar ve konuşma enerjisine
-  // çok hafif tepki veren yayın ışığı; içerik okunabilirliğini kapatmayacak kadar düşük kontrastlıdır.
+  // Sahneye özel hareketli parçacıklar ve konuşma enerjisi tepkisi
   ctx.save();
-  for (let i = 0; i < 28; i++) {
-    const phase = i * 1.73;
+  for (let i = 0; i < 30; i++) {
+    const phase = i * 1.73 + sceneIndex * 0.9;
     const x = ((i * 271 + now * (0.008 + (i % 3) * 0.002)) % (STAGE_W + 80)) - 40;
     const y = 110 + ((i * 97 + Math.sin(now / 2400 + phase) * 36) % 680);
     const radius = 1.2 + (i % 4) * 0.55;
-    const alpha = 0.045 + energy * 0.035;
-    ctx.fillStyle = i % 2 ? `rgba(34, 211, 238, ${alpha})` : `rgba(168, 85, 247, ${alpha})`;
+    const alpha = 0.055 + energy * 0.04;
+    ctx.fillStyle = i % 2 ? `rgba(${mood.spotA}, ${alpha})` : `rgba(${mood.spotB}, ${alpha})`;
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -211,7 +361,7 @@ function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: numbe
   const sweepX = ((now / 8) % (STAGE_W + 700)) - 350;
   const sweep = ctx.createLinearGradient(sweepX - 220, 0, sweepX + 220, 0);
   sweep.addColorStop(0, 'rgba(255,255,255,0)');
-  sweep.addColorStop(0.5, `rgba(125, 211, 252, ${0.025 + energy * 0.025})`);
+  sweep.addColorStop(0.5, `rgba(${mood.spotA}, ${0.03 + energy * 0.03})`);
   sweep.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = sweep;
   ctx.fillRect(0, 80, STAGE_W, 700);
@@ -219,7 +369,7 @@ function drawBroadcastStudioBackground(ctx: CanvasRenderingContext2D, now: numbe
 
   const vignette = ctx.createRadialGradient(STAGE_W / 2, STAGE_H * 0.42, 320, STAGE_W / 2, STAGE_H * 0.42, 1120);
   vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+  vignette.addColorStop(1, 'rgba(0, 0, 0, 0.34)');
   ctx.fillStyle = vignette;
   ctx.fillRect(0, 0, STAGE_W, STAGE_H);
 }
@@ -272,87 +422,119 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
   const { x, y, w, h } = getBoardLayout(f.layoutMode).board;
   const reveal = f.poster ? 1 : f.progress;
   const d = f.scene.diagram;
+  const mood = getSceneMood(d.type);
 
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.74)';
-  ctx.shadowBlur = 64;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.78)';
+  ctx.shadowBlur = 66;
   ctx.shadowOffsetY = 24;
   rr(ctx, x, y, w, h, 30);
-  ctx.fillStyle = 'rgba(10, 16, 32, 0.96)';
+  ctx.fillStyle = 'rgba(9, 15, 31, 0.96)';
   ctx.fill();
   ctx.restore();
 
-  // Tahtanın odak noktasını destekleyen, içeriği kapatmayan sinematik parlama.
+  // Tahtanın odak noktasını destekleyen, sahne moduna uyumlu sinematik parlama
   const focusGlow = ctx.createRadialGradient(
     x + w * (0.28 + f.progress * 0.44),
     y + h * 0.5,
     8,
     x + w * (0.28 + f.progress * 0.44),
     y + h * 0.5,
-    Math.min(w, h) * 0.58,
+    Math.min(w, h) * 0.60,
   );
-  focusGlow.addColorStop(0, `rgba(56, 189, 248, ${0.035 + f.mouthOpen * 0.025})`);
-  focusGlow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+  focusGlow.addColorStop(0, `rgba(${mood.spotA}, ${0.045 + f.mouthOpen * 0.03})`);
+  focusGlow.addColorStop(1, `rgba(${mood.spotA}, 0)`);
   ctx.fillStyle = focusGlow;
   ctx.fillRect(x, y, w, h);
 
-  const glass = ctx.createLinearGradient(x, y, x, y + h);
-  glass.addColorStop(0, 'rgba(56, 189, 248, 0.065)');
-  glass.addColorStop(0.38, 'rgba(15, 23, 42, 0)');
-  glass.addColorStop(1, 'rgba(168, 85, 247, 0.045)');
+  const glass = ctx.createLinearGradient(x, y, x + w, y + h);
+  glass.addColorStop(0, `rgba(${mood.spotA}, 0.085)`);
+  glass.addColorStop(0.45, 'rgba(15, 23, 42, 0)');
+  glass.addColorStop(1, `rgba(${mood.spotB}, 0.065)`);
   rr(ctx, x, y, w, h, 30);
   ctx.fillStyle = glass;
   ctx.fill();
 
   const border = ctx.createLinearGradient(x, y, x + w, y + h);
-  border.addColorStop(0, 'rgba(56, 189, 248, 0.55)');
-  border.addColorStop(0.5, 'rgba(99, 102, 241, 0.28)');
-  border.addColorStop(1, 'rgba(192, 132, 252, 0.45)');
+  border.addColorStop(0, `rgba(${mood.spotA}, 0.65)`);
+  border.addColorStop(0.5, `rgba(${mood.spotC}, 0.34)`);
+  border.addColorStop(1, `rgba(${mood.spotB}, 0.58)`);
   ctx.strokeStyle = border;
-  ctx.lineWidth = 1.8;
+  ctx.lineWidth = 2;
   ctx.stroke();
+
+  // Köşe nişangah / stüdyo kamera çerçeve çizgileri
+  ctx.save();
+  ctx.strokeStyle = mood.accent;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 2.4;
+  const cl = 22;
+  [
+    [x + 12, y + 12, 1, 1],
+    [x + w - 12, y + 12, -1, 1],
+    [x + 12, y + h - 12, 1, -1],
+    [x + w - 12, y + h - 12, -1, -1],
+  ].forEach(([cxp, cyp, dx, dy]) => {
+    ctx.beginPath();
+    ctx.moveTo(cxp, cyp + dy * cl);
+    ctx.lineTo(cxp, cyp);
+    ctx.lineTo(cxp + dx * cl, cyp);
+    ctx.stroke();
+  });
+  ctx.restore();
 
   ctx.save();
   rr(ctx, x, y, w, h, 30);
   ctx.clip();
 
-  // İnce koordinat ızgarası
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.032)';
-  ctx.lineWidth = 1;
-  for (let gx = x + 48; gx < x + w; gx += 48) {
-    ctx.beginPath();
-    ctx.moveTo(gx, y + 114);
-    ctx.lineTo(gx, y + h - 54);
-    ctx.stroke();
-  }
-  for (let gy = y + 140; gy < y + h - 54; gy += 48) {
-    ctx.beginPath();
-    ctx.moveTo(x, gy);
-    ctx.lineTo(x + w, gy);
-    ctx.stroke();
+  // Sahne tipine göre değişen iç yüzey dokusu (ızgara / takımyıldız / ayrım zemini)
+  if (mood.pattern === 'constellation' || mood.pattern === 'radar') {
+    ctx.strokeStyle = `rgba(${mood.spotA}, 0.045)`;
+    ctx.lineWidth = 1;
+    for (let r = 120; r < w * 0.7; r += 110) {
+      ctx.beginPath();
+      ctx.arc(x + w * 0.22, y + h * 0.55, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  } else {
+    ctx.strokeStyle = mood.pattern === 'mathgrid' ? `rgba(${mood.spotA}, 0.055)` : 'rgba(148, 163, 184, 0.032)';
+    ctx.lineWidth = 1;
+    const step = mood.pattern === 'mathgrid' ? 36 : 48;
+    for (let gx = x + 48; gx < x + w; gx += step) {
+      ctx.beginPath();
+      ctx.moveTo(gx, y + 114);
+      ctx.lineTo(gx, y + h - 68);
+      ctx.stroke();
+    }
+    for (let gy = y + 132; gy < y + h - 68; gy += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, gy);
+      ctx.lineTo(x + w, gy);
+      ctx.stroke();
+    }
   }
 
   // Üst kategori etiketi
   const typeLabel = TYPE_LABEL[d.type] || 'STÜDYO DERS ŞEMASI';
   ctx.font = font(700, 12.5);
-  const tagW = ctx.measureText(typeLabel).width + 28;
+  const tagW = ctx.measureText(typeLabel).width + 32;
   rr(ctx, x + 36, y + 22, tagW, 28, 14);
-  ctx.fillStyle = 'rgba(34, 211, 238, 0.13)';
+  ctx.fillStyle = `rgba(${mood.spotA}, 0.16)`;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = `rgba(${mood.spotA}, 0.45)`;
+  ctx.lineWidth = 1.2;
   ctx.stroke();
-  ctx.fillStyle = '#67e8f9';
+  ctx.fillStyle = mood.accent;
   ctx.textBaseline = 'middle';
-  ctx.fillText(typeLabel, x + 50, y + 36.5);
+  ctx.fillText(typeLabel, x + 52, y + 36.5);
 
-  // Sağ üst ders adı rozeti
+  // Sahne tematik göstergesi + sağ üst ders adı rozeti
   if (d.rootBadge) {
     ctx.font = font(600, 12.5);
     const rb = wrapText(ctx, d.rootBadge, 280, 1)[0] || '';
     const rbw = ctx.measureText(rb).width + 26;
     rr(ctx, x + w - 36 - rbw, y + 22, rbw, 28, 14);
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.09)';
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.10)';
     ctx.fill();
     ctx.fillStyle = '#cbd5e1';
     ctx.fillText(rb, x + w - 36 - rbw + 13, y + 36.5);
@@ -366,18 +548,20 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
   ctx.fillText(titleLine, x + 36, y + 86);
 
   const sep = ctx.createLinearGradient(x + 36, 0, x + w - 36, 0);
-  sep.addColorStop(0, 'rgba(34, 211, 238, 0.45)');
-  sep.addColorStop(0.6, 'rgba(148, 163, 184, 0.14)');
+  sep.addColorStop(0, mood.accent);
+  sep.addColorStop(0.55, `rgba(${mood.spotB}, 0.25)`);
   sep.addColorStop(1, 'rgba(148, 163, 184, 0.02)');
   ctx.fillStyle = sep;
-  ctx.fillRect(x + 36, y + 104, w - 72, 1.5);
+  ctx.fillRect(x + 36, y + 104, w - 72, 1.8);
 
-  const hasBottomNote = Boolean(d.metric || f.scene.examTip);
+  const bottomNote = f.scene.examTip || d.metric;
+  const noteLinesCount = bottomNote ? Math.min(2, wrapText(ctx, bottomNote, w - 210, 2).length) : 0;
+  const bottomBarH = noteLinesCount === 2 ? 56 : noteLinesCount === 1 ? 42 : 0;
   const contentArea: Area = {
     x: x + 34,
     y: y + 120,
     w: w - 68,
-    h: h - 120 - (hasBottomNote ? 68 : 24),
+    h: h - 120 - (bottomBarH > 0 ? bottomBarH + 22 : 24),
   };
 
   let focusPoint: Point = { x: x + w / 2, y: y + h / 2 };
@@ -425,27 +609,26 @@ function drawSmartBoard(ctx: CanvasRenderingContext2D, f: StageFrame): Point {
     );
   }
 
-  // Alt sınav vurgu bandı — hocanın sorabileceği noktaları öne çıkarır
-  const bottomNote = f.scene.examTip || d.metric;
-  if (bottomNote) {
-    const my = y + h - 56;
-    rr(ctx, x + 34, my, w - 68, 40, 12);
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+  // Alt sınav vurgu bandı — hocanın sorabileceği noktaları 2 satıra kadar eksiksiz vurgular
+  if (bottomNote && bottomBarH > 0) {
+    const my = y + h - bottomBarH - 12;
+    rr(ctx, x + 34, my, w - 68, bottomBarH, 13);
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.13)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.34)';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.38)';
+    ctx.lineWidth = 1.2;
     ctx.stroke();
 
     ctx.fillStyle = '#fbbf24';
-    ctx.font = font(700, 13.5);
+    ctx.font = font(800, 12.5);
     const prefix = 'SINAV NOTU:';
-    ctx.fillText(prefix, x + 50, my + 25);
+    ctx.fillText(prefix, x + 50, my + 24);
     const pw = ctx.measureText(prefix).width;
 
     ctx.fillStyle = '#fef3c7';
-    ctx.font = font(500, 14.5);
-    const noteLine = wrapText(ctx, bottomNote, w - 124 - pw, 1)[0] || '';
-    ctx.fillText(noteLine, x + 62 + pw, my + 25);
+    ctx.font = font(500, 14);
+    const wrappedNotes = wrapText(ctx, bottomNote, w - 134 - pw, 2);
+    drawLines(ctx, wrappedNotes, x + 62 + pw, my + 24, 19);
   }
 
   ctx.restore();
@@ -503,18 +686,23 @@ function drawThematicIllustration(
     variantHash = (variantHash * 31 + variantKey.charCodeAt(i)) | 0;
   }
   const variant = Math.abs(variantHash) % 3;
+  const lowerKey = variantKey.toLocaleLowerCase('tr-TR');
+  const isMonetaryTopic =
+    /para teorisi|merkez bankası|emisyon|likidite|para arzı|para talebi|faiz|enflasyon|rezerv|kredi|banka|taylor|fisher|monetar/.test(
+      lowerKey,
+    );
 
   ctx.save();
   rr(ctx, box.x, box.y, box.w, box.h, 24);
   const bg = ctx.createLinearGradient(box.x, box.y, box.x + box.w, box.y + box.h);
-  if (theme === 'history' && variant === -1) {
-    bg.addColorStop(0, '#0f1d38');
-    bg.addColorStop(0.55, '#13243f');
+  if (theme === 'history') {
+    bg.addColorStop(0, '#0f1b34');
+    bg.addColorStop(0.55, '#13233d');
     bg.addColorStop(1, '#1d1636');
   } else if (theme === 'economics') {
-    bg.addColorStop(0, '#0b2239');
-    bg.addColorStop(0.55, '#0d293e');
-    bg.addColorStop(1, '#0c1f33');
+    bg.addColorStop(0, '#072238');
+    bg.addColorStop(0.55, '#0b293d');
+    bg.addColorStop(1, '#091a2e');
   } else if (theme === 'law') {
     bg.addColorStop(0, '#141e38');
     bg.addColorStop(1, '#1f1938');
@@ -528,113 +716,66 @@ function drawThematicIllustration(
 
   // Arka plan atmosferik hale
   const glow = ctx.createRadialGradient(cx, cy - 30, 12, cx, cy, box.w * 0.65);
-  glow.addColorStop(0, theme === 'history' ? 'rgba(251, 191, 36, 0.20)' : 'rgba(34, 211, 238, 0.22)');
+  glow.addColorStop(
+    0,
+    theme === 'history'
+      ? 'rgba(251, 191, 36, 0.18)'
+      : theme === 'economics'
+      ? 'rgba(16, 185, 129, 0.22)'
+      : 'rgba(34, 211, 238, 0.22)',
+  );
   glow.addColorStop(1, 'rgba(15, 23, 42, 0)');
   ctx.fillStyle = glow;
   ctx.fillRect(box.x, box.y, box.w, box.h);
 
   // Üst sol rozet
-  rr(ctx, box.x + 18, box.y + 18, 148, 28, 14);
-  ctx.fillStyle = 'rgba(6, 10, 22, 0.65)';
-  ctx.fill();
-  ctx.fillStyle = '#e2e8f0';
+  const badgeTitle =
+    theme === 'economics' && isMonetaryTopic
+      ? 'PARASAL MEKANİZMA'
+      : theme === 'economics'
+      ? 'İKTİSADİ MODEL'
+      : theme === 'history'
+      ? 'TARİHSEL KRONİK'
+      : 'KONU İLLÜSTRASYONU';
   ctx.font = font(700, 11.5);
-  ctx.fillText('KONU İLLÜSTRASYONU', box.x + 32, box.y + 36);
+  const btW = ctx.measureText(badgeTitle).width + 28;
+  rr(ctx, box.x + 18, box.y + 18, btW, 28, 14);
+  ctx.fillStyle = 'rgba(6, 10, 22, 0.72)';
+  ctx.fill();
+  ctx.strokeStyle = theme === 'economics' ? 'rgba(52, 211, 153, 0.4)' : 'rgba(56, 189, 248, 0.35)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = theme === 'economics' ? '#6ee7b7' : '#e2e8f0';
+  ctx.fillText(badgeTitle, box.x + 32, box.y + 36);
 
   if (theme === 'history') {
-    // 8 köşeli Selçuklu/Osmanlı geometrik yıldız madalyonu (üst merkezde yavaş döner)
-    ctx.save();
-    ctx.translate(cx, box.y + 125);
-    ctx.rotate(slow * 0.22);
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.42)';
-    ctx.lineWidth = 1.6;
-    for (let k = 0; k < 2; k++) {
-      ctx.save();
-      ctx.rotate((k * Math.PI) / 4);
-      ctx.strokeRect(-42, -42, 84, 84);
-      ctx.restore();
-    }
-    ctx.beginPath();
-    ctx.arc(0, 0, 22, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(251, 191, 36, 0.22)';
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    // Anıtsal Taçkapı / Kervansaray Kemeri ve Kubbe Silüeti
-    const baseLine = box.y + box.h - 78;
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
-    ctx.lineWidth = 2.2;
-
-    // Yan sur duvarları
-    rr(ctx, cx - 165, baseLine - 135, 330, 135, [14, 14, 0, 0]);
-    ctx.fill();
-    ctx.stroke();
-
-    // Merkez kubbe
-    ctx.beginPath();
-    ctx.arc(cx, baseLine - 135, 78, Math.PI, 0);
-    ctx.fillStyle = 'rgba(30, 58, 95, 0.85)';
-    ctx.fill();
-    ctx.strokeStyle = '#38bdf8';
-    ctx.stroke();
-
-    // Sivri Selçuklu kemeri
-    ctx.beginPath();
-    ctx.moveTo(cx - 56, baseLine);
-    ctx.lineTo(cx - 56, baseLine - 72);
-    ctx.quadraticCurveTo(cx - 56, baseLine - 122, cx, baseLine - 138);
-    ctx.quadraticCurveTo(cx + 56, baseLine - 122, cx + 56, baseLine - 72);
-    ctx.lineTo(cx + 56, baseLine);
-    ctx.closePath();
-    const archGlow = ctx.createLinearGradient(cx, baseLine - 138, cx, baseLine);
-    archGlow.addColorStop(0, 'rgba(251, 191, 36, 0.45)');
-    archGlow.addColorStop(1, 'rgba(34, 211, 238, 0.14)');
-    ctx.fillStyle = archGlow;
-    ctx.fill();
-    ctx.strokeStyle = '#fbbf24';
-    ctx.stroke();
-
-    // Alt ekili miri toprak / ticaret yolu katmanları
-    for (let r = 0; r < 3; r++) {
-      ctx.beginPath();
-      const ry = baseLine + 16 + r * 18;
-      ctx.moveTo(box.x + 20, ry);
-      ctx.bezierCurveTo(cx - 80, ry - 8, cx + 80, ry + 8, box.x + box.w - 20, ry - 4);
-      ctx.strokeStyle = r === 0 ? 'rgba(52, 211, 153, 0.55)' : 'rgba(56, 189, 248, 0.30)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-  } else if ((theme as string) === 'history') {
-    // Tarih derslerinde tek bir anıt yerine konuya göre kronik ve ticaret rotası kompozisyonu.
-    const baseY = box.y + box.h - 84;
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.58)';
+    const baseY = box.y + box.h - 76;
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.55)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(box.x + 42, baseY);
-    ctx.lineTo(box.x + box.w - 42, baseY);
+    ctx.moveTo(box.x + 38, baseY);
+    ctx.lineTo(box.x + box.w - 38, baseY);
     ctx.stroke();
 
     if (variant === 1) {
       const milestones = [
-        { x: box.x + 74, title: 'KÖKEN', color: '#22d3ee' },
-        { x: cx - 74, title: 'DÖNÜŞÜM', color: '#fbbf24' },
-        { x: cx + 74, title: 'ETKİ', color: '#a78bfa' },
-        { x: box.x + box.w - 74, title: 'MİRAS', color: '#34d399' },
+        { x: box.x + 70, title: 'KÖKEN', color: '#22d3ee' },
+        { x: cx - 64, title: 'DÖNÜŞÜM', color: '#fbbf24' },
+        { x: cx + 64, title: 'ETKİ', color: '#a78bfa' },
+        { x: box.x + box.w - 70, title: 'MİRAS', color: '#34d399' },
       ];
       milestones.forEach((item, index) => {
-        const y = baseY - (index % 2 === 0 ? 112 : 188);
+        const y = baseY - (index % 2 === 0 ? 114 : 186);
         ctx.beginPath();
         ctx.moveTo(item.x, baseY);
         ctx.lineTo(item.x, y + 34);
         ctx.strokeStyle = `${item.color}99`;
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(item.x, baseY, 10, 0, Math.PI * 2);
+        ctx.arc(item.x, baseY, 9, 0, Math.PI * 2);
         ctx.fillStyle = item.color;
         ctx.fill();
-        rr(ctx, item.x - 58, y, 116, 38, 12);
+        rr(ctx, item.x - 54, y, 108, 36, 12);
         ctx.fillStyle = `${item.color}22`;
         ctx.fill();
         ctx.strokeStyle = `${item.color}88`;
@@ -642,37 +783,138 @@ function drawThematicIllustration(
         ctx.fillStyle = '#f8fafc';
         ctx.font = font(700, 10.5);
         ctx.textAlign = 'center';
-        ctx.fillText(item.title, item.x, y + 24);
+        ctx.fillText(item.title, item.x, y + 23);
       });
       ctx.textAlign = 'left';
+    } else if (variant === 2) {
+      ctx.save();
+      ctx.translate(cx, cy - 8);
+      ctx.rotate(slow * 0.25);
+      [96, 62].forEach((r, ri) => {
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.strokeStyle = ri === 0 ? 'rgba(251, 191, 36, 0.45)' : 'rgba(56, 189, 248, 0.5)';
+        ctx.setLineDash(ri === 0 ? [8, 6] : []);
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+      for (let i = 0; i < 4; i++) {
+        const a = (i * Math.PI) / 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 18, Math.sin(a) * 18);
+        ctx.lineTo(Math.cos(a) * 96, Math.sin(a) * 96);
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
+        ctx.stroke();
+      }
+      ctx.restore();
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = font(800, 13);
+      ctx.textAlign = 'center';
+      ctx.fillText('KURUMSAL DÖNÜŞÜM', cx, baseY - 12);
+      ctx.textAlign = 'left';
     } else {
-      const left = cx - 154;
-      const top = box.y + 98;
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+      const left = cx - 150;
+      const top = box.y + 92;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.86)';
       ctx.strokeStyle = 'rgba(251, 191, 36, 0.62)';
       ctx.lineWidth = 2;
-      rr(ctx, left, top, 308, 220, 18);
+      rr(ctx, left, top, 300, 224, 18);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.18)';
-      ctx.fillRect(left + 18, top + 18, 272, 42);
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.16)';
+      ctx.fillRect(left + 18, top + 18, 264, 42);
       ctx.fillStyle = '#fbbf24';
-      ctx.font = font(800, 17);
+      ctx.font = font(800, 16);
       ctx.textAlign = 'center';
-      ctx.fillText('KRONİK / BELGE', cx, top + 45);
+      ctx.fillText('TARİHSEL BELGE & KRONİK', cx, top + 44);
       ctx.textAlign = 'left';
       for (let row = 0; row < 4; row++) {
-        const y = top + 86 + row * 30;
-        ctx.fillStyle = row === activeIdx % 4 ? '#67e8f9' : 'rgba(148, 163, 184, 0.48)';
-        ctx.fillRect(left + 28, y, 54 + row * 22, 5);
-        ctx.fillRect(left + 98, y, 166 - row * 16, 5);
+        const y = top + 84 + row * 30;
+        ctx.fillStyle = row === activeIdx % 4 ? '#67e8f9' : 'rgba(148, 163, 184, 0.45)';
+        ctx.fillRect(left + 26, y, 52 + row * 20, 5);
+        ctx.fillRect(left + 94, y, 164 - row * 14, 5);
       }
-      ctx.strokeStyle = 'rgba(34, 211, 238, 0.5)';
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.55)';
       ctx.beginPath();
-      ctx.moveTo(left + 28, top + 188);
-      ctx.bezierCurveTo(left + 92, top + 144, left + 194, top + 212, left + 280, top + 164);
+      ctx.moveTo(left + 26, top + 190);
+      ctx.bezierCurveTo(left + 90, top + 148, left + 190, top + 210, left + 274, top + 166);
       ctx.stroke();
     }
+  } else if (theme === 'economics' && isMonetaryTopic && variant === 0) {
+    // MERKEZ BANKASI EMİSYON VE PARASAL AKTARIM MEKANİZMASI
+    const hubY = cy - 42;
+    const targets = [
+      { x: cx - 120, y: cy + 102, title: 'EMİSYON', sub: 'M0 / Rezerv', color: '#34d399' },
+      { x: cx, y: cy + 118, title: 'LİKİDİTE', sub: 'M1 / Kredi', color: '#22d3ee' },
+      { x: cx + 120, y: cy + 102, title: 'İSTİKRAR', sub: 'Fiyat & Faiz', color: '#fbbf24' },
+    ];
+
+    targets.forEach((tg, idx) => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx, hubY + 46);
+      ctx.bezierCurveTo(cx, hubY + 88, tg.x, tg.y - 54, tg.x, tg.y - 26);
+      ctx.strokeStyle = idx === activeIdx % targets.length ? tg.color : 'rgba(148, 163, 184, 0.34)';
+      ctx.lineWidth = idx === activeIdx % targets.length ? 3 : 1.8;
+      ctx.stroke();
+
+      const p = ((now / 1500 + idx * 0.33) % 1);
+      const px = cx + (tg.x - cx) * p;
+      const py = hubY + 46 + (tg.y - 26 - (hubY + 46)) * p;
+      ctx.beginPath();
+      ctx.arc(px, py, 5, 0, Math.PI * 2);
+      ctx.fillStyle = tg.color;
+      ctx.fill();
+
+      rr(ctx, tg.x - 54, tg.y - 24, 108, 58, 14);
+      ctx.fillStyle = idx === activeIdx % targets.length ? 'rgba(16, 42, 62, 0.96)' : 'rgba(15, 23, 42, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = tg.color;
+      ctx.lineWidth = idx === activeIdx % targets.length ? 2.2 : 1.2;
+      ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = tg.color;
+      ctx.font = font(800, 11.5);
+      ctx.fillText(tg.title, tg.x, tg.y - 2);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = font(600, 11);
+      ctx.fillText(tg.sub, tg.x, tg.y + 18);
+      ctx.restore();
+    });
+
+    ctx.save();
+    drawPolygon(ctx, cx, hubY, 64, 6, -Math.PI / 6);
+    const cg = ctx.createLinearGradient(cx - 56, hubY - 56, cx + 56, hubY + 56);
+    cg.addColorStop(0, 'rgba(16, 185, 129, 0.92)');
+    cg.addColorStop(1, 'rgba(14, 116, 144, 0.95)');
+    ctx.fillStyle = cg;
+    ctx.shadowColor = 'rgba(52, 211, 153, 0.4)';
+    ctx.shadowBlur = 24;
+    ctx.fill();
+    ctx.strokeStyle = '#6ee7b7';
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(800, 15);
+    ctx.fillText('MERKEZ', cx, hubY - 4);
+    ctx.fillText('BANKASI', cx, hubY + 15);
+    ctx.textAlign = 'left';
+
+    rr(ctx, box.x + box.w - 146, box.y + 18, 128, 28, 14);
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.16)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(52, 211, 153, 0.45)';
+    ctx.stroke();
+    ctx.fillStyle = '#6ee7b7';
+    ctx.font = font(800, 12);
+    ctx.textAlign = 'center';
+    ctx.fillText('M · V = P · Y', box.x + box.w - 82, box.y + 36);
+    ctx.textAlign = 'left';
   } else if (theme === 'economics' && variant === 0) {
     // Hassas İktisadi Denge Terazisi + Yükselen Piyasa Çubukları
     const baseY = box.y + box.h - 72;
@@ -682,17 +924,16 @@ function drawThematicIllustration(
       const bx = cx - 118 + idx * 50;
       const bh = 150 * v * (0.92 + Math.sin(slow + idx) * 0.06);
       const g = ctx.createLinearGradient(bx, baseY - bh, bx, baseY);
-      g.addColorStop(0, idx === activeIdx % 5 ? '#fbbf24' : '#22d3ee');
-      g.addColorStop(1, 'rgba(59, 130, 246, 0.18)');
+      g.addColorStop(0, idx === activeIdx % 5 ? '#fbbf24' : '#34d399');
+      g.addColorStop(1, 'rgba(14, 165, 233, 0.18)');
       rr(ctx, bx, baseY - bh, bw, bh, [8, 8, 2, 2]);
       ctx.fillStyle = g;
       ctx.fill();
     });
 
-    // Üst denge halkası ve terazi kolu
     const tilt = Math.sin(slow * 1.1) * 0.08;
     ctx.save();
-    ctx.translate(cx, box.y + 155);
+    ctx.translate(cx, box.y + 148);
     ctx.strokeStyle = '#fbbf24';
     ctx.lineWidth = 2.6;
     ctx.beginPath();
@@ -705,27 +946,31 @@ function drawThematicIllustration(
     ctx.lineTo(115, 0);
     ctx.stroke();
 
-    [-105, 105].forEach(px => {
+    [-105, 105].forEach((px, pIdx) => {
       ctx.beginPath();
       ctx.moveTo(px, 0);
       ctx.lineTo(px - 22, 42);
       ctx.lineTo(px + 22, 42);
       ctx.closePath();
-      ctx.strokeStyle = 'rgba(34, 211, 238, 0.75)';
+      ctx.strokeStyle = 'rgba(52, 211, 153, 0.78)';
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(px, 46, 26, 0, Math.PI);
-      ctx.fillStyle = 'rgba(34, 211, 238, 0.25)';
+      ctx.fillStyle = 'rgba(52, 211, 153, 0.25)';
       ctx.fill();
       ctx.stroke();
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = font(700, 10);
+      ctx.textAlign = 'center';
+      ctx.fillText(isMonetaryTopic ? (pIdx === 0 ? 'Ms ARZ' : 'Md TALEP') : (pIdx === 0 ? 'ARZ' : 'TALEP'), px, 34);
     });
     ctx.restore();
   } else if (theme === 'economics' && variant === 1) {
-    // Arz-talep kesişimi ve hareketli piyasa göstergeleri
+    // Arz-talep veya Para Piyasası kesişimi
     const axisX = box.x + 52;
-    const axisY = box.y + box.h - 92;
+    const axisY = box.y + box.h - 90;
     const chartW = box.w - 104;
-    const chartH = box.h - 190;
+    const chartH = box.h - 186;
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -738,10 +983,16 @@ function drawThematicIllustration(
     ctx.rect(axisX, axisY - chartH, chartW, chartH);
     ctx.clip();
     ctx.lineWidth = 4;
-    ctx.strokeStyle = '#22d3ee';
+    ctx.strokeStyle = '#34d399';
     ctx.beginPath();
-    ctx.moveTo(axisX + 24, axisY - 30);
-    ctx.bezierCurveTo(axisX + chartW * 0.3, axisY - chartH * 0.4, axisX + chartW * 0.62, axisY - chartH * 0.78, axisX + chartW - 20, axisY - chartH + 22);
+    if (isMonetaryTopic) {
+      const msX = axisX + chartW * 0.52;
+      ctx.moveTo(msX, axisY - 14);
+      ctx.lineTo(msX, axisY - chartH + 14);
+    } else {
+      ctx.moveTo(axisX + 24, axisY - 30);
+      ctx.bezierCurveTo(axisX + chartW * 0.3, axisY - chartH * 0.4, axisX + chartW * 0.62, axisY - chartH * 0.78, axisX + chartW - 20, axisY - chartH + 22);
+    }
     ctx.stroke();
     ctx.strokeStyle = '#fbbf24';
     ctx.beginPath();
@@ -749,28 +1000,34 @@ function drawThematicIllustration(
     ctx.bezierCurveTo(axisX + chartW * 0.3, axisY - chartH * 0.78, axisX + chartW * 0.62, axisY - chartH * 0.4, axisX + chartW - 20, axisY - 30);
     ctx.stroke();
     const pulse = (Math.sin(slow * 1.5) + 1) / 2;
-    const eqX = axisX + chartW * (0.48 + pulse * 0.05);
-    const eqY = axisY - chartH * (0.53 + pulse * 0.04);
+    const eqX = axisX + chartW * (isMonetaryTopic ? 0.52 : 0.48 + pulse * 0.04);
+    const eqY = axisY - chartH * (0.50 + pulse * 0.04);
     ctx.beginPath();
     ctx.arc(eqX, eqY, 10, 0, Math.PI * 2);
     ctx.fillStyle = '#f8fafc';
     ctx.fill();
-    ctx.strokeStyle = '#a78bfa';
+    ctx.strokeStyle = '#34d399';
     ctx.stroke();
     ctx.restore();
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = font(600, 12);
-    ctx.fillText('Fiyat', axisX - 36, axisY - chartH + 8);
-    ctx.fillText('Miktar', axisX + chartW - 48, axisY + 34);
+    ctx.fillStyle = '#6ee7b7';
+    ctx.font = font(700, 12);
+    ctx.fillText(isMonetaryTopic ? 'i (Faiz)' : 'Fiyat (P)', axisX - 36, axisY - chartH + 8);
+    ctx.fillText(isMonetaryTopic ? 'M (Para)' : 'Miktar (Q)', axisX + chartW - 58, axisY + 32);
   } else if (theme === 'economics') {
-    // Ekonomik aktörler, para akışı ve karar noktaları
     const center = { x: cx, y: cy + 10 };
-    const orbit = [
-      { x: cx - 132, y: cy - 82, label: 'Hanehalkı', color: '#22d3ee' },
-      { x: cx + 132, y: cy - 82, label: 'Firmalar', color: '#fbbf24' },
-      { x: cx - 132, y: cy + 112, label: 'Devlet', color: '#34d399' },
-      { x: cx + 132, y: cy + 112, label: 'Piyasa', color: '#a78bfa' },
-    ];
+    const orbit = isMonetaryTopic
+      ? [
+          { x: cx - 128, y: cy - 82, label: 'TCMB / MB', color: '#34d399' },
+          { x: cx + 128, y: cy - 82, label: 'Bankalar', color: '#fbbf24' },
+          { x: cx - 128, y: cy + 112, label: 'Kredi', color: '#22d3ee' },
+          { x: cx + 128, y: cy + 112, label: 'Reel Ekonomi', color: '#a78bfa' },
+        ]
+      : [
+          { x: cx - 128, y: cy - 82, label: 'Hanehalkı', color: '#22d3ee' },
+          { x: cx + 128, y: cy - 82, label: 'Firmalar', color: '#fbbf24' },
+          { x: cx - 128, y: cy + 112, label: 'Devlet', color: '#34d399' },
+          { x: cx + 128, y: cy + 112, label: 'Piyasa', color: '#a78bfa' },
+        ];
     orbit.forEach((item, index) => {
       ctx.save();
       ctx.strokeStyle = `${item.color}88`;
@@ -780,17 +1037,29 @@ function drawThematicIllustration(
       ctx.lineTo(center.x, center.y);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(item.x, item.y, 42 + (index === activeIdx % orbit.length ? 5 : 0), 0, Math.PI * 2);
+      ctx.arc(item.x, item.y, 44 + (index === activeIdx % orbit.length ? 5 : 0), 0, Math.PI * 2);
       ctx.fillStyle = `${item.color}24`;
       ctx.fill();
       ctx.strokeStyle = item.color;
       ctx.stroke();
       ctx.fillStyle = '#f8fafc';
-      ctx.font = font(700, 13);
+      ctx.font = font(700, 12.5);
       ctx.textAlign = 'center';
       ctx.fillText(item.label, item.x, item.y + 5);
       ctx.restore();
     });
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, 58, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(14, 116, 144, 0.88)';
+    ctx.fill();
+    ctx.strokeStyle = '#67e8f9';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = font(800, 16);
+    ctx.textAlign = 'center';
+    ctx.fillText(isMonetaryTopic ? 'LİKİDİTE' : 'DENGE', center.x, center.y + 6);
+    ctx.textAlign = 'left';
     ctx.beginPath();
     ctx.arc(center.x, center.y, 58, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(14, 116, 144, 0.85)';
@@ -907,8 +1176,9 @@ function drawVisualShowcase(
 
   const rightX = illBox.x + illBox.w + 34;
   const rightW = a.x + a.w - rightX;
-  const gap = 14;
-  const cardH = Math.min(118, (a.h - gap * (n - 1)) / Math.max(1, n));
+  const gap = n <= 2 ? 20 : 14;
+  const maxCardCap = n === 1 ? 230 : n === 2 ? 190 : 118;
+  const cardH = Math.min(maxCardCap, (a.h - gap * (n - 1)) / Math.max(1, n));
   let target: Point = { x: illBox.x + illBox.w / 2, y: illBox.y + illBox.h / 2 };
 
   list.forEach((nd, i) => {
@@ -933,20 +1203,20 @@ function drawVisualShowcase(
       cy + cardH / 2,
     );
     ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.28)';
-    ctx.lineWidth = isAct ? 2.2 : 1.2;
+    ctx.lineWidth = isAct ? 2.4 : 1.2;
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(anchor.x, anchor.y, isAct ? 5.5 : 3.5, 0, Math.PI * 2);
+    ctx.arc(anchor.x, anchor.y, isAct ? 6 : 3.5, 0, Math.PI * 2);
     ctx.fillStyle = c1;
     ctx.fill();
 
     // Kart gövdesi
     rr(ctx, rightX, cy, rightW, cardH, 18);
-    ctx.fillStyle = isAct ? 'rgba(20, 33, 60, 0.95)' : 'rgba(15, 23, 42, 0.80)';
+    ctx.fillStyle = isAct ? 'rgba(20, 33, 60, 0.96)' : 'rgba(15, 23, 42, 0.82)';
     ctx.fill();
     ctx.strokeStyle = isAct ? c1 : 'rgba(148, 163, 184, 0.22)';
-    ctx.lineWidth = isAct ? 2 : 1.1;
+    ctx.lineWidth = isAct ? 2.2 : 1.1;
     ctx.stroke();
 
     // Sol vurgu şeridi
@@ -959,25 +1229,26 @@ function drawVisualShowcase(
 
     // Üst başlık + rozet
     ctx.fillStyle = '#ffffff';
-    ctx.font = font(700, 18);
-    const lbl = wrapText(ctx, nd.label, rightW - 140, 1)[0] || '';
-    ctx.fillText(lbl, rightX + 22, cy + 31);
+    ctx.font = font(700, n <= 2 ? 20 : 17.5);
+    const lbl = wrapText(ctx, nd.label, rightW - 150, 1)[0] || '';
+    ctx.fillText(lbl, rightX + 22, cy + (n <= 2 ? 36 : 31));
 
     if (nd.badge) {
       ctx.font = font(600, 11);
-      const bt = wrapText(ctx, nd.badge, 120, 1)[0] || '';
+      const bt = wrapText(ctx, nd.badge, 125, 1)[0] || '';
       const bw = ctx.measureText(bt).width + 18;
-      rr(ctx, rightX + rightW - bw - 16, cy + 13, bw, 22, 11);
-      ctx.fillStyle = `${c1}22`;
+      rr(ctx, rightX + rightW - bw - 16, cy + 14, bw, 22, 11);
+      ctx.fillStyle = `${c1}24`;
       ctx.fill();
       ctx.fillStyle = c1;
-      ctx.fillText(bt, rightX + rightW - bw - 7, cy + 28);
+      ctx.fillText(bt, rightX + rightW - bw - 7, cy + 29);
     }
 
     ctx.fillStyle = '#cbd5e1';
-    ctx.font = font(400, 15);
-    const subLines = wrapText(ctx, nd.subtext, rightW - 38, 2);
-    drawLines(ctx, subLines, rightX + 22, cy + 58, 22);
+    ctx.font = font(400, n <= 2 ? 16 : 14.5);
+    const maxLines = n === 1 ? 5 : n === 2 ? 4 : 2;
+    const subLines = wrapText(ctx, nd.subtext, rightW - 38, maxLines);
+    drawLines(ctx, subLines, rightX + 22, cy + (n <= 2 ? 68 : 56), n <= 2 ? 24 : 21);
     ctx.restore();
 
     if (isAct) target = { x: rightX + rightW / 2, y: cy + cardH / 2 };
@@ -1471,10 +1742,38 @@ function drawEconomicCurvesDiagram(
   const list = nodes.slice(0, 4);
   const n = Math.max(1, list.length);
   const act = activeIndex(n, reveal);
+  const curveCorpus = `${mainTitle} ${nodes.map(nd => `${nd.label} ${nd.subtext}`).join(' ')}`.toLocaleLowerCase('tr-TR');
+  const isMonetary = /para arz|para talep|merkez bankas|emisyon|likidite|para teorisi|faiz oran|rezerv/.test(curveCorpus);
+  const isMacroAdAs = !isMonetary && /toplam talep|toplam arz|gsyh|enflasyon|is-lm|maliye|büyüme|hasıla/.test(curveCorpus);
 
-  const plotX = a.x + 50;
+  const yLabel = isMonetary ? 'i (Faiz %)' : isMacroAdAs ? 'P (Fiyat Düz.)' : 'P (Fiyat)';
+  const xLabel = isMonetary ? 'M (Para Miktarı)' : isMacroAdAs ? 'Y (Reel GSYH)' : 'Q (Miktar)';
+  const yEqLabel = isMonetary ? 'i*' : 'P*';
+  const xEqLabel = isMonetary ? 'M*' : isMacroAdAs ? 'Y*' : 'Q*';
+  const demandLabel = isMonetary ? 'Md (Para Talebi)' : isMacroAdAs ? 'AD₀ (Top. Talep)' : 'D₀ (Talep)';
+  const supplyLabel = isMonetary ? 'Ms₀ (Para Arzı)' : isMacroAdAs ? 'AS₀ (Top. Arz)' : 'S₀ (Arz)';
+  const shiftLabel = isMonetary ? 'Ms₁ (Likidite Artışı)' : isMacroAdAs ? 'AD₁ (Genişleme)' : 'D₁ (Talep Kayması)';
+  const topAreaTag = isMonetary ? 'İşlem & İhtiyat Güdüsü' : isMacroAdAs ? 'Enflasyonist Baskı' : 'CS: Tüketici Rantı';
+  const botAreaTag = isMonetary ? 'Spekülasyon / Likidite' : isMacroAdAs ? 'Hasıla Açığı' : 'PS: Üretici Rantı';
+  const formulaBadge = isMonetary
+    ? 'PARASAL DENGE VE LİKİDİTE MODELİ'
+    : isMacroAdAs
+    ? 'MAKROEKONOMİK GENEL DENGE MODELİ'
+    : 'AKADEMİK DENGE MODELİ & FORMÜL';
+  const formulaExpr = isMonetary
+    ? 'Mˢ / P = L(Y, i)   ⟺   M · V = P · Y'
+    : isMacroAdAs
+    ? 'Y = C + I(r) + G + NX   ⟺   AD = AS'
+    : 'Qd(P) = Qs(P)   ⟺   P*, Q*';
+  const formulaNote = isMonetary
+    ? 'Merkez bankası Ms arzını genişlettiğinde faiz i* düşer, likidite artar.'
+    : isMacroAdAs
+    ? 'Talep kayması reel hasıla Y* ve genel fiyat düzeyini P* birlikte etkiler.'
+    : 'Ceteris paribus: Denge noktasında piyasa temizlenir.';
+
+  const plotX = a.x + 56;
   const plotY = a.y + 24;
-  const plotW = Math.round(a.w * 0.53);
+  const plotW = Math.round(a.w * 0.52);
   const plotH = a.h - 68;
 
   ctx.save();
@@ -1519,22 +1818,20 @@ function drawEconomicCurvesDiagram(
   ctx.lineTo(plotX + plotW + 6, plotY + plotH + 4);
   ctx.fill();
 
-  // Eksen Etiketleri: P (Fiyat) ve Q (Miktar)
+  // Eksen Etiketleri
   ctx.fillStyle = '#38bdf8';
-  ctx.font = font(800, 15);
-  ctx.fillText('P (Fiyat)', plotX - 36, plotY - 4);
-
-  ctx.fillText('Q (Miktar)', plotX + plotW - 40, plotY + plotH + 28);
+  ctx.font = font(800, 14.5);
+  ctx.fillText(yLabel, plotX - 42, plotY - 6);
+  ctx.fillText(xLabel, plotX + plotW - 62, plotY + plotH + 28);
 
   ctx.fillStyle = '#64748b';
   ctx.font = font(600, 12);
   ctx.fillText('0', plotX - 14, plotY + plotH + 16);
 
-  // Denge Noktası Parametreleri
-  const eqX = plotX + plotW * 0.50;
+  const eqX = plotX + plotW * (isMonetary ? 0.44 : 0.50);
   const eqY = plotY + plotH * 0.48;
 
-  // 2. Talep Eğrisi (D0 - Negatif Eğimli)
+  // 2. Negatif Eğimli Eğri (Talep / Para Talebi Md)
   const dStartX = plotX + 32;
   const dStartY = plotY + 28;
   const dEndX = plotX + plotW - 24;
@@ -1557,16 +1854,16 @@ function drawEconomicCurvesDiagram(
 
     if (dProg > 0.85) {
       ctx.fillStyle = '#22d3ee';
-      ctx.font = font(800, 14);
-      ctx.fillText('D₀ (Talep)', dEndX - 18, dEndY + 18);
+      ctx.font = font(800, 13.5);
+      ctx.fillText(demandLabel, dEndX - 66, dEndY + 18);
     }
   }
 
-  // 3. Arz Eğrisi (S0 - Pozitif Eğimli)
-  const sStartX = plotX + 32;
-  const sStartY = plotY + plotH - 28;
-  const sEndX = plotX + plotW - 24;
-  const sEndY = plotY + 36;
+  // 3. Arz Eğrisi (Para Piyasasında Dikey Ms0, aksi halde Pozitif Eğimli S0)
+  const sStartX = isMonetary ? eqX : plotX + 32;
+  const sStartY = isMonetary ? plotY + plotH - 20 : plotY + plotH - 28;
+  const sEndX = isMonetary ? eqX : plotX + plotW - 24;
+  const sEndY = isMonetary ? plotY + 22 : plotY + 36;
 
   const sProg = clamp((reveal - 0.25) / 0.32);
   if (sProg > 0) {
@@ -1585,15 +1882,14 @@ function drawEconomicCurvesDiagram(
 
     if (sProg > 0.85) {
       ctx.fillStyle = '#fbbf24';
-      ctx.font = font(800, 14);
-      ctx.fillText('S₀ (Arz)', sEndX - 10, sEndY - 10);
+      ctx.font = font(800, 13.5);
+      ctx.fillText(supplyLabel, isMonetary ? sEndX - 38 : sEndX - 24, sEndY - 10);
     }
   }
 
-  // 4. Piyasa Denge Noktası (E0) ve İzdüşüm Çizgileri
+  // 4. Denge Noktası (E0) ve Alan Taramaları
   const eqProg = clamp((reveal - 0.45) / 0.25);
   if (eqProg > 0) {
-    // Tüketici Rantı (Consumer Surplus) Tarama Alanı
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(plotX, dStartY);
@@ -1606,56 +1902,51 @@ function drawEconomicCurvesDiagram(
     ctx.fillStyle = csGrad;
     ctx.fill();
 
-    // Üretici Rantı (Producer Surplus) Tarama Alanı
-    ctx.beginPath();
-    ctx.moveTo(plotX, sStartY);
-    ctx.lineTo(eqX, eqY);
-    ctx.lineTo(plotX, eqY);
-    ctx.closePath();
-    const psGrad = ctx.createLinearGradient(plotX, sStartY, plotX, eqY);
-    psGrad.addColorStop(0, 'rgba(192, 132, 252, 0.04)');
-    psGrad.addColorStop(1, 'rgba(192, 132, 252, 0.20)');
-    ctx.fillStyle = psGrad;
-    ctx.fill();
+    if (!isMonetary) {
+      ctx.beginPath();
+      ctx.moveTo(plotX, sStartY);
+      ctx.lineTo(eqX, eqY);
+      ctx.lineTo(plotX, eqY);
+      ctx.closePath();
+      const psGrad = ctx.createLinearGradient(plotX, sStartY, plotX, eqY);
+      psGrad.addColorStop(0, 'rgba(192, 132, 252, 0.04)');
+      psGrad.addColorStop(1, 'rgba(192, 132, 252, 0.20)');
+      ctx.fillStyle = psGrad;
+      ctx.fill();
+    }
     ctx.restore();
 
-    // Kesikli İzdüşüm Çizgileri
     ctx.save();
     ctx.setLineDash([5, 4]);
     ctx.strokeStyle = '#34d399';
     ctx.lineWidth = 1.8;
 
-    // Yatay izdüşüm (P*)
     ctx.beginPath();
     ctx.moveTo(plotX, eqY);
     ctx.lineTo(eqX, eqY);
     ctx.stroke();
 
-    // Dikey izdüşüm (Q*)
     ctx.beginPath();
     ctx.moveTo(eqX, plotY + plotH);
     ctx.lineTo(eqX, eqY);
     ctx.stroke();
     ctx.restore();
 
-    // Eksen İsimleri: P* ve Q*
     ctx.fillStyle = '#34d399';
-    ctx.font = font(800, 13);
+    ctx.font = font(800, 12.5);
     ctx.textAlign = 'right';
-    ctx.fillText('P* (Denge)', plotX - 8, eqY + 4);
+    ctx.fillText(yEqLabel, plotX - 8, eqY + 4);
     ctx.textAlign = 'center';
-    ctx.fillText('Q* (Denge)', eqX, plotY + plotH + 24);
+    ctx.fillText(xEqLabel, eqX, plotY + plotH + 22);
     ctx.textAlign = 'left';
 
-    // Rant Rozetleri
     ctx.fillStyle = 'rgba(34, 211, 238, 0.85)';
     ctx.font = font(700, 11);
-    ctx.fillText('CS: Tüketici Rantı', plotX + 16, eqY - 24);
+    ctx.fillText(topAreaTag, plotX + 14, eqY - 24);
 
     ctx.fillStyle = 'rgba(192, 132, 252, 0.85)';
-    ctx.fillText('PS: Üretici Rantı', plotX + 16, eqY + 34);
+    ctx.fillText(botAreaTag, plotX + 14, eqY + 34);
 
-    // Denge Noktası (E0) Parlayan Halka
     const pulse = 7 + Math.sin(now / 220) * 2;
     ctx.beginPath();
     ctx.arc(eqX, eqY, pulse + 5, 0, Math.PI * 2);
@@ -1671,20 +1962,25 @@ function drawEconomicCurvesDiagram(
     ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = font(800, 14.5);
-    ctx.fillText('E₀ (P*, Q*)', eqX + 12, eqY - 10);
+    ctx.font = font(800, 14);
+    ctx.fillText(`E₀ (${xEqLabel}, ${yEqLabel})`, eqX + 12, eqY - 10);
   }
 
-  // 5. Dinamik Eğri Kayması (D1 Shift)
+  // 5. Dinamik Politika Kayması (Para Arzı Ms -> Ms1 veya Talep D -> D1)
   if (reveal > 0.72) {
     const shiftProgress = clamp((reveal - 0.72) / 0.20);
-    const shiftOffset = 42 * shiftProgress;
+    const shiftOffset = (isMonetary ? 58 : 42) * shiftProgress;
 
     ctx.save();
     ctx.setLineDash([6, 5]);
     ctx.beginPath();
-    ctx.moveTo(dStartX + shiftOffset, dStartY);
-    ctx.lineTo(dEndX + shiftOffset, dEndY);
+    if (isMonetary) {
+      ctx.moveTo(sStartX + shiftOffset, sStartY);
+      ctx.lineTo(sEndX + shiftOffset, sEndY);
+    } else {
+      ctx.moveTo(dStartX + shiftOffset, dStartY);
+      ctx.lineTo(dEndX + shiftOffset, dEndY);
+    }
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2.6;
     ctx.stroke();
@@ -1692,9 +1988,12 @@ function drawEconomicCurvesDiagram(
 
     ctx.fillStyle = '#38bdf8';
     ctx.font = font(800, 13);
-    ctx.fillText('D₁ (Talep Kayması)', dEndX + shiftOffset - 24, dEndY - 20);
+    if (isMonetary) {
+      ctx.fillText(shiftLabel, sEndX + shiftOffset - 46, sEndY + 18);
+    } else {
+      ctx.fillText(shiftLabel, dEndX + shiftOffset - 44, dEndY - 20);
+    }
 
-    // Kayma Oku
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1712,7 +2011,6 @@ function drawEconomicCurvesDiagram(
   const rx = plotX + plotW + 32;
   const rw = a.x + a.w - rx;
 
-  // Üst Formül Kutusu
   rr(ctx, rx, a.y + 12, rw, 86, 16);
   ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
   ctx.fill();
@@ -1722,15 +2020,15 @@ function drawEconomicCurvesDiagram(
 
   ctx.fillStyle = '#38bdf8';
   ctx.font = font(700, 11);
-  ctx.fillText('AKADEMİK DENGE MODELİ & FORMÜL', rx + 18, a.y + 34);
+  ctx.fillText(formulaBadge, rx + 18, a.y + 34);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = font(800, 16.5);
-  ctx.fillText('Qd(P) = Qs(P)  ⟺  P*, Q*', rx + 18, a.y + 58);
+  ctx.font = font(800, 15.5);
+  ctx.fillText(formulaExpr, rx + 18, a.y + 58);
 
   ctx.fillStyle = '#94a3b8';
-  ctx.font = font(400, 12.5);
-  ctx.fillText('Ceteris paribus: Denge noktasında piyasa temizlenir.', rx + 18, a.y + 78);
+  ctx.font = font(400, 12);
+  ctx.fillText(wrapText(ctx, formulaNote, rw - 36, 1)[0] || '', rx + 18, a.y + 78);
 
   // Alt Kavram Kartları
   const gap = 12;
@@ -2316,7 +2614,13 @@ function drawWhiteboardPresenterBadge(
 
 export function renderStage(ctx: CanvasRenderingContext2D, f: StageFrame) {
   ctx.save();
-  drawBroadcastStudioBackground(ctx, f.now, f.playing ? f.mouthOpen : 0);
+  drawBroadcastStudioBackground(
+    ctx,
+    f.now,
+    f.playing ? f.mouthOpen : 0,
+    f.scene?.diagram?.type,
+    f.sceneIndex,
+  );
 
   const activeSpeaker: Speaker =
     f.activeSpeaker || f.scene.sentenceSpeakers?.[f.sentenceIndex] || f.scene.speaker;
