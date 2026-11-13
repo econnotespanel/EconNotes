@@ -31,7 +31,7 @@ interface NeuralReportDialogProps {
 
 const CATEGORIES = [
   'Yanlış veya Eksik İçerik',
-  'GPU / Yerel Model Hatası',
+  'Yapay Zekâ / Özet Kalitesi',
   'Matematik / Formül Gösterimi',
   'Ses / Video Senkron Sorunu',
   'Genel Hata veya Öneri',
@@ -96,7 +96,7 @@ export function NeuralReportDialog({ open, onOpenChange, materialId }: NeuralRep
             Neural Studio Hata & İyileştirme Bildirimi
           </DialogTitle>
           <DialogDescription>
-            Hatalı AI çıktısı, GPU yükleme sorunu veya arayüz aksaklığını doğrudan iletin.
+            Hatalı AI çıktısı, özet kalitesi sorunu veya arayüz aksaklığını doğrudan iletin.
           </DialogDescription>
         </DialogHeader>
 

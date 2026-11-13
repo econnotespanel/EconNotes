@@ -18,43 +18,114 @@ function estimatePagesOrSlides(text: string, explicitPages?: number): number {
   return Math.max(1, Math.ceil(countWords(text) / 280));
 }
 
+export type AcademicDomainMode = 'verbal' | 'quantitative' | 'hybrid';
+
 export function detectDiscipline(text: string, course?: string): string {
-  const hay = `${course || ''} ${text.slice(0, 8000)}`.toLowerCase();
+  const hay = `${course || ''} ${text.slice(0, 10_000)}`.toLocaleLowerCase('tr-TR');
   const rules: Array<[string, RegExp]> = [
     [
+      'Hukuk & Kamu Yönetimi',
+      /\b(kanun|anayasa|yargıtay|danıştay|madde\s*\d+|hukuk|borçlar|ceza|medeni|idare|ticaret\s+hukuku|icra|mahkeme|sözleşme|tüzel|yaptırım|müeyyide|tbk|tmk|tck|mevzuat|içtihat|ehliyet|butlan|zilyetlik|mülkiyet|miras|kamu\s+yönetimi)\b/g,
+    ],
+    [
+      'Tarih & Siyaset Bilimi',
+      /\b(tarih|osmanlı|cumhuriyet|inkılap|devrim|antlaşma|savaş|dönem|padişah|tanzimat|meşrutiyet|siyaset|ideoloji|demokrasi|devlet|rejim|egemenlik|uluslararası\s+ilişkiler|diplomasi|jeopolitik|soğuk\s+savaş|iktisat\s+tarihi|merkantilizm|fizyokrasi)\b/g,
+    ],
+    [
+      'Sosyoloji, Psikoloji & Felsefe',
+      /\b(sosyoloji|psikoloji|felsefe|antropoloji|etik|epistemoloji|ontoloji|bilişsel|davranış|toplum|kültür|norm|statü|rol|durkheim|weber|marx|freud|kant|platon|aristoteles|algı|bellek|motivasyon|kişilik|anomi)\b/g,
+    ],
+    [
+      'Edebiyat, Eğitim & İletişim',
+      /\b(edebiyat|şiir|roman|hikaye|edebi\s+akım|romantizm|realizm|sembolizm|divan|serüvet-i\s+fünun|pedagoji|eğitim\s+bilimleri|öğretim|müfredat|iletişim|medya|söylem|retorik|anlatım)\b/g,
+    ],
+    [
       'İktisat & Ekonometri',
-      /\b(ekonometri|mikroekonomi|makroekonomi|enflasyon|gsyih|elastikiyet|regresyon|ols|merkez bankası|para politikası|maliye politikası|arz|talep|fayda|denge|is-lm|solow|keynes|tcmb)\b/,
+      /\b(ekonometri|mikroekonomi|makroekonomi|enflasyon|gsyih|elastikiyet|regresyon|ols|merkez\s+bankası|para\s+politikası|maliye\s+politikası|arz|talep|fayda|denge|is-lm|solow|keynes|tcmb|iktisat)\b/g,
     ],
     [
       'Finans & İşletme',
-      /\b(finans|bilanço|nakit akışı|iskonto|npv|irr|capm|portföy|hisse|tahvil|türev|opsiyon|pazarlama|yönetim|muhasebe|maliyet|kârlılık|roe)\b/,
-    ],
-    [
-      'Hukuk & Kamu Yönetimi',
-      /\b(kanun|anayasa|yargıtay|madde \d+|hukuk|borçlar|ceza|ticaret hukuku|idare|dava|mahkeme|sözleşme|tüzel|yaptırım|müeyyide)\b/,
+      /\b(finans|bilanço|nakit\s+akışı|iskonto|npv|irr|capm|portföy|hisse|tahvil|türev|opsiyon|pazarlama|yönetim|organizasyon|muhasebe|maliyet|kârlılık|roe|stratejik\s+yönetim|insan\s+kaynakları)\b/g,
     ],
     [
       'Bilgisayar & Mühendislik',
-      /\b(algoritma|veri yapısı|kompleksite|big-o|python|java|sql|veritabanı|network|makine öğrenmesi|derin öğrenme|yapay zeka|devre|termodinamik|mukavemet)\b/,
+      /\b(algoritma|veri\s+yapısı|kompleksite|big-o|python|java|sql|veritabanı|network|makine\s+öğrenmesi|derin\s+öğrenme|yapay\s+zeka|devre|termodinamik|mukavemet|yazılım)\b/g,
     ],
     [
       'Matematik & İstatistik',
-      /\b(teorem|ispat|integral|türev|matris|determinant|özdeğer|olasılık|dağılım|hipotez testi|p-değeri|varyans|kovaryans|limit|diferansiyel)\b/,
-    ],
-    [
-      'Tarih & Sosyal Bilimler',
-      /\b(tarih|osmanlı|cumhuriyet|inkılap|devrim|sosyoloji|psikoloji|felsefe|antropoloji|siyaset bilimi|uluslararası ilişkiler|antlaşma)\b/,
+      /\b(teorem|ispat|integral|türev|matris|determinant|özdeğer|olasılık|dağılım|hipotez\s+testi|p-değeri|varyans|kovaryans|limit|diferansiyel|hipotez)\b/g,
     ],
     [
       'Tıp & Yaşam Bilimleri',
-      /\b(anatomi|fizyoloji|patoloji|farmakoloji|biyokimya|hücre|genetik|protein|enzim|klinik|semptom|tanı)\b/,
+      /\b(anatomi|fizyoloji|patoloji|farmakoloji|biyokimya|hücre|genetik|protein|enzim|klinik|semptom|tanı|histoloji)\b/g,
     ],
   ];
 
+  let bestLabel = 'Üniversite Akademik Çalışma';
+  let bestScore = 0;
+
   for (const [label, regex] of rules) {
-    if (regex.test(hay)) return label;
+    const matches = hay.match(regex);
+    const score = matches ? matches.length : 0;
+    if (score > bestScore) {
+      bestScore = score;
+      bestLabel = label;
+    }
   }
-  return 'Üniversite Akademik Çalışma';
+  return bestLabel;
+}
+
+export function classifyStudyDomain(
+  text: string,
+  course?: string,
+  title?: string,
+): { discipline: string; mode: AcademicDomainMode } {
+  const fullCourse = [course, title].filter(Boolean).join(' ');
+  const discipline = detectDiscipline(text, fullCourse);
+  const sample = text.slice(0, 14_000);
+  const lowerHeader = `${fullCourse} ${sample.slice(0, 1200)}`.toLocaleLowerCase('tr-TR');
+
+  const mathSignals = (
+    sample.match(
+      /(\$\$[^$]+\$\$|\$[^$\n]+\$|\\frac|\\sum|\\int|\\partial|\b[a-zA-Z]\s*=\s*[-+0-9a-zA-Z(]|\d+\s*[*/=]\s*\d+|d[xy]\s*\/\s*d[xt])/g,
+    ) || []
+  ).length;
+
+  const strongVerbalTopic =
+    /\b(hukuk|anayasa|borçlar|ceza|medeni|idare|tarih|sosyoloji|psikoloji|felsefe|edebiyat|siyaset|uluslararası\s+ilişkiler|kamu\s+yönetimi|iktisat\s+tarihi|iktisadi\s+düşünceler|ekonomi\s+tarihi|kalkınma\s+iktisadı|kuram|doktrin|yönetim\s+ve\s+organizasyon|insan\s+kaynakları|pazarlama|eğitim|etik|iletişim)\b/.test(
+      lowerHeader,
+    );
+
+  if (
+    discipline === 'Hukuk & Kamu Yönetimi' ||
+    discipline === 'Tarih & Siyaset Bilimi' ||
+    discipline === 'Sosyoloji, Psikoloji & Felsefe' ||
+    discipline === 'Edebiyat, Eğitim & İletişim'
+  ) {
+    return {
+      discipline,
+      mode: mathSignals >= 8 ? 'hybrid' : 'verbal',
+    };
+  }
+
+  if (strongVerbalTopic && mathSignals < 4) {
+    return { discipline, mode: 'verbal' };
+  }
+
+  if (
+    discipline === 'Matematik & İstatistik' ||
+    discipline === 'Bilgisayar & Mühendislik' ||
+    mathSignals >= 6
+  ) {
+    return { discipline, mode: 'quantitative' };
+  }
+
+  // Metinde denklem yok ve sınıflandırılamayan düz anlatım ise sözel kabul et
+  if (discipline === 'Üniversite Akademik Çalışma' && mathSignals === 0 && sample.length > 180) {
+    return { discipline, mode: 'verbal' };
+  }
+
+  return { discipline, mode: 'hybrid' };
 }
 
 export function extractOutlinePreview(text: string, maxHeadings = 14): string[] {

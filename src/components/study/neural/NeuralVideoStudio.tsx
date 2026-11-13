@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
-  Cpu,
   Eye,
   FileDown,
   Headphones,
@@ -73,7 +72,6 @@ import {
   type VoiceOption,
 } from '../video/speechEngine';
 import { subscribeVitsStatus, type VitsEngineStatus } from '../video/vitsTurkishEngine';
-import { useNeuralEngine } from './useNeuralEngine';
 
 export interface VideoMaterialRecord {
   id: string;
@@ -141,8 +139,6 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
   onReport,
   onOpenCoach,
 }) => {
-  const engineSnap = useNeuralEngine();
-
   const studio = useMemo<StudioContent>(
     () => buildStudioContent(material.content, material.title, material.course || ''),
     [material.content, material.title, material.course],
@@ -700,15 +696,7 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
             <EconLogo onDark className="h-7 w-auto" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-sm font-bold text-white">{studio.title}</h1>
-              <span className="hidden xl:inline-flex items-center gap-1 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-300">
-                <Cpu className="h-3 w-3" />
-                {engineSnap.hardware?.tier === 'ultra' || engineSnap.hardware?.tier === 'pro'
-                  ? 'GPU Sahne Motoru'
-                  : engineSnap.hardware?.tierLabel || 'Hibrit Sahne Motoru'}
-              </span>
-            </div>
+            <h1 className="truncate text-sm font-bold text-white">{studio.title}</h1>
             <p className="truncate text-[11px] text-slate-400">
               Bölüm {activeSceneIndex + 1}/{scenes.length}: {activeScene?.title}
               {vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling'

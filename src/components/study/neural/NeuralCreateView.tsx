@@ -35,6 +35,7 @@ import { ACCEPTED_FILES } from '@/lib/extractFile';
 import {
   buildNoteSourceItem,
   buildPastedSourceItem,
+  classifyStudyDomain,
   combineStudySources,
   extractUploadedSource,
 } from '@/lib/studySourceProcessor';
@@ -81,7 +82,7 @@ const MATERIAL_CARDS: Array<{
   {
     type: 'summary',
     title: 'Derin Akademik Özet',
-    subtitle: 'Çok aşamalı bölüm analizi, LaTeX formüller, karşılaştırma matrisi & ara sorular',
+    subtitle: 'Sözel & sayısal uyumlu bölüm analizi, neden-sonuç zinciri, karşılaştırma matrisi & ara sorular',
     icon: FileText,
     accent: 'from-cyan-500/20 to-blue-600/15 border-cyan-500/40',
   },
@@ -109,10 +110,10 @@ const MATERIAL_CARDS: Array<{
 ];
 
 const PROMPT_CHIPS = [
-  'Sayısal örneklerle adım adım çöz',
-  'Vize & final tuzaklarına özellikle vurgu yap',
-  'Türkiye ekonomisi güncel verileriyle ilişkilendir',
-  'Grafik ve denklem türetimlerini eksiksiz ekle',
+  'Kavramları karşılaştırma tablosu ve neden-sonuç zinciriyle özetle',
+  'Vize & final tuzaklarına ve klasik sınav ayrımlarına vurgu yap',
+  'Tarihsel, kurumsal veya Türkiye bağlamı örnekleriyle zenginleştir',
+  'Varsa formül, grafik ve sayısal örnekleri adım adım çöz',
 ];
 
 const LIVE_PASTE_DRAFT_ID = 'live-pasted-draft';
@@ -234,8 +235,8 @@ export function NeuralCreateView({
           <Badge variant="outline" className="gap-1.5 text-xs">
             <Zap className="h-3.5 w-3.5 text-cyan-500" />
             {engine.prefs.routingPolicy === 'local_privacy'
-              ? 'Yerel GPU Gizlilik Hattı'
-              : 'Çok Aşamalı Bulut + GPU'}
+              ? 'Yerel Gizlilik Hattı'
+              : 'Çok Aşamalı Akademik AI'}
           </Badge>
         </div>
 
@@ -405,9 +406,21 @@ export function NeuralCreateView({
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold">Canlı Kaynak Röntgeni</span>
                 {sources.length > 0 && (
-                  <Badge variant="outline" className="text-[11px] text-cyan-600 dark:text-cyan-300">
-                    {bundle.detectedDiscipline}
-                  </Badge>
+                  <>
+                    <Badge variant="outline" className="text-[11px] text-cyan-600 dark:text-cyan-300">
+                      {bundle.detectedDiscipline}
+                    </Badge>
+                    <Badge variant="secondary" className="text-[11px]">
+                      {(() => {
+                        const mode = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title).mode;
+                        return mode === 'verbal'
+                          ? 'Sözel & Kuramsal Odak'
+                          : mode === 'quantitative'
+                            ? 'Sayısal & Analitik Odak'
+                            : 'Karma Akademik Odak';
+                      })()}
+                    </Badge>
+                  </>
                 )}
               </div>
               <span className="text-[11px] text-muted-foreground">

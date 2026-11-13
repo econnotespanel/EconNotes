@@ -553,8 +553,8 @@ export default function Study() {
           </div>
           <h1 className="text-xl font-bold">EconNotes Neural Studio</h1>
           <p className="text-sm text-muted-foreground">
-            Çalışma materyali üretmek, WebGPU yerel AI ve çoklu kaynak RAG asistanını kullanmak
-            için oturum açmalısınız.
+            Çalışma materyali üretmek, derin akademik özet çıkarmak ve çoklu kaynak asistanını
+            kullanmak için oturum açmalısınız.
           </p>
           <Button onClick={() => navigate('/auth')} className="gap-2">
             <LogIn className="h-4 w-4" />

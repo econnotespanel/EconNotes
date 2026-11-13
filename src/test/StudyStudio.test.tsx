@@ -6,7 +6,11 @@ import Study from '@/pages/Study';
 import { NeuralSummaryWorkspace } from '@/components/study/neural/NeuralSummaryWorkspace';
 import { NeuralQuizWorkspace } from '@/components/study/neural/NeuralQuizWorkspace';
 import { NeuralFlashcardWorkspace } from '@/components/study/neural/NeuralFlashcardWorkspace';
-import { generateClientStudyMaterial } from '@/lib/studyMaterialGenerator';
+import {
+  formatSectionContentForFallback,
+  generateClientStudyMaterial,
+} from '@/lib/studyMaterialGenerator';
+import { classifyStudyDomain } from '@/lib/studySourceProcessor';
 import { generateMaterialWithOrchestration } from '@/lib/studyAiClient';
 import type { ProcessedStudyBundle, StudioGenerationSettings, StudyMaterial } from '@/types/study';
 
@@ -233,6 +237,13 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
       await screen.findByText(/Ders notlarını derin üniversite kaynaklarına dönüştür/i),
     ).toBeInTheDocument();
 
+    // Flagged hardware/WebGPU telemetry UI banners must stay hidden from the student hub & header
+    expect(screen.queryByText(/Hibrit Hazır \(WebGPU \+ Bulut\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Çekirdek CPU/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Donanım İvmesi/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/WebGPU ekran kartı/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/GPU Hızı/i)).not.toBeInTheDocument();
+
     // Open Materyal Üret tab from the Command Rail
     const rail = screen.getByRole('navigation', { name: /Stüdyo Komuta Rayı/i });
     fireEvent.click(within(rail).getByRole('button', { name: /Materyal Üret/i }));
@@ -262,7 +273,7 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Stüdyo Ana Sayfa/i })).toBeInTheDocument();
     });
-  });
+  }, 15_000);
 
   it('renders SummaryWorkspace chapters, LaTeX/tables, and interactive mini-checkpoint', () => {
     render(
@@ -367,7 +378,7 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     expect(mixed.questions[0].rubric.length).toBeGreaterThan(0);
   });
 
-  it('switches cleanly between Notlarıma Sor, Plan & Tekrar, and GPU & Performans tabs in Study', async () => {
+  it('switches cleanly between Notlarıma Sor, Plan & Tekrar, and AI & Gizlilik tabs in Study', async () => {
     render(
       <MemoryRouter>
         <Study />
@@ -382,7 +393,7 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     fireEvent.click(within(rail).getByRole('button', { name: /Plan & Tekrar/i }));
     expect(await screen.findByText(/Akıllı Çalışma Planlayıcı & SM-2 Aralıklı Tekrar/i)).toBeInTheDocument();
 
-    fireEvent.click(within(rail).getByRole('button', { name: /GPU & Performans/i }));
+    fireEvent.click(within(rail).getByRole('button', { name: /AI & Gizlilik/i }));
     expect(await screen.findByText(/Donanım Algılama & WebGPU Komuta Merkezi/i)).toBeInTheDocument();
   });
 });
@@ -552,5 +563,65 @@ describe('Study AI Orchestration Phase 2 (Legacy Edge Enrichment & Tier-2 Map-Re
     expect(res.content.sections).toHaveLength(2);
     expect(res.content.sections?.[0].content).toContain('$B = C + R$');
     expect(res.content.sections?.[1].heading).toBe('2. Açık Piyasa İşlemleri');
+  });
+
+  it('produces richly structured academic summaries tailored for sözel (verbal/humanities) notes', () => {
+    const lawText = [
+      'Anayasa Hukuku: Devletin temel yapısını, organlarını ve temel hak ve özgürlükleri düzenleyen üst normlar bütünüdür.',
+      'Kuvvetler Ayrılığı: Yasama, yürütme ve yargı erklerinin birbirinden bağımsız organlara verilmesi nedeniyle hukuk devleti güvencesi doğar.',
+      'Parlamenter Sistem ile Başkanlık Sistemi arasındaki temel fark yürütmenin yasama karşısındaki sorumluluk biçimidir.',
+      'Ancak olağanüstü hal dönemlerinde yürütme yetkisinin kapsamı genişler fakat yargı denetimi ilkesi tamamen ortadan kalkmaz.',
+      'Anayasa Mahkemesi norm denetimi sonucunda anayasaya aykırı kanun hükümlerini iptal eder.',
+      'Hukuk Devleti ilkesi uyarınca tüm idari işlemler yargısal denetime tabidir ve hukuki güvenlik sağlanır.',
+    ].join('\n');
+
+    const domain = classifyStudyDomain(lawText, 'Anayasa Hukuku', 'Devlet Organları ve Hukuk Devleti');
+    expect(domain.mode).toBe('verbal');
+    expect(domain.discipline).toBe('Hukuk & Kamu Yönetimi');
+
+    const summary = generateClientStudyMaterial({
+      materialType: 'summary',
+      noteTitle: 'Devlet Organları ve Hukuk Devleti',
+      course: 'Anayasa Hukuku',
+      noteContext: lawText,
+      summaryDepth: 'comprehensive',
+      deepResearch: true,
+    }) as {
+      overview: string;
+      disciplineTag?: string;
+      sections: Array<{
+        heading: string;
+        content: string;
+        commonPitfalls?: string[];
+        deepResearchNote?: string;
+      }>;
+      comparativeMatrix?: { title: string; columns: string[]; rows: string[][] };
+      teacherEmphasis?: Array<{ point: string; whyImportant: string }>;
+      deepResearchTopics?: Array<{ topic: string; literatureContext: string }>;
+      keyTerms?: Array<{ term: string; definition: string }>;
+    };
+
+    expect(summary.disciplineTag).toContain('Sözel Özet');
+    expect(summary.sections.length).toBeGreaterThanOrEqual(2);
+    expect(summary.sections[0].content).toContain('Kavramsal Öz ve Ana Tez');
+    expect(summary.sections[0].content).toContain('Neden–Sonuç Zinciri ve Ayırt Edici İlkeler');
+    expect(summary.sections[0].content).toContain('Kavram ve Ayrım Tablosu');
+    expect(summary.sections[0].content).toContain('Klasik Sınav & Yorum İpucu');
+    expect(summary.sections[0].content).not.toContain('$$');
+    expect(summary.comparativeMatrix?.rows.length).toBeGreaterThanOrEqual(2);
+    expect(summary.keyTerms?.length).toBeGreaterThanOrEqual(2);
+    expect(summary.teacherEmphasis?.length).toBeGreaterThanOrEqual(2);
+    expect(summary.deepResearchTopics?.length).toBeGreaterThanOrEqual(1);
+
+    const formattedFallback = formatSectionContentForFallback({
+      index: 0,
+      heading: 'Kuvvetler Ayrılığı ve Yargı Denetimi',
+      rawSlice: lawText,
+      focusPoints: ['Yasama-yürütme ilişkisi'],
+      course: 'Anayasa Hukuku',
+      deepResearch: true,
+    });
+    expect(formattedFallback.content).toContain('Kavramsal Öz ve Ana Tez');
+    expect(formattedFallback.commonPitfalls?.length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -1,6 +1,15 @@
 import { supabase } from '@/integrations/supabase/client';
-import { generateClientStudyMaterial, type GeneratePayload } from '@/lib/studyMaterialGenerator';
-import { sampleUniformContext, sliceContextForSection } from '@/lib/studySourceProcessor';
+import {
+  formatSectionContentForFallback,
+  generateClientStudyMaterial,
+  type GeneratePayload,
+} from '@/lib/studyMaterialGenerator';
+import {
+  classifyStudyDomain,
+  sampleUniformContext,
+  sliceContextForSection,
+  type AcademicDomainMode,
+} from '@/lib/studySourceProcessor';
 import type {
   CoachMode,
   OpenEndedGradeResult,
@@ -143,20 +152,49 @@ function averageSectionWords(sections: SummarySection[]): number {
   return totalWords / sections.length;
 }
 
-function buildSectionExpansionSystemPrompt(settings: StudioGenerationSettings): string {
+function sectionsLackStructure(sections: SummarySection[]): boolean {
+  if (!sections.length) return true;
+  const structuredCount = sections.filter((s) => {
+    const c = String(s.content || '');
+    return /^#{2,4}\s+/m.test(c) && (/\n[-*]\s+/.test(c) || /\|[^|\n]+\|/.test(c));
+  }).length;
+  return structuredCount < Math.ceil(sections.length / 2);
+}
+
+function getDomainSummaryDirective(domainMode: AcademicDomainMode): string {
+  if (domainMode === 'verbal') {
+    return `SÖZEL / KURAMSAL & SOSYAL BİLİMLER UZMANLIK STANDARDI:
+- Bu ders SÖZEL / KURAMSAL ağırlıklıdır (Hukuk, Tarih, Sosyoloji, Psikoloji, Felsefe, Siyaset, Yönetim veya Kuramsal İktisat).
+- ASLA uydurma matematiksel formül veya yapay sembol EKLEME ($...$ / $$...$$ yalnız metinde gerçekten denklem varsa kullan).
+- Her bölümde şu yüksek verimli akademik yapıyı kur:
+  1. \`#### Kavramsal Öz ve Ana Tez\`: Kuramın/dönemin/kanunun özünü, aktörlerini ve temel argümanını akıcı fakülte diliyle açıkla.
+  2. \`#### Neden–Sonuç Zinciri ve Süreç / Mekanizma\`: Tarihsel gelişim, hukuki koşul–yaptırım veya sosyolojik/psikolojik sebep–sonuç akışını net madde veya numaralı adımlarla kur.
+  3. \`#### Karşılaştırma ve Ayrım Tablosu\`: Ekoller, dönemler, görüşler veya karıştırılan kavram ikilileri arasında mutlaka net bir Markdown tablosu (\`| Ölçüt | ... | ... |\`) oluştur.
+  4. \`#### Klasik Sınav & Yorum Sorusu Çerçevesi\`: Vize/finalde buradan nasıl klasik/yorum sorusu çıkacağını ve tam puan cevabın hangi kavramlara dayanması gerektiğini belirt.`;
+  }
+  return `ANALİTİK / SAYISAL DERS STANDARDI:
+- Her bölümde \`#### Analitik Çerçeve\`, sezgisel mantık + formel LaTeX gösterimi (\`$...$\` veya \`$$...$$\`, yalnız metindeki veya konudaki geçerli ifadelerle), çözümlü/somut uygulama örneği, net Markdown karşılaştırma tablosu (\`|...|...|\`) ve \`> **Sınav Odağı:**\` vurgusu sun.`;
+}
+
+function buildSectionExpansionSystemPrompt(
+  settings: StudioGenerationSettings,
+  domainMode: AcademicDomainMode = 'hybrid',
+): string {
   const wordsTarget =
     settings.summaryDepth === 'short'
-      ? '180-250'
+      ? '180-260'
       : settings.summaryDepth === 'textbook'
-      ? '360-520'
+      ? '380-540'
       : settings.summaryDepth === 'comprehensive'
-      ? '300-440'
-      : '240-340';
+      ? '320-460'
+      : '250-350';
+  const domainDirective = getDomainSummaryDirective(domainMode);
   return `Sen seçkin bir üniversite kürsü profesörüsün. Sana verilen ders bölümü taslağını ve kaynak metin kesitini kullanarak derin, akıcı, akademik ders kitabı düzeyinde Türkçe özet bölümleri yaz.
+${domainDirective}
 ${settings.deepResearch ? 'Derin Araştırma aktif: teorik arka plan, literatür bağlamı ve Türkiye/küresel uygulama örneğini "deepResearchNote" alanında sun.' : ''}
 Kurallar:
-- Her bölüm ${wordsTarget} kelime civarında eksiksiz Markdown prose olsun (### alt başlıklar, madde işaretleri, uygunsa formül $...$ veya $$...$$ ve Markdown karşılaştırma tablosu |...|...| kullan).
-- Kopya/yüzeysel cümle dizimi veya genel şablon klişeler asla kullanma; kaynak metindeki kavramları sebep-sonuç zinciriyle açıkla.
+- Her bölüm ${wordsTarget} kelime civarında eksiksiz Markdown prose olsun.
+- Kopya/yüzeysel cümle dizimi veya genel şablon klişeler asla kullanma; kaynak metindeki kavramları sebep-sonuç zinciriyle, net başlıklar ve karşılaştırmalarla sentezle.
 YALNIZCA JSON döndür:
 {
   "sections": [
@@ -167,7 +205,7 @@ YALNIZCA JSON döndür:
       "content": "Zengin Türkçe Markdown ders bölümü...",
       "takeaways": ["Net çıkarım 1", "Net çıkarım 2", "Net çıkarım 3"],
       "deepResearchNote": "Varsa ek akademik bağlam / vaka",
-      "commonPitfalls": ["Sınavda en sık karıştırılan tuzak"],
+      "commonPitfalls": ["Sınavda en sık karıştırılan kavram veya tuzak"],
       "checkpointQuestion": { "question": "Soru?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Açıklama" }
     }
   ]
@@ -177,6 +215,7 @@ YALNIZCA JSON döndür:
 async function generatePublicMapReduceSummary(
   bundle: ProcessedStudyBundle,
   settings: StudioGenerationSettings,
+  domainMode: AcademicDomainMode,
   onProgress?: ProgressCallback,
 ): Promise<SummaryContent | null> {
   const targetCount =
@@ -188,18 +227,20 @@ async function generatePublicMapReduceSummary(
       ? 7
       : 6;
 
-  onProgress?.(32, 'Bulut yapay zekâ ile ders planı ve kavram mimarisi çıkarılıyor...');
+  onProgress?.(32, 'Akademik ders planı ve kavram mimarisi çıkarılıyor...');
   const bpSystem = `Sen seçkin bir üniversite profesörüsün. Verilen ders materyalini tarayarak ${targetCount} ana bölümlük kapsamlı bir özet mimarisi oluştur.
+${domainMode === 'verbal' ? 'DERS TÜRÜ: Sözel / Kuramsal & Sosyal Bilimler. Kavram ayrımlarına, tarihsel/hukuki neden-sonuç akışına, karşılaştırma matrisine ve klasik sınav beklentisine odaklan; uydurma formül ekleme.' : ''}
 YALNIZCA JSON döndür:
 {
-  "overview": "Konunun amacını, kuramsal çerçevesini ve büyük resmini anlatan 2 güçlü paragraf",
-  "disciplineTag": "Örn: Para Teorisi & Makroekonomi",
+  "overview": "Konunun amacını, temel tezini ve büyük resmini anlatan 2 güçlü paragraf",
+  "disciplineTag": "Örn: ${bundle.detectedDiscipline}",
   "keyPoints": ["6-8 kapsamlı anahtar çıkarım"],
   "sectionsPlan": [
     { "index": 0, "title": "Net akademik bölüm başlığı", "pageRange": "", "focusPoints": ["Odak 1", "Odak 2", "Odak 3"] }
   ],
-  "teacherEmphasis": [{ "point": "Kritik kavram", "whyImportant": "Sınavda neden sorulur", "examProbability": "Yüksek" }],
-  "comparativeMatrix": { "title": "Karşılaştırma Tablosu", "columns": ["Boyut", "Özellik / Etki", "Sınav Ayrımı"], "rows": [["...", "...", "..."]] },
+  "teacherEmphasis": [{ "point": "Kritik kavram veya ayrım", "whyImportant": "Sınavda neden sorulur ve nasıl cevaplanmalı", "examProbability": "Yüksek" }],
+  "comparativeMatrix": { "title": "Karşılaştırma Tablosu", "columns": ["Boyut", "Yaklaşım / Kavram A", "Yaklaşım / Kavram B"], "rows": [["...", "...", "..."], ["...", "...", "..."]] },
+  "deepResearchTopics": [{ "topic": "İleri Okuma Başlığı", "literatureContext": "Kuramsal / tarihsel bağlam", "realWorldApplication": "Güncel veya kurumsal örnek" }],
   "keyTerms": [{ "term": "Terim", "definition": "Tam tanım", "formula": "" }],
   "studyChecklist": ["Öğrenme hedefi 1", "Öğrenme hedefi 2"]
 }`;
@@ -214,7 +255,7 @@ YALNIZCA JSON döndür:
 
   if (rawPlan.length === 0) {
     // Plan çıkarılamazsa kompakt tek seferlik bulut sentezini dene
-    const singlePrompt = buildPublicSummaryPrompt(bundle, settings);
+    const singlePrompt = buildPublicSummaryPrompt(bundle, settings, domainMode);
     const singleJson = await invokePublicJsonFallback(singlePrompt.system, singlePrompt.user);
     if (singleJson && Array.isArray(singleJson.sections) && singleJson.sections.length > 0) {
       return {
@@ -243,14 +284,14 @@ YALNIZCA JSON döndür:
     focusPoints: Array.isArray(p.focusPoints) ? p.focusPoints.map(String) : [],
   }));
 
-  const expandSys = buildSectionExpansionSystemPrompt(settings);
+  const expandSys = buildSectionExpansionSystemPrompt(settings, domainMode);
   const expandedSections: SummarySection[] = [];
   const batchSize = 2;
 
   for (let i = 0; i < normalizedPlan.length; i += batchSize) {
     const batch = normalizedPlan.slice(i, i + batchSize);
     const pct = Math.min(92, Math.round(45 + ((i + batch.length) / Math.max(1, normalizedPlan.length)) * 45));
-    onProgress?.(pct, `Bulut ders kitabı bölümleri yazılıyor (${i + 1}-${Math.min(i + batchSize, normalizedPlan.length)}/${normalizedPlan.length})...`);
+    onProgress?.(pct, `Ders kitabı bölümleri yazılıyor (${i + 1}-${Math.min(i + batchSize, normalizedPlan.length)}/${normalizedPlan.length})...`);
 
     const batchPayload = batch.map((b) => ({
       index: b.index,
@@ -269,7 +310,7 @@ YALNIZCA JSON döndür:
 
     batch.forEach((b, bi) => {
       const matched = gotSections.find((s) => s.index === b.index) || gotSections[bi];
-      if (matched && String(matched.content || '').trim().length > 40) {
+      if (matched && String(matched.content || '').trim().length > 60) {
         expandedSections.push({
           ...matched,
           index: b.index,
@@ -277,13 +318,19 @@ YALNIZCA JSON döndür:
           pageRange: matched.pageRange || b.pageRange,
         });
       } else {
-        expandedSections.push({
-          index: b.index,
-          heading: b.title,
-          pageRange: b.pageRange,
-          content: batchPayload[bi].sourceExcerpt,
-          takeaways: b.focusPoints.slice(0, 3),
-        });
+        // Asla ham metin parçası basma — yapısal sözel/sayısal biçimlendirici ile düzenle
+        expandedSections.push(
+          formatSectionContentForFallback({
+            index: b.index,
+            heading: b.title,
+            pageRange: b.pageRange,
+            rawSlice: batchPayload[bi].sourceExcerpt,
+            focusPoints: b.focusPoints,
+            course: bundle.course || bundle.detectedDiscipline,
+            title: bundle.title,
+            deepResearch: settings.deepResearch,
+          }),
+        );
       }
     });
   }
@@ -319,15 +366,19 @@ YALNIZCA JSON döndür:
 function buildPublicSummaryPrompt(
   bundle: ProcessedStudyBundle,
   settings: StudioGenerationSettings,
+  domainMode: AcademicDomainMode = 'hybrid',
 ): { system: string; user: string } {
   const depthHint =
     settings.summaryDepth === 'short'
-      ? '4 bölüm, bölüm başına 180-240 kelime'
+      ? '4 bölüm, bölüm başına 190-260 kelime'
       : settings.summaryDepth === 'textbook'
-      ? '6-7 bölüm, bölüm başına 280-420 kelime, çok derin ders kitabı düzeyi'
-      : '5-6 bölüm, bölüm başına 240-350 kelime, kapsamlı fakülte düzeyi';
+      ? '6-8 bölüm, bölüm başına 300-450 kelime, çok derin ders kitabı düzeyi'
+      : '5-7 bölüm, bölüm başına 260-380 kelime, kapsamlı fakülte düzeyi';
 
-  const system = `Sen seçkin bir üniversite kürsü profesörüsün. Verilen notlardan kapsamlı, formüllü ($...$, $$...$$), Markdown tablolu ve sıfır şablon cümleli Türkçe Çalışma Özeti üret.
+  const domainDirective = getDomainSummaryDirective(domainMode);
+
+  const system = `Sen seçkin bir üniversite kürsü profesörüsün. Verilen notlardan kapsamlı, sıfır şablon cümleli ve mükemmel yapılandırılmış Türkçe Çalışma Özeti üret.
+${domainDirective}
 ${
   settings.deepResearch
     ? 'Derin Araştırma aktif: teorik arka plan, literatür bağlamı ve Türkiye/dünya vaka örneklerini [Derin Akademik Araştırma] etiketiyle ekle.'
@@ -340,15 +391,16 @@ YALNIZCA geçerli JSON döndür:
   "keyPoints": ["6-8 madde"],
   "sections": [{
     "heading": "Bölüm başlığı",
-    "content": "Zengin Markdown + LaTeX + örnek + tablo metni",
+    "content": "Zengin Markdown + alt başlıklar + karşılaştırma tablosu + örnek metni",
     "takeaways": ["3 çıkarım"],
     "deepResearchNote": "Varsa derin akademik araştırma notu",
-    "commonPitfalls": ["Yaygın hata"],
+    "commonPitfalls": ["Sık karıştırılan kavram / sınav tuzağı"],
     "checkpointQuestion": { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
   }],
   "teacherEmphasis": [{ "point": "...", "whyImportant": "...", "examProbability": "Yüksek" }],
-  "comparativeMatrix": { "title": "...", "columns": ["Boyut","A","B"], "rows": [["...","...","..."]] },
-  "keyTerms": [{ "term": "...", "definition": "...", "formula": "..." }],
+  "comparativeMatrix": { "title": "...", "columns": ["Boyut","Yaklaşım A","Yaklaşım B"], "rows": [["...","...","..."]] },
+  "deepResearchTopics": [{ "topic": "...", "literatureContext": "...", "realWorldApplication": "..." }],
+  "keyTerms": [{ "term": "...", "definition": "...", "formula": "" }],
   "studyChecklist": ["Kendini değerlendirme maddesi"]
 }`;
 
@@ -363,6 +415,7 @@ async function enrichThinAiSections(
   rawSummary: SummaryContent,
   bundle: ProcessedStudyBundle,
   settings: StudioGenerationSettings,
+  domainMode: AcademicDomainMode,
   onProgress?: ProgressCallback,
 ): Promise<SummaryContent> {
   const existing = Array.isArray(rawSummary.sections) ? rawSummary.sections : [];
@@ -370,7 +423,7 @@ async function enrichThinAiSections(
 
   const avgWords = averageSectionWords(existing);
   const needsDeepening =
-    (settings.summaryDepth !== 'short' && avgWords < 175) ||
+    (settings.summaryDepth !== 'short' && (avgWords < 175 || sectionsLackStructure(existing))) ||
     (settings.deepResearch && !existing.some((s) => Boolean(s.deepResearchNote)));
 
   if (!needsDeepening || bundle.images.length > 0) {
@@ -378,7 +431,7 @@ async function enrichThinAiSections(
   }
 
   onProgress?.(68, 'Yapay zekâ özet bölümleri fakülte ders kitabı düzeyine derinleştiriliyor...');
-  const expandSys = buildSectionExpansionSystemPrompt(settings);
+  const expandSys = buildSectionExpansionSystemPrompt(settings, domainMode);
   const enriched: SummarySection[] = [];
   const batchSize = 2;
 
@@ -424,6 +477,7 @@ async function generateSummaryMapReduce(
   onProgress?: ProgressCallback,
 ): Promise<OrchestrationResult> {
   onProgress?.(12, '1/3 • Kaynak mimarisi ve ders haritası çıkarılıyor...');
+  const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title);
 
   const commonReq = {
     noteTitle: bundle.title,
@@ -526,15 +580,14 @@ async function generateSummaryMapReduce(
         sectionTargets,
       });
 
-      if (batchRes?.content?.sections && Array.isArray(batchRes.content.sections)) {
-        if (batchRes.sourceMode !== 'ai') allBatchesAi = false;
+      if (batchRes?.sourceMode === 'ai' && batchRes.content?.sections && Array.isArray(batchRes.content.sections)) {
         for (const sec of batchRes.content.sections) {
           expandedSections.push(sec);
         }
       } else {
-        // Edge expand_batch başarısız olduysa Tier-2 Public AI ile bu bölümü kurtar
+        // Edge expand_batch başarısız olduysa veya yerel fallback döndürdüyse Tier-2 AI ile bölümü derinleştir
         const pubBatch = await invokePublicJsonFallback(
-          buildSectionExpansionSystemPrompt(settings),
+          buildSectionExpansionSystemPrompt(settings, domain.mode),
           `DERS: ${bundle.course || bundle.detectedDiscipline}\nBÖLÜMLER:\n${JSON.stringify(sectionTargets)}`,
         );
         if (Array.isArray(pubBatch?.sections) && pubBatch.sections.length > 0) {
@@ -544,13 +597,18 @@ async function generateSummaryMapReduce(
         } else {
           allBatchesAi = false;
           for (const target of sectionTargets) {
-            expandedSections.push({
-              index: target.index,
-              heading: target.title,
-              pageRange: target.pageRange,
-              content: target.contextSlice || '',
-              takeaways: (target.focusPoints || []).slice(0, 3),
-            });
+            expandedSections.push(
+              formatSectionContentForFallback({
+                index: target.index,
+                heading: target.title,
+                pageRange: target.pageRange,
+                rawSlice: target.contextSlice || '',
+                focusPoints: target.focusPoints || [],
+                course: bundle.course || bundle.detectedDiscipline,
+                title: bundle.title,
+                deepResearch: settings.deepResearch,
+              }),
+            );
           }
         }
       }
@@ -600,6 +658,7 @@ async function generateSummaryMapReduce(
       blueprintRes.content as unknown as SummaryContent,
       bundle,
       settings,
+      domain.mode,
       onProgress,
     );
     return {
@@ -625,7 +684,7 @@ async function generateSummaryMapReduce(
 
   // Tier-2 Client Public AI Map-Reduce Synthesis (Blueprint + Batched Expansion)
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
-    const pubSummary = await generatePublicMapReduceSummary(bundle, settings, onProgress);
+    const pubSummary = await generatePublicMapReduceSummary(bundle, settings, domain.mode, onProgress);
     if (pubSummary && pubSummary.sections.length > 0) {
       return {
         content: pubSummary,
@@ -819,6 +878,16 @@ export async function expandSingleSummarySection(params: {
   section: SummarySection;
   existingOverview?: string;
 }): Promise<SummarySection | null> {
+  const domain = classifyStudyDomain(
+    `${params.existingOverview || ''} ${params.section.content}`,
+    params.course || undefined,
+    params.title,
+  );
+  const expandDirective =
+    domain.mode === 'verbal'
+      ? 'Bu sözel/kuramsal bölümü iki kat derinleştir: kavramsal özü genişlet, neden-sonuç zinciri kur, karşılaştırma tablosu ve klasik sınav yorum çerçevesi ekle. Uydurma formül ekleme.'
+      : 'Bu bölümü çok daha ayrıntılı genişlet: ek çözümlü sayısal/somut örnek, formül türetimi veya vaka analizi ve karşılaştırma tablosu ekle.';
+
   const edgeRes = await invokeEdgeGenerate({
     materialType: 'summary',
     stage: 'expand_batch',
@@ -826,8 +895,7 @@ export async function expandSingleSummarySection(params: {
     course: params.course || undefined,
     deepResearch: true,
     pedagogicalStyle: 'academic_rigor',
-    customPrompt:
-      'Bu bölümü çok daha ayrıntılı genişlet: ek çözümlü sayısal/somut örnek, formül türetimi veya vaka analizi ve karşılaştırma tablosu ekle.',
+    customPrompt: expandDirective,
     globalOutline: {
       overview: params.existingOverview || params.title,
       courseTitle: params.course || undefined,
@@ -849,7 +917,11 @@ export async function expandSingleSummarySection(params: {
   }
 
   const pub = await invokePublicJsonFallback(
-    'Üniversite profesörü olarak verilen ders özet bölümünü çözümlü somut örnek, formül ve Markdown karşılaştırma tablosu ekleyerek iki kat derinleştir. YALNIZCA JSON döndür: { "sections": [{ "index": 0, "heading": "...", "content": "...", "takeaways": ["..."], "deepResearchNote": "..." }] }',
+    `Üniversite profesörü olarak verilen ders özet bölümünü iki kat derinleştir (${
+      domain.mode === 'verbal'
+        ? 'kavramsal analiz, neden-sonuç zinciri, Markdown karşılaştırma tablosu ve klasik sınav çerçevesi ekle; uydurma formül ekleme'
+        : 'çözümlü somut örnek, formül ve Markdown karşılaştırma tablosu ekle'
+    }). YALNIZCA JSON döndür: { "sections": [{ "index": 0, "heading": "...", "content": "...", "takeaways": ["..."], "deepResearchNote": "..." }] }`,
     `DERS: ${params.course || '-'} | BAŞLIK: ${params.title}\nBÖLÜM: ${params.section.heading}\nMEVCUT METİN:\n${params.section.content}`,
   );
   const pubSec = Array.isArray(pub?.sections) ? (pub.sections[0] as SummarySection | undefined) : undefined;

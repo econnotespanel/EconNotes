@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   BookOpenCheck,
-  Cpu,
   Database,
   Loader2,
   MessageSquareText,
@@ -126,9 +125,7 @@ export function NeuralRagChatView({
           role: 'assistant',
           content: res.answer,
           hits: res.hits,
-          meta: `${res.engineUsed === 'gpu' ? 'WebGPU' : res.engineUsed === 'cloud' ? 'Bulut AI' : 'Yerel Dizin'} · ${res.model}${
-            res.tokensPerSec ? ` · ${res.tokensPerSec} tok/sn` : ''
-          } · ${res.latencyMs}ms`,
+          meta: `${res.engineUsed === 'cloud' ? 'Akademik AI' : 'Yerel Dizin'} · ${res.model}`,
         },
       ]);
     } catch (err) {
@@ -195,7 +192,7 @@ export function NeuralRagChatView({
                     <div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground">
                       <span>{doc.course || 'Genel'}</span>
                       <span>
-                        {doc.chunkCount} pasaj {doc.hasVectors ? '· GPU Vektör' : ''}
+                        {doc.chunkCount} pasaj {doc.hasVectors ? '· Anlamsal İndeks' : ''}
                       </span>
                     </div>
                   </button>
@@ -214,8 +211,8 @@ export function NeuralRagChatView({
             <span className="text-sm font-bold">Notlarıma Sor (Kaynaklı RAG Sohbeti)</span>
           </div>
           <Badge variant="outline" className="gap-1 text-[10px]">
-            <Cpu className="h-3 w-3 text-cyan-500" />
-            {engine.llmStatus === 'ready' ? `WebGPU (${engine.activeModelId})` : 'Hibrit AI'}
+            <Sparkles className="h-3 w-3 text-cyan-500" />
+            Akademik Asistan
           </Badge>
         </div>
 
@@ -277,7 +274,7 @@ export function NeuralRagChatView({
                     <AcademicMarkdown content={streaming} className="text-xs leading-relaxed sm:text-sm" />
                     {liveTps > 0 && (
                       <p className="mt-1.5 font-mono text-[10px] text-cyan-500">
-                        WebGPU akışı · {liveTps} tok/sn
+                        Pasajlar birleştiriliyor...
                       </p>
                     )}
                   </>

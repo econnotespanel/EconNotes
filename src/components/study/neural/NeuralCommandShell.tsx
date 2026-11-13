@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   BrainCircuit,
   CalendarClock,
-  Cpu,
   Flag,
   FolderKanban,
   Home,
   MessageSquareText,
+  Settings2,
   Sparkles,
   Timer,
 } from 'lucide-react';
@@ -16,7 +16,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import type { NeuralEngineState } from '@/lib/neural/neuralEngine';
-import { NeuralStatusPill } from './NeuralStatusPill';
 
 export type NeuralTabId =
   | 'hub'
@@ -49,7 +48,6 @@ interface NeuralCommandShellProps {
 export function NeuralCommandShell({
   activeTab,
   onTabChange,
-  engine,
   dueCardsCount,
   materialsCount,
   indexedDocsCount,
@@ -83,44 +81,32 @@ export function NeuralCommandShell({
     { id: 'exam', label: 'Sınav Simülatörü', shortLabel: 'Sınav', icon: Timer },
     {
       id: 'engine',
-      label: 'GPU & Performans',
-      shortLabel: 'Motor',
-      icon: Cpu,
-      badge: engine.llmStatus === 'ready' ? 'GPU' : undefined,
+      label: 'AI & Gizlilik',
+      shortLabel: 'Ayarlar',
+      icon: Settings2,
     },
   ];
 
-  const hw = engine.hardware;
-
   return (
     <div className="neural-shell p-3 sm:p-5 lg:p-6">
-      {/* Top Neural Telemetry Bar */}
+      {/* Top Academic Studio Header */}
       <header className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 text-white shadow-lg shadow-cyan-500/25">
             <BrainCircuit className="h-5 w-5" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight sm:text-lg">
-                EconNotes Neural Studio
-              </h1>
-              <Badge variant="outline" className="neural-glow-pill text-[11px] font-semibold">
-                {hw?.tierLabel || 'Donanım taranıyor...'}
-              </Badge>
-            </div>
+            <h1 className="text-base font-bold tracking-tight sm:text-lg">
+              EconNotes Neural Studio
+            </h1>
             <p className="text-xs text-muted-foreground">
-              {hw?.webgpuSupported && hw.adapter
-                ? `${hw.adapter.device} · ${hw.cpuCores} Çekirdek CPU${hw.deviceMemoryGb ? ` · ${hw.deviceMemoryGb} GB RAM` : ''}`
-                : 'Hibrit Bulut Akademik AI + Çok Aşamalı Sentez'}
-              {' · '}
+              Derin Akademik Özet, Sınav Hazırlığı ve Etkileşimli Video Stüdyosu ·{' '}
               <span>{APP_VERSION_LABEL}</span>
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <NeuralStatusPill engine={engine} onClick={() => onTabChange('engine')} />
           <Button
             type="button"
             variant="ghost"
@@ -211,22 +197,6 @@ export function NeuralCommandShell({
                 </button>
               );
             })}
-
-            <div className="mt-3 rounded-xl border border-border/60 bg-muted/35 p-3 text-[11px] leading-relaxed text-muted-foreground">
-              <div className="mb-1 flex items-center gap-1.5 font-semibold text-foreground">
-                <Cpu className="h-3.5 w-3.5 text-primary" />
-                Motor Politikası
-              </div>
-              <p>
-                {engine.prefs.routingPolicy === 'auto'
-                  ? 'Akıllı Hibrit: Hızlı işler GPU, derin özetler bulut.'
-                  : engine.prefs.routingPolicy === 'gpu_prefer'
-                  ? 'Önce Yerel GPU, yedekte bulut.'
-                  : engine.prefs.routingPolicy === 'local_privacy'
-                  ? 'Tam Gizlilik: Dış ağa veri çıkmaz.'
-                  : 'Yalnızca Bulut Akademik AI.'}
-              </p>
-            </div>
           </nav>
         </aside>
 

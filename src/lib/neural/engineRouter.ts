@@ -12,6 +12,7 @@ import {
   type ProgressCallback,
 } from '@/lib/studyAiClient';
 import { neuralEngine } from '@/lib/neural/neuralEngine';
+import { classifyStudyDomain } from '@/lib/studySourceProcessor';
 import {
   chunkDocument,
   searchChunks,
@@ -338,35 +339,40 @@ export async function routedGenerateMaterial(
   const startedAt = performance.now();
   const snap = neuralEngine.getSnapshot();
 
-  // Optional strictly-local GPU privacy synthesis when user forces local_privacy mode and model is ready
+  // Optional strictly-local privacy synthesis when user forces local_privacy mode and model is ready
   if (snap.prefs.routingPolicy === 'local_privacy' && snap.llmStatus === 'ready') {
-    onProgress?.(20, 'Yerel GPU gizlilik modunda sentezleniyor (buluta veri gönderilmiyor)...');
+    onProgress?.(20, 'Yerel gizlilik modunda sentezleniyor (buluta veri gönderilmiyor)...');
     try {
+      const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title);
+      const summaryRule =
+        domain.mode === 'verbal'
+          ? 'Sözel/kuramsal derstir; gereksiz formül ekleme. Her bölümde `#### Kavramsal Öz ve Ana Tez`, `#### Neden–Sonuç Zinciri` ve Markdown karşılaştırma tablosu kur.'
+          : 'Her bölümde `#### Analitik Çerçeve`, adım adım mekanizma, varsa formül ($...$) ve karşılaştırma tablosu kur.';
       const prompt =
         settings.materialType === 'flashcards'
           ? `Bu dersten ${Math.min(10, settings.cardCount)} adet Türkçe flashcard üret. JSON formatında döndür: {"cards":[{"front":"...","back":"...","hint":"...","topic":"..."}]}`
           : settings.materialType === 'quiz'
           ? `Bu dersten ${Math.min(8, settings.questionCount)} adet Türkçe çoktan seçmeli soru üret. JSON döndür: {"questions":[{"type":"multiple_choice","question":"...","options":["A","B","C","D"],"correctIndex":0,"explanation":"...","topic":"..."}]}`
-          : `Bu dersten Türkçe akademik özet JSON üret: {"overview":"...","keyPoints":["..."],"sections":[{"index":0,"heading":"...","content":"...","takeaways":["..."]}],"keyTerms":[{"term":"...","definition":"..."}]}`;
+          : `Bu dersten üniversite düzeyinde Türkçe akademik özet JSON üret. ${summaryRule} JSON döndür: {"overview":"2 paragraf yönetici özeti","keyPoints":["..."],"sections":[{"index":0,"heading":"...","content":"Markdown alt başlıklı ve tablolu bölüm","takeaways":["..."],"commonPitfalls":["..."]}],"comparativeMatrix":{"title":"Karşılaştırma Tablosu","columns":["Kavram","Özellik","Sınav Ayrımı"],"rows":[["...","...","..."]]},"teacherEmphasis":[{"point":"...","whyImportant":"...","examProbability":"Yüksek"}],"keyTerms":[{"term":"...","definition":"..."}]}`;
 
       const gpuRes = await neuralEngine.streamChat({
         taskLabel: `Gizlilik Modu (${settings.materialType})`,
         jsonMode: true,
-        maxTokens: 1400,
+        maxTokens: 1600,
         messages: [
           { role: 'system', content: prompt },
           {
             role: 'user',
-            content: `BAŞLIK: ${bundle.title}\nKAYNAK:\n${bundle.combinedText.slice(0, 6000)}`,
+            content: `DERS: ${domain.discipline}\nBAŞLIK: ${bundle.title}\nKAYNAK:\n${bundle.combinedText.slice(0, 6500)}`,
           },
         ],
       });
 
       const parsed = JSON.parse(gpuRes.text) as StudyContentPayload;
-      onProgress?.(95, 'Yerel GPU materyali tamamlandı.');
+      onProgress?.(95, 'Yerel gizli materyal tamamlandı.');
       return {
         content: { ...parsed, metadata: { sourceMode: 'local', deepResearch: false } },
-        model: `${snap.activeModelId} (Yerel WebGPU)`,
+        model: `${snap.activeModelId} (Yerel Gizlilik Modu)`,
         sourceMode: 'local',
       };
     } catch {

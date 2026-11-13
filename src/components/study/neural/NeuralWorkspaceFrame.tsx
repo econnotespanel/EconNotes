@@ -7,9 +7,7 @@ import type { MaterialType, StudyMaterial } from '@/types/study';
 import { NeuralCoachPanel } from './NeuralCoachPanel';
 import { NeuralFlashcardWorkspace } from './NeuralFlashcardWorkspace';
 import { NeuralQuizWorkspace } from './NeuralQuizWorkspace';
-import { NeuralStatusPill } from './NeuralStatusPill';
 import { NeuralSummaryWorkspace } from './NeuralSummaryWorkspace';
-import { useNeuralEngine } from './useNeuralEngine';
 
 interface NeuralWorkspaceFrameProps {
   material: StudyMaterial;
@@ -36,7 +34,6 @@ export function NeuralWorkspaceFrame({
   onRecordProgress,
   onReportIssue,
 }: NeuralWorkspaceFrameProps) {
-  const engine = useNeuralEngine();
   const [coachOpen, setCoachOpen] = useState(true);
   const [injectedPrompt, setInjectedPrompt] = useState<{ id: number; text: string } | null>(null);
 
@@ -68,8 +65,6 @@ export function NeuralWorkspaceFrame({
         </div>
 
         <div className="flex items-center gap-2">
-          <NeuralStatusPill engine={engine} compact />
-
           <Sheet>
             <SheetTrigger asChild>
               <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs lg:hidden">

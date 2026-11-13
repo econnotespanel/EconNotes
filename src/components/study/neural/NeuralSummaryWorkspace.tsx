@@ -458,6 +458,32 @@ export function NeuralSummaryWorkspace({
             </div>
           )}
 
+          {/* Deep Academic Research Context */}
+          {c.deepResearchTopics && c.deepResearchTopics.length > 0 && (
+            <div className="neural-card space-y-3 p-5">
+              <h3 className="flex items-center gap-2 text-sm font-bold">
+                <FlaskConical className="h-4 w-4 text-indigo-500" />
+                Derin Literatür & Uygulama Bağlamı
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {c.deepResearchTopics.map((dt, di) => (
+                  <div
+                    key={di}
+                    className="space-y-1.5 rounded-xl border border-indigo-500/25 bg-indigo-500/5 p-3.5 text-xs"
+                  >
+                    <p className="font-bold text-indigo-600 dark:text-indigo-300">{dt.topic}</p>
+                    <AcademicMarkdown content={dt.literatureContext} className="text-xs leading-relaxed" />
+                    {dt.realWorldApplication && (
+                      <p className="pt-1 text-[11px] text-muted-foreground">
+                        <strong>Uygulama / Sınav Yansıması:</strong> {dt.realWorldApplication}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Key Terms Glossary */}
           {c.keyTerms && c.keyTerms.length > 0 && (
             <div className="neural-card space-y-3 p-5">

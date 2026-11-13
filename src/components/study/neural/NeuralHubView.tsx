@@ -1,11 +1,9 @@
 import { useMemo } from 'react';
 import {
-  Activity,
   ArrowRight,
   BookOpen,
   Brain,
   CalendarCheck2,
-  Cpu,
   Flame,
   GraduationCap,
   Layers,
@@ -57,7 +55,6 @@ export function NeuralHubView({
   progress,
   dueCards,
   weakTopics,
-  engine,
   isAdmin,
   userId,
   onSavedLiveMaterial,
@@ -98,15 +95,15 @@ export function NeuralHubView({
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-600 dark:text-cyan-300">
               <Sparkles className="h-3.5 w-3.5" />
-              Hibrit WebGPU + Bulut Yapay Zekâ Çalışma Merkezi
+              Üniversite Düzeyi Akademik Çalışma Merkezi
             </div>
             <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
               Ders notlarını derin üniversite kaynaklarına dönüştür
             </h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              PDF, slayt veya notlarını yükle; bulut akademik sentez ile ders kitabı düzeyinde özet
-              ve etkileşimli video ders çıkar, cihazındaki WebGPU ekran kartı hızlandırmasıyla
-              notlarına anlık sorular sor ve sınavına hazırlan.
+              PDF, slayt veya sözel/sayısal ders notlarını yükle; derin akademik sentez ile ders
+              kitabı düzeyinde özet ve etkileşimli video ders çıkar, notlarına anlık sorular sor ve
+              vize-final sınavlarına hazırlan.
             </p>
             <div className="flex flex-wrap gap-2.5 pt-1">
               <Button
@@ -138,35 +135,39 @@ export function NeuralHubView({
             </div>
           </div>
 
-          {/* Hardware Mini Card */}
+          {/* Today's Academic Focus Card */}
           <div className="w-full shrink-0 rounded-2xl border border-border/70 bg-background/70 p-4 lg:w-72">
             <div className="mb-2 flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs font-semibold">
-                <Cpu className="h-4 w-4 text-primary" />
-                Donanım İvmesi
+                <BookOpen className="h-4 w-4 text-primary" />
+                Günün Çalışma Odağı
               </span>
               <Badge variant="outline" className="text-[10px]">
-                {engine.hardware?.webgpuSupported ? 'WebGPU Hazır' : 'Bulut Modu'}
+                {dueCards.length > 0 ? `${dueCards.length} Tekrar` : 'Akademik Akış'}
               </Badge>
             </div>
             <p className="truncate text-xs font-medium text-foreground">
-              {engine.hardware?.adapter?.device || 'Standart Tarayıcı Motoru'}
+              {criticalTopics[0]
+                ? `Odak Konu: ${criticalTopics[0].topic}`
+                : materials.length > 0
+                  ? 'Sınav Odaklı Özet & Pekiştirme'
+                  : 'İlk Ders Setini Hazırla'}
             </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {engine.llmStatus === 'ready'
-                ? `Aktif GPU Modeli: ${engine.activeModelId}`
-                : engine.hardware?.webgpuSupported
-                ? 'İstersen Motor panelinden GPU modelini tek tıkla indirebilirsin.'
-                : 'Tarayıcı WebGPU sunmasa da tüm özellikler bulut AI ile tam hızda çalışır.'}
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              {criticalTopics[0]
+                ? `Başarı oranı %${criticalTopics[0].avgScorePct}. Kavram özeti veya mini quiz ile güçlendirebilirsin.`
+                : dueCards.length > 0
+                  ? 'Aralıklı tekrar kartların bekliyor; kısa bir pekiştirme oturumu başlatabilirsin.'
+                  : 'Ders notlarını ekle; kavram haritaları, karşılaştırma tabloları ve örnek sorular anında oluşsun.'}
             </p>
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => onGoTab('engine')}
+              onClick={() => onGoTab(dueCards.length > 0 ? 'planner' : 'create')}
               className="mt-3 w-full justify-between px-2 text-xs text-primary hover:bg-primary/10"
             >
-              Motor & Performans Paneli
+              {dueCards.length > 0 ? 'Tekrar Planına Geç' : 'Hemen Özet Çıkar'}
               <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -212,14 +213,14 @@ export function NeuralHubView({
 
         <div className="neural-card p-4">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>GPU Hızı</span>
-            <Activity className="h-4 w-4 text-violet-500" />
+            <span>Özet & Video</span>
+            <GraduationCap className="h-4 w-4 text-violet-500" />
           </div>
           <p className="mt-2 text-2xl font-bold">
-            {engine.peakTokensPerSec > 0 ? `${engine.peakTokensPerSec}` : engine.hardware?.cpuCores || '—'}
+            {materials.filter((m) => m.material_type === 'summary' || m.material_type === 'video').length}
           </p>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {engine.peakTokensPerSec > 0 ? 'token / sn zirve hız' : 'CPU iş parçacığı'}
+            akademik rehber & ders
           </p>
         </div>
       </div>

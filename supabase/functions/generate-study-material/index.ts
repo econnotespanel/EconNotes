@@ -244,14 +244,44 @@ function getStyleDirective(style?: string): string {
   }
 }
 
-function getResearchDirective(deepResearch?: boolean): string {
+function getResearchDirective(deepResearch?: boolean, domainMode: 'verbal' | 'quantitative' | 'hybrid' = 'hybrid'): string {
   if (!deepResearch) {
     return 'KAYNAK SADAKATİ: Kaynak notlardaki hiçbir terimi, denklemi, tarihi veya vakayı atlama; uydurma detay ekleme.';
   }
+  const domainTail =
+    domainMode === 'verbal'
+      ? '3. Sözel/sosyal bilimler konularında kavram ikiliklerini ayırt et, tarihsel/hukuki neden–sonuç zincirini kur, Markdown karşılaştırma tabloları (`|...|`) ekle ve uydurma matematik formülü üretme.'
+      : '3. Sayısal/ekonomik/teknik konular için LaTeX formülleri ($...$ / $$...$$), karşılaştırma tabloları (Markdown |...|) ve yaygın kavram yanılgılarını ekle.';
   return `DERİN ARAŞTIRMA & ÖĞRENME MODU AKTİF:
 1. Yalnızca slayt/not özetlemekle kalma; üniversite ders kitabı düzeyinde akademik sentez yap.
 2. KAYNAK SADAKATİ + ŞEFFAF AYRIM: Kaynak nottan gelen bilgileri anlatırken doğrudan temellendir; notun kısa geçtiği yerleri üniversite literatüründen teorik arka plan, tarihsel bağlam, alternatif modeller ve ampirik/Türkiye örnekleriyle derinleştirirken bunu **[Derin Akademik Araştırma]** etiketiyle açıkça belirt.
-3. Sayısal/ekonomik/teknik konular için LaTeX formülleri ($...$ / $$...$$), karşılaştırma tabloları (Markdown |...|) ve yaygın kavram yanılgılarını ekle.`;
+${domainTail}`;
+}
+
+function detectEdgeDomainMode(
+  text: string,
+  course?: string,
+  title?: string,
+): 'verbal' | 'quantitative' | 'hybrid' {
+  const header = `${course || ''} ${title || ''} ${text.slice(0, 1200)}`.toLowerCase();
+  const sample = text.slice(0, 14_000);
+  const mathSignals = (
+    sample.match(/(\$\$[^$]+\$\$|\$[^$\n]+\$|\\frac|\\sum|\\int|\\partial|\b[a-zA-Z]\s*=\s*[-+0-9a-zA-Z(])/g) ||
+    []
+  ).length;
+  const verbalTopic =
+    /(hukuk|anayasa|borçlar|ceza|medeni|idare|tarih|osmanlı|cumhuriyet|sosyoloji|psikoloji|felsefe|edebiyat|siyaset|kamu yönetimi|uluslararası ilişkiler|iktisat tarihi|iktisadi düşünceler|yönetim|insan kaynakları|eğitim|etik)/.test(
+      header,
+    );
+  const quantTopic =
+    /(ekonometri|matematik|istatistik|kalkülüs|integral|türev|algoritma|fizik|muhasebe|mühendislik)/.test(
+      header,
+    );
+
+  if (verbalTopic && mathSignals < 6) return 'verbal';
+  if (quantTopic || mathSignals >= 6) return 'quantitative';
+  if (mathSignals <= 1 && sample.length > 180) return 'verbal';
+  return 'hybrid';
 }
 
 function buildStagePrompts(req: GenerateReq, enrichedContext: string): {
@@ -262,8 +292,13 @@ function buildStagePrompts(req: GenerateReq, enrichedContext: string): {
 } {
   const courseName = req.course || 'Üniversite Dersi';
   const noteTitle = req.noteTitle || 'Yüklenen Ders Materyali';
+  const domainMode = detectEdgeDomainMode(enrichedContext, courseName, noteTitle);
   const styleInstruction = getStyleDirective(req.pedagogicalStyle);
-  const researchInstruction = getResearchDirective(req.deepResearch);
+  const researchInstruction = getResearchDirective(req.deepResearch, domainMode);
+  const verbalInstruction =
+    domainMode === 'verbal'
+      ? `\nSÖZEL / KURAMSAL UZMANLIĞI AKTİF: Bu metin sözel/sosyal bilimler ağırlıklıdır. Uydurma matematiksel formül üretme! Her bölümde şu net yapıyı uygula: (1) \`#### Kavramsal Öz ve Ana Tez\`, (2) \`#### Neden–Sonuç Zinciri ve Süreç\`, (3) \`#### Karşılaştırma ve Ayrım Tablosu\` (Markdown \`|...|...|\`), (4) \`#### Klasik Sınav & Yorum Sorusu Çerçevesi\`.`
+      : '';
   const customDirective = req.customPrompt?.trim()
     ? `\nKULLANICININ ÖZEL İSTEĞİ (Öncelikli uygula): "${req.customPrompt.trim()}"`
     : '';
@@ -300,12 +335,12 @@ Yanıtını YALNIZCA geçerli bir JSON objesi olarak döndür:
     const system = `Sen üst düzey bir üniversite kürsü profesörü ve akademik editörsün.
 Görevin, verilen ders materyalinin TAMAMINI (ilk sayfadan son sayfaya kadar hiçbir bölümü atlamadan) tarayıp eksiksiz bir Çalışma Stüdyosu Ders Mimarisi (Blueprint) oluşturmaktır.
 ${styleInstruction}
-${researchInstruction}
+${researchInstruction}${verbalInstruction}
 ${customDirective}
 
 KRİTİK KURALLAR:
 1. Kesinlikle genel geçer şablon cümleler kullanma. Her başlık kaynak metindeki gerçek konulara özel olmalıdır.
-2. Matematiksel ifadeleri LaTeX ($...$ veya $$...$$) ile yaz.
+2. ${domainMode === 'verbal' ? 'Sözel derslerde kavram ayrımlarına, neden-sonuç zincirine ve ekol/kuram kıyaslamalarına odaklan; gereksiz formül ekleme.' : 'Matematiksel ifadeleri LaTeX ($...$ veya $$...$$) ile yaz.'}
 3. YALNIZCA geçerli JSON döndür (ekstra düz metin yok):
 {
   "overview": "Dersin ana tezini, kapsamını, metodolojisini ve neden önemli olduğunu anlatan 2-3 paragraflık kapsamlı yönetici özeti.",
@@ -363,12 +398,12 @@ sectionsPlan dizisi tam ${targetSections} bölüm içermeli ve kaynak notun BAŞ
     const system = `Sen bir üniversite ders kitabı yazarı ve derin akademik araştırma uzmanısın.
 Sana verilen ders mimarisi bağlamı içinde, SADECE aşağıdaki hedef bölümlerin her birini çok derin, öğretici, eksiksiz ve akıcı Türkçe ile yazacaksın.
 ${styleInstruction}
-${researchInstruction}
+${researchInstruction}${verbalInstruction}
 ${customDirective}
 
 HER BÖLÜM İÇİN KALİTE STANDARDI:
 - Uzunluk: Bölüm başına 350–600 kelime arası DOLGUN, SOMUT, akıcı akademik anlatım. Boş laf veya tekrar eden şablon alt başlıklar YASAK!
-- Yapı: İçeriği Markdown alt başlıkları (\`###\`), numaralı mantık akışı, madde imleri, kalın vurgu, LaTeX denklemler (\`$...$\` ve \`$$...$$\`) ve en az 1 Markdown karşılaştırma/özet tablosu veya somut sayısal/tarihsel vaka örneği ile zenginleştir.
+- Yapı: İçeriği Markdown alt başlıkları (\`####\`), numaralı mantık akışı, madde imleri, kalın vurgu${domainMode === 'verbal' ? '' : ', LaTeX denklemler (`$...$` ve `$$...$$`)'} ve en az 1 Markdown karşılaştırma/özet tablosu veya somut vaka örneği ile zenginleştir.
 - Bilimsel Doğruluk: Kaynak materyaldeki tüm tanım, formül, yazar, tarih ve kanıtları birebir koru.
 - Derin Araştırma Katmanı: Eğer Derin Araştırma aktifse, her bölümde \`deepResearchNote\` alanında konunun teorik derinliğini, literatürdeki tartışmayı veya güncel gerçek dünya / Türkiye örneğini ver.
 - Kendini Sına Mini Sorusu: Her bölümün sonunda öğrencinin o bölümü anlayıp anlamadığını ölçen 1 zorlayıcı mini çoktan seçmeli soru (`checkpointQuestion`) üret.
@@ -422,11 +457,11 @@ YALNIZCA geçerli JSON döndür:
     const system = `Sen üniversite düzeyinde uzman bir akademisyen ve derin öğrenme editörüsün.
 Verilen kaynak notlardan kapsamlı, tutarlı ve sınav başarısını maksimize eden bir Çalışma Özeti üret.
 ${styleInstruction}
-${researchInstruction}
+${researchInstruction}${verbalInstruction}
 ${customDirective}
 
 KURALLAR:
-- Genel şablon ifadeler asla kullanma; metnin gerçek kavramlarını, formüllerini ($...$, $$...$$), mekanizmalarını ve örneklerini derinlemesine yaz.
+- Genel şablon ifadeler asla kullanma; metnin gerçek kavramlarını${domainMode === 'verbal' ? ', neden-sonuç ilişkilerini, karşılaştırma tablosunu ve klasik sınav ayrımlarını' : ', formüllerini ($...$, $$...$$), mekanizmalarını ve örneklerini'} derinlemesine yaz.
 - YALNIZCA geçerli JSON döndür:
 {
   "overview": "2-3 paragraflık yönetici özeti",
@@ -680,6 +715,10 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
         takeaways: Array.isArray(s?.takeaways) ? s.takeaways.map(String) : [],
         deepResearchNote: s?.deepResearchNote ? String(s.deepResearchNote) : undefined,
         commonPitfalls: Array.isArray(s?.commonPitfalls) ? s.commonPitfalls.map(String) : [],
+        checkpointQuestion:
+          s?.checkpointQuestion?.question && Array.isArray(s?.checkpointQuestion?.options)
+            ? s.checkpointQuestion
+            : undefined,
       })),
       teacherEmphasis: Array.isArray(raw.teacherEmphasis) ? raw.teacherEmphasis : [],
       comparativeMatrix: raw.comparativeMatrix?.columns && Array.isArray(raw.comparativeMatrix?.rows)
@@ -821,7 +860,7 @@ function buildServerFallback(req: GenerateReq, cleanText: string): any {
       return {
         index: i,
         title: heading.replace(/^#+\s*/, ''),
-        focusPoints: slice.slice(1, 5).map((s) => s.slice(0, 90)),
+        focusPoints: slice.slice(1, 5).map((s) => s.slice(0, 95)),
         keyConcepts: [],
       };
     });
@@ -829,28 +868,44 @@ function buildServerFallback(req: GenerateReq, cleanText: string): any {
       overview: sentences.slice(0, 3).join(' ') || `${course} — ${title} yapılandırılmış ders incelemesi.`,
       keyPoints: sentences.slice(0, 8).map((s) => s.slice(0, 180)),
       sectionsPlan,
-      teacherEmphasis: [],
+      teacherEmphasis: sentences.slice(0, 4).map((s, idx) => ({
+        point: `${title} — Kritik İlke ${idx + 1}`,
+        whyImportant: s.slice(0, 150),
+        examProbability: idx < 2 ? 'Yüksek' : 'Orta',
+      })),
       keyTerms: [],
-      studyChecklist: sectionsPlan.map((s) => `${s.title} konusundaki temel ilkeleri açıklayabilirim.`),
+      studyChecklist: sectionsPlan.map((s) => `${s.title} konusundaki temel ilkeleri ve ayrımları açıklayabilirim.`),
     };
   }
 
   if (stage === 'expand_batch') {
     const targets = req.sectionTargets || [];
     return {
-      sections: targets.map((t) => ({
-        index: t.index,
-        heading: t.title,
-        pageRange: t.pageRange,
-        content:
-          t.contextSlice?.trim() ||
-          (t.focusPoints && t.focusPoints.length > 0
-            ? t.focusPoints.map((p) => `- ${p}`).join('\n')
-            : sentences.slice(t.index * 3, t.index * 3 + 5).join('\n\n') ||
-              'Bu bölüm için kaynak materyal metni işlenmek üzere hazırlandı.'),
-        takeaways: (t.focusPoints || []).slice(0, 3),
-        commonPitfalls: [],
-      })),
+      sections: targets.map((t) => {
+        const segSents = (t.contextSlice || '')
+          .split(/(?<=[.!?])\s+|\n+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length >= 24);
+        const coreProse = segSents.slice(0, 4).join(' ') || t.contextSlice?.trim() || `${t.title} analizi.`;
+        const bullets = (t.focusPoints && t.focusPoints.length > 0 ? t.focusPoints : segSents.slice(1, 5))
+          .slice(0, 4)
+          .map((p) => `- **Anahtar Nokta:** ${p}`);
+        const content = [
+          `#### Kavramsal Öz ve Ana Tez\n\n${coreProse}`,
+          bullets.length > 0 ? `#### Neden–Sonuç Zinciri ve Ayırt Edici İlkeler\n${bullets.join('\n')}` : '',
+          segSents[segSents.length - 1] ? `> **Sınav Odağı:** ${segSents[segSents.length - 1]}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n');
+        return {
+          index: t.index,
+          heading: t.title,
+          pageRange: t.pageRange,
+          content,
+          takeaways: (t.focusPoints && t.focusPoints.length > 0 ? t.focusPoints : segSents).slice(0, 3),
+          commonPitfalls: [],
+        };
+      }),
     };
   }
 
@@ -944,24 +999,31 @@ function buildServerFallback(req: GenerateReq, cleanText: string): any {
     };
   }
 
-  // Summary fallback preserving source excerpts cleanly without repetitive generic headings
+  // Summary fallback formatting cleanly into structured study sections without raw text dumps
   const groupCount = Math.min(6, Math.max(2, Math.ceil(sentences.length / 4)));
   const perGroup = Math.max(1, Math.ceil(sentences.length / groupCount));
   const sections = Array.from({ length: groupCount }, (_, i) => {
     const seg = sentences.slice(i * perGroup, (i + 1) * perGroup);
+    const prose = seg.slice(0, 3).join(' ') || cleanText.slice(i * 600, (i + 1) * 600);
+    const bullets = seg.slice(0, 4).map((s) => `- **Temel Nokta:** ${s}`);
     return {
-      heading: `${title} — Kısım ${i + 1}`,
-      content: seg.join('\n\n') || cleanText.slice(i * 600, (i + 1) * 600),
-      takeaways: seg.slice(0, 3).map((s) => s.slice(0, 130)),
+      heading: `${title} — Bölüm ${i + 1}`,
+      content: `#### Kavramsal Öz ve Temel Çerçeve\n\n${prose}\n\n#### Öne Çıkan İlkeler ve Mekanizma\n${bullets.join('\n')}`,
+      takeaways: seg.slice(0, 3).map((s) => s.slice(0, 140)),
     };
   });
 
   return {
     overview: sentences.slice(0, 3).join(' ') || cleanText.slice(0, 450),
-    keyPoints: sentences.slice(0, 6).map((s) => s.slice(0, 170)),
+    keyPoints: sentences.slice(0, 6).map((s) => s.slice(0, 175)),
     sections,
-    teacherEmphasis: [],
+    teacherEmphasis: sentences.slice(0, 4).map((s, idx) => ({
+      point: `${title} — Önemli Ayrım ${idx + 1}`,
+      whyImportant: s.slice(0, 150),
+      examProbability: idx < 2 ? 'Yüksek' : 'Orta',
+    })),
     keyTerms: [],
+    studyChecklist: sections.map((s) => `"${s.heading}" bölümünün ana fikrini açıklayabilirim.`),
   };
 }
 

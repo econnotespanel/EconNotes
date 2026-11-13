@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   Bot,
-  Cpu,
   Loader2,
   NotebookPen,
   Send,
@@ -99,10 +98,7 @@ export function NeuralCoachPanel({ material, injectedPrompt }: NeuralCoachPanelP
         {
           role: 'assistant',
           content: res.reply,
-          meta:
-            res.engineUsed === 'gpu'
-              ? `WebGPU · ${liveTps > 0 ? `${liveTps} tok/sn` : res.model}`
-              : res.model,
+          meta: res.model || 'Akademik AI Koçu',
         },
       ]);
     } catch (err) {
@@ -163,8 +159,8 @@ export function NeuralCoachPanel({ material, injectedPrompt }: NeuralCoachPanelP
               ))}
             </div>
             <Badge variant="outline" className="gap-1 text-[10px]">
-              <Cpu className="h-3 w-3 text-cyan-500" />
-              {engine.llmStatus === 'ready' ? 'GPU' : 'Bulut'}
+              <Sparkles className="h-3 w-3 text-cyan-500" />
+              Akademik AI
             </Badge>
           </div>
 
@@ -195,7 +191,7 @@ export function NeuralCoachPanel({ material, injectedPrompt }: NeuralCoachPanelP
                       <AcademicMarkdown content={streamingText} className="text-xs" />
                       {liveTps > 0 && (
                         <p className="mt-1 font-mono text-[10px] text-cyan-500">
-                          WebGPU akışı · {liveTps} tok/sn
+                          Yanıt sentezleniyor...
                         </p>
                       )}
                     </>
