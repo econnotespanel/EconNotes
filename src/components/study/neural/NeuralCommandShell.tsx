@@ -162,7 +162,7 @@ export function NeuralCommandShell({
         <aside className="hidden lg:col-span-3 lg:block xl:col-span-2">
           <nav
             aria-label="Stüdyo Komuta Rayı"
-            className="neural-rail sticky top-20 space-y-1.5 p-2.5"
+            className="sticky top-20 flex flex-col gap-1 rounded-[24px] border border-slate-200/80 bg-white/95 p-3 shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#14171c]/95 dark:shadow-[0_20px_50px_rgba(0,0,0,0.65)]"
           >
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -173,26 +173,28 @@ export function NeuralCommandShell({
                   type="button"
                   onClick={() => onTabChange(item.id)}
                   className={cn(
-                    'group relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-all',
+                    'group relative flex w-full min-h-[42px] items-center justify-between rounded-[14px] px-3.5 py-2.5 text-left text-[13.5px] transition-all duration-200',
                     active
-                      ? 'bg-gradient-to-r from-primary to-blue-600 text-white shadow-md shadow-primary/25'
-                      : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                      ? 'bg-blue-500/12 font-semibold text-blue-600 dark:bg-[#19283e] dark:text-[#5b9cf6]'
+                      : 'font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-[#8e96a4] dark:hover:bg-white/[0.05] dark:hover:text-[#e2e8f0]',
                   )}
                 >
-                  <span className="flex items-center gap-2.5">
-                    <Icon className={cn('h-4 w-4 shrink-0', active && 'text-white')} />
-                    <span>{item.label}</span>
+                  <span className="flex items-center gap-3">
+                    <Icon
+                      className={cn(
+                        'h-[18px] w-[18px] shrink-0 transition-colors',
+                        active
+                          ? 'text-blue-600 dark:text-[#5b9cf6]'
+                          : 'text-slate-500 group-hover:text-slate-800 dark:text-[#8e96a4] dark:group-hover:text-[#e2e8f0]',
+                      )}
+                      strokeWidth={active ? 2.1 : 1.85}
+                    />
+                    <span className="truncate">{item.label}</span>
                   </span>
                   {item.badge !== undefined && (
-                    <Badge
-                      variant={active ? 'secondary' : 'outline'}
-                      className={cn(
-                        'h-5 px-1.5 text-[10px]',
-                        active && 'border-transparent bg-white/20 text-white',
-                      )}
-                    >
+                    <span className="inline-flex h-[20px] min-w-[24px] items-center justify-center rounded-full bg-[#f05252] px-2 text-[11px] font-bold text-white shadow-xs">
                       {item.badge}
-                    </Badge>
+                    </span>
                   )}
                 </button>
               );

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Home, FileText, GraduationCap, MessageSquare, Menu } from 'lucide-react';
+import { LayoutGrid, FileText, Layers, Mail, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -80,16 +80,16 @@ const MobileBottomNav = () => {
   const totalBadge = unreadMessages + unreadAnnouncements;
 
   const navItems = [
-    { label: 'Ana Sayfa', path: '/', icon: Home, exact: true },
+    { label: 'Panel', path: '/', icon: LayoutGrid, exact: true },
     { label: 'Notlar', path: '/notes', icon: FileText },
-    { label: 'Stüdyo', path: '/study', icon: GraduationCap, isHighlight: true },
-    { label: 'Mesajlar', path: '/messages', icon: MessageSquare, badge: unreadMessages },
+    { label: 'Stüdyo', path: '/study', icon: Layers, isHighlight: true },
+    { label: 'Mesajlarım', path: '/messages', icon: Mail, badge: unreadMessages },
   ];
 
   return (
     <nav
       role="navigation"
-      aria-label="Mobil Apple Liquid Glass Menü"
+      aria-label="Mobil Alt Menü"
       className="fixed inset-x-0 z-40 md:hidden pointer-events-none select-none transition-all duration-300"
       style={{
         bottom: isStandalone
@@ -98,15 +98,14 @@ const MobileBottomNav = () => {
       }}
     >
       <div className="flex items-center justify-center gap-2.5 px-3 max-w-md mx-auto">
-        {/* Apple Sıvı Cam Ana Kapsül (Floating Liquid Glass Dock) */}
         <div
           className={cn(
             'pointer-events-auto flex items-center justify-around flex-1 max-w-[340px] h-[62px] p-1.5',
-            'rounded-full',
-            'bg-white/80 dark:bg-slate-950/75',
-            'backdrop-blur-2xl backdrop-saturate-200',
-            'border border-black/[0.08] dark:border-white/[0.14]',
-            'shadow-[0_12px_36px_-6px_rgba(0,0,0,0.12),0_4px_12px_rgba(0,0,0,0.06),inset_0_1px_1.5px_0_rgba(255,255,255,0.9)] dark:shadow-[0_16px_40px_-6px_rgba(0,0,0,0.7),0_4px_16px_rgba(0,0,0,0.5),inset_0_1px_1px_0_rgba(255,255,255,0.16)]',
+            'rounded-[24px]',
+            'bg-white/95 dark:bg-[#14171c]/95',
+            'backdrop-blur-2xl',
+            'border border-slate-200/80 dark:border-white/[0.08]',
+            'shadow-[0_12px_36px_rgba(15,23,42,0.12)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.75)]',
             'transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
             isSidebarOpen && 'opacity-80 scale-[0.98]'
           )}
@@ -128,47 +127,38 @@ const MobileBottomNav = () => {
                   navigate(item.path);
                 }}
                 className={cn(
-                  'relative flex flex-col items-center justify-center flex-1 h-full min-w-0 py-1 px-1 sm:px-2 rounded-full',
-                  'touch-manipulation select-none active:scale-95 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
+                  'relative flex flex-col items-center justify-center flex-1 h-full min-w-0 py-1 px-1 sm:px-2 rounded-[16px]',
+                  'touch-manipulation select-none active:scale-95 transition-all duration-200',
                   isActive
-                    ? cn(
-                        'bg-gradient-to-b from-blue-600/15 via-blue-500/10 to-blue-600/15 dark:from-white/[0.18] dark:via-white/[0.12] dark:to-white/[0.08]',
-                        'border border-blue-500/30 dark:border-white/[0.20]',
-                        'shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_2px_10px_rgba(0,112,209,0.15)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.25),0_4px_16px_rgba(0,0,0,0.4)]',
-                        'text-blue-600 dark:text-[#38bdf8]'
-                      )
-                    : cn(
-                        'text-slate-600 dark:text-slate-400',
-                        'hover:text-slate-900 dark:hover:text-white',
-                        'hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
-                      )
+                    ? 'bg-blue-500/12 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6]'
+                    : 'text-slate-600 dark:text-[#8e96a4] hover:text-slate-900 dark:hover:text-[#e2e8f0] hover:bg-slate-100/80 dark:hover:bg-white/[0.05]'
                 )}
               >
                 <div className="relative">
                   <Icon
                     className={cn(
-                      'h-5 w-5 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
+                      'h-5 w-5 transition-all duration-200',
                       isActive
-                        ? 'scale-110 text-blue-600 dark:text-[#38bdf8] drop-shadow-[0_2px_6px_rgba(0,112,209,0.35)] dark:drop-shadow-[0_2px_10px_rgba(56,189,248,0.5)]'
-                        : 'text-slate-600 dark:text-slate-400 opacity-90'
+                        ? 'text-blue-600 dark:text-[#5b9cf6]'
+                        : 'text-slate-500 dark:text-[#8e96a4]'
                     )}
-                    strokeWidth={isActive ? 2.5 : 2}
+                    strokeWidth={isActive ? 2.1 : 1.85}
                   />
                   {item.badge && item.badge > 0 ? (
-                    <span className="absolute -top-1.5 -right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#ff3b30] px-1 text-[9px] font-bold text-white ring-2 ring-white dark:ring-slate-950 animate-in zoom-in-50 shadow-sm">
+                    <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-[18px] items-center justify-center rounded-full bg-[#f05252] px-1 text-[9.5px] font-bold text-white ring-2 ring-white dark:ring-[#14171c] shadow-xs">
                       {item.badge > 99 ? '99+' : item.badge}
                     </span>
                   ) : null}
                   {item.isHighlight && !isActive && (
-                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500 dark:bg-sky-400 shadow-[0_0_8px_rgba(0,112,209,0.7)] dark:shadow-[0_0_8px_rgba(56,189,248,0.9)] animate-pulse" />
+                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#5b9cf6] shadow-[0_0_8px_rgba(91,156,246,0.8)] animate-pulse" />
                   )}
                 </div>
                 <span
                   className={cn(
                     'text-[10px] sm:text-[10.5px] mt-0.5 tracking-tight truncate max-w-full leading-tight transition-colors duration-200',
                     isActive
-                      ? 'text-blue-600 dark:text-[#38bdf8] font-bold'
-                      : 'text-slate-600 dark:text-slate-400 font-medium'
+                      ? 'text-blue-600 dark:text-[#5b9cf6] font-semibold'
+                      : 'text-slate-600 dark:text-[#8e96a4] font-medium'
                   )}
                 >
                   {item.label}
@@ -178,22 +168,21 @@ const MobileBottomNav = () => {
           })}
         </div>
 
-        {/* Apple Sıvı Cam Bağımsız Dairesel Menü Butonu (Floating Circular Action Button) */}
         <button
           type="button"
           onClick={toggleMobileSidebar}
           aria-label={isSidebarOpen ? 'Menüyü Kapat' : 'Tüm Menüyü Aç'}
           className={cn(
             'pointer-events-auto flex items-center justify-center shrink-0 w-[62px] h-[62px]',
-            'rounded-full touch-manipulation select-none active:scale-90 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            'backdrop-blur-2xl backdrop-saturate-200',
+            'rounded-[24px] touch-manipulation select-none active:scale-90 transition-all duration-200',
+            'backdrop-blur-2xl',
             isSidebarOpen
-              ? 'bg-blue-600/20 dark:bg-blue-600/30 border border-blue-500/50 dark:border-blue-400/60 text-blue-600 dark:text-[#38bdf8] shadow-[0_0_24px_rgba(0,112,209,0.35),inset_0_1px_1.5px_rgba(255,255,255,0.8)]'
+              ? 'bg-blue-500/15 dark:bg-[#19283e] border border-blue-500/40 dark:border-[#5b9cf6]/40 text-blue-600 dark:text-[#5b9cf6] shadow-[0_12px_36px_rgba(0,0,0,0.4)]'
               : cn(
-                  'bg-white/80 dark:bg-slate-950/75',
-                  'border border-black/[0.08] dark:border-white/[0.14]',
-                  'text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white',
-                  'shadow-[0_12px_36px_-6px_rgba(0,0,0,0.12),0_4px_12px_rgba(0,0,0,0.06),inset_0_1px_1.5px_0_rgba(255,255,255,0.9)] dark:shadow-[0_16px_40px_-6px_rgba(0,0,0,0.7),0_4px_16px_rgba(0,0,0,0.5),inset_0_1px_1px_0_rgba(255,255,255,0.16)]'
+                  'bg-white/95 dark:bg-[#14171c]/95',
+                  'border border-slate-200/80 dark:border-white/[0.08]',
+                  'text-slate-600 dark:text-[#8e96a4] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
+                  'shadow-[0_12px_36px_rgba(15,23,42,0.12)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.75)]'
                 )
           )}
         >
@@ -201,12 +190,12 @@ const MobileBottomNav = () => {
             <Menu
               className={cn(
                 'h-6 w-6 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
-                isSidebarOpen ? 'scale-110 text-blue-600 dark:text-[#38bdf8] rotate-90' : 'text-slate-700 dark:text-slate-200'
+                isSidebarOpen ? 'scale-110 text-blue-600 dark:text-[#5b9cf6] rotate-90' : 'text-slate-600 dark:text-[#8e96a4]'
               )}
-              strokeWidth={2.3}
+              strokeWidth={2}
             />
             {totalBadge > 0 && !isSidebarOpen && (
-              <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-[#ff3b30] ring-2 ring-white dark:ring-slate-950 shadow-sm" />
+              <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-[#f05252] ring-2 ring-white dark:ring-[#14171c] shadow-xs" />
             )}
           </div>
         </button>

@@ -40,12 +40,12 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <ExamWishPopup />
       <Header />
       <Sidebar />
-      <main className="relative z-10 min-h-[calc(100vh-4rem)] min-w-0 px-3 py-4 pb-24 sm:px-4 sm:pb-28 md:ml-64 md:p-8 opacity-100 visible">
+      <main className="relative z-10 min-h-[calc(100vh-4rem)] min-w-0 px-3 py-4 pb-24 sm:px-4 sm:pb-28 md:ml-[16.5rem] md:p-8 opacity-100 visible">
         <div className="mx-auto w-full max-w-7xl opacity-100 visible text-foreground">
           {children}
         </div>
       </main>
-      <footer className="relative z-10 md:ml-64 flex items-center justify-center px-6 py-4 pb-24 sm:pb-28 md:pb-4 text-center text-xs text-muted-foreground border-t border-border/50 bg-card/30 backdrop-blur-sm">
+      <footer className="relative z-10 md:ml-[16.5rem] flex items-center justify-center px-6 py-4 pb-24 sm:pb-28 md:pb-4 text-center text-xs text-muted-foreground border-t border-border/50 bg-card/30 backdrop-blur-sm">
         <span>EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</span>
       </footer>
       <MobileBottomNav />

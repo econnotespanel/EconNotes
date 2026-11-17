@@ -11,7 +11,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Home, FileText, Megaphone, User, Shield, MessageSquare, Menu, X, Info, Bot, Video, GraduationCap, Target, Sparkles, LogOut, LifeBuoy } from 'lucide-react';
+import {
+  LayoutGrid,
+  FileText,
+  Megaphone,
+  User,
+  Shield,
+  Mail,
+  Menu,
+  X,
+  Info,
+  Bot,
+  Video,
+  Layers,
+  ListChecks,
+  Trophy,
+  LogOut,
+  LifeBuoy,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -29,8 +46,6 @@ type LinkItem = {
   icon: any;
   path: string;
   badge?: number;
-  isNew?: boolean;
-  isBeta?: boolean;
 };
 
 const Sidebar = () => {
@@ -137,29 +152,23 @@ const Sidebar = () => {
     };
   }, [open]);
 
-  const primary: LinkItem[] = [
-    { label: 'Ana Sayfa',          icon: Home,          path: '/' },
-    { label: 'Notlar',             icon: FileText,      path: '/notes' },
-    { label: 'Duyurular',          icon: Megaphone,     path: '/announcements', badge: unreadAnnouncements },
-    { label: 'Mesajlar',           icon: MessageSquare, path: '/messages',      badge: unreadMessages },
+  const menuItems: LinkItem[] = [
+    { label: 'Panel',            icon: LayoutGrid, path: '/' },
+    { label: 'Notlar',           icon: FileText,   path: '/notes' },
+    { label: 'Duyurular',        icon: Megaphone,  path: '/announcements', badge: unreadAnnouncements },
+    { label: 'Çalışma Stüdyosu', icon: Layers,     path: '/study' },
+    { label: 'Soru Bankası',     icon: ListChecks, path: '/kpss' },
+    { label: 'Canlı Ders',       icon: Video,      path: '/live-class' },
+    { label: 'Akademik Asistan', icon: Bot,        path: '/assistant' },
+    { label: 'Liderlik',         icon: Trophy,     path: '/points' },
+    { label: 'Mesajlarım',       icon: Mail,       path: '/messages',      badge: unreadMessages },
+    { label: 'Destek Merkezi',   icon: LifeBuoy,   path: '/support',       badge: unreadSupport },
+    { label: 'Profilim',         icon: User,       path: '/profile' },
+    { label: 'Hakkında',         icon: Info,       path: '/about' },
+    ...(isAdmin ? [{ label: 'Yönetim', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
 
-  const tools: LinkItem[] = [
-    { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',      isNew: true },
-    { label: 'KPSS Merkezi',       icon: Target,        path: '/kpss',       isNew: true },
-    { label: 'Canlı Ders',         icon: Video,         path: '/live-class' },
-    { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant' },
-  ];
-
-  const account: LinkItem[] = [
-    { label: 'Profilim',           icon: User,          path: '/profile' },
-    { label: 'Puan Geçmişim',      icon: Sparkles,      path: '/points',     isNew: true },
-    { label: 'Destek Merkezi',     icon: LifeBuoy,      path: '/support',    isBeta: true, badge: unreadSupport },
-    { label: 'Hakkında',           icon: Info,          path: '/about' },
-    ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
-  ];
-
-  const visible = (items: LinkItem[]) => items.filter(l => isAdmin || isPageEnabled(l.path));
+  const visibleItems = menuItems.filter(l => isAdmin || isPageEnabled(l.path));
 
   const totalBadge = unreadMessages + unreadSupport + unreadAnnouncements;
 
@@ -179,72 +188,34 @@ const Sidebar = () => {
         onClick={() => navigate(link.path)}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'group relative flex items-center gap-3 w-full rounded-lg pl-4 pr-3 min-h-[42px] py-2 text-sm font-medium',
-          'transition-all duration-200 ease-out',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--sidebar-ring))] focus-visible:ring-offset-1 focus-visible:ring-offset-[hsl(var(--sidebar-background))]',
-           active
-             ? 'text-sidebar-primary bg-sidebar-accent'
-             : 'text-sidebar-foreground/75 hover:text-sidebar-foreground hover:bg-sidebar-accent/60',
+          'group relative flex items-center gap-3.5 w-full rounded-[15px] px-4 min-h-[44px] py-2.5 text-[14.5px]',
+          'transition-all duration-200 ease-out select-none',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
+          active
+            ? 'bg-blue-500/12 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6] font-semibold'
+            : 'text-slate-600 dark:text-[#8e96a4] font-medium hover:bg-slate-100/80 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
         )}
       >
-        {/* Left neon indicator */}
-        <span
-          aria-hidden
-          className={cn(
-            'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-all duration-300',
-            active
-               ? 'h-6 opacity-100 bg-sidebar-primary'
-               : 'h-3 opacity-0 group-hover:opacity-50 bg-sidebar-primary',
-          )}
-        />
-
         <Icon
           className={cn(
-            'h-[18px] w-[18px] shrink-0 transition-colors',
-             active ? 'text-sidebar-primary' : 'text-sidebar-foreground/70 group-hover:text-sidebar-primary',
+            'h-[19px] w-[19px] shrink-0 transition-colors duration-200',
+            active
+              ? 'text-blue-600 dark:text-[#5b9cf6]'
+              : 'text-slate-500 dark:text-[#8e96a4] group-hover:text-slate-800 dark:group-hover:text-[#e2e8f0]',
           )}
-          strokeWidth={2}
+          strokeWidth={active ? 2.1 : 1.85}
         />
 
-        <span className="flex-1 text-left truncate tracking-tight">{link.label}</span>
+        <span className="flex-1 text-left truncate tracking-[-0.01em]">{link.label}</span>
 
-        {link.isNew && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-[hsl(var(--sidebar-primary)/0.5)] text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-primary)/0.1)]">
-            YENİ
-          </span>
-        )}
-        {link.isBeta && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-[hsl(var(--sidebar-primary)/0.5)] text-[hsl(var(--sidebar-primary))] bg-[hsl(var(--sidebar-primary)/0.1)]">
-            BETA
-          </span>
-        )}
-        {link.badge && link.badge > 0 && (
-          <span className="h-5 min-w-5 px-1.5 rounded-full bg-[hsl(var(--destructive))] text-[10px] font-semibold text-[hsl(var(--destructive-foreground))] inline-flex items-center justify-center shadow-[0_0_10px_hsl(var(--destructive)/0.6)]">
+        {link.badge && link.badge > 0 ? (
+          <span className="h-[22px] min-w-[28px] px-2 rounded-full bg-[#f05252] text-[11.5px] font-bold text-white inline-flex items-center justify-center shadow-xs">
             {link.badge > 99 ? '99+' : link.badge}
           </span>
-        )}
+        ) : null}
       </button>
     );
   };
-
-  const Section = ({ title, items, startIdx = 0 }: { title: string; items: LinkItem[]; startIdx?: number }) => (
-    <div className="px-2 pt-4 first:pt-2">
-      <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--sidebar-foreground)/0.4)]">
-        {title}
-      </div>
-      <div className="flex flex-col gap-0.5">
-        {items.map((l, i) => renderItem(l, startIdx === 0 && i === 0))}
-      </div>
-    </div>
-  );
-
-  const NavContent = () => (
-    <nav className="flex flex-col py-2" aria-label="Ana menü">
-      <Section title="Panel" items={visible(primary)} startIdx={0} />
-      <Section title="Araçlar" items={visible(tools)} startIdx={1} />
-      <Section title="Hesap" items={visible(account)} startIdx={1} />
-    </nav>
-  );
 
   return (
     <>
@@ -263,7 +234,7 @@ const Sidebar = () => {
           <X className={cn('absolute inset-0 m-auto h-5 w-5 transition-all duration-300', open ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75')} />
         </div>
         {!open && totalBadge > 0 && (
-          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[hsl(var(--neon-cyan))] shadow-[0_0_8px_hsl(var(--neon-cyan))]" />
+          <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#f05252] shadow-[0_0_8px_rgba(240,82,82,0.7)]" />
         )}
       </button>
 
@@ -271,8 +242,8 @@ const Sidebar = () => {
       <div
         aria-hidden
         onClick={() => setOpen(false)}
-         className={cn(
-          'fixed inset-0 z-40 bg-[hsl(222_47%_2%/0.7)] md:hidden transition-opacity duration-300',
+        className={cn(
+          'fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] md:hidden transition-opacity duration-300',
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
         )}
       />
@@ -281,43 +252,49 @@ const Sidebar = () => {
         id="mobile-sidebar"
         role="navigation"
         className={cn(
-          'fixed left-0 z-50 w-full max-w-none sm:w-[22rem] md:w-64',
+          'fixed left-3 md:left-4 z-50 w-[260px] max-w-[calc(100vw-1.5rem)] md:w-[240px]',
           'flex flex-col',
-          'bg-[hsl(var(--sidebar-background))] text-[hsl(var(--sidebar-foreground))] shadow-xl',
-          'border-r border-[hsl(var(--sidebar-border))]',
-          'transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
-          'md:translate-x-0',
-          open ? 'translate-x-0' : '-translate-x-full',
+          'rounded-[26px]',
+          'bg-white/95 dark:bg-[#14171c]/95 text-slate-700 dark:text-[#8e96a4]',
+          'border border-slate-200/80 dark:border-white/[0.08]',
+          'shadow-[0_20px_50px_rgba(15,23,42,0.12)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.75)]',
+          'backdrop-blur-xl',
+          'transition-all duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
+          'md:translate-x-0 md:opacity-100',
+          open ? 'translate-x-0 opacity-100' : '-translate-x-[115%] opacity-0 md:opacity-100',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 5rem)',
-          height: 'calc(100dvh - env(safe-area-inset-top, 0px) - 5rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 5.5rem)',
+          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 6.5rem)',
         }}
       >
-        <div className="flex-1 overflow-y-auto overscroll-contain">
-          <NavContent />
+        <div className="flex-1 overflow-y-auto overscroll-contain p-3">
+          <nav className="flex flex-col gap-1" aria-label="Ana menü">
+            {visibleItems.map((l, i) => renderItem(l, i === 0))}
+          </nav>
         </div>
 
-        <div className="p-3 pb-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] md:pb-3 border-t border-[hsl(var(--sidebar-border))] bg-card/40 backdrop-blur-sm">
-          <div className="flex items-center justify-between px-2 text-[10px] text-[hsl(var(--sidebar-foreground)/0.5)]">
-            <div className="flex items-center gap-1.5">
-              <EconLogo className="h-4 w-auto" />
-              {isNovember10 && (
-                <div className="flex items-center gap-1">
-                  <AtaturkPortrait className="h-4 w-auto" />
-                  <Ataturk10KasimEmblem className="h-3.5 w-3.5" />
-                </div>
-              )}
-            </div>
-            <span className="font-mono text-[hsl(var(--sidebar-primary)/0.85)] font-semibold">Versiyon {APP_VERSION}</span>
+        <div className="px-4 py-2.5 border-t border-slate-200/60 dark:border-white/[0.06] flex items-center justify-between text-[10px] text-slate-400 dark:text-[#646d7a]">
+          <div className="flex items-center gap-1.5">
+            <EconLogo className="h-3.5 w-auto opacity-80" />
+            {isNovember10 && (
+              <div className="flex items-center gap-1">
+                <AtaturkPortrait className="h-3.5 w-auto" />
+                <Ataturk10KasimEmblem className="h-3 w-3" />
+              </div>
+            )}
           </div>
+          <span className="font-mono font-medium">{APP_VERSION}</span>
+        </div>
+
+        <div className="px-3 pb-3 md:hidden">
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 variant="ghost"
-                className="mt-3 h-12 w-full justify-center gap-2 rounded-xl border border-destructive/15 bg-destructive/5 text-destructive hover:bg-destructive/10 hover:text-destructive md:hidden"
+                className="h-10 w-full justify-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive text-xs font-semibold"
               >
-                <LogOut className="h-4 w-4" /> Çıkış Yap
+                <LogOut className="h-3.5 w-3.5" /> Çıkış Yap
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="w-[calc(100%-2rem)] !rounded-2xl border-border/70 bg-background/95 p-5 shadow-2xl backdrop-blur-sm sm:w-full sm:p-6">
