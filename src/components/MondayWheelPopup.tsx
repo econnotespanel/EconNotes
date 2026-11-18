@@ -221,9 +221,6 @@ const MondayWheelPopup = () => {
                   <span className="text-[13px] font-extrabold tracking-tight text-white whitespace-nowrap">
                     Pazartesi Şans Çarkı
                   </span>
-                  <span className="rounded-full border border-cyan-300/40 bg-cyan-400/20 px-2 py-0.5 text-[9.5px] font-extrabold tracking-wide text-cyan-100 shadow-2xs">
-                    {wheelState.canSpinNow ? 'ÇEVİR' : 'PAZARTESİ'}
-                  </span>
                 </div>
                 <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-blue-100/90 whitespace-nowrap">
                   <CalendarClock className="h-3 w-3 shrink-0 text-cyan-300" />
