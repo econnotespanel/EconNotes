@@ -130,7 +130,7 @@ const MobileBottomNav = () => {
                   'relative flex flex-col items-center justify-center flex-1 h-full min-w-0 py-1 px-1 sm:px-2 rounded-[16px]',
                   'touch-manipulation select-none active:scale-95 transition-all duration-200',
                   isActive
-                    ? 'bg-blue-500/12 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6]'
+                    ? 'bg-blue-500/10 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6] ring-1 ring-blue-500/20 dark:ring-[#5b9cf6]/25'
                     : 'text-slate-600 dark:text-[#8e96a4] hover:text-slate-900 dark:hover:text-[#e2e8f0] hover:bg-slate-100/80 dark:hover:bg-white/[0.05]'
                 )}
               >

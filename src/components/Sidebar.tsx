@@ -23,7 +23,7 @@ import {
   Info,
   Bot,
   Video,
-  Layers,
+  GraduationCap,
   ListChecks,
   Trophy,
   LogOut,
@@ -46,6 +46,8 @@ type LinkItem = {
   icon: any;
   path: string;
   badge?: number;
+  isNew?: boolean;
+  isBeta?: boolean;
 };
 
 const Sidebar = () => {
@@ -152,23 +154,29 @@ const Sidebar = () => {
     };
   }, [open]);
 
-  const menuItems: LinkItem[] = [
-    { label: 'Panel',            icon: LayoutGrid, path: '/' },
-    { label: 'Notlar',           icon: FileText,   path: '/notes' },
-    { label: 'Duyurular',        icon: Megaphone,  path: '/announcements', badge: unreadAnnouncements },
-    { label: 'Çalışma Stüdyosu', icon: Layers,     path: '/study' },
-    { label: 'Soru Bankası',     icon: ListChecks, path: '/kpss' },
-    { label: 'Canlı Ders',       icon: Video,      path: '/live-class' },
-    { label: 'Akademik Asistan', icon: Bot,        path: '/assistant' },
-    { label: 'Liderlik',         icon: Trophy,     path: '/points' },
-    { label: 'Mesajlarım',       icon: Mail,       path: '/messages',      badge: unreadMessages },
-    { label: 'Destek Merkezi',   icon: LifeBuoy,   path: '/support',       badge: unreadSupport },
-    { label: 'Profilim',         icon: User,       path: '/profile' },
-    { label: 'Hakkında',         icon: Info,       path: '/about' },
-    ...(isAdmin ? [{ label: 'Yönetim', icon: Shield, path: '/admin' } as LinkItem] : []),
+  const primaryItems: LinkItem[] = [
+    { label: 'Panel',            icon: LayoutGrid,    path: '/' },
+    { label: 'Notlar',           icon: FileText,      path: '/notes' },
+    { label: 'Duyurular',        icon: Megaphone,     path: '/announcements', badge: unreadAnnouncements },
+    { label: 'Mesajlarım',       icon: Mail,          path: '/messages',      badge: unreadMessages },
   ];
 
-  const visibleItems = menuItems.filter(l => isAdmin || isPageEnabled(l.path));
+  const toolItems: LinkItem[] = [
+    { label: 'Çalışma Stüdyosu', icon: GraduationCap, path: '/study',         isNew: true },
+    { label: 'Soru Bankası',     icon: ListChecks,    path: '/kpss',          isNew: true },
+    { label: 'Canlı Ders',       icon: Video,         path: '/live-class' },
+    { label: 'Akademik Asistan', icon: Bot,           path: '/assistant' },
+  ];
+
+  const accountItems: LinkItem[] = [
+    { label: 'Profilim',         icon: User,          path: '/profile' },
+    { label: 'Liderlik',         icon: Trophy,        path: '/points' },
+    { label: 'Destek Merkezi',   icon: LifeBuoy,      path: '/support',       badge: unreadSupport, isBeta: true },
+    { label: 'Hakkında',         icon: Info,          path: '/about' },
+    ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
+  ];
+
+  const visible = (items: LinkItem[]) => items.filter(l => isAdmin || isPageEnabled(l.path));
 
   const totalBadge = unreadMessages + unreadSupport + unreadAnnouncements;
 
@@ -180,7 +188,11 @@ const Sidebar = () => {
 
   const renderItem = (link: LinkItem, isFirst = false) => {
     const Icon = link.icon;
-    const active = location.pathname === link.path;
+    const active =
+      link.path === '/'
+        ? location.pathname === '/'
+        : location.pathname === link.path || location.pathname.startsWith(link.path + '/');
+
     return (
       <button
         key={link.path}
@@ -188,32 +200,86 @@ const Sidebar = () => {
         onClick={() => navigate(link.path)}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'group relative flex items-center gap-3.5 w-full rounded-[15px] px-4 min-h-[44px] py-2.5 text-[14.5px]',
+          'group relative flex items-center gap-3 w-full rounded-[13px] px-2.5 min-h-[38px] py-1.5 text-[13.5px]',
           'transition-all duration-200 ease-out select-none',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
           active
-            ? 'bg-blue-500/12 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6] font-semibold'
-            : 'text-slate-600 dark:text-[#8e96a4] font-medium hover:bg-slate-100/80 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
+            ? 'bg-gradient-to-r from-blue-600/10 via-blue-500/[0.08] to-indigo-500/[0.04] dark:from-[#19283e] dark:to-[#152033] text-blue-600 dark:text-[#5b9cf6] font-semibold ring-1 ring-blue-500/20 dark:ring-[#5b9cf6]/25 shadow-[0_2px_10px_-3px_rgba(37,99,235,0.14)]'
+            : 'text-slate-600 dark:text-[#8e96a4] font-medium hover:bg-slate-100/90 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
         )}
       >
-        <Icon
+        {/* Sol aktif gösterge çubuğu */}
+        <span
+          aria-hidden
           className={cn(
-            'h-[19px] w-[19px] shrink-0 transition-colors duration-200',
+            'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-all duration-300',
             active
-              ? 'text-blue-600 dark:text-[#5b9cf6]'
-              : 'text-slate-500 dark:text-[#8e96a4] group-hover:text-slate-800 dark:group-hover:text-[#e2e8f0]',
+              ? 'h-5 opacity-100 bg-blue-600 dark:bg-[#5b9cf6] shadow-[0_0_8px_rgba(37,99,235,0.5)]'
+              : 'h-2.5 opacity-0 group-hover:opacity-40 bg-blue-500',
           )}
-          strokeWidth={active ? 2.1 : 1.85}
         />
+
+        {/* İkon kutusu */}
+        <span
+          className={cn(
+            'flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] transition-all duration-200',
+            active
+              ? 'bg-blue-600 text-white shadow-[0_2px_8px_rgba(37,99,235,0.35)] dark:bg-[#5b9cf6] dark:text-slate-950'
+              : 'bg-slate-100/80 text-slate-500 group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:bg-white/[0.04] dark:text-[#8e96a4] dark:group-hover:bg-white/[0.08] dark:group-hover:text-white',
+          )}
+        >
+          <Icon
+            className="h-[15.5px] w-[15.5px] shrink-0 transition-transform duration-200 group-hover:scale-105"
+            strokeWidth={active ? 2.2 : 1.9}
+          />
+        </span>
 
         <span className="flex-1 text-left truncate tracking-[-0.01em]">{link.label}</span>
 
+        {link.isNew && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-blue-500/25 text-blue-600 bg-blue-500/10 dark:border-[#5b9cf6]/30 dark:text-[#5b9cf6] dark:bg-[#5b9cf6]/10">
+            YENİ
+          </span>
+        )}
+        {link.isBeta && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-amber-500/30 text-amber-600 bg-amber-500/10 dark:text-amber-400">
+            BETA
+          </span>
+        )}
         {link.badge && link.badge > 0 ? (
-          <span className="h-[22px] min-w-[28px] px-2 rounded-full bg-[#f05252] text-[11.5px] font-bold text-white inline-flex items-center justify-center shadow-xs">
+          <span className="h-[20px] min-w-[22px] px-1.5 rounded-full bg-[#f05252] text-[10.5px] font-bold text-white inline-flex items-center justify-center shadow-xs">
             {link.badge > 99 ? '99+' : link.badge}
           </span>
         ) : null}
       </button>
+    );
+  };
+
+  const Section = ({
+    title,
+    items,
+    isFirstSection = false,
+  }: {
+    title: string;
+    items: LinkItem[];
+    isFirstSection?: boolean;
+  }) => {
+    if (items.length === 0) return null;
+    return (
+      <div
+        className={cn(
+          'flex flex-col gap-0.5',
+          !isFirstSection && 'mt-2 pt-2.5 border-t border-slate-200/70 dark:border-white/[0.06]',
+        )}
+      >
+        <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-[#64748b]">
+          <span className="h-1 w-1 rounded-full bg-blue-500/60 dark:bg-[#5b9cf6]/60" />
+          <span>{title}</span>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          {items.map((l, i) => renderItem(l, isFirstSection && i === 0))}
+        </div>
+      </div>
     );
   };
 
@@ -252,31 +318,33 @@ const Sidebar = () => {
         id="mobile-sidebar"
         role="navigation"
         className={cn(
-          'fixed left-3 md:left-4 z-50 w-[260px] max-w-[calc(100vw-1.5rem)] md:w-[240px]',
+          'fixed left-3 md:left-4 z-50 w-[264px] max-w-[calc(100vw-1.5rem)] md:w-[244px]',
           'flex flex-col',
-          'rounded-[26px]',
+          'rounded-[24px]',
           'bg-white/95 dark:bg-[#14171c]/95 text-slate-700 dark:text-[#8e96a4]',
           'border border-slate-200/80 dark:border-white/[0.08]',
-          'shadow-[0_20px_50px_rgba(15,23,42,0.12)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.75)]',
+          'shadow-[0_20px_50px_rgba(15,23,42,0.10)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.75)]',
           'backdrop-blur-xl',
           'transition-all duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
           'md:translate-x-0 md:opacity-100',
           open ? 'translate-x-0 opacity-100' : '-translate-x-[115%] opacity-0 md:opacity-100',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 5.5rem)',
-          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 6.5rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 5rem)',
+          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 5.75rem)',
         }}
       >
-        <div className="flex-1 overflow-y-auto overscroll-contain p-3">
-          <nav className="flex flex-col gap-1" aria-label="Ana menü">
-            {visibleItems.map((l, i) => renderItem(l, i === 0))}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+          <nav className="flex flex-col" aria-label="Ana menü">
+            <Section title="Panel" items={visible(primaryItems)} isFirstSection />
+            <Section title="Araçlar" items={visible(toolItems)} />
+            <Section title="Profil & Hesap" items={visible(accountItems)} />
           </nav>
         </div>
 
-        <div className="px-4 py-2.5 border-t border-slate-200/60 dark:border-white/[0.06] flex items-center justify-between text-[10px] text-slate-400 dark:text-[#646d7a]">
+        <div className="px-4 py-2.5 border-t border-slate-200/70 dark:border-white/[0.06] bg-slate-50/60 dark:bg-white/[0.02] rounded-b-[24px] flex items-center justify-between text-[10px] text-slate-400 dark:text-[#646d7a]">
           <div className="flex items-center gap-1.5">
-            <EconLogo className="h-3.5 w-auto opacity-80" />
+            <EconLogo className="h-3.5 w-auto opacity-85" />
             {isNovember10 && (
               <div className="flex items-center gap-1">
                 <AtaturkPortrait className="h-3.5 w-auto" />
@@ -284,7 +352,7 @@ const Sidebar = () => {
               </div>
             )}
           </div>
-          <span className="font-mono font-medium">{APP_VERSION}</span>
+          <span className="font-mono font-semibold text-blue-600/80 dark:text-[#5b9cf6]/80">{APP_VERSION}</span>
         </div>
 
         <div className="px-3 pb-3 md:hidden">

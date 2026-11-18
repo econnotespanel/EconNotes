@@ -175,7 +175,7 @@ export function NeuralCommandShell({
                   className={cn(
                     'group relative flex w-full min-h-[42px] items-center justify-between rounded-[14px] px-3.5 py-2.5 text-left text-[13.5px] transition-all duration-200',
                     active
-                      ? 'bg-blue-500/12 font-semibold text-blue-600 dark:bg-[#19283e] dark:text-[#5b9cf6]'
+                      ? 'bg-blue-500/10 font-semibold text-blue-600 ring-1 ring-blue-500/20 dark:bg-[#19283e] dark:text-[#5b9cf6] dark:ring-[#5b9cf6]/25'
                       : 'font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-[#8e96a4] dark:hover:bg-white/[0.05] dark:hover:text-[#e2e8f0]',
                   )}
                 >
