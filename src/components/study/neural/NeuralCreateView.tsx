@@ -81,29 +81,29 @@ const MATERIAL_CARDS: Array<{
 }> = [
   {
     type: 'summary',
-    title: 'Derin Akademik Özet',
-    subtitle: 'Sözel & sayısal uyumlu bölüm analizi, neden-sonuç zinciri, karşılaştırma matrisi & ara sorular',
+    title: 'Ders Özeti',
+    subtitle: 'Bölüm analizi, neden-sonuç zinciri, karşılaştırma tablosu ve sınav notları',
     icon: FileText,
     accent: 'from-cyan-500/20 to-blue-600/15 border-cyan-500/40',
   },
   {
     type: 'video',
-    title: 'İnteraktif Video Ders',
-    subtitle: 'Dr. Deniz & Barış diyaloğu, akıllı tahta grafikleri ve Türkçe VITS seslendirme',
+    title: 'Videolu Özet',
+    subtitle: 'Görsel şemalar, illüstrasyonlar ve sesli anlatımla etkileşimli video ders',
     icon: Video,
     accent: 'from-violet-500/20 to-indigo-600/15 border-violet-500/40',
   },
   {
     type: 'quiz',
-    title: 'Sınav & Rubrik Bankası',
-    subtitle: 'Çoktan seçmeli + açık uçlu klasik sorular ve AI rubrik değerlendirmesi',
+    title: 'Deneme Sınavı',
+    subtitle: 'Çoktan seçmeli ve klasik sorularla sınava hazırlık testi',
     icon: Sparkles,
     accent: 'from-amber-500/20 to-orange-600/15 border-amber-500/40',
   },
   {
     type: 'flashcards',
-    title: 'SM-2 Aktif Kartlar',
-    subtitle: 'İpuçları, sınav tuzakları ve aralıklı tekrar takvimiyle 3D hafıza kartları',
+    title: 'Çalışma Kartları',
+    subtitle: 'Önemli kavramlar, tanımlar ve sınav ayrımları için tekrar kartları',
     icon: Layers,
     accent: 'from-emerald-500/20 to-teal-600/15 border-emerald-500/40',
   },
@@ -227,17 +227,11 @@ export function NeuralCreateView({
       <div className="neural-card p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-lg font-bold tracking-tight">Çoklu Kaynak & AI Sentez İstasyonu</h2>
+            <h2 className="text-lg font-bold tracking-tight">Yeni Çalışma Materyali Hazırla</h2>
             <p className="text-xs text-muted-foreground">
-              Dosya, yapıştırılan metin veya EconNotes kütüphanesindeki notları tek bir havuzda birleştir.
+              Dosya yükle, metin yapıştır veya EconNotes kütüphanesindeki notlardan seçerek çalışma setini oluştur.
             </p>
           </div>
-          <Badge variant="outline" className="gap-1.5 text-xs">
-            <Zap className="h-3.5 w-3.5 text-cyan-500" />
-            {engine.prefs.routingPolicy === 'local_privacy'
-              ? 'Yerel Gizlilik Hattı'
-              : 'Çok Aşamalı Akademik AI'}
-          </Badge>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

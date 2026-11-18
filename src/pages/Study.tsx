@@ -301,7 +301,7 @@ export default function Study() {
     }
     setIsGenerating(true);
     setGenerationPct(8);
-    setGenerationLabel('Neural Studio başlatılıyor...');
+    setGenerationLabel('Çalışma materyali hazırlanıyor...');
 
     try {
       const result = await routedGenerateMaterial(bundle, settings, (pct, msg) => {
@@ -624,6 +624,10 @@ export default function Study() {
                 onSavedLiveMaterial={handleSavedLiveMaterial}
                 onGoTab={setActiveTab}
                 onOpenMaterial={setActiveMaterial}
+                onQuickCreateType={(type) => {
+                  setSettings((prev) => ({ ...prev, materialType: type }));
+                  setActiveTab('create');
+                }}
               />
             )}
 

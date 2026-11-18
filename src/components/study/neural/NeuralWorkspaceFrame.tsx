@@ -34,7 +34,7 @@ export function NeuralWorkspaceFrame({
   onRecordProgress,
   onReportIssue,
 }: NeuralWorkspaceFrameProps) {
-  const [coachOpen, setCoachOpen] = useState(true);
+  const [coachOpen, setCoachOpen] = useState(false);
   const [injectedPrompt, setInjectedPrompt] = useState<{ id: number; text: string } | null>(null);
 
   const handleAskCoach = (prompt: string) => {
@@ -49,17 +49,14 @@ export function NeuralWorkspaceFrame({
         <div className="flex min-w-0 items-center gap-3">
           <Button type="button" variant="outline" size="sm" onClick={onBack} className="gap-1.5 text-xs">
             <ArrowLeft className="h-3.5 w-3.5" />
-            Stüdyo Ana Sayfa
+            Stüdyoya Dön
           </Button>
           <div className="min-w-0">
             <h1 className="truncate text-sm font-bold sm:text-base">{material.title}</h1>
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-              <span>{material.course || 'Genel Akademik'}</span>
-              {material.model && (
-                <Badge variant="outline" className="text-[10px]">
-                  {material.model}
-                </Badge>
-              )}
+              <span>{material.course || 'Genel Ders Notu'}</span>
+              <span>·</span>
+              <span>{new Date(material.created_at).toLocaleDateString('tr-TR')}</span>
             </div>
           </div>
         </div>
@@ -69,7 +66,7 @@ export function NeuralWorkspaceFrame({
             <SheetTrigger asChild>
               <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs lg:hidden">
                 <Bot className="h-3.5 w-3.5 text-primary" />
-                AI Koç
+                Soru Sor
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[90vw] max-w-md p-3">
@@ -89,7 +86,7 @@ export function NeuralWorkspaceFrame({
             ) : (
               <PanelRightOpen className="h-3.5 w-3.5" />
             )}
-            {coachOpen ? 'Koçu Gizle' : 'AI Koç'}
+            {coachOpen ? 'Asistanı Gizle' : 'Not Hakkında Sor'}
           </Button>
 
           <Button type="button" variant="ghost" size="sm" onClick={onReportIssue} className="gap-1.5 text-xs">

@@ -43,10 +43,10 @@ const TYPE_META: Record<
   MaterialType,
   { label: string; icon: typeof FileText; color: string }
 > = {
-  summary: { label: 'Akademik Özet', icon: FileText, color: 'text-cyan-500' },
-  quiz: { label: 'Sınav Bankası', icon: Sparkles, color: 'text-amber-500' },
-  flashcards: { label: 'Aktif Kartlar', icon: Layers, color: 'text-emerald-500' },
-  video: { label: 'Video Ders', icon: Video, color: 'text-violet-500' },
+  summary: { label: 'Ders Özeti', icon: FileText, color: 'text-blue-500' },
+  quiz: { label: 'Deneme Sınavı', icon: Sparkles, color: 'text-amber-500' },
+  flashcards: { label: 'Çalışma Kartları', icon: Layers, color: 'text-emerald-500' },
+  video: { label: 'Videolu Özet', icon: Video, color: 'text-violet-500' },
 };
 
 export function NeuralLibraryView({
@@ -147,30 +147,15 @@ export function NeuralLibraryView({
       <div className="neural-card space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold">Çalışma Kütüphanesi & Anlamsal Dizin</h2>
+            <h2 className="text-base font-bold">Çalışma Kitaplığım</h2>
             <p className="text-xs text-muted-foreground">
-              {materials.length} kayıtlı çalışma materyali · {indexedIds.size} tanesi RAG aramasında aktif
+              {materials.length} kayıtlı çalışma materyali
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={indexingAll || materials.length === 0}
-              onClick={() => void handleIndexAll()}
-              className="gap-1.5 text-xs"
-            >
-              {indexingAll ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Database className="h-3.5 w-3.5 text-cyan-500" />
-              )}
-              Tümünü RAG İndeksle
-            </Button>
             <Button type="button" size="sm" onClick={onCreateNew} className="gap-1.5 text-xs">
               <Plus className="h-3.5 w-3.5" />
-              Yeni Üret
+              Yeni Çalışma Seti
             </Button>
           </div>
         </div>
@@ -182,7 +167,7 @@ export function NeuralLibraryView({
             <Input
               placeholder={
                 semanticMode
-                  ? 'İçerik içi anlamsal arama (kavram, denklem, tanım)...'
+                  ? 'İçerik içinde ara (kavram, tanım, konu)...'
                   : 'Başlık veya ders adıyla ara...'
               }
               value={query}
@@ -192,8 +177,8 @@ export function NeuralLibraryView({
           </div>
 
           <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-3 py-1.5">
-            <Brain className={cn('h-3.5 w-3.5', semanticMode ? 'text-cyan-500' : 'text-muted-foreground')} />
-            <span className="text-xs font-medium">Anlamsal Ara</span>
+            <Brain className={cn('h-3.5 w-3.5', semanticMode ? 'text-primary' : 'text-muted-foreground')} />
+            <span className="text-xs font-medium">İçerikte Ara</span>
             <Switch checked={semanticMode} onCheckedChange={setSemanticMode} />
           </div>
 
@@ -306,11 +291,6 @@ export function NeuralLibraryView({
                       <Icon className={cn('h-3 w-3', meta.color)} />
                       {meta.label}
                     </Badge>
-                    {isIndexed && (
-                      <Badge variant="outline" className="border-cyan-500/35 text-[10px] text-cyan-500">
-                        RAG Hazır
-                      </Badge>
-                    )}
                     {score !== undefined && (
                       <Badge variant="outline" className="border-emerald-500/40 text-[10px] text-emerald-500">
                         En iyi %{score}

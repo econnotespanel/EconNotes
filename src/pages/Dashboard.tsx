@@ -123,7 +123,6 @@ const Dashboard = () => {
     fetchData();
     checkUnreadAnnouncements();
     checkFirstLogin();
-    checkStudioUpdateAnnouncement();
 
     const sessionStart = Date.now();
     const interval = setInterval(() => {
@@ -153,22 +152,13 @@ const Dashboard = () => {
 
   const statCards = [
     {
-      label: 'Toplam Notlar',
+      label: 'Paylaşılan Ders Notları',
       value: stats.notes,
       icon: FileText,
       color: isNovember10 ? 'text-foreground' : 'text-blue-500 dark:text-blue-400',
       iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20',
       lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-blue-600 via-blue-500 to-cyan-400',
       borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-blue-500/50 hover:shadow-[0_8px_24px_rgba(59,130,246,0.15)]',
-    },
-    {
-      label: 'Paylaşılan Notlar',
-      value: stats.notes,
-      icon: Users,
-      color: isNovember10 ? 'text-foreground' : 'text-emerald-500 dark:text-emerald-400',
-      iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
-      lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-emerald-600 via-emerald-500 to-teal-400',
-      borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(16,185,129,0.15)]',
     },
     {
       label: 'Duyurular',
@@ -178,6 +168,15 @@ const Dashboard = () => {
       iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20',
       lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-amber-600 via-amber-500 to-orange-400',
       borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-amber-500/50 hover:shadow-[0_8px_24px_rgba(245,158,11,0.15)]',
+    },
+    {
+      label: 'İndirme Hakkım',
+      value: quota?.is_admin ? 'Sınırsız' : (quota?.remaining ?? '—'),
+      icon: Download,
+      color: isNovember10 ? 'text-foreground' : 'text-emerald-500 dark:text-emerald-400',
+      iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
+      lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-emerald-600 via-emerald-500 to-teal-400',
+      borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(16,185,129,0.15)]',
     },
   ];
 
@@ -329,30 +328,7 @@ const Dashboard = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Çalışma Stüdyosu Hızlı Erişim & Yenilik Banner'ı */}
-        <Card className={cn("glass-card border-primary/30 relative overflow-hidden", isNovember10 ? "bg-card border-border" : "bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10")}>
-          <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-primary/10 to-transparent pointer-events-none" />
-          <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-start sm:items-center gap-3.5">
-              <div className={cn("p-2.5 rounded-xl text-white shadow-md shrink-0", isNovember10 ? "bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-950 shadow-none" : "bg-gradient-to-br from-cyan-500 to-blue-600 shadow-cyan-500/20")}>
-                <Brain className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-foreground">Çalışma Stüdyosu Güncellendi!</p>
-                  <span className="text-[10px] bg-primary/20 text-primary font-semibold px-2 py-0.5 rounded-full border border-primary/20">YENİ</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">İnteraktif ikili video dersleri, akıllı tahta şemaları ve slayt özetleriyle çalışmaya başlayın.</p>
-              </div>
-            </div>
-            <Button size="sm" className={cn("gap-2 text-white shrink-0 w-full sm:w-auto shadow-sm", isNovember10 ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-950" : "bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500")} onClick={() => navigate('/study')}>
-              <span>Stüdyoyu İncele</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* PlayStation Gradient Hero Header */}
+        {/* Hero Header */}
         <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-card via-card to-primary/10 p-5 sm:p-7 shadow-sm">
           <div className={cn("pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full blur-2xl", isNovember10 ? "bg-gradient-to-br from-neutral-600/15 via-neutral-500/10 to-transparent" : "bg-gradient-to-br from-[#003791]/20 via-[#0070d1]/15 to-transparent")} />
 
@@ -471,7 +447,7 @@ const Dashboard = () => {
             : statCards.map((stat, i) => (
             <div key={stat.label} className="flex items-stretch min-w-0">
               <div
-                onClick={() => i < 2 ? navigate('/notes') : navigate('/announcements')}
+                onClick={() => i === 1 ? navigate('/announcements') : navigate('/notes')}
                 className={cn(
                   'group relative flex-1 p-5 pt-6 rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-card/90 cursor-pointer transition-all duration-200 overflow-hidden shadow-xs',
                   stat.borderHover,
@@ -566,7 +542,7 @@ const Dashboard = () => {
               ) : (
                 <>
                   {displayedNotes.map((note, idx) => (
-                    <div key={note.id} className="flex min-w-0 flex-col gap-1 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between" onClick={() => navigate('/notes')}>
+                    <div key={note.id} className="flex min-w-0 flex-col gap-2 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between" onClick={() => navigate('/notes')}>
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
                         <div className="min-w-0">
@@ -574,7 +550,22 @@ const Dashboard = () => {
                           <p className="break-words text-xs text-muted-foreground sm:truncate">{note.uploader_name} • {note.course} • {note.semester}</p>
                         </div>
                       </div>
-                      <span className="pl-7 text-[11px] text-muted-foreground sm:pl-0 sm:text-xs">{formatDateTime(note.created_at)}</span>
+                      <div className="flex items-center justify-between sm:justify-end gap-2 pl-7 sm:pl-0 shrink-0">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/study?create=summary&noteId=${note.id}`);
+                          }}
+                          className="h-7 px-2.5 text-[11px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
+                        >
+                          <GraduationCap className="h-3 w-3" />
+                          Stüdyoda Çalış
+                        </Button>
+                        <span className="text-[11px] text-muted-foreground sm:text-xs">{formatDateTime(note.created_at)}</span>
+                      </div>
                     </div>
                   ))}
                   {recentNotes.length > 5 && (
