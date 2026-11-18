@@ -313,8 +313,8 @@ const Sidebar = () => {
           open ? 'translate-x-0 opacity-100' : '-translate-x-[115%] opacity-0 md:opacity-100',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 5rem)',
-          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 5.75rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 6rem)',
+          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 7rem)',
         }}
       >
         <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
