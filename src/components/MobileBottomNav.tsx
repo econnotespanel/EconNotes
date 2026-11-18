@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, FileText, GraduationCap, MessageSquare, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,8 @@ const MobileBottomNav = () => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMorphing, setIsMorphing] = useState(false);
+  const prevActiveIndexRef = useRef<number>(0);
 
   // Okunmamış mesaj ve duyuru sayılarını dinle
   const fetchUnread = useCallback(async () => {
@@ -35,9 +37,12 @@ const MobileBottomNav = () => {
       }
 
       const { data: announcements } = await supabase.from('announcements').select('id');
-      const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
+      const { data: views } = await supabase
+        .from('announcement_views')
+        .select('announcement_id')
+        .eq('user_id', user.id);
       const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
-      setUnreadAnnouncements((announcements || []).filter(a => !viewedIds.has(a.id)).length);
+      setUnreadAnnouncements((announcements || []).filter((a) => !viewedIds.has(a.id)).length);
     } catch {
       // Hata durumunda sessizce devam et
     }
@@ -80,85 +85,164 @@ const MobileBottomNav = () => {
   const totalBadge = unreadMessages + unreadAnnouncements;
 
   const navItems = [
-    { label: 'Ana Sayfa', path: '/', icon: Home, exact: true },
-    { label: 'Notlar', path: '/notes', icon: FileText },
-    { label: 'Stüdyo', path: '/study', icon: GraduationCap, isHighlight: true },
-    { label: 'Mesajlar', path: '/messages', icon: MessageSquare, badge: unreadMessages },
+    { id: 'home', label: 'Ana Sayfa', path: '/', icon: Home, exact: true },
+    { id: 'notes', label: 'Notlar', path: '/notes', icon: FileText },
+    { id: 'study', label: 'Stüdyo', path: '/study', icon: GraduationCap, isHighlight: true },
+    { id: 'messages', label: 'Mesajlar', path: '/messages', icon: MessageSquare, badge: unreadMessages },
+    { id: 'menu', label: 'Menü', path: '__menu__', icon: Menu, badge: totalBadge, isMenu: true },
   ];
+
+  const getActiveIndex = () => {
+    if (isSidebarOpen) return 4; // Menü aktif
+    const foundIdx = navItems.findIndex((item) => {
+      if (item.isMenu) return false;
+      return item.exact
+        ? location.pathname === item.path
+        : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+    });
+    return foundIdx >= 0 ? foundIdx : 0;
+  };
+
+  const activeIndex = getActiveIndex();
+
+  // Sekme geçişlerinde iOS Liquid Glass esneme (liquid stretch & bounce) animasyonunu tetikle
+  useEffect(() => {
+    if (prevActiveIndexRef.current !== activeIndex) {
+      prevActiveIndexRef.current = activeIndex;
+      setIsMorphing(true);
+      const timer = setTimeout(() => setIsMorphing(false), 340);
+      return () => clearTimeout(timer);
+    }
+  }, [activeIndex]);
+
+  const itemCount = navItems.length;
+  const slotWidthPercent = 100 / itemCount;
 
   return (
     <nav
       role="navigation"
       aria-label="Mobil Alt Menü"
-      className="fixed inset-x-0 z-40 md:hidden pointer-events-none select-none transition-all duration-300"
+      className="fixed inset-x-0 z-40 md:hidden pointer-events-none select-none"
       style={{
         bottom: isStandalone
-          ? 'calc(env(safe-area-inset-bottom, 0px) + 0.35rem)'
-          : 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)',
+          ? 'calc(env(safe-area-inset-bottom, 0px) + 0.4rem)'
+          : 'calc(env(safe-area-inset-bottom, 0px) + 0.65rem)',
       }}
     >
-      <div className="flex items-center justify-center gap-2.5 px-3 max-w-md mx-auto">
+      <div className="mx-auto flex max-w-[410px] items-center justify-center px-3">
+        {/* Apple iOS Liquid Glass & EconNotes Uyumlu Kapsül Tab Bar */}
         <div
           className={cn(
-            'pointer-events-auto flex items-center justify-around flex-1 max-w-[340px] h-[62px] p-1.5',
-            'rounded-[24px]',
-            'bg-white/95 dark:bg-[#14171c]/95',
-            'backdrop-blur-2xl',
-            'border border-slate-200/80 dark:border-white/[0.08]',
-            'shadow-[0_12px_36px_rgba(15,23,42,0.12)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.75)]',
-            'transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            isSidebarOpen && 'opacity-80 scale-[0.98]'
+            'pointer-events-auto relative flex h-[66px] w-full items-center justify-between rounded-full p-[5px]',
+            'backdrop-blur-2xl backdrop-saturate-[190%]',
+            'bg-gradient-to-b from-[#17253f]/82 via-[#0d1729]/88 to-[#132038]/86',
+            'dark:from-[#182640]/84 dark:via-[#0b1322]/90 dark:to-[#132038]/88',
+            'border border-white/[0.22]',
+            'shadow-[0_18px_44px_rgba(0,12,36,0.52),0_4px_16px_rgba(0,55,145,0.25),inset_0_1.2px_1.5px_rgba(255,255,255,0.38),inset_0_-1px_1.5px_rgba(255,255,255,0.16),inset_1px_0_1px_rgba(255,255,255,0.14),inset_-1px_0_1px_rgba(255,255,255,0.14)]',
+            'transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
           )}
         >
-          {navItems.map((item) => {
+          {/* Üst cam yansıma katmanı (iOS Liquid Glass Specular Sheen) */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-4 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/55 to-transparent"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-6 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-300/35 to-transparent"
+          />
+
+          {/* Kayan 3D Liquid Glass Aktif Buton Balonu (iOS Geçiş Animasyonlu) */}
+          <div
+            aria-hidden="true"
+            style={{
+              width: `calc(${slotWidthPercent}% - 8px)`,
+              left: `calc(${activeIndex * slotWidthPercent}% + 4px)`,
+              transition:
+                'left 430ms cubic-bezier(0.22, 1.26, 0.36, 1), transform 340ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+              transform: isMorphing ? 'scaleX(1.13) scaleY(0.92)' : 'scaleX(1) scaleY(1)',
+            }}
+            className={cn(
+              'pointer-events-none absolute top-[5px] bottom-[5px] z-0 rounded-full overflow-hidden',
+              'bg-gradient-to-b from-[#07193d]/95 via-[#002d78]/88 to-[#04112b]/95',
+              'border border-cyan-300/30',
+              'shadow-[0_6px_20px_rgba(0,8,24,0.65),0_0_16px_rgba(0,112,209,0.35),inset_0_1.5px_2px_rgba(255,255,255,0.45),inset_0_-1.5px_2.5px_rgba(56,189,248,0.4)]',
+            )}
+          >
+            {/* iOS 3D Üst & Alt Kubbe Işık Yansıması */}
+            <div
+              className="absolute inset-x-1 -top-1 h-5 rounded-full opacity-90"
+              style={{
+                background:
+                  'radial-gradient(ellipse 75% 60% at 50% 10%, rgba(255,255,255,0.38), rgba(56,189,248,0.14) 60%, transparent 100%)',
+              }}
+            />
+            <div
+              className="absolute inset-x-2 -bottom-1 h-4 rounded-full opacity-85"
+              style={{
+                background:
+                  'radial-gradient(ellipse 70% 55% at 50% 95%, rgba(56,189,248,0.42), rgba(255,255,255,0.12) 60%, transparent 100%)',
+              }}
+            />
+          </div>
+
+          {/* Sekme Butonları */}
+          {navItems.map((item, idx) => {
             const Icon = item.icon;
-            const isActive =
-              (item.exact
-                ? location.pathname === item.path
-                : location.pathname === item.path || location.pathname.startsWith(item.path + '/')) &&
-              !isSidebarOpen;
+            const isActive = activeIndex === idx;
 
             return (
               <button
-                key={item.path}
+                key={item.id}
                 type="button"
+                aria-current={isActive && !item.isMenu ? 'page' : undefined}
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent('econnotes:close-sidebar'));
-                  navigate(item.path);
+                  if (item.isMenu) {
+                    toggleMobileSidebar();
+                  } else {
+                    window.dispatchEvent(new CustomEvent('econnotes:close-sidebar'));
+                    navigate(item.path);
+                  }
                 }}
                 className={cn(
-                  'relative flex flex-col items-center justify-center flex-1 h-full min-w-0 py-1 px-1 sm:px-2 rounded-[16px]',
-                  'touch-manipulation select-none active:scale-95 transition-all duration-200',
-                  isActive
-                    ? 'bg-blue-500/10 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6] ring-1 ring-blue-500/20 dark:ring-[#5b9cf6]/25'
-                    : 'text-slate-600 dark:text-[#8e96a4] hover:text-slate-900 dark:hover:text-[#e2e8f0] hover:bg-slate-100/80 dark:hover:bg-white/[0.05]'
+                  'group relative z-10 flex h-full flex-1 min-w-0 flex-col items-center justify-center rounded-full px-1 py-1',
+                  'touch-manipulation select-none focus:outline-none',
+                  'transition-transform duration-200 active:scale-90',
                 )}
               >
-                <div className="relative">
+                <div
+                  className={cn(
+                    'relative flex items-center justify-center transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
+                    isActive ? '-translate-y-[1px] scale-110' : 'translate-y-0 scale-100 group-hover:scale-105',
+                  )}
+                >
                   <Icon
                     className={cn(
-                      'h-5 w-5 transition-all duration-200',
+                      'h-[20px] w-[20px] transition-colors duration-300',
                       isActive
-                        ? 'text-blue-600 dark:text-[#5b9cf6]'
-                        : 'text-slate-500 dark:text-[#8e96a4]'
+                        ? 'text-[#38bdf8] drop-shadow-[0_0_8px_rgba(56,189,248,0.55)]'
+                        : 'text-white/85 group-hover:text-white',
                     )}
-                    strokeWidth={isActive ? 2.1 : 1.85}
+                    strokeWidth={isActive ? 2.3 : 1.95}
                   />
+
                   {item.badge && item.badge > 0 ? (
-                    <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-[18px] items-center justify-center rounded-full bg-[#f05252] px-1 text-[9.5px] font-bold text-white ring-2 ring-white dark:ring-[#14171c] shadow-xs">
+                    <span className="absolute -top-1.5 -right-2.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-[#22c55e] px-1 text-[9.5px] font-extrabold text-white ring-2 ring-[#0d1729] shadow-[0_2px_8px_rgba(34,197,94,0.5)]">
                       {item.badge > 99 ? '99+' : item.badge}
                     </span>
                   ) : null}
+
                   {item.isHighlight && !isActive && (
-                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#5b9cf6] shadow-[0_0_8px_rgba(91,156,246,0.8)] animate-pulse" />
+                    <span className="absolute -top-1 -right-1.5 h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(56,189,248,0.9)] animate-pulse" />
                   )}
                 </div>
+
                 <span
                   className={cn(
-                    'text-[10px] sm:text-[10.5px] mt-0.5 tracking-tight truncate max-w-full leading-tight transition-colors duration-200',
+                    'mt-0.5 max-w-full truncate text-[10.5px] leading-tight tracking-[-0.01em] transition-all duration-300',
                     isActive
-                      ? 'text-blue-600 dark:text-[#5b9cf6] font-semibold'
-                      : 'text-slate-600 dark:text-[#8e96a4] font-medium'
+                      ? 'font-bold text-[#38bdf8] drop-shadow-[0_0_6px_rgba(56,189,248,0.35)]'
+                      : 'font-medium text-white/80 group-hover:text-white',
                   )}
                 >
                   {item.label}
@@ -167,38 +251,6 @@ const MobileBottomNav = () => {
             );
           })}
         </div>
-
-        <button
-          type="button"
-          onClick={toggleMobileSidebar}
-          aria-label={isSidebarOpen ? 'Menüyü Kapat' : 'Tüm Menüyü Aç'}
-          className={cn(
-            'pointer-events-auto flex items-center justify-center shrink-0 w-[62px] h-[62px]',
-            'rounded-[24px] touch-manipulation select-none active:scale-90 transition-all duration-200',
-            'backdrop-blur-2xl',
-            isSidebarOpen
-              ? 'bg-blue-500/15 dark:bg-[#19283e] border border-blue-500/40 dark:border-[#5b9cf6]/40 text-blue-600 dark:text-[#5b9cf6] shadow-[0_12px_36px_rgba(0,0,0,0.4)]'
-              : cn(
-                  'bg-white/95 dark:bg-[#14171c]/95',
-                  'border border-slate-200/80 dark:border-white/[0.08]',
-                  'text-slate-600 dark:text-[#8e96a4] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
-                  'shadow-[0_12px_36px_rgba(15,23,42,0.12)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.75)]'
-                )
-          )}
-        >
-          <div className="relative flex items-center justify-center">
-            <Menu
-              className={cn(
-                'h-6 w-6 transition-all duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]',
-                isSidebarOpen ? 'scale-110 text-blue-600 dark:text-[#5b9cf6] rotate-90' : 'text-slate-600 dark:text-[#8e96a4]'
-              )}
-              strokeWidth={2}
-            />
-            {totalBadge > 0 && !isSidebarOpen && (
-              <span className="absolute -top-1.5 -right-1.5 h-2.5 w-2.5 rounded-full bg-[#f05252] ring-2 ring-white dark:ring-[#14171c] shadow-xs" />
-            )}
-          </div>
-        </button>
       </div>
     </nav>
   );

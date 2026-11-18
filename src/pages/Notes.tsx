@@ -1,6 +1,7 @@
 import Layout from '@/components/Layout';
 import SignedImage from '@/components/SignedImage';
 import EconLogo from '@/components/EconLogo';
+import NotePreviewViewer from '@/components/NotePreviewViewer';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -1485,15 +1486,9 @@ const Notes = () => {
                   </div>
                 </div>
               </DialogHeader>
-              <div className="relative min-h-0 flex-1 w-full overflow-hidden bg-slate-900 p-2 sm:p-3">
-                {previewType?.startsWith('image/') ? (
-                  <div className="flex h-full w-full items-center justify-center overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-2 shadow-inner">
-                    <img src={previewUrl} alt="Preview" className="max-h-full max-w-full object-contain" />
-                  </div>
-                ) : previewType === 'application/pdf' ? (
-                  <div className="h-full w-full overflow-hidden rounded-xl border border-white/10 bg-white shadow-inner">
-                    <iframe src={previewUrl} title="EconNotes belge önizlemesi" className="h-full w-full border-0" />
-                  </div>
+              <div className="relative min-h-0 flex-1 w-full overflow-hidden bg-slate-900 p-1.5 sm:p-3">
+                {previewType?.startsWith('image/') || previewType === 'application/pdf' ? (
+                  <NotePreviewViewer previewUrl={previewUrl} previewType={previewType} />
                 ) : isPowerPoint(previewType, null) ? (
                   <div className="h-full w-full space-y-4 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-4 shadow-inner sm:p-6">
                     {previewSlides.length > 0 ? previewSlides.map((slide, index) => (
