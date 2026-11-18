@@ -125,9 +125,9 @@ const Register = () => {
     const cleanDepartment = toTurkishTitleCase(rawDepartment);
     const parsedGrade = formData.grade ? parseInt(formData.grade) : null;
 
-    // Strict validation: Ad-Soyad, Üniversite, Bölüm ve Sınıf are required and cannot be empty
-    if (!cleanFullName || !rawUniversity || !rawDepartment || !parsedGrade || isNaN(parsedGrade)) {
-      toast.error('Kayıt tamamlanamadı. Ad-Soyad, Üniversite, Bölüm ve Sınıf bilgileri zorunludur ve eksiksiz doldurulmalıdır.');
+    // Strict validation: Ad-Soyad, Üniversite, Bölüm, Sınıf ve Doğum Tarihi are required and cannot be empty
+    if (!cleanFullName || !rawUniversity || !rawDepartment || !parsedGrade || isNaN(parsedGrade) || !formData.birthDate.trim()) {
+      toast.error('Kayıt tamamlanamadı. Ad-Soyad, Üniversite, Bölüm, Sınıf ve Doğum Tarihi bilgileri zorunludur ve eksiksiz doldurulmalıdır.');
       return;
     }
     if (!formData.email.trim() || !formData.password) {
@@ -419,7 +419,7 @@ const Register = () => {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="birthDate" className="text-xs font-semibold text-foreground/90">
-                  Doğum Tarihi <span className="text-[10px] font-normal text-muted-foreground">(🎂 Hediye hak için)</span>
+                  Doğum Tarihi <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   id="birthDate"
@@ -427,6 +427,7 @@ const Register = () => {
                   value={formData.birthDate}
                   onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
                   className="h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 text-sm"
+                  required
                 />
               </div>
             </div>
