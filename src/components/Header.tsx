@@ -12,6 +12,8 @@ import {
   Sparkles,
   Flame,
   Megaphone,
+  Menu,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -53,7 +55,19 @@ const Header = () => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { points } = usePoints(3);
+
+  useEffect(() => {
+    const handleSidebarState = (e: Event) => {
+      const customEvent = e as CustomEvent<{ open: boolean }>;
+      if (customEvent.detail && typeof customEvent.detail.open === 'boolean') {
+        setIsSidebarOpen(customEvent.detail.open);
+      }
+    };
+    window.addEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
+    return () => window.removeEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
+  }, []);
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
@@ -351,7 +365,7 @@ const Header = () => {
             </button>
 
             {/* Subtle separator before logout */}
-            <div className="mx-0.5 hidden h-4 w-px bg-border/80 md:block" />
+            <div className="mx-0.5 h-4 w-px bg-border/80" />
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -359,7 +373,7 @@ const Header = () => {
                   type="button"
                   title="Çıkış Yap"
                   aria-label="Çıkış Yap"
-                  className="relative hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-destructive/80 transition-all duration-200 hover:bg-destructive/15 hover:text-destructive active:scale-90 md:inline-flex"
+                  className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-destructive/15 hover:text-destructive active:scale-90"
                 >
                   <LogOut className="h-4 w-4" />
                 </button>
@@ -387,6 +401,17 @@ const Header = () => {
               </AlertDialogContent>
             </AlertDialog>
           </div>
+
+          {/* EconKPSS tarzı mobil sağ üst Menü / Kapat (X) butonu */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('econnotes:toggle-sidebar'))}
+            aria-label={isSidebarOpen ? 'Menüyü kapat' : 'Menüyü aç'}
+            aria-expanded={isSidebarOpen}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border border-border/80 bg-card/85 text-foreground shadow-xs backdrop-blur-md transition-all duration-200 hover:bg-accent active:scale-90 md:hidden"
+          >
+            {isSidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
         </div>
       </div>
     </header>

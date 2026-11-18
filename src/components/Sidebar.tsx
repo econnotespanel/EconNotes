@@ -200,19 +200,19 @@ const Sidebar = () => {
         onClick={() => navigate(link.path)}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'group relative flex items-center gap-3 w-full rounded-[14px] px-3.5 min-h-[36px] py-1.5 text-[13.5px]',
+          'group relative flex items-center gap-3.5 w-full rounded-[14px] px-4 md:px-3.5 min-h-[42px] md:min-h-[36px] py-2 md:py-1.5 text-[14px] md:text-[13.5px]',
           'transition-all duration-200 ease-out select-none',
           'focus:outline-none focus-visible:outline-none',
           active
-            ? 'bg-slate-100/90 dark:bg-white/[0.08] text-slate-900 dark:text-white font-semibold'
-            : 'text-slate-600 dark:text-[#8e96a4] font-medium hover:bg-slate-100/70 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
+            ? 'bg-blue-500/10 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6] font-semibold'
+            : 'text-slate-600 dark:text-[#8e96a4] font-medium hover:bg-slate-100/80 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
         )}
       >
         <Icon
           className={cn(
             'h-[18px] w-[18px] shrink-0 transition-colors duration-200',
             active
-              ? 'text-slate-900 dark:text-white'
+              ? 'text-blue-600 dark:text-[#5b9cf6]'
               : 'text-slate-500 dark:text-[#8e96a4] group-hover:text-slate-800 dark:group-hover:text-[#e2e8f0]',
           )}
           strokeWidth={active ? 2.1 : 1.85}
@@ -221,7 +221,7 @@ const Sidebar = () => {
         <span className="flex-1 text-left truncate tracking-[-0.01em]">{link.label}</span>
 
         {link.isNew && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-slate-300/80 text-slate-600 bg-slate-100 dark:border-white/15 dark:text-slate-300 dark:bg-white/[0.06]">
+          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-blue-500/25 text-blue-600 bg-blue-500/10 dark:border-[#5b9cf6]/30 dark:text-[#5b9cf6] dark:bg-[#5b9cf6]/10">
             YENİ
           </span>
         )}
@@ -256,7 +256,7 @@ const Sidebar = () => {
           !isFirstSection && 'mt-1.5 pt-2 border-t border-slate-200/70 dark:border-white/[0.06]',
         )}
       >
-        <div className="px-3.5 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-[#64748b]">
+        <div className="px-4 md:px-3.5 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-[#64748b]">
           {title}
         </div>
         <div className="flex flex-col gap-0.5">
@@ -282,23 +282,25 @@ const Sidebar = () => {
         id="mobile-sidebar"
         role="navigation"
         className={cn(
-          'fixed left-3 md:left-4 z-50 w-[264px] max-w-[calc(100vw-1.5rem)] md:w-[244px]',
+          'fixed inset-x-3.5 mx-auto md:inset-x-auto md:left-4 md:mx-0 z-50 w-[calc(100vw-1.75rem)] max-w-[430px] md:w-[244px] md:max-w-none',
           'flex flex-col',
           'rounded-[24px]',
+          'max-h-[calc(100dvh-env(safe-area-inset-top,0px)-10rem)] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6.25rem)]',
           'bg-white/95 dark:bg-[#14171c]/95 text-slate-700 dark:text-[#8e96a4]',
           'border border-slate-200/80 dark:border-white/[0.08]',
-          'shadow-[0_20px_50px_rgba(15,23,42,0.10)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.75)]',
+          'shadow-[0_20px_50px_rgba(15,23,42,0.12)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.78)]',
           'backdrop-blur-xl',
-          'transition-all duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
-          'md:translate-x-0 md:opacity-100',
-          open ? 'translate-x-0 opacity-100' : '-translate-x-[115%] opacity-0 md:opacity-100',
+          'transition-all duration-250 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
+          'md:translate-y-0 md:scale-100 md:opacity-100 md:pointer-events-auto',
+          open
+            ? 'translate-y-0 scale-100 opacity-100 pointer-events-auto'
+            : '-translate-y-2 scale-[0.98] opacity-0 pointer-events-none md:opacity-100',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 5.75rem)',
-          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 6.5rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 5.25rem)',
         }}
       >
-        <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <nav className="flex flex-col" aria-label="Ana menü">
             <Section title="Panel" items={visible(primary)} isFirstSection />
             <Section title="Araçlar" items={visible(tools)} />
@@ -316,32 +318,7 @@ const Sidebar = () => {
               </div>
             )}
           </div>
-          <span className="font-mono font-semibold text-slate-500 dark:text-slate-400">{APP_VERSION}</span>
-        </div>
-
-        <div className="px-3 pb-3 md:hidden">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-10 w-full justify-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/15 hover:text-destructive text-xs font-semibold"
-              >
-                <LogOut className="h-3.5 w-3.5" /> Çıkış Yap
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="w-[calc(100%-2rem)] !rounded-2xl border-border/70 bg-background/95 p-5 shadow-2xl backdrop-blur-sm sm:w-full sm:p-6">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Çıkış yapmak istediğinize emin misiniz?</AlertDialogTitle>
-                <AlertDialogDescription>Hesabınızdan güvenli şekilde çıkış yapılacaktır.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="gap-2 sm:gap-2">
-                <AlertDialogCancel className="mt-0 w-full rounded-xl sm:w-auto">İptal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleLogout} className="w-full rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto">
-                  Çıkış Yap
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <span className="font-mono font-semibold text-blue-600/80 dark:text-[#5b9cf6]/80">{APP_VERSION}</span>
         </div>
       </aside>
     </>
