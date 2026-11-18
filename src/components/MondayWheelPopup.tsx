@@ -182,28 +182,28 @@ const MondayWheelPopup = () => {
       {/* Sağ Altta Çark Resmi ile Gösterilen Yüzen Pazartesi Şans Çarkı Kutusu */}
       {showFloatingLauncher && (
         <div className="fixed bottom-24 right-4 z-40 md:bottom-5 md:right-5 flex items-center">
-          <div className="group relative flex items-center gap-3 rounded-2xl border border-primary/35 bg-card/95 p-2.5 pr-3.5 shadow-[0_16px_44px_rgba(0,55,145,0.22)] backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/60">
+          <div className="group relative flex items-center gap-3 rounded-2xl border border-cyan-300/35 bg-gradient-to-r from-[#001d52]/95 via-[#003385]/95 to-[#004ba8]/95 p-2.5 pr-3.5 text-white shadow-[0_16px_44px_rgba(0,35,95,0.45)] backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-300/60">
             <button
               type="button"
               onClick={openMondayWheelModal}
               className="flex items-center gap-3 text-left"
             >
-              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#001845] via-[#003791] to-[#0070d1] p-1 shadow-md">
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-[#001438]/70 p-1 shadow-md">
                 <EconWheelMiniGraphic className="h-10 w-10 transition-transform duration-500 group-hover:rotate-45" />
                 {wheelState.canSpinNow && (
-                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-cyan-400 ring-2 ring-card animate-pulse" />
+                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-cyan-400 ring-2 ring-[#001d52] animate-pulse" />
                 )}
               </div>
               <div className="min-w-0 pr-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-extrabold tracking-tight text-foreground">
+                  <span className="text-xs font-extrabold tracking-tight text-white">
                     Pazartesi Şans Çarkı
                   </span>
-                  <span className="rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[9.5px] font-bold text-primary">
+                  <span className="rounded-full border border-cyan-300/35 bg-cyan-400/15 px-1.5 py-0.5 text-[9.5px] font-bold text-cyan-200">
                     {wheelState.canSpinNow ? 'AKTİF' : 'PAZARTESİ'}
                   </span>
                 </div>
-                <p className="text-[11px] text-muted-foreground truncate max-w-[185px]">
+                <p className="text-[11px] text-blue-100/85 truncate max-w-[185px]">
                   {wheelState.canSpinNow
                     ? 'Hemen çevir, ödülünü kazan!'
                     : wheelState.countdownLabel}
@@ -217,7 +217,7 @@ const MondayWheelPopup = () => {
                 e.stopPropagation();
                 setLauncherDismissed(true);
               }}
-              className="ml-0.5 rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="ml-0.5 rounded-lg p-1 text-blue-100/75 hover:bg-white/15 hover:text-white transition-colors"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -225,52 +225,65 @@ const MondayWheelPopup = () => {
         </div>
       )}
 
-      {/* EconNotes Temalı Pazartesi Şans Çarkı Modalı */}
+      {/* EconNotes Temalı Pazartesi Şans Çarkı Modalı (Tam EconNotes Mavisi ile Bütünleşik) */}
       <Dialog open={open} onOpenChange={(v) => !spinning && setOpen(v)}>
-        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md overflow-hidden rounded-[26px] border border-primary/35 bg-card/95 p-0 shadow-[0_24px_64px_rgba(0,55,145,0.32)] backdrop-blur-2xl">
-          {/* Üst EconNotes Kobalt-Mavi Başlık Katmanı */}
-          <div
-            className={cn(
-              'relative overflow-hidden px-6 pt-5 pb-5 text-white',
-              isNovember10
-                ? 'bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900'
-                : 'bg-gradient-to-br from-[#001845] via-[#003791] to-[#0070d1]',
-            )}
-          >
-            <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
-            <div className="pointer-events-none absolute -left-12 -bottom-12 h-36 w-36 rounded-full bg-blue-400/20 blur-2xl" />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
+        <DialogContent
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className={cn(
+            'w-[calc(100vw-1.5rem)] max-w-md overflow-hidden rounded-[28px] p-0 sm:p-0 gap-0 text-white backdrop-blur-2xl [&>button]:hidden',
+            isNovember10
+              ? 'border border-white/15 bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 shadow-[0_24px_64px_rgba(0,0,0,0.65)]'
+              : 'border border-cyan-300/30 bg-gradient-to-b from-[#001d52] via-[#003385] to-[#041536] shadow-[0_24px_72px_rgba(0,55,145,0.6)]',
+          )}
+        >
+          {/* Ambiyans Işık Küreleri & Üst Parlama */}
+          <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-cyan-400/25 blur-3xl" />
+          <div className="pointer-events-none absolute -left-14 top-1/3 h-48 w-48 rounded-full bg-[#0070d1]/30 blur-3xl" />
+          <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
-            <div className="relative z-10 flex items-center justify-between gap-2 mb-3">
-              <EconLogo allWhite className="h-6 w-auto" />
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10.5px] font-semibold text-white backdrop-blur-md">
-                <Sparkles className="h-3 w-3 text-cyan-300" />
-                Haftalık Pazartesi Etkinliği
-              </span>
+          {/* Üst EconNotes Kobalt-Mavi Başlık Katmanı */}
+          <div className="relative z-10 px-5 pt-5 pb-3 sm:px-6 sm:pt-6">
+            <div className="flex items-center justify-between gap-2 mb-3.5">
+              <EconLogo allWhite className="h-5 sm:h-6 w-auto shrink-0" />
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-white/10 px-2.5 py-1 text-[10.5px] font-semibold text-cyan-100 backdrop-blur-md">
+                  <Sparkles className="h-3 w-3 text-cyan-300 shrink-0" />
+                  <span>Haftalık Pazartesi Etkinliği</span>
+                </span>
+                <button
+                  type="button"
+                  disabled={spinning}
+                  onClick={() => !spinning && setOpen(false)}
+                  aria-label="Kapat"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/85 transition-all hover:bg-white/20 hover:text-white active:scale-90 disabled:opacity-40"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
 
-            <DialogHeader className="relative z-10 text-center sm:text-center">
+            <DialogHeader className="relative z-10 pr-0 text-center sm:text-center">
               <DialogTitle className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
                 Pazartesi Şans Çarkı
               </DialogTitle>
-              <DialogDescription className="text-xs text-blue-100/90 mt-1 leading-relaxed">
+              <DialogDescription className="text-xs text-blue-100/90 mt-1 leading-relaxed max-w-[340px] mx-auto">
                 Her Pazartesi giriş yap, çarkı çevir; sınırsız erişim, +2 not hakkı veya 500 XP’ye varan puanları anında kazan!
               </DialogDescription>
             </DialogHeader>
           </div>
 
-          <div className="p-5 space-y-4">
+          <div className="relative z-10 px-5 pb-5 pt-2 sm:px-6 sm:pb-6 space-y-4">
             {/* EconNotes Kobalt & Cyan Çark Görseli + Merkezde Beyaz E Logosu */}
-            <div className="relative mx-auto flex h-[300px] w-[300px] items-center justify-center">
-              {/* Arka Plan Mavi Parlama Halesi */}
-              <div className="pointer-events-none absolute inset-4 rounded-full bg-primary/15 blur-2xl" />
+            <div className="relative mx-auto flex h-[290px] w-[290px] sm:h-[304px] sm:w-[304px] items-center justify-center">
+              {/* Arka Plan Mavi/Cyan Parlama Halesi */}
+              <div className="pointer-events-none absolute inset-2 rounded-full bg-cyan-400/20 blur-2xl" />
 
               {/* Üst EconNotes Cyan/Mavi İbre */}
-              <div className="absolute -top-2.5 left-1/2 z-30 -translate-x-1/2 drop-shadow-[0_4px_10px_rgba(0,55,145,0.5)]">
+              <div className="absolute -top-2.5 left-1/2 z-30 -translate-x-1/2 drop-shadow-[0_4px_12px_rgba(0,12,36,0.75)]">
                 <svg width="34" height="34" viewBox="0 0 34 34">
                   <polygon
                     points="17,32 4,6 30,6"
-                    fill="#003791"
+                    fill="#002b75"
                     stroke="#38bdf8"
                     strokeWidth="2.5"
                   />
@@ -281,7 +294,7 @@ const MondayWheelPopup = () => {
               {/* Dönen SVG Çark */}
               <svg
                 viewBox="0 0 320 320"
-                className="h-full w-full drop-shadow-[0_14px_32px_rgba(0,24,69,0.35)]"
+                className="h-full w-full drop-shadow-[0_16px_38px_rgba(0,12,36,0.65)]"
                 style={{
                   transform: `rotate(${rotationDeg}deg)`,
                   transition: spinning
@@ -294,9 +307,10 @@ const MondayWheelPopup = () => {
                   cx={cx}
                   cy={cy}
                   r={r + 12}
-                  fill="#001845"
-                  stroke="#0070d1"
-                  strokeWidth="3.5"
+                  fill="#001438"
+                  stroke="#38bdf8"
+                  strokeWidth="3"
+                  strokeOpacity="0.75"
                 />
                 <circle
                   cx={cx}
@@ -379,7 +393,7 @@ const MondayWheelPopup = () => {
               </svg>
 
               {/* Sabit Merkez Göbek: EconNotes Beyaz E Logosu */}
-              <div className="pointer-events-none absolute z-20 flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-cyan-300/80 bg-gradient-to-br from-[#001845] via-[#003791] to-[#0070d1] shadow-[0_0_24px_rgba(0,112,209,0.65)]">
+              <div className="pointer-events-none absolute z-20 flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-cyan-300/85 bg-gradient-to-br from-[#001845] via-[#003791] to-[#0070d1] shadow-[0_0_24px_rgba(0,112,209,0.75)]">
                 <img
                   src={econEMark}
                   alt="EconNotes E"
@@ -389,22 +403,22 @@ const MondayWheelPopup = () => {
               </div>
             </div>
 
-            {/* Kazanılan Ödül veya Durum Kartı (EconNotes Temalı) */}
+            {/* Kazanılan Ödül veya Durum Kartı (EconNotes Kobalt Cam Temalı) */}
             {wonSegment && wheelState.hasSpunToday ? (
-              <div className="rounded-2xl border border-primary/35 bg-gradient-to-br from-primary/[0.10] via-card to-cyan-500/[0.08] p-4 text-center space-y-2">
-                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-primary">
+              <div className="rounded-2xl border border-cyan-300/25 bg-white/[0.08] p-4 text-center space-y-2 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-300">
                   <PartyPopper className="h-4 w-4" />
                   Bu Haftaki Pazartesi Ödülün Hesabına Yüklendi!
                 </div>
-                <p className="text-base font-extrabold text-foreground">{wonSegment.fullTitle}</p>
-                <p className="text-xs text-muted-foreground">{wonSegment.description}</p>
+                <p className="text-base font-extrabold text-white">{wonSegment.fullTitle}</p>
+                <p className="text-xs text-blue-100/85">{wonSegment.description}</p>
                 <div className="pt-2 flex gap-2 justify-center">
                   <Button
                     type="button"
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => setOpen(false)}
-                    className="rounded-xl text-xs"
+                    className="rounded-xl text-xs border border-white/15 bg-white/[0.06] text-blue-100 hover:bg-white/15 hover:text-white"
                   >
                     Kapat
                   </Button>
@@ -415,7 +429,7 @@ const MondayWheelPopup = () => {
                       setOpen(false);
                       navigate(wonSegment.type === 'xp' ? '/points' : '/notes');
                     }}
-                    className="rounded-xl bg-gradient-to-r from-[#003791] to-[#0070d1] text-white text-xs gap-1.5"
+                    className="rounded-xl bg-gradient-to-r from-[#0055b8] via-[#0070d1] to-[#0ea5e9] text-white text-xs gap-1.5 border border-cyan-300/30 shadow-md"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     {wonSegment.type === 'xp' ? 'Puanlarıma Git' : 'Notlara Git'}
@@ -423,16 +437,16 @@ const MondayWheelPopup = () => {
                 </div>
               </div>
             ) : !wheelState.isMonday ? (
-              <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.07] via-card to-cyan-500/[0.05] p-4 text-center space-y-1.5">
-                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-primary">
-                  <Lock className="h-3.5 w-3.5" />
+              <div className="rounded-2xl border border-cyan-300/25 bg-white/[0.08] p-4 text-center space-y-1.5 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
+                <div className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-200">
+                  <Lock className="h-3.5 w-3.5 text-cyan-300" />
                   Yalnızca Pazartesi Günleri Çevrilebilir
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
+                <p className="text-xs text-blue-100/85 leading-relaxed">
                   Şans çarkı haftada yalnız 1 gün (Pazartesi 00:00 - 23:59 arası) aktif olur. Pazartesi günü çevirmeyi kaçırırsan bir sonraki Pazartesi gününü beklemen gerekir.
                 </p>
-                <p className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary mt-1">
-                  <CalendarClock className="h-3.5 w-3.5" />
+                <p className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-cyan-400/15 px-3 py-1 text-xs font-semibold text-cyan-100 mt-1">
+                  <CalendarClock className="h-3.5 w-3.5 text-cyan-300" />
                   {wheelState.countdownLabel}
                 </p>
               </div>
@@ -443,16 +457,16 @@ const MondayWheelPopup = () => {
                   disabled={spinning || !wheelState.canSpinNow}
                   onClick={handleSpin}
                   className={cn(
-                    'w-full h-11 rounded-2xl text-white font-bold text-sm shadow-lg gap-2',
+                    'w-full h-11 rounded-2xl text-white font-bold text-sm shadow-lg gap-2 border border-cyan-300/30',
                     isNovember10
-                      ? 'bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950'
-                      : 'bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] hover:opacity-95 shadow-blue-600/25',
+                      ? 'bg-zinc-100 text-zinc-950 hover:bg-zinc-200'
+                      : 'bg-gradient-to-r from-[#0055b8] via-[#0070d1] to-[#0ea5e9] hover:opacity-95 shadow-[#0070d1]/35',
                   )}
                 >
                   <Gift className="h-4 w-4" />
                   {spinning ? 'Çark Dönüyor...' : 'Şans Çarkını Çevir!'}
                 </Button>
-                <p className="text-center text-[11px] text-muted-foreground">
+                <p className="text-center text-[11px] text-blue-100/80">
                   {wheelState.countdownLabel} · Çıkan ödül anında hesabına tanımlanır.
                 </p>
               </div>

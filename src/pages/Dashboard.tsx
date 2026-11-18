@@ -510,60 +510,6 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Pazartesi Şans Çarkı Kartı */}
-        {user && (() => {
-          const wheel = getMondayWheelState(user);
-          return (
-            <Card className="glass-card relative overflow-hidden border-primary/30 bg-gradient-to-r from-[#001845]/[0.06] via-primary/[0.06] to-cyan-500/[0.08]">
-              {/* Sağ altta dekoratif çark görseli */}
-              <div className="pointer-events-none absolute -bottom-5 -right-5 opacity-[0.12]">
-                <EconWheelMiniGraphic className="h-28 w-28" />
-              </div>
-              <CardContent className="relative z-10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="p-1.5 rounded-2xl bg-gradient-to-br from-[#001845] via-[#003791] to-[#0070d1] text-white shadow-md shadow-primary/20 shrink-0 ring-1 ring-white/15">
-                    <EconWheelMiniGraphic className="h-10 w-10" spinning={wheel.canSpinNow} />
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-bold text-sm sm:text-base text-foreground">Pazartesi Şans Çarkı</h3>
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${wheel.canSpinNow ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/30' : 'bg-primary/10 text-primary border-primary/30'}`}>
-                        {wheel.canSpinNow ? 'ÇEVİRMEYE HAZIR' : wheel.hasSpunToday ? 'BU HAFTA ÇEVRİLDİ' : 'PAZARTESİ ÖZEL'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {wheel.hasSpunToday && wheel.todayRewardTitle
-                        ? `Bu haftaki ödülün: ${wheel.todayRewardTitle} — Haftaya Pazartesi tekrar çevirebilirsin.`
-                        : wheel.isMonday
-                        ? `+2 Not hakkı, 1 günlük sınırsız erişim veya 100-500 XP kazanmak için hemen çevir! (${wheel.countdownLabel})`
-                        : `Yalnızca Pazartesi günleri çevrilebilir. Pazartesi günü kaçırırsan diğer Pazartesi gününü beklemen gerekir. (${wheel.countdownLabel})`}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={wheel.canSpinNow ? 'default' : 'outline'}
-                  onClick={openMondayWheelModal}
-                  className={`shrink-0 gap-1.5 text-xs ${wheel.canSpinNow ? 'bg-gradient-to-r from-[#003791] to-[#0070d1] text-white hover:opacity-95 shadow-sm' : 'border-primary/30 bg-background/80 hover:bg-primary/10'}`}
-                >
-                  {wheel.canSpinNow ? (
-                    <>
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Çarkı Çevir
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="h-3.5 w-3.5 text-primary" />
-                      Çarkı Gör
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })()}
-
         {quota && !quota.is_admin && (
           <Card className={`glass-card ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
             <CardContent className="p-5">

@@ -84,7 +84,7 @@ const BirthdayCelebrationPopup = () => {
       <DialogContent
         onOpenAutoFocus={(e) => e.preventDefault()}
         className={cn(
-          'w-[calc(100vw-1.5rem)] max-w-[420px] overflow-hidden rounded-[28px] p-0 text-white backdrop-blur-2xl [&>button]:hidden',
+          'w-[calc(100vw-1.5rem)] max-w-[420px] overflow-hidden rounded-[28px] p-0 sm:p-0 gap-0 text-white backdrop-blur-2xl [&>button]:hidden',
           isNovember10
             ? 'border border-white/15 bg-gradient-to-b from-zinc-900 via-zinc-900 to-zinc-950 shadow-[0_24px_64px_rgba(0,0,0,0.65)]'
             : 'border border-cyan-300/25 bg-gradient-to-b from-[#001d52] via-[#002b75] to-[#051533] shadow-[0_24px_70px_rgba(0,55,145,0.55)]',
