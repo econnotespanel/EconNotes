@@ -12,20 +12,20 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
-  LayoutGrid,
+  Home,
   FileText,
   Megaphone,
   User,
   Shield,
-  Mail,
+  MessageSquare,
   Menu,
   X,
   Info,
   Bot,
   Video,
   GraduationCap,
-  ListChecks,
-  Trophy,
+  Target,
+  Sparkles,
   LogOut,
   LifeBuoy,
 } from 'lucide-react';
@@ -154,25 +154,25 @@ const Sidebar = () => {
     };
   }, [open]);
 
-  const primaryItems: LinkItem[] = [
-    { label: 'Panel',            icon: LayoutGrid,    path: '/' },
-    { label: 'Notlar',           icon: FileText,      path: '/notes' },
-    { label: 'Duyurular',        icon: Megaphone,     path: '/announcements', badge: unreadAnnouncements },
-    { label: 'Mesajlarım',       icon: Mail,          path: '/messages',      badge: unreadMessages },
+  const primary: LinkItem[] = [
+    { label: 'Ana Sayfa',          icon: Home,          path: '/' },
+    { label: 'Notlar',             icon: FileText,      path: '/notes' },
+    { label: 'Duyurular',          icon: Megaphone,     path: '/announcements', badge: unreadAnnouncements },
+    { label: 'Mesajlar',           icon: MessageSquare, path: '/messages',      badge: unreadMessages },
   ];
 
-  const toolItems: LinkItem[] = [
-    { label: 'Çalışma Stüdyosu', icon: GraduationCap, path: '/study',         isNew: true },
-    { label: 'Soru Bankası',     icon: ListChecks,    path: '/kpss',          isNew: true },
-    { label: 'Canlı Ders',       icon: Video,         path: '/live-class' },
-    { label: 'Akademik Asistan', icon: Bot,           path: '/assistant' },
+  const tools: LinkItem[] = [
+    { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',      isNew: true },
+    { label: 'KPSS Merkezi',       icon: Target,        path: '/kpss',       isNew: true },
+    { label: 'Canlı Ders',         icon: Video,         path: '/live-class' },
+    { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant' },
   ];
 
-  const accountItems: LinkItem[] = [
-    { label: 'Profilim',         icon: User,          path: '/profile' },
-    { label: 'Liderlik',         icon: Trophy,        path: '/points' },
-    { label: 'Destek Merkezi',   icon: LifeBuoy,      path: '/support',       badge: unreadSupport, isBeta: true },
-    { label: 'Hakkında',         icon: Info,          path: '/about' },
+  const account: LinkItem[] = [
+    { label: 'Profilim',           icon: User,          path: '/profile' },
+    { label: 'Puan Geçmişim',      icon: Sparkles,      path: '/points',     isNew: true },
+    { label: 'Destek Merkezi',     icon: LifeBuoy,      path: '/support',    isBeta: true, badge: unreadSupport },
+    { label: 'Hakkında',           icon: Info,          path: '/about' },
     ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
 
@@ -200,39 +200,23 @@ const Sidebar = () => {
         onClick={() => navigate(link.path)}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'group relative flex items-center gap-3 w-full rounded-[13px] px-2.5 min-h-[38px] py-1.5 text-[13.5px]',
+          'group relative flex items-center gap-3 w-full rounded-[14px] px-3.5 min-h-[38px] py-2 text-[13.5px]',
           'transition-all duration-200 ease-out select-none',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
           active
-            ? 'bg-gradient-to-r from-blue-600/10 via-blue-500/[0.08] to-indigo-500/[0.04] dark:from-[#19283e] dark:to-[#152033] text-blue-600 dark:text-[#5b9cf6] font-semibold ring-1 ring-blue-500/20 dark:ring-[#5b9cf6]/25 shadow-[0_2px_10px_-3px_rgba(37,99,235,0.14)]'
-            : 'text-slate-600 dark:text-[#8e96a4] font-medium hover:bg-slate-100/90 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
+            ? 'bg-blue-500/10 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6] font-semibold'
+            : 'text-slate-600 dark:text-[#8e96a4] font-medium hover:bg-slate-100/80 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
         )}
       >
-        {/* Sol aktif gösterge çubuğu */}
-        <span
-          aria-hidden
+        <Icon
           className={cn(
-            'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full transition-all duration-300',
+            'h-[18px] w-[18px] shrink-0 transition-colors duration-200',
             active
-              ? 'h-5 opacity-100 bg-blue-600 dark:bg-[#5b9cf6] shadow-[0_0_8px_rgba(37,99,235,0.5)]'
-              : 'h-2.5 opacity-0 group-hover:opacity-40 bg-blue-500',
+              ? 'text-blue-600 dark:text-[#5b9cf6]'
+              : 'text-slate-500 dark:text-[#8e96a4] group-hover:text-slate-800 dark:group-hover:text-[#e2e8f0]',
           )}
+          strokeWidth={active ? 2.1 : 1.85}
         />
-
-        {/* İkon kutusu */}
-        <span
-          className={cn(
-            'flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] transition-all duration-200',
-            active
-              ? 'bg-blue-600 text-white shadow-[0_2px_8px_rgba(37,99,235,0.35)] dark:bg-[#5b9cf6] dark:text-slate-950'
-              : 'bg-slate-100/80 text-slate-500 group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:bg-white/[0.04] dark:text-[#8e96a4] dark:group-hover:bg-white/[0.08] dark:group-hover:text-white',
-          )}
-        >
-          <Icon
-            className="h-[15.5px] w-[15.5px] shrink-0 transition-transform duration-200 group-hover:scale-105"
-            strokeWidth={active ? 2.2 : 1.9}
-          />
-        </span>
 
         <span className="flex-1 text-left truncate tracking-[-0.01em]">{link.label}</span>
 
@@ -247,7 +231,7 @@ const Sidebar = () => {
           </span>
         )}
         {link.badge && link.badge > 0 ? (
-          <span className="h-[20px] min-w-[22px] px-1.5 rounded-full bg-[#f05252] text-[10.5px] font-bold text-white inline-flex items-center justify-center shadow-xs">
+          <span className="h-[20px] min-w-[24px] px-2 rounded-full bg-[#f05252] text-[11px] font-bold text-white inline-flex items-center justify-center shadow-xs">
             {link.badge > 99 ? '99+' : link.badge}
           </span>
         ) : null}
@@ -272,9 +256,8 @@ const Sidebar = () => {
           !isFirstSection && 'mt-2 pt-2.5 border-t border-slate-200/70 dark:border-white/[0.06]',
         )}
       >
-        <div className="flex items-center gap-1.5 px-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 dark:text-[#64748b]">
-          <span className="h-1 w-1 rounded-full bg-blue-500/60 dark:bg-[#5b9cf6]/60" />
-          <span>{title}</span>
+        <div className="px-3.5 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-[#64748b]">
+          {title}
         </div>
         <div className="flex flex-col gap-0.5">
           {items.map((l, i) => renderItem(l, isFirstSection && i === 0))}
@@ -336,9 +319,9 @@ const Sidebar = () => {
       >
         <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <nav className="flex flex-col" aria-label="Ana menü">
-            <Section title="Panel" items={visible(primaryItems)} isFirstSection />
-            <Section title="Araçlar" items={visible(toolItems)} />
-            <Section title="Profil & Hesap" items={visible(accountItems)} />
+            <Section title="Panel" items={visible(primary)} isFirstSection />
+            <Section title="Araçlar" items={visible(tools)} />
+            <Section title="Hesap" items={visible(account)} />
           </nav>
         </div>
 

@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutGrid, FileText, Layers, Mail, Menu } from 'lucide-react';
+import { Home, FileText, GraduationCap, MessageSquare, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -80,10 +80,10 @@ const MobileBottomNav = () => {
   const totalBadge = unreadMessages + unreadAnnouncements;
 
   const navItems = [
-    { label: 'Panel', path: '/', icon: LayoutGrid, exact: true },
+    { label: 'Ana Sayfa', path: '/', icon: Home, exact: true },
     { label: 'Notlar', path: '/notes', icon: FileText },
-    { label: 'Stüdyo', path: '/study', icon: Layers, isHighlight: true },
-    { label: 'Mesajlarım', path: '/messages', icon: Mail, badge: unreadMessages },
+    { label: 'Stüdyo', path: '/study', icon: GraduationCap, isHighlight: true },
+    { label: 'Mesajlar', path: '/messages', icon: MessageSquare, badge: unreadMessages },
   ];
 
   return (
