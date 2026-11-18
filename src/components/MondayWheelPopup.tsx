@@ -26,50 +26,60 @@ export const openMondayWheelModal = () => {
   window.dispatchEvent(new CustomEvent('econnotes:open-monday-wheel'));
 };
 
-/** EconNotes kobalt-mavi & cyan dilimli özel minyatür çark ikonu */
+/** EconNotes kobalt-mavi & cyan dilimli, merkezinde beyaz E logolu özel minyatür çark ikonu */
 export const EconWheelMiniGraphic = ({ className = 'h-10 w-10' }: { className?: string }) => {
   const num = MONDAY_WHEEL_SEGMENTS.length;
   const angle = 360 / num;
   const cx = 32;
   const cy = 32;
-  const r = 27;
+  const r = 26;
 
   return (
-    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
-      <circle cx={cx} cy={cy} r={r + 3} fill="#001845" stroke="#38bdf8" strokeWidth="2" />
-      {MONDAY_WHEEL_SEGMENTS.map((seg, i) => {
-        const sDeg = i * angle - 90;
-        const eDeg = (i + 1) * angle - 90;
-        const sRad = (sDeg * Math.PI) / 180;
-        const eRad = (eDeg * Math.PI) / 180;
-        const x1 = cx + r * Math.cos(sRad);
-        const y1 = cy + r * Math.sin(sRad);
-        const x2 = cx + r * Math.cos(eRad);
-        const y2 = cy + r * Math.sin(eRad);
-        return (
-          <path
-            key={seg.id}
-            d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`}
-            fill={seg.color}
-            stroke="rgba(255,255,255,0.55)"
-            strokeWidth="1"
-          />
-        );
-      })}
-      <circle cx={cx} cy={cy} r="9.5" fill="#001845" stroke="#38bdf8" strokeWidth="1.8" />
-      <text
-        x={cx}
-        y={cy + 0.5}
-        fill="#ffffff"
-        fontSize="9.5"
-        fontWeight="900"
-        textAnchor="middle"
-        dominantBaseline="middle"
-      >
-        E
-      </text>
-      <polygon points="32,1 28,8 36,8" fill="#38bdf8" />
-    </svg>
+    <div className={cn('relative inline-flex items-center justify-center select-none', className)} aria-hidden="true">
+      <svg viewBox="0 0 64 64" className="h-full w-full drop-shadow-[0_2px_6px_rgba(0,18,56,0.45)]">
+        <circle cx={cx} cy={cy} r={r + 3.5} fill="#001438" stroke="#38bdf8" strokeWidth="1.8" />
+        {MONDAY_WHEEL_SEGMENTS.map((seg, i) => {
+          const sDeg = i * angle - 90;
+          const eDeg = (i + 1) * angle - 90;
+          const sRad = (sDeg * Math.PI) / 180;
+          const eRad = (eDeg * Math.PI) / 180;
+          const x1 = cx + r * Math.cos(sRad);
+          const y1 = cy + r * Math.sin(sRad);
+          const x2 = cx + r * Math.cos(eRad);
+          const y2 = cy + r * Math.sin(eRad);
+          return (
+            <path
+              key={seg.id}
+              d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`}
+              fill={seg.color}
+              stroke="rgba(255,255,255,0.45)"
+              strokeWidth="0.9"
+            />
+          );
+        })}
+        {Array.from({ length: 7 }).map((_, i) => {
+          const deg = (i * 360) / 7 - 90;
+          const rad = (deg * Math.PI) / 180;
+          return (
+            <circle
+              key={i}
+              cx={cx + (r + 1.8) * Math.cos(rad)}
+              cy={cy + (r + 1.8) * Math.sin(rad)}
+              r="1.1"
+              fill="#ffffff"
+            />
+          );
+        })}
+        <circle cx={cx} cy={cy} r="10.5" fill="#001845" stroke="#38bdf8" strokeWidth="1.6" />
+        <polygon points="32,0.8 28.2,7.5 35.8,7.5" fill="#38bdf8" stroke="#001438" strokeWidth="0.8" />
+      </svg>
+      <img
+        src={econEMark}
+        alt=""
+        draggable={false}
+        className="pointer-events-none absolute h-[31%] w-[31%] object-contain brightness-0 invert"
+      />
+    </div>
   );
 };
 
@@ -179,48 +189,66 @@ const MondayWheelPopup = () => {
 
   return (
     <>
-      {/* Sağ Altta Çark Resmi ile Gösterilen Yüzen Pazartesi Şans Çarkı Kutusu */}
+      {/* Sağ Altta Çark Resmi ile Gösterilen EconNotes Uyumlu Pazartesi Şans Çarkı Kutusu */}
       {showFloatingLauncher && (
-        <div className="fixed bottom-24 right-4 z-40 md:bottom-5 md:right-5 flex items-center">
-          <div className="group relative flex items-center gap-3 rounded-2xl border border-cyan-300/35 bg-gradient-to-r from-[#001d52]/95 via-[#003385]/95 to-[#004ba8]/95 p-2.5 pr-3.5 text-white shadow-[0_16px_44px_rgba(0,35,95,0.45)] backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-cyan-300/60">
+        <div className="fixed bottom-24 right-3.5 z-40 md:bottom-5 md:right-5 flex items-center">
+          <div
+            className={cn(
+              'group relative flex items-center gap-3 overflow-hidden rounded-[22px] p-2.5 pr-3 text-white',
+              'border border-cyan-300/35 bg-gradient-to-r from-[#001a49]/95 via-[#003182]/95 to-[#0052b5]/95',
+              'shadow-[0_18px_44px_-8px_rgba(0,40,110,0.55),0_4px_14px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.25)]',
+              'backdrop-blur-2xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/60 hover:shadow-[0_22px_50px_-8px_rgba(0,70,175,0.65)]',
+            )}
+          >
+            {/* Üst ince EconNotes cyan ışık yansıması */}
+            <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
+            <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-cyan-400/20 blur-2xl" />
+
             <button
               type="button"
               onClick={openMondayWheelModal}
-              className="flex items-center gap-3 text-left"
+              className="relative z-10 flex items-center gap-3 text-left focus:outline-none"
             >
-              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-300/30 bg-[#001438]/70 p-1 shadow-md">
-                <EconWheelMiniGraphic className="h-10 w-10 transition-transform duration-500 group-hover:rotate-45" />
+              <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/35 bg-gradient-to-br from-[#001233] via-[#00286e] to-[#0055b8] p-1 shadow-[0_6px_16px_rgba(0,18,56,0.5),inset_0_1px_1px_rgba(255,255,255,0.2)]">
+                <EconWheelMiniGraphic className="h-10 w-10 transition-transform duration-500 ease-out group-hover:rotate-45" />
                 {wheelState.canSpinNow && (
-                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-cyan-400 ring-2 ring-[#001d52] animate-pulse" />
+                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-cyan-400 ring-2 ring-[#001a49] animate-pulse" />
                 )}
               </div>
-              <div className="min-w-0 pr-1">
+
+              <div className="min-w-0 pr-0.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-extrabold tracking-tight text-white">
+                  <span className="text-[13px] font-extrabold tracking-tight text-white whitespace-nowrap">
                     Pazartesi Şans Çarkı
                   </span>
-                  <span className="rounded-full border border-cyan-300/35 bg-cyan-400/15 px-1.5 py-0.5 text-[9.5px] font-bold text-cyan-200">
-                    {wheelState.canSpinNow ? 'AKTİF' : 'PAZARTESİ'}
+                  <span className="rounded-full border border-cyan-300/40 bg-cyan-400/20 px-2 py-0.5 text-[9.5px] font-extrabold tracking-wide text-cyan-100 shadow-2xs">
+                    {wheelState.canSpinNow ? 'ÇEVİR' : 'PAZARTESİ'}
                   </span>
                 </div>
-                <p className="text-[11px] text-blue-100/85 truncate max-w-[185px]">
-                  {wheelState.canSpinNow
-                    ? 'Hemen çevir, ödülünü kazan!'
-                    : wheelState.countdownLabel}
+                <p className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-blue-100/90 whitespace-nowrap">
+                  <CalendarClock className="h-3 w-3 shrink-0 text-cyan-300" />
+                  <span>
+                    {wheelState.canSpinNow
+                      ? 'Hemen çevir, ödülünü kazan!'
+                      : wheelState.countdownLabel.replace('Bir sonraki Pazartesi çarkına ', '')}
+                  </span>
                 </p>
               </div>
             </button>
-            <button
-              type="button"
-              aria-label="Çark kutusunu gizle"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLauncherDismissed(true);
-              }}
-              className="ml-0.5 rounded-lg p-1 text-blue-100/75 hover:bg-white/15 hover:text-white transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+
+            <div className="relative z-10 flex items-center pl-1 border-l border-white/15">
+              <button
+                type="button"
+                aria-label="Çark kutusunu gizle"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLauncherDismissed(true);
+                }}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-blue-100/75 hover:bg-white/15 hover:text-white transition-colors active:scale-90"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       )}
