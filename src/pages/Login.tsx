@@ -760,7 +760,7 @@ const Login = () => {
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck="false"
-                placeholder="ogrenci@ogr.duzce.edu.tr"
+                placeholder="ornek@mail.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="pl-10 h-11 rounded-2xl bg-card/50 border-border/80 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:border-cyan-400 text-sm transition-all"

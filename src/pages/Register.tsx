@@ -319,7 +319,7 @@ const Register = () => {
                 <User className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="fullName"
-                  placeholder="Örn: Kaan Çolakoğlu"
+                  placeholder="Örn: Asya Ulusoy"
                   value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
                   onBlur={() => {
