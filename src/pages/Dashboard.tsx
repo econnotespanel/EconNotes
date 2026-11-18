@@ -362,7 +362,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* PlayStation Gradient Quick Access Cards */}
+        {/* Quick Access Cards */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
@@ -370,6 +370,8 @@ const Dashboard = () => {
               detail: 'Dersine uygun kaynaklara göz at.',
               icon: BookOpen,
               path: '/notes',
+              externalUrl: undefined as string | undefined,
+              badge: undefined as string | undefined,
               iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-primary/10 text-primary',
               hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-primary/40 hover:shadow-[0_8px_24px_hsl(var(--primary)/0.12)]',
             },
@@ -378,14 +380,18 @@ const Dashboard = () => {
               detail: 'Notlarından yeni çalışma araçları üret.',
               icon: Brain,
               path: '/study',
+              externalUrl: undefined as string | undefined,
+              badge: undefined as string | undefined,
               iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
               hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-cyan-500/40 hover:shadow-[0_8px_24px_rgba(6,182,212,0.12)]',
             },
             {
               label: 'KPSS Merkezi',
-              detail: 'Sorularla sınava hazırlanmaya devam et.',
+              detail: 'KPSS Merkezi artık EconKPSS’e taşındı. KPSS hazırlıklarına EconKPSS üzerinden devam edebilirsin.',
               icon: Target,
               path: '/kpss',
+              externalUrl: 'https://econkpss.online',
+              badge: 'EconKPSS',
               iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
               hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-indigo-500/40 hover:shadow-[0_8px_24px_rgba(99,102,241,0.12)]',
             },
@@ -394,13 +400,21 @@ const Dashboard = () => {
               detail: 'Arkadaşlarınla iletişimde kal.',
               icon: MessageSquare,
               path: '/messages',
+              externalUrl: undefined as string | undefined,
+              badge: undefined as string | undefined,
               iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
               hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-sky-500/40 hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)]',
             },
           ].map((item) => (
             <div
               key={item.path}
-              onClick={() => navigate(item.path)}
+              onClick={() => {
+                if (item.externalUrl) {
+                  window.open(item.externalUrl, '_blank', 'noopener,noreferrer');
+                } else {
+                  navigate(item.path);
+                }
+              }}
               className={cn(
                 'group relative flex flex-col justify-between gap-3 p-5 rounded-xl border border-border/70 bg-gradient-to-br from-card via-card to-card/90 cursor-pointer transition-all duration-200',
                 item.hoverGlow,
@@ -411,14 +425,21 @@ const Dashboard = () => {
                 <span className={cn('p-2.5 rounded-lg transition-transform duration-200 group-hover:scale-105', item.iconClass)}>
                   <item.icon className="h-5 w-5" />
                 </span>
-                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-hover:translate-x-1 group-hover:text-foreground" />
+                <div className="flex items-center gap-1.5">
+                  {item.badge && (
+                    <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                      {item.badge}
+                    </span>
+                  )}
+                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-hover:translate-x-1 group-hover:text-foreground" />
+                </div>
               </div>
 
               <div>
                 <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-sm sm:text-base">
                   {item.label}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
                   {item.detail}
                 </p>
               </div>
