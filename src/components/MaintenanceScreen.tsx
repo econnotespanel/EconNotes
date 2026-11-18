@@ -10,6 +10,7 @@ import {
   Info,
   Mail,
   Sun,
+  Moon,
   Calendar,
   Clock,
   ShieldCheck,
@@ -20,6 +21,8 @@ import FatalErrorScreen from '@/components/FatalErrorScreen';
 import econNotesEMark from '@/assets/econnotes-e-mark.png';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { Button } from '@/components/ui/button';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MaintenanceScreenProps {
   closedUntil?: string | null;
@@ -36,6 +39,9 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
   imageUrl,
   mode = 'maintenance',
 }) => {
+  const { theme, toggleTheme } = useTheme();
+  const { isAdmin } = useAuth();
+
   if (mode === 'fatal_error') {
     return (
       <FatalErrorScreen
@@ -151,51 +157,79 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
   const ModeIcon = modeBadge.icon;
 
   return (
-    <div className="min-h-screen bg-muted/30 dark:bg-background flex flex-col justify-between font-sans text-foreground antialiased selection:bg-primary/20">
+    <div className="min-h-screen bg-muted/30 dark:bg-background flex flex-col justify-between font-sans text-foreground antialiased selection:bg-primary/20 relative">
       
-      {/* Top Header Navigation */}
-      <header className="w-full bg-[#003791] border-b border-white/10 relative z-20">
-        <div className="mx-auto max-w-5xl px-3 sm:px-6 h-14 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <EconLogo className="h-6 w-28 sm:h-8 sm:w-36 brightness-0 invert shrink-0" />
-          </div>
-          <Link to="/login">
+      {/* Top Banner Gradient Background (spans top of screen behind status bar down into hero) */}
+      <div className="absolute top-0 inset-x-0 h-96 sm:h-[28rem] bg-gradient-to-b from-[#002e7a] via-[#004bb5] to-[#0066d6] pointer-events-none z-0 overflow-hidden">
+        {/* Subtle upright EconNotes 'E' watermark pattern */}
+        <div
+          className="absolute inset-0 select-none overflow-hidden"
+          style={{
+            backgroundImage: `url(${econNotesEMark})`,
+            backgroundRepeat: 'repeat',
+            backgroundSize: '44px 44px',
+            backgroundPosition: 'center',
+            filter: 'brightness(0) invert(1)',
+            opacity: 0.065,
+          }}
+        />
+      </div>
+
+      {/* Modern Floating Oval Header with iOS Safe Area */}
+      <header
+        className="sticky top-0 z-50 w-full px-3 sm:px-4 md:px-6 pointer-events-auto"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
+      >
+        <div className="relative mx-auto max-w-5xl flex h-[3.75rem] sm:h-[4.25rem] items-center justify-between gap-2 overflow-hidden rounded-[20px] sm:rounded-[24px] border border-white/25 dark:border-primary/30 bg-[#00205b]/85 dark:bg-[#070e1c]/90 px-3.5 sm:px-5 shadow-[0_12px_36px_rgba(0,18,50,0.4)] backdrop-blur-2xl">
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/40 dark:via-primary/50 to-transparent" />
+          
+          <Link to="/" className="flex items-center gap-2 transition-transform active:scale-95">
+            <EconLogo className="h-6 w-auto sm:h-7" allWhite />
+          </Link>
+
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <Button
               variant="ghost"
               size="sm"
-              className="text-white/90 hover:text-white hover:bg-white/10 text-xs font-medium gap-1.5 px-2.5 sm:px-3 h-8 sm:h-9"
+              onClick={toggleTheme}
+              className="h-8 w-8 sm:h-9 sm:w-9 p-0 rounded-full text-white/90 hover:text-white hover:bg-white/15 transition-colors"
+              title="Temayı Değiştir"
+              aria-label="Temayı Değiştir"
             >
-              <LogIn className="h-3.5 w-3.5 shrink-0" />
-              <span>Yönetici Girişi</span>
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-          </Link>
+
+            {isAdmin ? (
+              <Link to="/admin">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-semibold gap-1.5 rounded-full border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white shadow-sm backdrop-blur-sm transition-all active:scale-95 shrink-0"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                  <span>Yönetici Paneli</span>
+                </Button>
+              </Link>
+            ) : (
+              <Link to="/login">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-semibold gap-1.5 rounded-full border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white shadow-sm backdrop-blur-sm transition-all active:scale-95 shrink-0"
+                >
+                  <LogIn className="h-3.5 w-3.5 shrink-0" />
+                  <span>Yönetici Girişi</span>
+                </Button>
+              </Link>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Hero Header Banner */}
-      <div className="relative w-full bg-gradient-to-b from-[#003791] via-[#004bb5] to-[#0066d6] text-white pt-8 pb-20 sm:pt-14 sm:pb-32 px-4 text-center overflow-hidden">
-        
-        {/* Subtle upright EconNotes 'E' watermark pattern */}
-        <div
-          className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden"
-          aria-hidden="true"
-        >
-          <div
-            className="w-full h-full"
-            style={{
-              backgroundImage: `url(${econNotesEMark})`,
-              backgroundRepeat: 'repeat',
-              backgroundSize: '44px 44px',
-              backgroundPosition: 'center',
-              filter: 'brightness(0) invert(1)',
-              opacity: 0.065,
-            }}
-          />
-        </div>
-
-        {/* Content sits cleanly above watermark */}
-        <div className="relative z-10 max-w-xl mx-auto space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-xs font-medium text-white/90 border border-white/15">
+      {/* Hero Header Content */}
+      <div className="relative z-10 w-full text-white pt-4 pb-20 sm:pt-8 sm:pb-28 px-4 text-center">
+        <div className="max-w-xl mx-auto space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 backdrop-blur-sm text-xs font-medium text-white/90 border border-white/15 shadow-sm">
             <ModeIcon className="h-3.5 w-3.5" />
             <span>{modeBadge.label}</span>
           </div>
