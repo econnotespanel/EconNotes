@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones, Cake, Gift, Lock } from 'lucide-react';
 import { getBirthdayStatus, getUserBirthDate } from '@/lib/birthdayPerk';
 import { getMondayWheelState } from '@/lib/mondayWheel';
-import { openMondayWheelModal } from '@/components/MondayWheelPopup';
+import { openMondayWheelModal, EconWheelMiniGraphic } from '@/components/MondayWheelPopup';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -514,16 +514,20 @@ const Dashboard = () => {
         {user && (() => {
           const wheel = getMondayWheelState(user);
           return (
-            <Card className="glass-card border-primary/25 bg-gradient-to-r from-blue-500/[0.06] via-violet-500/[0.06] to-amber-500/[0.06]">
-              <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <Card className="glass-card relative overflow-hidden border-primary/30 bg-gradient-to-r from-[#001845]/[0.06] via-primary/[0.06] to-cyan-500/[0.08]">
+              {/* Sağ altta dekoratif çark görseli */}
+              <div className="pointer-events-none absolute -bottom-5 -right-5 opacity-[0.12]">
+                <EconWheelMiniGraphic className="h-28 w-28" />
+              </div>
+              <CardContent className="relative z-10 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-sm shrink-0">
-                    <Gift className="h-5 w-5" />
+                  <div className="p-1.5 rounded-2xl bg-gradient-to-br from-[#001845] via-[#003791] to-[#0070d1] text-white shadow-md shadow-primary/20 shrink-0 ring-1 ring-white/15">
+                    <EconWheelMiniGraphic className="h-10 w-10" spinning={wheel.canSpinNow} />
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-bold text-sm sm:text-base text-foreground">Pazartesi Şans Çarkı 🎡</h3>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${wheel.canSpinNow ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30'}`}>
+                      <h3 className="font-bold text-sm sm:text-base text-foreground">Pazartesi Şans Çarkı</h3>
+                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${wheel.canSpinNow ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border-cyan-500/30' : 'bg-primary/10 text-primary border-primary/30'}`}>
                         {wheel.canSpinNow ? 'ÇEVİRMEYE HAZIR' : wheel.hasSpunToday ? 'BU HAFTA ÇEVRİLDİ' : 'PAZARTESİ ÖZEL'}
                       </span>
                     </div>
@@ -541,7 +545,7 @@ const Dashboard = () => {
                   size="sm"
                   variant={wheel.canSpinNow ? 'default' : 'outline'}
                   onClick={openMondayWheelModal}
-                  className="shrink-0 gap-1.5 text-xs"
+                  className={`shrink-0 gap-1.5 text-xs ${wheel.canSpinNow ? 'bg-gradient-to-r from-[#003791] to-[#0070d1] text-white hover:opacity-95 shadow-sm' : 'border-primary/30 bg-background/80 hover:bg-primary/10'}`}
                 >
                   {wheel.canSpinNow ? (
                     <>
@@ -550,7 +554,7 @@ const Dashboard = () => {
                     </>
                   ) : (
                     <>
-                      <Lock className="h-3.5 w-3.5" />
+                      <Lock className="h-3.5 w-3.5 text-primary" />
                       Çarkı Gör
                     </>
                   )}

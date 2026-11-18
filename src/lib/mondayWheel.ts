@@ -23,7 +23,7 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
     description: 'Hesabına anında +2 kalıcı ek ders notu görüntüleme ve indirme hakkı tanımlandı!',
     type: 'extra_quota',
     amount: 2,
-    color: '#2563eb',
+    color: '#003791',
     textColor: '#ffffff',
   },
   {
@@ -33,7 +33,7 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
     description: '100 XP puan anında hesabına ve liderlik tablosu puanına eklendi!',
     type: 'xp',
     amount: 100,
-    color: '#0891b2',
+    color: '#0284c7',
     textColor: '#ffffff',
   },
   {
@@ -43,7 +43,7 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
     description: '200 XP puan anında hesabına ve liderlik tablosu puanına eklendi!',
     type: 'xp',
     amount: 200,
-    color: '#059669',
+    color: '#1e40af',
     textColor: '#ffffff',
   },
   {
@@ -53,8 +53,8 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
     description: '24 saat boyunca tüm ders notlarını sınırsız görüntüleyebilir, indirebilir ve saat kısıtlaması olmadan yükleyebilirsin!',
     type: 'unlimited_day',
     amount: 24,
-    color: '#f59e0b',
-    textColor: '#0f172a',
+    color: '#0ea5e9',
+    textColor: '#ffffff',
   },
   {
     id: 'xp_300',
@@ -63,7 +63,7 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
     description: '300 XP puan anında hesabına ve liderlik tablosu puanına eklendi!',
     type: 'xp',
     amount: 300,
-    color: '#7c3aed',
+    color: '#172554',
     textColor: '#ffffff',
   },
   {
@@ -73,7 +73,7 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
     description: '400 XP puan anında hesabına ve liderlik tablosu puanına eklendi!',
     type: 'xp',
     amount: 400,
-    color: '#db2777',
+    color: '#2563eb',
     textColor: '#ffffff',
   },
   {
@@ -83,7 +83,7 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
     description: 'Tam 500 XP puan anında hesabına ve liderlik tablosu puanına eklendi!',
     type: 'xp',
     amount: 500,
-    color: '#e11d48',
+    color: '#0369a1',
     textColor: '#ffffff',
   },
 ];
