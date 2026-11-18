@@ -2,6 +2,7 @@ import Layout from '@/components/Layout';
 import SignedImage from '@/components/SignedImage';
 import EconLogo from '@/components/EconLogo';
 import NotePreviewViewer from '@/components/NotePreviewViewer';
+import ScreenshotProtection from '@/components/ScreenshotProtection';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -689,8 +690,15 @@ const Notes = () => {
     return `${d.toLocaleDateString('tr-TR')} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
   };
 
+  const viewerDisplayName =
+    profile?.full_name?.trim() ||
+    String(user?.user_metadata?.full_name || '').trim() ||
+    user?.email?.split('@')[0] ||
+    'Öğrenci';
+
   return (
     <Layout>
+      <ScreenshotProtection isPreviewOpen={Boolean(previewUrl)} viewerName={viewerDisplayName}>
       <div className="space-y-6 animate-fade-in">
         {quota && !quota.is_admin && (
           <Card className={`glass-card border-2 ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : quota.can_download ? 'border-primary/30' : 'border-destructive/50'}`}>
@@ -1486,7 +1494,10 @@ const Notes = () => {
                   </div>
                 </div>
               </DialogHeader>
-              <div className="relative min-h-0 flex-1 w-full overflow-hidden bg-slate-900 p-1.5 sm:p-3">
+              <div
+                onContextMenu={(e) => e.preventDefault()}
+                className="econnotes-ss-protected relative min-h-0 flex-1 w-full overflow-hidden bg-slate-900 p-1.5 sm:p-3 select-none [-webkit-touch-callout:none]"
+              >
                 {previewType?.startsWith('image/') || previewType === 'application/pdf' ? (
                   <NotePreviewViewer previewUrl={previewUrl} previewType={previewType} />
                 ) : isPowerPoint(previewType, null) ? (
@@ -1558,6 +1569,7 @@ const Notes = () => {
           </DialogContent>
         </Dialog>
       </div>
+      </ScreenshotProtection>
     </Layout>
   );
 };

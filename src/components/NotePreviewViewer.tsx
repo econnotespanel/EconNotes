@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 // @ts-expect-error Vite resolves worker asset URL natively
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
-import { Loader2, Search, ZoomIn, ZoomOut, RotateCcw, Sparkles } from 'lucide-react';
+import { Loader2, Search, ZoomIn, ZoomOut, RotateCcw, Sparkles, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
@@ -168,10 +168,14 @@ const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previ
   };
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#070d19] shadow-inner">
+    <div
+      onContextMenu={(e) => e.preventDefault()}
+      onDragStart={(e) => e.preventDefault()}
+      className="econnotes-ss-protected relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-white/10 bg-[#070d19] shadow-inner select-none [-webkit-touch-callout:none] [-webkit-user-select:none]"
+    >
       {/* Üst Kontrol & Büyüteç Araç Çubuğu */}
       <div className="z-20 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-gradient-to-r from-[#001845]/90 via-[#0a1936]/95 to-[#002b75]/90 px-2.5 py-2 sm:px-4 backdrop-blur-xl">
-        {/* Sol: Büyüteç (Mercek) Modu Butonu */}
+        {/* Sol: Büyüteç (Mercek) Modu Butonu + SS Korumalı Rozeti */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             type="button"
@@ -192,8 +196,13 @@ const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previ
             <span>{magnifierEnabled ? 'Büyüteç Açık' : 'Büyüteç'}</span>
           </button>
 
+          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-200">
+            <ShieldCheck className="h-3 w-3 text-emerald-300 shrink-0" />
+            <span>SS Korumalı</span>
+          </span>
+
           {totalPages > 1 && (
-            <span className="hidden xs:inline-flex items-center rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-blue-100/85">
+            <span className="hidden sm:inline-flex items-center rounded-full border border-white/15 bg-white/[0.06] px-2.5 py-1 text-[11px] font-medium text-blue-100/85">
               {totalPages} Sayfa
             </span>
           )}
