@@ -58,10 +58,19 @@ const Dashboard = () => {
   const [banners, setBanners] = useState<any[]>([]);
   const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [, setBirthdayTick] = useState(0);
+  const birthdayStatus = getBirthdayStatus(user, profile);
+  const isBirthdayToday = birthdayStatus.isBirthdayToday;
   const displayName = profile?.full_name?.trim()
     || String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim()
     || user?.email?.split('@')[0]
     || 'öğrenci';
+
+  useEffect(() => {
+    const onBdayChange = () => setBirthdayTick((t) => t + 1);
+    window.addEventListener('econnotes:birthdate-updated', onBdayChange);
+    return () => window.removeEventListener('econnotes:birthdate-updated', onBdayChange);
+  }, []);
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -338,10 +347,14 @@ const Dashboard = () => {
           <div className="relative z-10 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div className="space-y-1">
               <h1 className="text-2xl font-bold sm:text-3xl text-foreground tracking-tight">
-                Merhaba, {displayName.split(' ')[0]}
+                {isBirthdayToday
+                  ? `Doğum günün kutlu olsun, ${displayName.split(' ')[0]}! 🎂`
+                  : `Merhaba, ${displayName.split(' ')[0]}`}
               </h1>
               <p className="text-sm text-muted-foreground max-w-xl">
-                Bugün küçük bir adım, hedeflerine büyük bir katkı. Notlarını keşfet ve verimli çalışmaya devam et.
+                {isBirthdayToday
+                  ? 'Sağlıklı, mutlu, huzurlu ve başarılarla dolu nice güzel yaşlara! Bugün sana özel tüm ders notlarını sınırsız görüntüleyebilir ve indirebilirsin.'
+                  : 'Bugün küçük bir adım, hedeflerine büyük bir katkı. Notlarını keşfet ve verimli çalışmaya devam et.'}
               </p>
             </div>
 
