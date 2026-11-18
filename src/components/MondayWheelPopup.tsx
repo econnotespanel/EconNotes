@@ -92,7 +92,19 @@ const MondayWheelPopup = () => {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [LauncherDismissed, setLauncherDismissed] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [wheelState, setWheelState] = useState(() => getMondayWheelState(user));
+
+  useEffect(() => {
+    const handleSidebarState = (e: Event) => {
+      const customEvent = e as CustomEvent<{ open: boolean }>;
+      if (customEvent.detail && typeof customEvent.detail.open === 'boolean') {
+        setIsSidebarOpen(customEvent.detail.open);
+      }
+    };
+    window.addEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
+    return () => window.removeEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
+  }, []);
   const [spinning, setSpinning] = useState(false);
   const [rotationDeg, setRotationDeg] = useState(0);
   const [wonSegment, setWonSegment] = useState<WheelSegment | null>(null);
@@ -191,7 +203,7 @@ const MondayWheelPopup = () => {
     <>
       {/* Sağ Altta Çark Resmi ile Gösterilen EconNotes Uyumlu Pazartesi Şans Çarkı Kutusu */}
       {showFloatingLauncher && (
-        <div className="fixed bottom-24 right-3.5 z-40 md:bottom-5 md:right-5 flex items-center">
+        <div className={cn("fixed bottom-24 right-3.5 z-30 md:bottom-5 md:right-5 items-center", isSidebarOpen ? "hidden md:flex" : "flex")}>
           <div
             className={cn(
               'group relative flex items-center gap-3 overflow-hidden rounded-[22px] p-2.5 pr-3 text-white',

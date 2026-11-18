@@ -215,7 +215,7 @@ const Header = () => {
       className="sticky top-0 z-50 w-full px-3 sm:px-3.5 md:px-4"
       style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
     >
-      <div className="relative flex h-[4.25rem] min-w-0 items-center justify-between gap-2 overflow-hidden rounded-[22px] md:rounded-[24px] border border-slate-200/80 dark:border-white/[0.08] bg-white/95 dark:bg-[#14171c]/95 px-3 sm:px-4 md:px-5 shadow-[0_14px_38px_rgba(15,23,42,0.07)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+      <div className="relative flex h-[4.25rem] min-w-0 items-center justify-between gap-2 overflow-hidden rounded-[22px] md:rounded-[24px] border border-border/80 dark:border-primary/25 bg-card/95 dark:bg-[#0a1324]/95 px-3 sm:px-4 md:px-5 shadow-[0_14px_38px_rgba(0,24,69,0.08)] dark:shadow-[0_20px_48px_rgba(0,8,24,0.75)] backdrop-blur-2xl">
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
         {seasonalTheme?.id === 'november10' && (
           <div className="pointer-events-none absolute inset-x-8 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-foreground/30 to-transparent opacity-80" />

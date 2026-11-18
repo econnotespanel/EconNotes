@@ -200,20 +200,20 @@ const Sidebar = () => {
         onClick={() => navigate(link.path)}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'group relative flex items-center gap-3 w-full rounded-[12px] px-3.5 min-h-[34px] md:min-h-[36px] py-1 md:py-1.5 text-[13.5px]',
+          'group relative flex items-center gap-3 w-full rounded-[13px] px-3.5 min-h-[35px] md:min-h-[36px] py-1.5 text-[13.5px]',
           'transition-all duration-200 ease-out select-none',
           'focus:outline-none focus-visible:outline-none',
           active
-            ? 'bg-blue-500/10 dark:bg-[#19283e] text-blue-600 dark:text-[#5b9cf6] font-semibold'
-            : 'text-slate-600 dark:text-[#8e96a4] font-medium hover:bg-slate-100/80 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-[#e2e8f0]',
+            ? 'bg-primary/12 dark:bg-[#0f2447] text-primary dark:text-[#60a5fa] font-semibold border border-primary/20 dark:border-primary/30 shadow-[0_2px_10px_-3px_rgba(0,112,209,0.2)]'
+            : 'text-slate-600 dark:text-slate-300/85 font-medium hover:bg-primary/[0.06] dark:hover:bg-primary/10 hover:text-slate-900 dark:hover:text-white',
         )}
       >
         <Icon
           className={cn(
             'h-[17px] w-[17px] md:h-[18px] md:w-[18px] shrink-0 transition-colors duration-200',
             active
-              ? 'text-blue-600 dark:text-[#5b9cf6]'
-              : 'text-slate-500 dark:text-[#8e96a4] group-hover:text-slate-800 dark:group-hover:text-[#e2e8f0]',
+              ? 'text-primary dark:text-[#60a5fa]'
+              : 'text-slate-500 dark:text-slate-400 group-hover:text-primary dark:group-hover:text-[#60a5fa]',
           )}
           strokeWidth={active ? 2.1 : 1.85}
         />
@@ -221,7 +221,7 @@ const Sidebar = () => {
         <span className="flex-1 text-left truncate tracking-[-0.01em]">{link.label}</span>
 
         {link.isNew && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-blue-500/25 text-blue-600 bg-blue-500/10 dark:border-[#5b9cf6]/30 dark:text-[#5b9cf6] dark:bg-[#5b9cf6]/10">
+          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-primary/25 text-primary bg-primary/10 dark:border-[#60a5fa]/30 dark:text-[#60a5fa] dark:bg-[#60a5fa]/10">
             YENİ
           </span>
         )}
@@ -253,10 +253,10 @@ const Sidebar = () => {
       <div
         className={cn(
           'flex flex-col gap-0.5',
-          !isFirstSection && 'mt-1 pt-1.5 border-t border-slate-200/70 dark:border-white/[0.06]',
+          !isFirstSection && 'mt-1.5 pt-2 border-t border-border/70 dark:border-primary/15',
         )}
       >
-        <div className="px-3.5 pb-0.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-[#64748b]">
+        <div className="px-3.5 pb-0.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-primary/70 dark:text-[#60a5fa]/70">
           {title}
         </div>
         <div className="flex flex-col gap-0.5">
@@ -273,7 +273,7 @@ const Sidebar = () => {
         aria-hidden
         onClick={() => setOpen(false)}
         className={cn(
-          'fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] md:hidden transition-opacity duration-300',
+          'fixed inset-0 z-40 bg-[#020817]/70 backdrop-blur-[3px] md:hidden transition-opacity duration-300',
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
         )}
       />
@@ -282,14 +282,14 @@ const Sidebar = () => {
         id="mobile-sidebar"
         role="navigation"
         className={cn(
-          'fixed inset-x-3.5 mx-auto md:inset-x-auto md:left-4 md:mx-0 z-50 w-[calc(100vw-1.75rem)] max-w-[430px] md:w-[244px] md:max-w-none',
-          'flex flex-col',
-          'rounded-[24px]',
-          'max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-10.5rem)] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6.25rem)]',
-          'bg-white/95 dark:bg-[#14171c]/95 text-slate-700 dark:text-[#8e96a4]',
-          'border border-slate-200/80 dark:border-white/[0.08]',
-          'shadow-[0_20px_50px_rgba(15,23,42,0.12)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.78)]',
-          'backdrop-blur-xl',
+          'fixed inset-x-3 sm:inset-x-3.5 mx-auto md:inset-x-auto md:left-4 md:mx-0 z-50 w-[calc(100vw-1.5rem)] sm:w-[calc(100vw-1.75rem)] max-w-[430px] md:w-[244px] md:max-w-none',
+          'flex flex-col overflow-hidden',
+          'rounded-[22px] md:rounded-[24px]',
+          'max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-10.25rem)] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6.25rem)]',
+          'bg-card/95 dark:bg-[#0a1324]/95 text-foreground',
+          'border border-border/80 dark:border-primary/25',
+          'shadow-[0_20px_50px_rgba(0,24,69,0.14)] dark:shadow-[0_24px_60px_rgba(0,8,24,0.88)]',
+          'backdrop-blur-2xl',
           'transition-all duration-250 ease-[cubic-bezier(.22,1,.36,1)] md:transition-none',
           'md:translate-y-0 md:scale-100 md:opacity-100 md:pointer-events-auto',
           open
@@ -297,20 +297,23 @@ const Sidebar = () => {
             : '-translate-y-2 scale-[0.98] opacity-0 pointer-events-none md:opacity-100',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 5.4rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 5.25rem)',
         }}
       >
+        {/* Üst ince EconNotes vurgu çizgisi (Üst bar ile tam uyumlu) */}
+        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/65 to-transparent" />
+
         <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <nav className="flex flex-col" aria-label="Ana menü">
+          <nav className="flex flex-col justify-between h-full" aria-label="Ana menü">
             <Section title="Panel" items={visible(primary)} isFirstSection />
             <Section title="Araçlar" items={visible(tools)} />
             <Section title="Hesap" items={visible(account)} />
           </nav>
         </div>
 
-        <div className="px-4 py-2 border-t border-slate-200/70 dark:border-white/[0.06] bg-slate-50/60 dark:bg-white/[0.02] rounded-b-[24px] flex items-center justify-between text-[10px] text-slate-400 dark:text-[#646d7a]">
+        <div className="px-4 py-2.5 border-t border-border/70 dark:border-primary/20 bg-primary/[0.04] dark:bg-[#070e1c]/90 rounded-b-[22px] md:rounded-b-[24px] flex items-center justify-between text-[10px] text-muted-foreground">
           <div className="flex items-center gap-1.5">
-            <EconLogo className="h-3.5 w-auto opacity-85" />
+            <EconLogo className="h-3.5 w-auto opacity-90" />
             {isNovember10 && (
               <div className="flex items-center gap-1">
                 <AtaturkPortrait className="h-3.5 w-auto" />
@@ -318,7 +321,7 @@ const Sidebar = () => {
               </div>
             )}
           </div>
-          <span className="font-mono font-semibold text-blue-600/80 dark:text-[#5b9cf6]/80">{APP_VERSION}</span>
+          <span className="font-mono font-semibold text-primary dark:text-[#60a5fa]">{APP_VERSION}</span>
         </div>
       </aside>
     </>

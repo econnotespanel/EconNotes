@@ -97,23 +97,17 @@ const BirthdayCelebrationPopup = () => {
 
         {/* Üst Hero Katmanı */}
         <div className="relative z-10 px-5 pt-5 pb-4 sm:px-6 sm:pt-6">
-          {/* Üst Bar: EconNotes Logosu + Özel Gün Rozeti + Kapat Butonu (Çakışmasız) */}
-          <div className="flex items-center justify-between gap-2 mb-4">
-            <EconLogo allWhite className="h-5 sm:h-6 w-auto shrink-0" />
-            <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/30 bg-white/10 px-2.5 py-1 text-[10.5px] font-semibold text-cyan-100 backdrop-blur-md">
-                <Sparkles className="h-3 w-3 text-cyan-300 shrink-0" />
-                <span>Doğum Günü Özel</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => handleClaim(false)}
-                aria-label="Kapat"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/85 transition-all hover:bg-white/20 hover:text-white active:scale-90"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
+          {/* Üst Bar: EconNotes Logosu (Ortalanmış) + Kapat Butonu */}
+          <div className="relative flex items-center justify-center mb-4">
+            <EconLogo allWhite className="h-5 sm:h-6 w-auto" />
+            <button
+              type="button"
+              onClick={() => handleClaim(false)}
+              aria-label="Kapat"
+              className="absolute right-0 top-1/2 -translate-y-1/2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/85 transition-all hover:bg-white/20 hover:text-white active:scale-90"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
 
           {/* Merkez İkon & Başlık */}
