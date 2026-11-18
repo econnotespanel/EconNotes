@@ -692,22 +692,7 @@ const Dashboard = () => {
                           <p className="break-words text-xs text-muted-foreground sm:truncate">{note.uploader_name} • {note.course} • {note.semester}</p>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-2 pl-7 sm:pl-0 shrink-0">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/study?create=summary&noteId=${note.id}`);
-                          }}
-                          className="h-7 px-2.5 text-[11px] gap-1 border-primary/30 text-primary hover:bg-primary/10"
-                        >
-                          <GraduationCap className="h-3 w-3" />
-                          Stüdyoda Çalış
-                        </Button>
-                        <span className="text-[11px] text-muted-foreground sm:text-xs">{formatDateTime(note.created_at)}</span>
-                      </div>
+                      <span className="pl-7 text-[11px] text-muted-foreground sm:pl-0 sm:text-xs shrink-0">{formatDateTime(note.created_at)}</span>
                     </div>
                   ))}
                   {recentNotes.length > 5 && (
