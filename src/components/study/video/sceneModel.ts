@@ -916,17 +916,17 @@ function buildConversationalSentences(
 
   const focusTerm = terms[0]?.term || takeaways[0] || sceneTitle;
   const probingQuestionBank = [
-    `Deniz hocam, ${focusTerm} başlığında öğrencilerin önce hangi ilişkiyi kurması gerekiyor?`,
-    `Bu noktayı ${focusTerm} üzerinden somutlaştırabilir miyiz hocam; neden-sonuç zinciri nasıl ilerliyor?`,
-    `${focusTerm} ile ilgili en çok karıştırılan nokta hangisi hocam? Bunu kısa bir örnekle ayırabilir miyiz?`,
-    `Bu sahnede ${focusTerm} kavramını diğerlerinden ayıran temel özellik sizce hangisi, Deniz hocam?`,
+    `Deniz hocam, ${focusTerm} mekanizmasının ortaya çıkışında hangi yapısal kırılma veya ihtiyaç belirleyici oluyor?`,
+    `Bu dönüşümü ${focusTerm} ekseninde somutlaştırırsak hocam; başlangıçtaki sorun hangi kurumsal çözüme yol açıyor?`,
+    `${focusTerm} kavramını alternatif yaklaşımlardan ayıran en kritik yapısal sınır nedir Deniz hocam?`,
+    `Bu aşamada ${focusTerm} devreye girdiğinde sistemin dengesi nasıl değişiyor, Deniz hocam?`,
   ];
 
   const instructorAckBank = [
-    `Sorunun merkezine geldin Barış;`,
-    `Bu ayrımı kurmak için önce şu çerçeveyi kuralım Barış:`,
-    `Burada belirleyici olan bağlantı şu Barış:`,
-    `Bu soruyu yanıtlarken iki katmanı birlikte düşünelim Barış:`,
+    `Buradaki nedensellik zincirinin ilk halkası şöyle kuruluyor Barış:`,
+    `Dönüşümün arkasındaki temel dinamik tam olarak şu Barış:`,
+    `Kavramsal çerçeveyi netleştirdiğimizde tablo şöyle ortaya çıkıyor Barış:`,
+    `Neden ile sonuç arasındaki kurumsal köprü şöyle işliyor Barış:`,
   ];
 
   const firstSpeaker = leadSpeaker;
@@ -938,7 +938,7 @@ function buildConversationalSentences(
     sentences.push(probingQuestionBank[sceneIdx % probingQuestionBank.length]);
     speakers.push(secondSpeaker);
     if (takeaways.length > 0) {
-      sentences.push(`${instructorAckBank[sceneIdx % instructorAckBank.length]} İşin kalbi şurada: ${ensureSentenceEnd(lowerFirstIfNotProper(takeaways[0]))}`);
+      sentences.push(`${instructorAckBank[sceneIdx % instructorAckBank.length]} ${ensureSentenceEnd(lowerFirstIfNotProper(takeaways[0]))}`);
       speakers.push(firstSpeaker);
     }
   } else if (baseSentences.length === 2) {
@@ -972,7 +972,6 @@ function buildConversationalSentences(
   const lowerAll = sentences.join(' ').toLocaleLowerCase('tr-TR');
 
   // Henüz açılmamış terimleri (en fazla 2 adet) NotebookLM soru-cevap derinliğiyle işle:
-  // Barış merakla "Deniz hocam..." diye sorar, Dr. Deniz kavramsal ayrımı ve formülü açıklar.
   const unusedTerms = terms.filter(
     kt =>
       kt.term &&
@@ -982,14 +981,14 @@ function buildConversationalSentences(
   );
 
   const termQuestionTemplates = [
-    (term: string) => `Deniz hocam, araya girip özellikle şunu sormak istiyorum: Notlardaki ${term} kavramını aklımızda nasıl kodlamalıyız?`,
-    (term: string) => `Tam burada öğrencilerin en çok karıştırdığı bir terim var: ${term}. Bunun ayırıcı püf noktası nedir hocam?`,
-    (term: string) => `Hocam, hocaların sınavda soru hazırlarken en sevdiği kavram ${term} olabilir mi? Öğrenci nereye odaklanmalı?`,
+    (term: string) => `Deniz hocam, kaynak metindeki ${term} kavramı bu tarihsel ve kuramsal akışın neresine oturuyor?`,
+    (term: string) => `Burada sıkça karşılaştığımız ${term} kavramının ayırıcı mekanizması nedir Deniz hocam?`,
+    (term: string) => `Hocam, ${term} kavramını diğer kurum ve araçlardan ayıran temel ölçüt nedir?`,
   ];
   const termAnswerOpeners = [
-    'Bu kavramı yerli yerine oturtmak için önce tanımını, ardından sonucunu ayıralım:',
-    'Burada iki aşamalı düşünmek gerekir: önce mekanizma, sonra ortaya çıkan etki:',
-    'Sınavda bu kavramı doğru kullanmak için belirleyici ölçüt şudur:',
+    'Bu kavramı yerli yerine oturtmak için önce işlevini, ardından yapısal sonucunu görelim:',
+    'Burada iki katmanlı bir mekanizma işler; önce başlangıç koşulu, sonra doğurduğu etki:',
+    'Bu kavramı doğru çözümlemek için belirleyici analitik ölçüt şudur:',
   ];
 
   unusedTerms.slice(0, 2).forEach((kt, tIdx) => {
@@ -1003,7 +1002,6 @@ function buildConversationalSentences(
   });
 
   // Henüz konuşulmamış önemli çıkarımları analitik derinlikle ekle:
-  // Barış büyük resmi toparlar, Dr. Deniz teyit edip sınav boyutunu ekler.
   const unusedTakeaways = takeaways.filter(
     tk =>
       tk &&
@@ -1013,27 +1011,26 @@ function buildConversationalSentences(
 
   if (unusedTakeaways.length > 0) {
     const tk = unusedTakeaways[0];
-    sentences.push(`O hâlde Deniz hocam, buradaki büyük resmi tek bir cümleyle özetlersek: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
+    sentences.push(`O hâlde Deniz hocam, buradaki nedensellik zincirini tek bir cümleyle özetlersek: ${ensureSentenceEnd(lowerFirstIfNotProper(tk))}`);
     speakers.push('Barış');
     if (unusedTakeaways[1]) {
-      sentences.push(`Bu çerçeveyi tamamlayan ikinci sonuç ise şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
+      sentences.push(`Bu çerçeveyi tamamlayan ikinci yapısal sonuç ise şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
       speakers.push('Deniz');
     } else {
-      sentences.push(`Bu nedenle konunun omurgasını neden ile sonuç arasındaki bu bağ oluşturuyor.`);
+      sentences.push(`Bu nedenle konunun omurgasını başlangıçtaki kısıt ile ortaya çıkan kurumsal çözüm arasındaki bu bağ oluşturuyor.`);
       speakers.push('Deniz');
     }
   }
 
   // Sınav perspektifi ve kavramsal ayrım uyarısı:
-  // Barış öğrenci tüyo sorusu sorar, Dr. Deniz hoca gözüyle kritik anahtarı verir.
   if (
     examTip &&
     !coveredSigs.has(textSignature(examTip)) &&
     !lowerAll.includes(examTip.slice(0, 20).toLocaleLowerCase('tr-TR'))
   ) {
-    sentences.push(`Peki Deniz hocam, öğrencilerin sınav kağıdında tam puanı kapması için en kritik tüyo nedir?`);
+    sentences.push(`Peki Deniz hocam, bu bölümden sınavlarda veya analitik değerlendirmelerde hangi kritik ayrım sorgulanır?`);
     speakers.push('Barış');
-    sentences.push(`İşte vize ve final sınavlarının en can alıcı püf noktası burası Barış! Hocaların en çok baktığı anahtar kriter şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
+    sentences.push(`Burada gözden kaçırılmaması gereken en kritik ayrım şudur Barış: ${ensureSentenceEnd(lowerFirstIfNotProper(examTip))}`);
     speakers.push('Deniz');
   }
 
@@ -1312,15 +1309,15 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `Bugün ${coursePrefix}${title} konusunu birlikte açalım. Önce büyük resmi kuralım, sonra ayrıntıları ve sınavda işimize yarayacak ayrımları konuşalım. Bu derste ${visualAssets} kullanacağız. ${framingText}`,
+        text: `${coursePrefix}${title} konusuna önce en temel soruyla başlayalım: Bu yapıyı ortaya çıkaran tarihsel ve kuramsal kırılma nedir? Bu videolu özette ${visualAssets} üzerinden adım adım ilerleyeceğiz. ${framingText}`,
       },
       {
         speaker: 'Barış',
-        text: `Deniz hocam, bu konuyu ezber parçalarına ayırmadan anlamak için ${roadmapStr} hangi kurucu bağı izlemeliyiz? Akıllı tahtadaki kavramsal şemada ilk odaklanmamız gereken zemin nedir?`,
+        text: `Deniz hocam, konuyu tekil tanımlara sıkıştırmadan kavramak için ${roadmapStr} hangi nedensellik zincirini takip etmeliyiz? Bu görsel özetin ilk halkasında hangi temel dinamik yer alıyor?`,
       },
       {
         speaker: 'Deniz',
-        text: `Tam kalbinde ${spokenNodeName(vNodes[0], title)} yer alıyor Barış. Çünkü işin sırrı şurada: ${lowerFirstIfNotProper(stripTrailingPeriod(vNodes[0]?.subtext || framingText))}. Bu temel taş yerine oturduğunda, ${spokenNodeName(vNodes[1], 'diğer kurumsal halkalar')} da kendiliğinden anlam kazanıyor. Şimdi bu büyük resmi adım adım, en can alıcı ayrıntılarıyla açalım!`,
+        text: `İlk halkada ${spokenNodeName(vNodes[0], title)} yer alıyor Barış. Çünkü bütün süreci başlatan mekanizma şudur: ${lowerFirstIfNotProper(stripTrailingPeriod(vNodes[0]?.subtext || framingText))}. Bu kurucu dinamik devreye girdiğinde, ${spokenNodeName(vNodes[1], 'diğer kurumsal halkalar')} da zincirleme biçimde şekilleniyor.`,
       },
     ]);
 
@@ -1375,19 +1372,19 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `Şimdi akıllı tahtamızda sistematik bir karşılaştırma tablosu açıyoruz arkadaşlar; çünkü sınavlarda en çok puan kaybettiren tuzak birbirine benzeyen kavramları karıştırmaktır.`,
+        text: `Şimdi birbirine yakın görünen kavramları yan yana koyup yapısal farklarını karşılaştırma matrisi üzerinde netleştirelim.`,
       },
       {
         speaker: 'Barış',
-        text: `Deniz hocam, tabloda ${lbl0} ile ${lbl1} yan yana duruyor. Bu iki kavramı bir sınav sorusunda ayırt etmek için hangi ölçütü kullanmalıyız?`,
+        text: `Deniz hocam, matriste ${lbl0} ile ${lbl1} karşı karşıya duruyor. Bu iki kavramı analitik olarak birbirinden ayıran temel ölçüt nedir?`,
       },
       {
         speaker: 'Deniz',
-        text: `Bu ayrımın kritik noktası şu: ${lbl0}, ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ${lbl1}, ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))} Peki bu fark uygulamada hangi sonucu doğurur?`,
+        text: `Ayrımın merkezinde işlev farkı var Barış: ${lbl0}, ${ensureSentenceEnd(lowerFirstIfNotProper(n0.subtext))} Buna karşılık ${lbl1}, ${ensureSentenceEnd(lowerFirstIfNotProper(n1.subtext))} Dolayısıyla biri kurucu çerçeveyi belirlerken diğeri uygulama kanalını işletir.`,
       },
       {
         speaker: 'Barış',
-        text: `Çok net bir ayrım oldu hocam! Tablonun devamında ${lbl2} boyutunda ${lowerFirstIfNotProper(stripTrailingPeriod(n2.subtext))}${n3 && n3.label !== n2.label ? `, ${lbl3} ekseninde ise ${lowerFirstIfNotProper(stripTrailingPeriod(n3.subtext))}` : ''}. Kavramları böyle yan yana, matris halinde görmek tüm kafa karışıklığını siliyor!`,
+        text: `Tablonun devamında ise ${lbl2} boyutunda ${lowerFirstIfNotProper(stripTrailingPeriod(n2.subtext))}${n3 && n3.label !== n2.label ? `, ${lbl3} ekseninde ise ${lowerFirstIfNotProper(stripTrailingPeriod(n3.subtext))}` : ''} karşımıza çıkıyor.`,
       },
     ]);
 
@@ -1428,15 +1425,15 @@ function ensureRichFiveMinuteCurriculum(
     const { sentences, speakers } = turnsToDialogueArrays([
       {
         speaker: 'Deniz',
-        text: `Şimdi durağan tanımların ötesine geçip işin mutfağına, yani neden-sonuç mekanizmasına bakalım arkadaşlar. Akıllı tahtadaki geometrik döngü bize çok önemli bir kuralı hatırlatıyor: hiçbir ${domainNoun} sonuç tesadüfen doğmaz! İlk kıvılcımı ${sl0} çakıyor; ${ensureSentenceEnd(lowerFirstIfNotProper(s0.subtext))}`,
+        text: `Tanımların ötesine geçip dönüşümün nedensellik zincirine odaklanalım. Hiçbir ${domainNoun} kurum boşlukta doğmaz; süreci başlatan ilk kırılma ${sl0} ekseninde ortaya çıkar: ${ensureSentenceEnd(lowerFirstIfNotProper(s0.subtext))}`,
       },
       {
         speaker: 'Barış',
-        text: `Peki hocam, bu ilk ivme sistemi nasıl dalga dalga etkiliyor? Özellikle ${sl1} aşamasına geçtiğimizde sahada nasıl bir dönüşüm görüyoruz?`,
+        text: `Peki Deniz hocam, bu başlangıç koşulu sistemi nasıl dönüştürüyor? Özellikle ${sl1} aşamasına geçildiğinde hangi mekanizma devreye giriyor?`,
       },
       {
         speaker: 'Deniz',
-        text: `İşte domino etkisi tam burada devreye giriyor Barış! ${sl0} sağlam adımlarla ilerlediğinde doğrudan ${sl1} kanalını besliyor ve ${ensureSentenceEnd(lowerFirstIfNotProper(s1.subtext))} Ardından ${sl2} ile sistem tam bir kurumsal dengeye kavuşuyor. Halkalardan biri zayıflarsa bütün çarklar yavaşlar!`,
+        text: `${sl0} ivme kazandığında doğrudan ${sl1} kanalını tetikliyor Barış; ${ensureSentenceEnd(lowerFirstIfNotProper(s1.subtext))} Bu sürecin doğal sonucu olarak ${sl2} ile yeni bir kurumsal denge kuruluyor.`,
       },
     ]);
 

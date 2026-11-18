@@ -782,20 +782,23 @@ export async function generateMaterialWithOrchestration(
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
     onProgress?.(60, 'Alternatif bulut zekâ üzerinden zenginleştirilerek üretiliyor...');
     if (settings.materialType === 'video') {
-      const videoSys = `Sen 3Blue1Brown ve MIT OpenCourseWare tarzında etkileşimli video ders senaristisin.
-Verilen ders notlarından 6 sahneli, HER SAHNEDE FARKLI GÖRSEL ŞEMA ('visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'comparison') kullanan ve Dr. Deniz ile Barış arasındaki diyalogla ilerleyen JSON üret.
-KESİN KURAL: Her sahnenin 'diagramData.nodes' dizisinde 3-4 dolu kavram kartı olmalı; 'examTip' asla selamlama veya 'Merhaba' içermemeli; iktisat/para konularında 'visualTheme': 'economics' olmalı.
+      const videoSys = `Sen Google Gemini NotebookLM "Videolu Özet" (Video Overview) ve 3Blue1Brown kalitesinde editoryal video ders baş senaristisin.
+Verilen ders notlarından 7 sahneli, HER SAHNEDE FARKLI GÖRSEL ŞEMA ('visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'comparison') kullanan, neden-sonuç zincirini ("Kıtlık → Tarım", "Çöküş → Feodalizm", "Emisyon → Likidite" gibi) hikayeleştirerek anlatan ve Dr. Deniz ile Barış arasındaki doğal, derinlikli akademik diyalogla ilerleyen JSON üret.
+KESİN KURALLAR:
+1. Sıfır klişe: Asla "Akıllı tahtamızda", "Merhaba arkadaşlar", "Tam 12'den vurdun" gibi yapay dolgu cümleler kullanma; doğrudan kavramsal kırılma, mekanizma, tarihsel/iktisadi kanıt ve sınav ayrımıyla konuş.
+2. Her sahnenin 'diagramData.nodes' dizisinde 3-4 dolu kavram kartı olmalı; 'label' alanı mümkün olduğunca "Neden → Sonuç" veya net kavram başlığı olmalı, 'subtext' alanı tam ve doyurucu açıklama içermeli.
+3. İktisat/para konularında 'visualTheme': 'economics', tarih konularında 'history', hukukta 'law' olmalı.
 YALNIZCA JSON döndür:
 {
-  "videoTitle": "...",
-  "outline": "...",
+  "videoTitle": "Çarpıcı Editoryal Başlık (Örn: 10.000 Yıllık İktisadi Devrim)",
+  "outline": "2-3 cümlelik bütünsel tez özeti",
   "keyFacts": ["...","...","..."],
   "scenes": [{
-    "title": "...",
+    "title": "Net ve Çarpıcı Sahne Başlığı",
     "turns": [
-      { "speaker": "Deniz", "text": "..." },
-      { "speaker": "Barış", "text": "..." },
-      { "speaker": "Deniz", "text": "..." }
+      { "speaker": "Deniz", "text": "Derin kuramsal ve nedensel anlatım..." },
+      { "speaker": "Barış", "text": "Deniz hocam, bu mekanizmanın bir sonraki aşamaya etkisi..." },
+      { "speaker": "Deniz", "text": "Somut tarihsel/iktisadi örnek ve sınav ayrımı..." }
     ],
     "diagramData": {
       "diagramType": "visual | curve | table | shapes | chart | scenario | comparison",
@@ -803,14 +806,14 @@ YALNIZCA JSON döndür:
       "mainTitle": "...",
       "highlightMetric": "...",
       "nodes": [
-        { "label": "Kavram 1", "subtext": "Açıklama", "badge": "Temel İlke", "value": 85 },
-        { "label": "Kavram 2", "subtext": "Açıklama", "badge": "Mekanizma", "value": 78 },
-        { "label": "Kavram 3", "subtext": "Açıklama", "badge": "Koşul", "value": 72 }
+        { "label": "Kıtlık → Tarım Devrimi", "subtext": "Yerleşik üretime geçiş ve artı ürünün doğuşu.", "badge": "1. Kırılma", "value": 90 },
+        { "label": "Çöküş → Kurumsal Düzen", "subtext": "Merkezi otorite ve toprak rejiminin yeniden inşası.", "badge": "2. Mekanizma", "value": 82 },
+        { "label": "Karmaşıklık → Ticaret Ağı", "subtext": "Uzmanlaşma, para ekonomisi ve kurumsal büyüme.", "badge": "3. Sonuç", "value": 76 }
       ]
     },
     "keyTakeaways": ["...","..."],
     "keyTerms": [{ "term": "...", "definition": "..." }],
-    "examTip": "Sınav ayrımı"
+    "examTip": "Sınavda ayırt edici analitik kriter"
   }],
   "matchingPairs": [{ "term": "...", "definition": "..." }],
   "examQuestions": [{ "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }]

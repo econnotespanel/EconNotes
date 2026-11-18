@@ -128,9 +128,9 @@ const DIAGRAM_BADGE_TR: Record<DiagramType, string> = {
 const SPEED_OPTIONS = [0.85, 1, 1.15, 1.25, 1.5, 1.75];
 
 const LAYOUT_OPTIONS: Array<{ id: StudioLayoutMode; label: string }> = [
-  { id: 'standard', label: 'Sinema' },
-  { id: 'whiteboard', label: 'Akıllı Tahta' },
-  { id: 'focus', label: 'Odak' },
+  { id: 'standard', label: 'Videolu Özet' },
+  { id: 'whiteboard', label: 'Koyu Tahta' },
+  { id: 'focus', label: 'Stüdyo Sunum' },
 ];
 
 export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
@@ -696,15 +696,22 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
             <EconLogo onDark className="h-7 w-auto" />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-bold text-white">{studio.title}</h1>
-            <p className="truncate text-[11px] text-slate-400">
-              Bölüm {activeSceneIndex + 1}/{scenes.length}: {activeScene?.title}
-              {vitsStatus.state === 'downloading' || vitsStatus.state === 'compiling'
-                ? ` · Neural Ses Hazırlanıyor (%${Math.round(vitsStatus.progressPct)})`
-                : isBufferingSpeech
-                  ? ' · Diyalog Sentezleniyor...'
-                  : ''}
-            </p>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+              <span>Studio</span>
+              <span>›</span>
+              <span className="text-amber-300 font-semibold flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                Videolu Özet
+              </span>
+              {material.course && (
+                <span className="ml-1.5 hidden sm:inline-flex items-center rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[10px] text-slate-200">
+                  {material.course}
+                </span>
+              )}
+            </div>
+            <h1 className="truncate text-sm sm:text-base font-bold text-white tracking-tight">
+              {studio.title}
+            </h1>
           </div>
         </div>
 
