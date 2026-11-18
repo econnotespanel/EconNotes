@@ -527,37 +527,37 @@ const Dashboard = () => {
         })()}
 
         {quota && !quota.is_admin && (
-          <Card className={`glass-card ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-amber-400/50 bg-amber-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
+          <Card className={`glass-card ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
             <CardContent className="p-5">
               {quota.is_birthday_unlimited ? (
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="p-3 rounded-2xl bg-amber-500 text-white shrink-0 w-fit">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#003791] to-[#0070d1] text-white shadow-md shadow-blue-600/20 shrink-0 w-fit">
                     <Cake className="h-7 w-7" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                      <h3 className="font-bold text-base">🎂 Doğum Günü Hediyen: 1 Gün Sınırsız Not Erişimi!</h3>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
+                      <h3 className="font-bold text-base text-foreground">Doğum Günü Hediyen: 1 Gün Sınırsız Not Erişimi!</h3>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary font-bold">
                         {getBirthdayStatus(user, profile).remainingLabel}
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      İyi ki doğdun, {displayName.split(' ')[0]}! Doğum gününe özel bugün tüm ders notlarını kota sınırı olmadan görüntüleyebilir ve indirebilirsin.
+                      İyi ki doğdun, {displayName.split(' ')[0]}! EconNotes doğum günü hediyen olarak bugün tüm ders notlarını kota sınırı olmadan görüntüleyebilir ve indirebilirsin.
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shrink-0">
+                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-[#003791] to-[#0070d1] text-white hover:opacity-95 shrink-0">
                     Notları İncele
                   </Button>
                 </div>
               ) : quota.is_wheel_unlimited ? (
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="p-3 rounded-2xl bg-amber-500 text-white shrink-0 w-fit">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#003791] to-[#0070d1] text-white shadow-md shadow-blue-600/20 shrink-0 w-fit">
                     <Gift className="h-7 w-7" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                      <h3 className="font-bold text-base">🎡 Şans Çarkı Ödülün: 1 Gün Sınırsız İndirme & Yükleme!</h3>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
+                      <h3 className="font-bold text-base text-foreground">Şans Çarkı Ödülün: 1 Gün Sınırsız İndirme & Yükleme!</h3>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary font-bold">
                         {getMondayWheelState(user).wheelUnlimitedRemainingLabel}
                       </span>
                     </div>
@@ -565,7 +565,7 @@ const Dashboard = () => {
                       Pazartesi Şans Çarkından kazandığın 24 saatlik sınırsız not görüntüleme, indirme ve yükleme hakkın aktif!
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shrink-0">
+                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-[#003791] to-[#0070d1] text-white hover:opacity-95 shrink-0">
                     Notları İncele
                   </Button>
                 </div>
@@ -594,9 +594,9 @@ const Dashboard = () => {
                         <button
                           type="button"
                           onClick={() => navigate('/profile')}
-                          className="text-amber-600 dark:text-amber-400 font-medium hover:underline"
+                          className="text-primary font-medium hover:underline"
                         >
-                          🎂 Doğum gününde 1 gün sınırsız hak için doğum tarihini ekle →
+                          Doğum gününde 1 gün sınırsız hak için doğum tarihini ekle →
                         </button>
                       )}
                       <span className="flex items-center gap-1 text-muted-foreground"><Download className="h-3 w-3" /> {quota.total_downloads} / {quota.allowed_downloads} indirme</span>

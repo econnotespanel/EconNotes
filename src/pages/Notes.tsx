@@ -692,17 +692,17 @@ const Notes = () => {
     <Layout>
       <div className="space-y-6 animate-fade-in">
         {quota && !quota.is_admin && (
-          <Card className={`glass-card border-2 ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-amber-400/50 bg-amber-500/[0.06]' : quota.can_download ? 'border-primary/30' : 'border-destructive/50'}`}>
+          <Card className={`glass-card border-2 ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : quota.can_download ? 'border-primary/30' : 'border-destructive/50'}`}>
             <CardContent className="p-4">
               {quota.is_birthday_unlimited ? (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#003791] to-[#0070d1] text-white shadow-sm">
                       <Cake className="h-5 w-5" />
                     </div>
                     <div>
                       <h3 className="font-bold text-sm text-foreground">
-                        🎂 Doğum Günü Hediyen Aktif: Sınırsız Not Görüntüleme & İndirme!
+                        EconNotes Doğum Günü Hediyen Aktif: Sınırsız Not Görüntüleme & İndirme!
                       </h3>
                       <p className="text-xs text-muted-foreground">
                         Doğum gününe özel 1 gün boyunca tüm ders notlarını kota sınırı olmadan görüntüleyebilir ve indirebilirsin ({getBirthdayStatus(user, profile).remainingLabel}).
@@ -712,13 +712,13 @@ const Notes = () => {
                 </div>
               ) : quota.is_wheel_unlimited ? (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#003791] to-[#0070d1] text-white shadow-sm">
                       <Gift className="h-5 w-5" />
                     </div>
                     <div>
                       <h3 className="font-bold text-sm text-foreground">
-                        🎡 Pazartesi Şans Çarkı Ödülün Aktif: 1 Gün Sınırsız İndirme & Yükleme!
+                        Pazartesi Şans Çarkı Ödülün Aktif: 1 Gün Sınırsız İndirme & Yükleme!
                       </h3>
                       <p className="text-xs text-muted-foreground">
                         Şans çarkından kazandığın 24 saatlik sınırsız not görüntüleme, indirme ve yükleme hakkın aktif ({getMondayWheelState(user).wheelUnlimitedRemainingLabel}).

@@ -16,6 +16,7 @@ import BadgesCard from '@/components/BadgesCard';
 import { TwoFactorCard } from '@/components/TwoFactor';
 import { Switch } from '@/components/ui/switch';
 import { getBirthdayStatus, getUserBirthDate, saveUserBirthDate } from '@/lib/birthdayPerk';
+import { openBirthdayCelebrationModal } from '@/components/BirthdayCelebrationPopup';
 
 const Profile = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
@@ -226,7 +227,7 @@ const Profile = () => {
                   </div>
                   <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-accent/50">
                     <div className="flex items-center gap-3">
-                      <Cake className="h-4 w-4 text-amber-500" />
+                      <Cake className="h-4 w-4 text-primary" />
                       <div>
                         <p className="text-xs text-muted-foreground">Doğum Tarihi</p>
                         <p className="text-sm font-medium">
@@ -237,9 +238,13 @@ const Profile = () => {
                       </div>
                     </div>
                     {birthdayStatus.isUnlimitedActive && (
-                      <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:text-amber-300">
-                        🎂 Bugün Sınırsız Erişim Aktif
-                      </span>
+                      <button
+                        type="button"
+                        onClick={openBirthdayCelebrationModal}
+                        className="rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/15 transition-colors"
+                      >
+                        Doğum Günü Hediyen Aktif · Kutlamayı Gör
+                      </button>
                     )}
                   </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
