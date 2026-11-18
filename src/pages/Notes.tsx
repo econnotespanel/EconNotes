@@ -17,7 +17,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Loader2, Upload } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Loader2, Upload, Cake } from 'lucide-react';
+import { getBirthdayStatus, isBirthdayUnlimitedActive } from '@/lib/birthdayPerk';
 import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark, prepareWatermarkedPreview } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -243,7 +244,8 @@ const Notes = () => {
 
   const handlePreviewClick = async (note: any) => {
     if (!user) return;
-    if (viewRestricted && !isAdmin) {
+    const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
+    if (viewRestricted && !isAdmin && !birthdayUnlimited) {
       const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
       const q = (data && data[0]) as typeof quota;
       if (q && !q.can_download) {
@@ -328,15 +330,18 @@ const Notes = () => {
     refreshQuota();
   };
 
-  // Quota-aware download handler. Blocks when user has not uploaded enough notes.
+  // Quota-aware download handler. Blocks when user has not uploaded enough notes (unless 1-day birthday pass is active).
   const handleDownloadClick = async (note: any) => {
     if (!user) return;
-    // Re-fetch quota fresh to avoid race conditions
-    const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
-    const q = (data && data[0]) as typeof quota;
-    if (q && !q.can_download) {
-      setQuotaBlockOpen(true);
-      return;
+    const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
+    if (!isAdmin && !birthdayUnlimited) {
+      // Re-fetch quota fresh to avoid race conditions
+      const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
+      const q = (data && data[0]) as typeof quota;
+      if (q && !q.can_download) {
+        setQuotaBlockOpen(true);
+        return;
+      }
     }
     trackDownload(note.id);
     const signed = await signedNoteUrl(note.file_url);
@@ -679,30 +684,48 @@ const Notes = () => {
     <Layout>
       <div className="space-y-6 animate-fade-in">
         {quota && !quota.is_admin && (
-          <Card className={`glass-card border-2 ${quota.can_download ? 'border-primary/30' : 'border-destructive/50'}`}>
+          <Card className={`glass-card border-2 ${quota.is_birthday_unlimited ? 'border-amber-400/50 bg-amber-500/[0.06]' : quota.can_download ? 'border-primary/30' : 'border-destructive/50'}`}>
             <CardContent className="p-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <ShieldCheck className={`h-4 w-4 ${quota.can_download ? 'text-primary' : 'text-destructive'}`} />
-                    <h3 className="font-semibold text-sm">İndirme Kotası</h3>
-                    <span className="text-xs text-muted-foreground">(her 2 indirme için 1 onaylı not yüklemelisiniz)</span>
+              {quota.is_birthday_unlimited ? (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-xs">
+                      <Cake className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-foreground">
+                        🎂 Doğum Günü Hediyen Aktif: Sınırsız Not Görüntüleme & İndirme!
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Doğum gününe özel 1 gün boyunca tüm ders notlarını kota sınırı olmadan görüntüleyebilir ve indirebilirsin ({getBirthdayStatus(user, profile).remainingLabel}).
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span><b className="text-foreground">{quota.approved_uploads}</b> onaylı yükleme</span>
-                    <span>•</span>
-                    <span><b className="text-foreground">{quota.total_downloads}</b> / {quota.allowed_downloads} indirme kullanıldı</span>
-                    <span>•</span>
-                    <span className={quota.can_download ? 'text-success' : 'text-destructive font-medium'}>
-                      {quota.can_download ? `${quota.remaining} indirme hakkı kaldı` : 'Hakkınız bitti — yeni not yükleyin'}
-                    </span>
-                  </div>
-                  <Progress
-                    value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
-                    className="mt-2 h-1.5"
-                  />
                 </div>
-              </div>
+              ) : (
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ShieldCheck className={`h-4 w-4 ${quota.can_download ? 'text-primary' : 'text-destructive'}`} />
+                      <h3 className="font-semibold text-sm">İndirme Kotası</h3>
+                      <span className="text-xs text-muted-foreground">(her 2 indirme için 1 onaylı not yüklemelisiniz)</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span><b className="text-foreground">{quota.approved_uploads}</b> onaylı yükleme</span>
+                      <span>•</span>
+                      <span><b className="text-foreground">{quota.total_downloads}</b> / {quota.allowed_downloads} indirme kullanıldı</span>
+                      <span>•</span>
+                      <span className={quota.can_download ? 'text-success' : 'text-destructive font-medium'}>
+                        {quota.can_download ? `${quota.remaining} indirme hakkı kaldı` : 'Hakkınız bitti — yeni not yükleyin'}
+                      </span>
+                    </div>
+                    <Progress
+                      value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
+                      className="mt-2 h-1.5"
+                    />
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones } from 'lucide-react';
+import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones, Cake } from 'lucide-react';
+import { getBirthdayStatus, getUserBirthDate } from '@/lib/birthdayPerk';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -171,7 +172,7 @@ const Dashboard = () => {
     },
     {
       label: 'İndirme Hakkım',
-      value: quota?.is_admin ? 'Sınırsız' : (quota?.remaining ?? '—'),
+      value: quota?.is_admin || quota?.is_birthday_unlimited ? 'Sınırsız' : (quota?.remaining ?? '—'),
       icon: Download,
       color: isNovember10 ? 'text-foreground' : 'text-emerald-500 dark:text-emerald-400',
       iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
@@ -474,35 +475,66 @@ const Dashboard = () => {
         </div>
 
         {quota && !quota.is_admin && (
-          <Card className={`glass-card ${!quota.can_download ? 'border-destructive/50' : ''}`}>
+          <Card className={`glass-card ${quota.is_birthday_unlimited ? 'border-amber-400/50 bg-amber-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
             <CardContent className="p-5">
-              <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <div className={`p-3 rounded-2xl ${quota.can_download ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
-                  <ShieldCheck className="h-7 w-7" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                    <h3 className="font-semibold text-base">İndirme Kotanız</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${quota.can_download ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                      {quota.can_download ? `${quota.remaining} hak kaldı` : 'Hak doldu'}
-                    </span>
+              {quota.is_birthday_unlimited ? (
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="p-3 rounded-2xl bg-amber-500 text-white shrink-0 w-fit">
+                    <Cake className="h-7 w-7" />
                   </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Yeni kullanıcılar 2 indirme hakkı ile başlar. Kotalarınızı açmak için onaylanan en az 1 ders notu yüklemeniz gerekir.
-                  </p>
-                  <Progress
-                    value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
-                    className="h-2"
-                  />
-                  <div className="flex items-center justify-between mt-2 text-xs">
-                    <span className="flex items-center gap-1 text-muted-foreground"><Upload className="h-3 w-3" /> {quota.approved_uploads} onaylı yükleme</span>
-                    <span className="flex items-center gap-1 text-muted-foreground"><Download className="h-3 w-3" /> {quota.total_downloads} / {quota.allowed_downloads} indirme</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                      <h3 className="font-bold text-base">🎂 Doğum Günü Hediyen: 1 Gün Sınırsız Not Erişimi!</h3>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
+                        {getBirthdayStatus(user, profile).remainingLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      İyi ki doğdun, {displayName.split(' ')[0]}! Doğum gününe özel bugün tüm ders notlarını kota sınırı olmadan görüntüleyebilir ve indirebilirsin.
+                    </p>
                   </div>
+                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shrink-0">
+                    Notları İncele
+                  </Button>
                 </div>
-                <Button size="sm" onClick={() => navigate('/notes')} className="gradient-primary text-primary-foreground shrink-0">
-                  {quota.can_download ? 'Notlara Git' : 'Not Yükle'}
-                </Button>
-              </div>
+              ) : (
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className={`p-3 rounded-2xl ${quota.can_download ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
+                    <ShieldCheck className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                      <h3 className="font-semibold text-base">İndirme Kotanız</h3>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${quota.can_download ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                        {quota.can_download ? `${quota.remaining} hak kaldı` : 'Hak doldu'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Yeni kullanıcılar 2 indirme hakkı ile başlar. Kotalarınızı açmak için onaylanan en az 1 ders notu yüklemeniz gerekir.
+                    </p>
+                    <Progress
+                      value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
+                      className="h-2"
+                    />
+                    <div className="flex flex-wrap items-center justify-between mt-2 gap-2 text-xs">
+                      <span className="flex items-center gap-1 text-muted-foreground"><Upload className="h-3 w-3" /> {quota.approved_uploads} onaylı yükleme</span>
+                      {!getUserBirthDate(user, profile) && (
+                        <button
+                          type="button"
+                          onClick={() => navigate('/profile')}
+                          className="text-amber-600 dark:text-amber-400 font-medium hover:underline"
+                        >
+                          🎂 Doğum gününde 1 gün sınırsız hak için doğum tarihini ekle →
+                        </button>
+                      )}
+                      <span className="flex items-center gap-1 text-muted-foreground"><Download className="h-3 w-3" /> {quota.total_downloads} / {quota.allowed_downloads} indirme</span>
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => navigate('/notes')} className="gradient-primary text-primary-foreground shrink-0">
+                    {quota.can_download ? 'Notlara Git' : 'Not Yükle'}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

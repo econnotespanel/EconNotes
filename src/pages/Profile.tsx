@@ -10,20 +10,24 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert } from 'lucide-react';
+import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert, Cake } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BadgesCard from '@/components/BadgesCard';
 import { TwoFactorCard } from '@/components/TwoFactor';
 import { Switch } from '@/components/ui/switch';
+import { getBirthdayStatus, getUserBirthDate, saveUserBirthDate } from '@/lib/birthdayPerk';
 
 const Profile = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  const currentBirthDate = getUserBirthDate(user, profile) || '';
+  const birthdayStatus = getBirthdayStatus(user, profile);
   const [form, setForm] = useState({
     full_name: profile?.full_name || '',
     university: profile?.university || '',
     department: profile?.department || '',
+    birth_date: currentBirthDate,
   });
   const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
   const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -44,8 +48,22 @@ const Profile = () => {
   };
 
   const handleUpdate = async () => {
-    const { error } = await supabase.from('profiles').update(form).eq('user_id', user!.id);
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        full_name: form.full_name,
+        university: form.university,
+        department: form.department,
+      })
+      .eq('user_id', user!.id);
     if (error) { toast.error('Güncellenemedi.'); return; }
+    if (form.birth_date && form.birth_date !== currentBirthDate) {
+      const bdayRes = await saveUserBirthDate(user!, form.birth_date);
+      if (!bdayRes.ok) {
+        toast.error(bdayRes.error || 'Doğum tarihi kaydedilemedi.');
+        return;
+      }
+    }
     const { logActivity } = await import('@/lib/activityLogger');
     await logActivity(user!.id, form.full_name, user!.email || '', 'profile_updated', 'Profil bilgileri güncellendi');
     toast.success('Profil güncellendi!');
@@ -163,6 +181,14 @@ const Profile = () => {
                   <div><Label>Ad Soyad</Label><Input value={form.full_name} onChange={(e) => setForm({...form, full_name: e.target.value})} /></div>
                   <div><Label>Üniversite</Label><Input value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} /></div>
                   <div><Label>Bölüm</Label><Input value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} /></div>
+                  <div>
+                    <Label>Doğum Tarihi (Doğum gününde 1 gün sınırsız not erişimi hediyesi)</Label>
+                    <Input
+                      type="date"
+                      value={form.birth_date}
+                      onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <Button onClick={handleUpdate}>Kaydet</Button>
                     <Button variant="outline" onClick={() => setEditing(false)}>İptal</Button>
@@ -198,6 +224,24 @@ const Profile = () => {
                       <p className="text-sm font-medium">{profile?.grade === 5 ? 'Mezun' : profile?.grade ? `${profile.grade}. Sınıf` : '-'}</p>
                     </div>
                   </div>
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-accent/50">
+                    <div className="flex items-center gap-3">
+                      <Cake className="h-4 w-4 text-amber-500" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Doğum Tarihi</p>
+                        <p className="text-sm font-medium">
+                          {currentBirthDate
+                            ? new Date(currentBirthDate).toLocaleDateString('tr-TR')
+                            : 'Henüz eklenmedi (Doğum günü hediyesi için ekleyin)'}
+                        </p>
+                      </div>
+                    </div>
+                    {birthdayStatus.isUnlimitedActive && (
+                      <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-600 dark:text-amber-300">
+                        🎂 Bugün Sınırsız Erişim Aktif
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <div>
@@ -221,7 +265,7 @@ const Profile = () => {
                     </div>
                     <Switch checked={hideSurname} disabled={savingPrivacy} onCheckedChange={toggleHideSurname} />
                   </div>
-                  <Button onClick={() => { setForm({ full_name: profile?.full_name || '', university: profile?.university || '', department: profile?.department || '' }); setEditing(true); }}>
+                  <Button onClick={() => { setForm({ full_name: profile?.full_name || '', university: profile?.university || '', department: profile?.department || '', birth_date: currentBirthDate }); setEditing(true); }}>
                     Profili Düzenle
                   </Button>
                 </>

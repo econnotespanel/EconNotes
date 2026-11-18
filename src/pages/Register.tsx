@@ -48,6 +48,7 @@ const Register = () => {
     university: '',
     department: '',
     grade: '1',
+    birthDate: '',
   });
   const [acceptRules, setAcceptRules] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -177,6 +178,7 @@ const Register = () => {
           university: cleanUniversity,
           department: cleanDepartment,
           grade: parsedGrade,
+          birth_date: formData.birthDate || null,
           approval_status: 'pending',
         },
       },
@@ -397,22 +399,36 @@ const Register = () => {
                 </div>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground/90">
-                Sınıf <span className="text-destructive">*</span>
-              </Label>
-              <Select value={formData.grade} onValueChange={(v) => setFormData({...formData, grade: v})}>
-                <SelectTrigger className="h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="1">1. Sınıf</SelectItem>
-                  <SelectItem value="2">2. Sınıf</SelectItem>
-                  <SelectItem value="3">3. Sınıf</SelectItem>
-                  <SelectItem value="4">4. Sınıf</SelectItem>
-                  <SelectItem value="5">5. Sınıf / Yüksek Lisans</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-foreground/90">
+                  Sınıf <span className="text-destructive">*</span>
+                </Label>
+                <Select value={formData.grade} onValueChange={(v) => setFormData({...formData, grade: v})}>
+                  <SelectTrigger className="h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="1">1. Sınıf</SelectItem>
+                    <SelectItem value="2">2. Sınıf</SelectItem>
+                    <SelectItem value="3">3. Sınıf</SelectItem>
+                    <SelectItem value="4">4. Sınıf</SelectItem>
+                    <SelectItem value="5">5. Sınıf / Yüksek Lisans</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="birthDate" className="text-xs font-semibold text-foreground/90">
+                  Doğum Tarihi <span className="text-[10px] font-normal text-muted-foreground">(🎂 Hediye hak için)</span>
+                </Label>
+                <Input
+                  id="birthDate"
+                  type="date"
+                  value={formData.birthDate}
+                  onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
+                  className="h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 text-sm"
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-xs font-semibold text-foreground/90">Şifre</Label>
