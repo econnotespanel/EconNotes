@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { ShieldAlert, Lock, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -15,19 +15,77 @@ interface ScreenshotProtectionProps {
 const SHIELD_BODY_CLASS = 'econnotes-ss-shield-active';
 
 /**
- * EconNotes Notlar & Önizleme Ekran Görüntüsü (SS) ve Ekran Yakalama Engelleyici Kalkanı
- * - Senkron DOM sınıfı (`econnotes-ss-shield-active`) ile 0ms gecikmeyle anında karartma uygular.
- * - PC: PrintScreen, Win+Shift+S (Ekran Alıntısı Aracı), Alt+PrintScreen, Ctrl+P, Ctrl+S, Ctrl+Shift+S
- * - Mac: Cmd+Shift+3, Cmd+Shift+4, Cmd+Shift+5, Cmd+P, Cmd+S
- * - Mobil & Masaüstü: Sağ tık / Uzun basma ile görsel kaydetme, sürükle-bırak, 3 parmak ekran görüntüsü,
- *   pencere odağı kaybı (Snipping Tool / Kontrol Merkezi / Uygulama Değiştirici açıldığında anında karartma).
+ * Panodaki (Clipboard) ekran görüntüsünü (image/png + text/plain) EconNotes güvenlik görseli ile ezer.
  */
+export const overwriteClipboardWithSecurityImage = async (viewerName?: string) => {
+  const securityText =
+    'EconNotes Güvenlik Koruması: Notlar bölümünde ekran görüntüsü (SS) alınmasına izin verilmemektedir.';
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 960;
+    canvas.height = 540;
+    const ctx = canvas.getContext('2d');
+    if (ctx && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+      const grad = ctx.createLinearGradient(0, 0, 960, 540);
+      grad.addColorStop(0, '#001438');
+      grad.addColorStop(0.5, '#002b75');
+      grad.addColorStop(1, '#020817');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 960, 540);
+
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(24, 24, 912, 492);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 34px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('ECONNOTES GÜVENLİK KALKANI', 480, 210);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 26px Arial, sans-serif';
+      ctx.fillText('Bu İçeriğin Ekran Görüntüsü (SS) Alınamaz', 480, 265);
+
+      ctx.fillStyle = 'rgba(191, 219, 254, 0.85)';
+      ctx.font = '18px Arial, sans-serif';
+      ctx.fillText(
+        `İçerik güvenliği politikası gereği ekran görüntüsü engellenmiştir.${viewerName ? ` (${viewerName})` : ''}`,
+        480,
+        320,
+      );
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), 'image/png'),
+      );
+      if (blob) {
+        const item = new ClipboardItem({
+          'image/png': blob,
+          'text/plain': new Blob([securityText], { type: 'text/plain' }),
+        });
+        await navigator.clipboard.write([item]);
+        return;
+      }
+    }
+  } catch {
+    // Fallback to writeText
+  }
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(securityText);
+    }
+  } catch {
+    // Ignore permission errors
+  }
+};
+
 export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
   isPreviewOpen = false,
   viewerName,
   children,
 }) => {
   const [shieldReason, setShieldReason] = useState<'screenshot' | 'focus_lost' | null>(null);
+  const wipeTimersRef = useRef<number[]>([]);
 
   const activateSyncDomShield = useCallback(() => {
     if (typeof document !== 'undefined') {
@@ -41,23 +99,23 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     }
   }, []);
 
-  const clearClipboard = useCallback(() => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        void navigator.clipboard.writeText(
-          'EconNotes Güvenlik Koruması: Notlar bölümünde ekran görüntüsü alınmasına izin verilmemektedir.',
-        );
-      }
-    } catch {
-      // Clipboard API izin vermezse sessizce geç
+  const scheduleClipboardWipes = useCallback(() => {
+    wipeTimersRef.current.forEach((id) => window.clearTimeout(id));
+    wipeTimersRef.current = [];
+    void overwriteClipboardWithSecurityImage(viewerName);
+    for (const delay of [25, 80, 180, 350, 650]) {
+      const id = window.setTimeout(() => {
+        void overwriteClipboardWithSecurityImage(viewerName);
+      }, delay);
+      wipeTimersRef.current.push(id);
     }
-  }, []);
+  }, [viewerName]);
 
   const triggerScreenshotBlock = useCallback(
     (sourceLabel?: string) => {
       activateSyncDomShield();
       setShieldReason('screenshot');
-      clearClipboard();
+      scheduleClipboardWipes();
       toast.error('Ekran Görüntüsü Engellendi!', {
         description:
           sourceLabel ||
@@ -65,7 +123,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
         duration: 4500,
       });
     },
-    [activateSyncDomShield, clearClipboard],
+    [activateSyncDomShield, scheduleClipboardWipes],
   );
 
   const dismissShield = useCallback(() => {
@@ -87,10 +145,27 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
         return;
       }
 
-      // 2. Windows Snipping Tool (Win + Shift + S) veya macOS Screenshot (Cmd + Shift + 3/4/5/6/S)
+      // 2. Önizleme açıkken herhangi bir SS başlangıç tuşuna (Shift, Ctrl, Alt, Win/Cmd) basıldığı anda
+      // Win+Shift+S, Cmd+Shift+3/4/5, Alt+PrtScn, Ctrl+PrtScn daha tamamlanmadan 0ms'de ekranı karart!
+      if (
+        isPreviewOpen &&
+        (key === 'Meta' ||
+          key === 'OS' ||
+          key === 'Shift' ||
+          key === 'Control' ||
+          key === 'Alt' ||
+          e.metaKey ||
+          e.ctrlKey ||
+          e.altKey)
+      ) {
+        activateSyncDomShield();
+        setShieldReason('focus_lost');
+      }
+
+      // 3. Windows Snipping Tool (Win + Shift + S) veya macOS Screenshot (Cmd + Shift + 3/4/5/6/S)
       if (
         (e.metaKey && e.shiftKey) ||
-        (e.ctrlKey && e.shiftKey && ['s', 'S', '3', '4', '5'].includes(key))
+        (e.ctrlKey && e.shiftKey && ['s', 'S', '3', '4', '5', 'i', 'I'].includes(key))
       ) {
         activateSyncDomShield();
         e.preventDefault();
@@ -98,13 +173,6 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
         triggerScreenshotBlock(
           'Ekran alıntısı kısayolu algılandı. EconNotes üzerinde ekran görüntüsü alınmasına izin verilmemektedir.',
         );
-        return;
-      }
-
-      // 3. Windows / Command tuşuna basıldığı anda önizleme açıksa önleyici koruma kalkanını 0ms'de devreye sok
-      if (isPreviewOpen && (key === 'Meta' || key === 'OS')) {
-        activateSyncDomShield();
-        setShieldReason('focus_lost');
         return;
       }
 
@@ -122,11 +190,13 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     const handleKeyUp = (e: KeyboardEvent) => {
       const key = e.key || '';
       const code = e.code || '';
+      // Windows PrintScreen tuşu yalnızca keyup gönderir: panodaki görüntüyü anında güvenlik görseliyle ez!
       if (key === 'PrintScreen' || code === 'PrintScreen' || e.keyCode === 44) {
         activateSyncDomShield();
         e.preventDefault();
         e.stopPropagation();
         triggerScreenshotBlock();
+        return;
       }
     };
 
@@ -134,16 +204,32 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     const handleWindowBlur = () => {
       activateSyncDomShield();
       setShieldReason((prev) => prev || 'focus_lost');
+      scheduleClipboardWipes();
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         activateSyncDomShield();
         setShieldReason((prev) => prev || 'focus_lost');
+        scheduleClipboardWipes();
       }
     };
 
-    // Mobilde 3 parmakla ekran görüntüsü alma hareketini yakala
+    // Fare tarayıcı penceresinden çıktığında (görev çubuğundaki Ekran Alıntısı Aracına tıklamak için) önizlemeyi anında gizle
+    const handleMouseLeaveDocument = (e: MouseEvent) => {
+      if (!isPreviewOpen) return;
+      if (
+        e.clientY <= 0 ||
+        e.clientX <= 0 ||
+        e.clientX >= window.innerWidth ||
+        e.clientY >= window.innerHeight
+      ) {
+        activateSyncDomShield();
+        setShieldReason((prev) => prev || 'focus_lost');
+      }
+    };
+
+    // Mobilde çoklu dokunma veya touchcancel (iOS/Android donanım SS tuşlarına basıldığında tetiklenir)
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches && e.touches.length >= 3) {
         activateSyncDomShield();
@@ -154,7 +240,13 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
       }
     };
 
-    // Sağ tık / mobilde uzun basarak görsel kaydetmeyi engelle
+    const handleTouchCancel = () => {
+      // iOS ve Android, fiziksel Güç + Ses tuşlarıyla SS alındığı anda aktif dokunmayı 'touchcancel' ile keser!
+      activateSyncDomShield();
+      setShieldReason('screenshot');
+      scheduleClipboardWipes();
+    };
+
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null;
       if (
@@ -171,7 +263,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     const handleCopy = (e: ClipboardEvent) => {
       if (isPreviewOpen) {
         e.preventDefault();
-        clearClipboard();
+        scheduleClipboardWipes();
       }
     };
 
@@ -179,7 +271,9 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     window.addEventListener('keyup', handleKeyUp, { capture: true });
     window.addEventListener('blur', handleWindowBlur);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeaveDocument);
     document.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
+    document.addEventListener('touchcancel', handleTouchCancel, { capture: true });
     document.addEventListener('contextmenu', handleContextMenu, { capture: true });
     document.addEventListener('copy', handleCopy, { capture: true });
 
@@ -188,9 +282,12 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
       window.removeEventListener('blur', handleWindowBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeaveDocument);
       document.removeEventListener('touchstart', handleTouchStart, { capture: true });
+      document.removeEventListener('touchcancel', handleTouchCancel, { capture: true });
       document.removeEventListener('contextmenu', handleContextMenu, { capture: true });
       document.removeEventListener('copy', handleCopy, { capture: true });
+      wipeTimersRef.current.forEach((id) => window.clearTimeout(id));
       deactivateSyncDomShield();
     };
   }, [
@@ -198,23 +295,8 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     activateSyncDomShield,
     deactivateSyncDomShield,
     triggerScreenshotBlock,
-    clearClipboard,
+    scheduleClipboardWipes,
   ]);
-
-  // Pencere tekrar odaklandığında 'focus_lost' kalkanını kaldır (açıkça SS tuşuna basıldıysa kullanıcı butona basana kadar kalkanı koru)
-  useEffect(() => {
-    const handleWindowFocus = () => {
-      setShieldReason((prev) => {
-        if (prev === 'focus_lost') {
-          deactivateSyncDomShield();
-          return null;
-        }
-        return prev;
-      });
-    };
-    window.addEventListener('focus', handleWindowFocus);
-    return () => window.removeEventListener('focus', handleWindowFocus);
-  }, [deactivateSyncDomShield]);
 
   return (
     <div
@@ -227,7 +309,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
         body.${SHIELD_BODY_CLASS} .econnotes-ss-protected {
           opacity: 0 !important;
           visibility: hidden !important;
-          filter: blur(40px) brightness(0) !important;
+          filter: blur(48px) brightness(0) !important;
           transition: none !important;
         }
         @media print {
@@ -247,9 +329,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
         }
       `}</style>
 
-      <div className="econnotes-ss-protected">
-        {children}
-      </div>
+      <div className="econnotes-ss-protected">{children}</div>
 
       {/* Tam Ekran EconNotes Ekran Görüntüsü Engelleyici Güvenlik Kalkanı */}
       {shieldReason && (
@@ -275,7 +355,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
               <p className="text-xs sm:text-sm leading-relaxed text-blue-100/85">
                 {shieldReason === 'screenshot'
                   ? 'EconNotes içerik güvenliği politikası gereği Notlar bölümünde ve not önizlemelerinde ekran görüntüsü (SS) alınmasına izin verilmemektedir.'
-                  : 'Ekran yakalama ve ekran görüntüsü araçlarına karşı koruma nedeniyle pencere odağı dışındayken not içeriği otomatik olarak gizlenmiştir.'}
+                  : 'Ekran yakalama ve ekran görüntüsü araçlarına karşı koruma nedeniyle not içeriği otomatik olarak gizlenmiştir.'}
               </p>
             </div>
 
