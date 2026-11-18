@@ -242,32 +242,26 @@ const MondayWheelPopup = () => {
           <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
           {/* Üst EconNotes Kobalt-Mavi Başlık Katmanı */}
-          <div className="relative z-10 px-5 pt-5 pb-3 sm:px-6 sm:pt-6">
-            <div className="flex items-center justify-between gap-2 mb-3.5">
-              <EconLogo allWhite className="h-5 sm:h-6 w-auto shrink-0" />
-              <div className="flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/30 bg-white/10 px-2.5 py-1 text-[10.5px] font-semibold text-cyan-100 backdrop-blur-md">
-                  <Sparkles className="h-3 w-3 text-cyan-300 shrink-0" />
-                  <span>Haftalık Pazartesi Etkinliği</span>
-                </span>
-                <button
-                  type="button"
-                  disabled={spinning}
-                  onClick={() => !spinning && setOpen(false)}
-                  aria-label="Kapat"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/85 transition-all hover:bg-white/20 hover:text-white active:scale-90 disabled:opacity-40"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
+          <div className="relative z-10 px-5 pt-5 pb-3 sm:px-6 sm:pt-6 text-center">
+            <div className="relative flex items-center justify-center mb-3.5">
+              <EconLogo allWhite className="h-5 sm:h-6 w-auto" />
+              <button
+                type="button"
+                disabled={spinning}
+                onClick={() => !spinning && setOpen(false)}
+                aria-label="Kapat"
+                className="absolute right-0 top-1/2 -translate-y-1/2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/85 transition-all hover:bg-white/20 hover:text-white active:scale-90 disabled:opacity-40"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
 
-            <DialogHeader className="relative z-10 pr-0 text-center sm:text-center">
-              <DialogTitle className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+            <DialogHeader className="relative z-10 pr-0 !text-center items-center">
+              <DialogTitle className="w-full text-center text-xl sm:text-2xl font-extrabold tracking-tight text-white">
                 Pazartesi Şans Çarkı
               </DialogTitle>
-              <DialogDescription className="text-xs text-blue-100/90 mt-1 leading-relaxed max-w-[340px] mx-auto">
-                Her Pazartesi giriş yap, çarkı çevir; sınırsız erişim, +2 not hakkı veya 500 XP’ye varan puanları anında kazan!
+              <DialogDescription className="w-full text-center text-xs text-blue-100/90 mt-1 leading-relaxed max-w-[340px] mx-auto">
+                Her Pazartesi giriş yap, çarkı çevir; 1 günlük sınırsız not erişimi, +2 not hakkı veya 500 XP’ye varan puanları anında kazan!
               </DialogDescription>
             </DialogHeader>
           </div>

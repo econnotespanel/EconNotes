@@ -122,11 +122,11 @@ const BirthdayCelebrationPopup = () => {
               <Cake className="h-7 w-7 sm:h-8 sm:w-8 text-cyan-200" />
             </div>
 
-            <DialogHeader className="text-center sm:text-center space-y-1">
-              <DialogTitle className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+            <DialogHeader className="pr-0 !text-center items-center space-y-1">
+              <DialogTitle className="w-full text-center text-xl sm:text-2xl font-extrabold tracking-tight text-white">
                 İyi ki Doğdun, {firstName}!
               </DialogTitle>
-              <DialogDescription className="text-xs sm:text-[13px] leading-relaxed text-blue-100/85 max-w-[340px] mx-auto">
+              <DialogDescription className="w-full text-center text-xs sm:text-[13px] leading-relaxed text-blue-100/85 max-w-[340px] mx-auto">
                 EconNotes ailesi olarak yeni yaşının sana sağlık, mutluluk ve akademik hayatında üstün başarılar getirmesini dileriz.
               </DialogDescription>
             </DialogHeader>
