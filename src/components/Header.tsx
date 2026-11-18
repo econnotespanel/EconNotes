@@ -211,16 +211,16 @@ const Header = () => {
   };
 
   return (
-    <header 
-      className="sticky top-0 z-50 w-full border-b border-border/70 bg-card/90 shadow-[0_8px_24px_hsl(var(--foreground)/0.04)] backdrop-blur-xl"
+    <header
+      className="sticky top-0 z-50 w-full px-3 sm:px-3.5 md:px-4"
       style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/80 to-transparent" />
-      {seasonalTheme?.id === 'november10' && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-foreground/30 to-transparent opacity-80" />
-      )}
-      <div className="flex h-[4.5rem] min-w-0 items-center justify-between gap-2 px-3 sm:px-4 md:px-6">
-        <div className="flex min-w-0 cursor-pointer items-center rounded-xl px-2 py-1.5 transition-colors hover:bg-primary/5" onClick={() => navigate('/')}>
+      <div className="relative flex h-[4.25rem] min-w-0 items-center justify-between gap-2 overflow-hidden rounded-[22px] md:rounded-[24px] border border-slate-200/80 dark:border-white/[0.08] bg-white/95 dark:bg-[#14171c]/95 px-3 sm:px-4 md:px-5 shadow-[0_14px_38px_rgba(15,23,42,0.07)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+        {seasonalTheme?.id === 'november10' && (
+          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-foreground/30 to-transparent opacity-80" />
+        )}
+        <div className="flex min-w-0 cursor-pointer items-center rounded-2xl px-2 py-1.5 transition-colors hover:bg-primary/5" onClick={() => navigate('/')}>
           <div className="flex items-center gap-2 sm:gap-2.5">
             <EconLogo className="h-6 w-auto sm:h-7" />
             {seasonalTheme?.id === 'november10' ? (
@@ -252,7 +252,7 @@ const Header = () => {
           {user && (
             <div
               onClick={() => navigate('/profile')}
-              className="mr-1 hidden rounded-2xl border border-border/70 bg-card/70 px-3.5 py-1 text-right backdrop-blur-md md:flex md:flex-col justify-center shadow-xs cursor-pointer hover:border-primary/50 hover:bg-card/90 transition-all duration-200"
+              className="mr-1 hidden h-9 rounded-full border border-border/70 bg-card/75 px-4 py-1 text-right backdrop-blur-md md:flex md:flex-col justify-center shadow-xs cursor-pointer hover:border-primary/50 hover:bg-card/95 transition-all duration-200"
             >
               <div className="flex items-center justify-end gap-1.5">
                 <span className="text-[12px] font-semibold leading-tight text-foreground whitespace-nowrap">

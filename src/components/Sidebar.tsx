@@ -297,7 +297,7 @@ const Sidebar = () => {
             : '-translate-y-2 scale-[0.98] opacity-0 pointer-events-none md:opacity-100',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 5rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 5.4rem)',
         }}
       >
         <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
