@@ -152,7 +152,7 @@ const MobileBottomNav = () => {
             className="pointer-events-none absolute inset-x-6 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-300/35 to-transparent"
           />
 
-          {/* Kayan 3D Liquid Glass Aktif Buton Balonu (iOS Geçiş Animasyonlu) */}
+          {/* Kayan 3D Liquid Glass Aktif Buton Balonu (iOS Geçiş Animasyonlu - Mavi Renksiz Doğal Cam) */}
           <div
             aria-hidden="true"
             style={{
@@ -164,9 +164,9 @@ const MobileBottomNav = () => {
             }}
             className={cn(
               'pointer-events-none absolute top-[5px] bottom-[5px] z-0 rounded-full overflow-hidden',
-              'bg-gradient-to-b from-[#07193d]/95 via-[#002d78]/88 to-[#04112b]/95',
-              'border border-cyan-300/30',
-              'shadow-[0_6px_20px_rgba(0,8,24,0.65),0_0_16px_rgba(0,112,209,0.35),inset_0_1.5px_2px_rgba(255,255,255,0.45),inset_0_-1.5px_2.5px_rgba(56,189,248,0.4)]',
+              'bg-gradient-to-b from-black/55 via-black/70 to-black/60',
+              'border border-white/20',
+              'shadow-[0_6px_20px_rgba(0,0,0,0.6),inset_0_1.5px_2px_rgba(255,255,255,0.38),inset_0_-1.5px_2px_rgba(255,255,255,0.22)]',
             )}
           >
             {/* iOS 3D Üst & Alt Kubbe Işık Yansıması */}
@@ -174,14 +174,14 @@ const MobileBottomNav = () => {
               className="absolute inset-x-1 -top-1 h-5 rounded-full opacity-90"
               style={{
                 background:
-                  'radial-gradient(ellipse 75% 60% at 50% 10%, rgba(255,255,255,0.38), rgba(56,189,248,0.14) 60%, transparent 100%)',
+                  'radial-gradient(ellipse 75% 60% at 50% 10%, rgba(255,255,255,0.35), rgba(255,255,255,0.08) 60%, transparent 100%)',
               }}
             />
             <div
-              className="absolute inset-x-2 -bottom-1 h-4 rounded-full opacity-85"
+              className="absolute inset-x-2 -bottom-1 h-4 rounded-full opacity-80"
               style={{
                 background:
-                  'radial-gradient(ellipse 70% 55% at 50% 95%, rgba(56,189,248,0.42), rgba(255,255,255,0.12) 60%, transparent 100%)',
+                  'radial-gradient(ellipse 70% 55% at 50% 95%, rgba(255,255,255,0.25), rgba(255,255,255,0.06) 60%, transparent 100%)',
               }}
             />
           </div>
@@ -220,8 +220,8 @@ const MobileBottomNav = () => {
                     className={cn(
                       'h-[20px] w-[20px] transition-colors duration-300',
                       isActive
-                        ? 'text-[#38bdf8] drop-shadow-[0_0_8px_rgba(56,189,248,0.55)]'
-                        : 'text-white/85 group-hover:text-white',
+                        ? 'text-white drop-shadow-[0_1px_6px_rgba(255,255,255,0.35)]'
+                        : 'text-white/75 group-hover:text-white',
                     )}
                     strokeWidth={isActive ? 2.3 : 1.95}
                   />
@@ -233,7 +233,7 @@ const MobileBottomNav = () => {
                   ) : null}
 
                   {item.isHighlight && !isActive && (
-                    <span className="absolute -top-1 -right-1.5 h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(56,189,248,0.9)] animate-pulse" />
+                    <span className="absolute -top-1 -right-1.5 h-2 w-2 rounded-full bg-white/80 shadow-[0_0_8px_rgba(255,255,255,0.8)] animate-pulse" />
                   )}
                 </div>
 
@@ -241,8 +241,8 @@ const MobileBottomNav = () => {
                   className={cn(
                     'mt-0.5 max-w-full truncate text-[10.5px] leading-tight tracking-[-0.01em] transition-all duration-300',
                     isActive
-                      ? 'font-bold text-[#38bdf8] drop-shadow-[0_0_6px_rgba(56,189,248,0.35)]'
-                      : 'font-medium text-white/80 group-hover:text-white',
+                      ? 'font-bold text-white'
+                      : 'font-medium text-white/75 group-hover:text-white',
                   )}
                 >
                   {item.label}
