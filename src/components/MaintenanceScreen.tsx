@@ -119,16 +119,26 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
     ? 'Sınav Hazırlık ve Altyapı Güçlendirmesi'
     : 'Platformumuzda Bakım Çalışması Yürütülüyor';
 
+  // Filter out any lingering legacy university exam capacity pretext
+  const cleanMessage = (rawMessage?: string | null) => {
+    if (!rawMessage) return '';
+    const trimmed = rawMessage.trim();
+    if (trimmed.includes('Üniversite sınavları öncesinde sunucu kapasitesini artırmak')) {
+      return '';
+    }
+    return trimmed;
+  };
+
   const defaultMessage = isSummer
     ? 'Platformumuz yaz dönemi boyunca yeni akademik yıla hazırlık ve altyapı güncellemeleri nedeniyle geçici olarak kapalıdır. Tüm ders notları, kullanıcı puanları ve hesap verileri güvendedir.'
     : isTermBreak
     ? 'Dönem arası tatili kapsamında sunucu optimizasyonları yapılmaktadır. Bahar dönemi başlangıcında görüşmek üzere!'
     : isExamBreak
     ? 'Yaklaşan sınav haftası öncesinde öğrenci yoğunluğunu karşılamak üzere sunucu kapasitesi artırılmakta ve veritabanı indeksleri güçlendirilmektedir.'
-    : 'Üniversite sınavları öncesinde sunucu kapasitesini artırmak ve altyapıyı güçlendirmek amacıyla sistemimiz planlı bakım modundadır.';
+    : '';
 
   const displayTitle = title?.trim() || defaultTitle;
-  const displayMessage = message?.trim() || defaultMessage;
+  const displayMessage = cleanMessage(message) || defaultMessage;
 
   const modeBadge = isSummer
     ? { label: 'Yaz Tatili', icon: Sun, color: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' }
@@ -216,9 +226,11 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
                   {modeBadge.label}
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 leading-relaxed">
-                {displayMessage}
-              </p>
+              {displayMessage ? (
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 leading-relaxed">
+                  {displayMessage}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -336,21 +348,23 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
 
           </div>
 
-          {/* Incident / Maintenance Details Box */}
-          <div className="p-3.5 sm:p-5 rounded-xl bg-muted/60 border border-border space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <h4 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
-                <Info className="h-4 w-4 text-primary shrink-0" />
-                Ayrıntılar ve Açıklama
-              </h4>
-              <span className="text-[10px] sm:text-[11px] text-muted-foreground shrink-0">
-                Son kontrol: {lastChecked}
-              </span>
+          {/* Incident / Maintenance Details Box (only shown when an announcement message exists) */}
+          {displayMessage ? (
+            <div className="p-3.5 sm:p-5 rounded-xl bg-muted/60 border border-border space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <Info className="h-4 w-4 text-primary shrink-0" />
+                  Ayrıntılar ve Açıklama
+                </h4>
+                <span className="text-[10px] sm:text-[11px] text-muted-foreground shrink-0">
+                  Son kontrol: {lastChecked}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                {displayMessage}
+              </p>
             </div>
-            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-              {displayMessage}
-            </p>
-          </div>
+          ) : null}
 
           {/* Action Buttons */}
           <div className="pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 border-t border-border">

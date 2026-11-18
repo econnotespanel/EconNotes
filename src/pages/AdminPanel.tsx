@@ -369,7 +369,12 @@ const AdminPanel = () => {
         setAcademicWeekLabel((settingsRes.data as any).academic_week_label || '');
         setAcademicSemester((settingsRes.data as any).academic_semester || 'Güz');
         setClosureTitle((settingsRes.data as any).closure_title || '');
-        setClosureMessage((settingsRes.data as any).closure_message || '');
+        const rawClosureMsg = (settingsRes.data as any).closure_message || '';
+        setClosureMessage(
+          rawClosureMsg.includes('Üniversite sınavları öncesinde sunucu kapasitesini artırmak')
+            ? ''
+            : rawClosureMsg
+        );
         setClosureImageUrl((settingsRes.data as any).closure_image_url || '');
         setClosureMode((settingsRes.data as any).closure_mode || 'maintenance');
         const cu = (settingsRes.data as any).closed_until;
