@@ -26,33 +26,22 @@ export const overwriteClipboardWithSecurityImage = async (viewerName?: string) =
     canvas.height = 540;
     const ctx = canvas.getContext('2d');
     if (ctx && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
-      const grad = ctx.createLinearGradient(0, 0, 960, 540);
-      grad.addColorStop(0, '#001438');
-      grad.addColorStop(0.5, '#002b75');
-      grad.addColorStop(1, '#020817');
-      ctx.fillStyle = grad;
+      // %100 Saf Simsiyah Ekran Çıktısı (#000000)
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, 960, 540);
 
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(24, 24, 912, 492);
+      ctx.strokeStyle = '#222222';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(20, 20, 920, 500);
 
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 34px Arial, sans-serif';
+      ctx.fillStyle = '#666666';
+      ctx.font = 'bold 28px Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('ECONNOTES GÜVENLİK KALKANI', 480, 210);
+      ctx.fillText('ECONNOTES GÜVENLİK KALKANI', 480, 240);
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 26px Arial, sans-serif';
-      ctx.fillText('Bu İçeriğin Ekran Görüntüsü (SS) Alınamaz', 480, 265);
-
-      ctx.fillStyle = 'rgba(191, 219, 254, 0.85)';
-      ctx.font = '18px Arial, sans-serif';
-      ctx.fillText(
-        `İçerik güvenliği politikası gereği ekran görüntüsü engellenmiştir.${viewerName ? ` (${viewerName})` : ''}`,
-        480,
-        320,
-      );
+      ctx.fillStyle = '#444444';
+      ctx.font = '20px Arial, sans-serif';
+      ctx.fillText('Ekran Görüntüsü Güvenlik Politikası Gereği Engellendi (Siyah Ekran)', 480, 290);
 
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob((b) => resolve(b), 'image/png'),
@@ -304,18 +293,25 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
       onDragStart={(e) => e.preventDefault()}
       className="relative select-none [-webkit-touch-callout:none] [-webkit-user-select:none]"
     >
-      {/* Senkron 0ms Karartma & Yazdırma Engelleyici CSS */}
+      {/* Senkron 0ms Simsiyah Ekran Karartma & Yazdırma Engelleyici CSS */}
       <style>{`
+        body.${SHIELD_BODY_CLASS} {
+          background-color: #000000 !important;
+        }
         body.${SHIELD_BODY_CLASS} .econnotes-ss-protected {
           opacity: 0 !important;
           visibility: hidden !important;
-          filter: blur(48px) brightness(0) !important;
+          filter: brightness(0) contrast(0) !important;
+          background-color: #000000 !important;
           transition: none !important;
         }
         @media print {
           body * {
             display: none !important;
             visibility: hidden !important;
+          }
+          body {
+            background-color: #000000 !important;
           }
           body::after {
             content: "EconNotes Güvenlik Koruması: Ders notlarının ekran görüntüsü alınamaz ve yazdırılamaz.";
@@ -325,21 +321,22 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
             font-size: 20px;
             font-weight: bold;
             text-align: center;
+            color: #444444 !important;
           }
         }
       `}</style>
 
       <div className="econnotes-ss-protected">{children}</div>
 
-      {/* Tam Ekran EconNotes Ekran Görüntüsü Engelleyici Güvenlik Kalkanı */}
+      {/* Tam Ekran %100 Simsiyah (#000000) Ekran Görüntüsü Engelleyici Güvenlik Kalkanı */}
       {shieldReason && (
         <div
           role="alertdialog"
           aria-live="assertive"
           onClick={dismissShield}
-          className="fixed inset-0 z-[250] flex flex-col items-center justify-center bg-gradient-to-b from-[#001438] via-[#00225e] to-[#020817] p-6 text-center text-white backdrop-blur-3xl"
+          className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-black p-6 text-center text-white select-none"
         >
-          <div className="max-w-md space-y-4 rounded-[28px] border border-cyan-300/30 bg-white/[0.07] p-6 sm:p-7 shadow-[0_24px_70px_rgba(0,18,56,0.85)] backdrop-blur-2xl">
+          <div className="max-w-md space-y-4 rounded-[28px] border border-white/10 bg-[#0a0a0a] p-6 sm:p-7 shadow-2xl">
             <div className="flex justify-center">
               <EconLogo allWhite className="h-6 w-auto" />
             </div>

@@ -444,8 +444,8 @@ const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previ
 
         {/* Donanım SS (iPhone Güç+Ses / PC PrintScreen) Engelleyici Aktif Dokunma Kalkanı */}
         {!loadingPdf && !isHoldingToView && (
-          <div className="pointer-events-none absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center bg-[#070d19]/95 p-4 text-center backdrop-blur-2xl">
-            <div className="max-w-sm space-y-3.5 rounded-[26px] border border-cyan-300/30 bg-gradient-to-b from-[#001d52]/95 via-[#002f7d]/95 to-[#041330]/95 p-6 text-white shadow-[0_24px_64px_rgba(0,18,56,0.85)] backdrop-blur-2xl">
+          <div className="pointer-events-none absolute inset-0 z-20 flex h-full w-full flex-col items-center justify-center bg-black p-4 text-center select-none">
+            <div className="max-w-sm space-y-3.5 rounded-[26px] border border-white/10 bg-[#0d0d0d] p-6 text-white shadow-2xl">
               <div className="flex justify-center">
                 <EconLogo allWhite className="h-5 w-auto" />
               </div>
