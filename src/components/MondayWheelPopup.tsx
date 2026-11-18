@@ -203,7 +203,12 @@ const MondayWheelPopup = () => {
     <>
       {/* Sağ Altta Çark Resmi ile Gösterilen EconNotes Uyumlu Pazartesi Şans Çarkı Kutusu */}
       {showFloatingLauncher && (
-        <div className={cn("fixed bottom-24 right-3.5 z-30 md:bottom-5 md:right-5 items-center", isSidebarOpen ? "hidden md:flex" : "flex")}>
+        <div
+          className={cn(
+            'fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.85rem)] right-3.5 z-30 md:bottom-5 md:right-5 items-center',
+            isSidebarOpen ? 'hidden md:flex' : 'flex',
+          )}
+        >
           <div
             className={cn(
               'group relative flex items-center gap-3 overflow-hidden rounded-[22px] p-2.5 pr-3 text-white',
