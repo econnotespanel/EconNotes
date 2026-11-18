@@ -401,17 +401,6 @@ const Header = () => {
               </AlertDialogContent>
             </AlertDialog>
           </div>
-
-          {/* EconKPSS tarzı mobil sağ üst Menü / Kapat (X) butonu */}
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('econnotes:toggle-sidebar'))}
-            aria-label={isSidebarOpen ? 'Menüyü kapat' : 'Menüyü aç'}
-            aria-expanded={isSidebarOpen}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] border border-border/80 bg-card/85 text-foreground shadow-xs backdrop-blur-md transition-all duration-200 hover:bg-accent active:scale-90 md:hidden"
-          >
-            {isSidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </button>
         </div>
       </div>
     </header>

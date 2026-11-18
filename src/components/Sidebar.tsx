@@ -200,7 +200,7 @@ const Sidebar = () => {
         onClick={() => navigate(link.path)}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'group relative flex items-center gap-3.5 w-full rounded-[14px] px-4 md:px-3.5 min-h-[42px] md:min-h-[36px] py-2 md:py-1.5 text-[14px] md:text-[13.5px]',
+          'group relative flex items-center gap-3 w-full rounded-[12px] px-3.5 min-h-[34px] md:min-h-[36px] py-1 md:py-1.5 text-[13.5px]',
           'transition-all duration-200 ease-out select-none',
           'focus:outline-none focus-visible:outline-none',
           active
@@ -210,7 +210,7 @@ const Sidebar = () => {
       >
         <Icon
           className={cn(
-            'h-[18px] w-[18px] shrink-0 transition-colors duration-200',
+            'h-[17px] w-[17px] md:h-[18px] md:w-[18px] shrink-0 transition-colors duration-200',
             active
               ? 'text-blue-600 dark:text-[#5b9cf6]'
               : 'text-slate-500 dark:text-[#8e96a4] group-hover:text-slate-800 dark:group-hover:text-[#e2e8f0]',
@@ -231,7 +231,7 @@ const Sidebar = () => {
           </span>
         )}
         {link.badge && link.badge > 0 ? (
-          <span className="h-[20px] min-w-[24px] px-2 rounded-full bg-[#f05252] text-[11px] font-bold text-white inline-flex items-center justify-center shadow-xs">
+          <span className="h-[19px] min-w-[22px] px-1.5 rounded-full bg-[#f05252] text-[10.5px] font-bold text-white inline-flex items-center justify-center shadow-xs">
             {link.badge > 99 ? '99+' : link.badge}
           </span>
         ) : null}
@@ -253,10 +253,10 @@ const Sidebar = () => {
       <div
         className={cn(
           'flex flex-col gap-0.5',
-          !isFirstSection && 'mt-1.5 pt-2 border-t border-slate-200/70 dark:border-white/[0.06]',
+          !isFirstSection && 'mt-1 pt-1.5 border-t border-slate-200/70 dark:border-white/[0.06]',
         )}
       >
-        <div className="px-4 md:px-3.5 pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-[#64748b]">
+        <div className="px-3.5 pb-0.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-[#64748b]">
           {title}
         </div>
         <div className="flex flex-col gap-0.5">
@@ -285,7 +285,7 @@ const Sidebar = () => {
           'fixed inset-x-3.5 mx-auto md:inset-x-auto md:left-4 md:mx-0 z-50 w-[calc(100vw-1.75rem)] max-w-[430px] md:w-[244px] md:max-w-none',
           'flex flex-col',
           'rounded-[24px]',
-          'max-h-[calc(100dvh-env(safe-area-inset-top,0px)-10rem)] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6.25rem)]',
+          'max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-10.5rem)] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6.25rem)]',
           'bg-white/95 dark:bg-[#14171c]/95 text-slate-700 dark:text-[#8e96a4]',
           'border border-slate-200/80 dark:border-white/[0.08]',
           'shadow-[0_20px_50px_rgba(15,23,42,0.12)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.78)]',
@@ -297,10 +297,10 @@ const Sidebar = () => {
             : '-translate-y-2 scale-[0.98] opacity-0 pointer-events-none md:opacity-100',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 5.25rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + 5rem)',
         }}
       >
-        <div className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-2.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <nav className="flex flex-col" aria-label="Ana menü">
             <Section title="Panel" items={visible(primary)} isFirstSection />
             <Section title="Araçlar" items={visible(tools)} />
@@ -308,7 +308,7 @@ const Sidebar = () => {
           </nav>
         </div>
 
-        <div className="px-4 py-2.5 border-t border-slate-200/70 dark:border-white/[0.06] bg-slate-50/60 dark:bg-white/[0.02] rounded-b-[24px] flex items-center justify-between text-[10px] text-slate-400 dark:text-[#646d7a]">
+        <div className="px-4 py-2 border-t border-slate-200/70 dark:border-white/[0.06] bg-slate-50/60 dark:bg-white/[0.02] rounded-b-[24px] flex items-center justify-between text-[10px] text-slate-400 dark:text-[#646d7a]">
           <div className="flex items-center gap-1.5">
             <EconLogo className="h-3.5 w-auto opacity-85" />
             {isNovember10 && (

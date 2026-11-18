@@ -340,7 +340,7 @@ const MobileBottomNav = () => {
     <nav
       role="navigation"
       aria-label="Mobil Alt Menü"
-      className="fixed inset-x-0 z-40 md:hidden pointer-events-none select-none"
+      className="fixed inset-x-0 z-[60] md:hidden pointer-events-none select-none"
       style={{
         bottom: isStandalone
           ? 'calc(env(safe-area-inset-bottom, 0px) + 0.35rem)'
