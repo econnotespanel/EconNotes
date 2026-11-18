@@ -49,7 +49,13 @@ export const usePoints = (leaderboardLimit = 10) => {
     }
   }, [user, leaderboardLimit]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+    window.addEventListener('econnotes:points-updated', refresh);
+    return () => {
+      window.removeEventListener('econnotes:points-updated', refresh);
+    };
+  }, [refresh]);
 
   return { points, leaderboard, loading, refresh };
 };

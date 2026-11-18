@@ -21,6 +21,7 @@ const REASON_LABEL: Record<string, string> = {
 
 const labelFor = (reason: string) => {
   if (reason.startsWith('mission:')) return 'Mini görev bonusu';
+  if (reason.startsWith('monday_wheel')) return 'Pazartesi Şans Çarkı';
   return REASON_LABEL[reason] || reason;
 };
 

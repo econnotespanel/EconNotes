@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones, Cake } from 'lucide-react';
+import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones, Cake, Gift, Lock } from 'lucide-react';
 import { getBirthdayStatus, getUserBirthDate } from '@/lib/birthdayPerk';
+import { getMondayWheelState } from '@/lib/mondayWheel';
+import { openMondayWheelModal } from '@/components/MondayWheelPopup';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -172,7 +174,7 @@ const Dashboard = () => {
     },
     {
       label: 'İndirme Hakkım',
-      value: quota?.is_admin || quota?.is_birthday_unlimited ? 'Sınırsız' : (quota?.remaining ?? '—'),
+      value: quota?.is_admin || quota?.is_birthday_unlimited || quota?.is_wheel_unlimited ? 'Sınırsız' : (quota?.remaining ?? '—'),
       icon: Download,
       color: isNovember10 ? 'text-foreground' : 'text-emerald-500 dark:text-emerald-400',
       iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
@@ -474,8 +476,58 @@ const Dashboard = () => {
           ))}
         </div>
 
+        {/* Pazartesi Şans Çarkı Kartı */}
+        {user && (() => {
+          const wheel = getMondayWheelState(user);
+          return (
+            <Card className="glass-card border-primary/25 bg-gradient-to-r from-blue-500/[0.06] via-violet-500/[0.06] to-amber-500/[0.06]">
+              <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-white shadow-sm shrink-0">
+                    <Gift className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-bold text-sm sm:text-base text-foreground">Pazartesi Şans Çarkı 🎡</h3>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${wheel.canSpinNow ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30'}`}>
+                        {wheel.canSpinNow ? 'ÇEVİRMEYE HAZIR' : wheel.hasSpunToday ? 'BU HAFTA ÇEVRİLDİ' : 'PAZARTESİ ÖZEL'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {wheel.hasSpunToday && wheel.todayRewardTitle
+                        ? `Bu haftaki ödülün: ${wheel.todayRewardTitle} — Haftaya Pazartesi tekrar çevirebilirsin.`
+                        : wheel.isMonday
+                        ? `+2 Not hakkı, 1 günlük sınırsız erişim veya 100-500 XP kazanmak için hemen çevir! (${wheel.countdownLabel})`
+                        : `Yalnızca Pazartesi günleri çevrilebilir. Pazartesi günü kaçırırsan diğer Pazartesi gününü beklemen gerekir. (${wheel.countdownLabel})`}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={wheel.canSpinNow ? 'default' : 'outline'}
+                  onClick={openMondayWheelModal}
+                  className="shrink-0 gap-1.5 text-xs"
+                >
+                  {wheel.canSpinNow ? (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Çarkı Çevir
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="h-3.5 w-3.5" />
+                      Çarkı Gör
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })()}
+
         {quota && !quota.is_admin && (
-          <Card className={`glass-card ${quota.is_birthday_unlimited ? 'border-amber-400/50 bg-amber-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
+          <Card className={`glass-card ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-amber-400/50 bg-amber-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
             <CardContent className="p-5">
               {quota.is_birthday_unlimited ? (
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -491,6 +543,26 @@ const Dashboard = () => {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       İyi ki doğdun, {displayName.split(' ')[0]}! Doğum gününe özel bugün tüm ders notlarını kota sınırı olmadan görüntüleyebilir ve indirebilirsin.
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shrink-0">
+                    Notları İncele
+                  </Button>
+                </div>
+              ) : quota.is_wheel_unlimited ? (
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="p-3 rounded-2xl bg-amber-500 text-white shrink-0 w-fit">
+                    <Gift className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                      <h3 className="font-bold text-base">🎡 Şans Çarkı Ödülün: 1 Gün Sınırsız İndirme & Yükleme!</h3>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 font-bold">
+                        {getMondayWheelState(user).wheelUnlimitedRemainingLabel}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Pazartesi Şans Çarkından kazandığın 24 saatlik sınırsız not görüntüleme, indirme ve yükleme hakkın aktif!
                     </p>
                   </div>
                   <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shrink-0">

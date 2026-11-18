@@ -6,6 +6,7 @@ import ContentNotificationListener from '@/components/ContentNotificationListene
 import DeviceNotificationBanner from '@/components/DeviceNotificationBanner';
 import ExamWishPopup from '@/components/ExamWishPopup';
 import BirthdayCelebrationPopup from '@/components/BirthdayCelebrationPopup';
+import MondayWheelPopup from '@/components/MondayWheelPopup';
 import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +41,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <DeviceNotificationBanner />
       <ExamWishPopup />
       <BirthdayCelebrationPopup />
+      <MondayWheelPopup />
       <Header />
       <Sidebar />
       <main className="relative z-10 min-h-[calc(100vh-4rem)] min-w-0 px-3 py-4 pb-24 sm:px-4 sm:pb-28 md:ml-[16.5rem] md:p-8 opacity-100 visible">
