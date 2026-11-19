@@ -48,6 +48,7 @@ type LinkItem = {
   badge?: number;
   isNew?: boolean;
   isBeta?: boolean;
+  tagLabel?: string;
 };
 
 const Sidebar = () => {
@@ -165,7 +166,7 @@ const Sidebar = () => {
 
   const tools: LinkItem[] = [
     { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',      isNew: true },
-    { label: 'KPSS Merkezi',       icon: Target,        path: '/kpss',       isNew: true },
+    { label: 'KPSS Merkezi',       icon: Target,        path: '/kpss',       tagLabel: 'TAŞINDI' },
     { label: 'Canlı Ders',         icon: Video,         path: '/live-class' },
     { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant' },
   ];
@@ -225,6 +226,11 @@ const Sidebar = () => {
         {link.isNew && (
           <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-primary/25 text-primary bg-primary/10 dark:border-[#60a5fa]/30 dark:text-[#60a5fa] dark:bg-[#60a5fa]/10">
             YENİ
+          </span>
+        )}
+        {link.tagLabel && (
+          <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider rounded-md border border-primary/25 text-primary bg-primary/10 dark:border-[#60a5fa]/30 dark:text-[#60a5fa] dark:bg-[#60a5fa]/10">
+            {link.tagLabel}
           </span>
         )}
         {link.isBeta && (
