@@ -133,6 +133,7 @@ export function getNextMondayCountdownLabel(now = new Date()): string {
 
 export interface MondayWheelState {
   isMonday: boolean;
+  isAdminDailyMode: boolean;
   hasSpunToday: boolean;
   canSpinNow: boolean;
   todayRewardId: string | null;
@@ -141,6 +142,21 @@ export interface MondayWheelState {
   bonusQuota: number;
   isWheelUnlimitedActive: boolean;
   wheelUnlimitedRemainingLabel: string;
+}
+
+export interface MondayWheelOptions {
+  isAdmin?: boolean;
+}
+
+/** Yönetici günlük çark hakkının yarın 00:00'da yenilenmesine kalan süreyi döndürür. */
+export function getNextDayResetCountdownLabel(now = new Date()): string {
+  const nextMidnight = new Date(now);
+  nextMidnight.setDate(now.getDate() + 1);
+  nextMidnight.setHours(0, 0, 0, 0);
+  const diffMs = Math.max(0, nextMidnight.getTime() - now.getTime());
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `Yarınki yönetici çark hakkına ${hours} saat ${mins} dk kaldı`;
 }
 
 export function getWheelBonusQuota(user: User | null | undefined): number {
@@ -171,19 +187,25 @@ export function isWheelUnlimitedActive(user: User | null | undefined, now = new 
   return getWheelUnlimitedUntil(user) > now.getTime();
 }
 
-export function getMondayWheelState(user: User | null | undefined, now = new Date()): MondayWheelState {
+export function getMondayWheelState(
+  user: User | null | undefined,
+  now = new Date(),
+  options?: MondayWheelOptions,
+): MondayWheelState {
   const isMonday = isMondayToday(now);
+  const isAdminDailyMode = Boolean(options?.isAdmin);
   const todayStr = getTodayDateString(now);
-  const countdownLabel = getNextMondayCountdownLabel(now);
+  const baseCountdownLabel = getNextMondayCountdownLabel(now);
 
   if (!user) {
     return {
       isMonday,
+      isAdminDailyMode,
       hasSpunToday: false,
       canSpinNow: false,
       todayRewardId: null,
       todayRewardTitle: null,
-      countdownLabel,
+      countdownLabel: baseCountdownLabel,
       bonusQuota: 0,
       isWheelUnlimitedActive: false,
       wheelUnlimitedRemainingLabel: '',
@@ -218,10 +240,18 @@ export function getMondayWheelState(user: User | null | undefined, now = new Dat
     wheelUnlimitedRemainingLabel = `${h} saat ${m} dk kaldı`;
   }
 
+  const canSpinNow = (isMonday || isAdminDailyMode) && !hasSpunToday;
+  const countdownLabel = isAdminDailyMode
+    ? hasSpunToday
+      ? getNextDayResetCountdownLabel(now)
+      : 'Yönetici ayrıcalığı · Bugün 1 çevirme hakkın hazır!'
+    : baseCountdownLabel;
+
   return {
     isMonday,
+    isAdminDailyMode,
     hasSpunToday,
-    canSpinNow: isMonday && !hasSpunToday,
+    canSpinNow,
     todayRewardId,
     todayRewardTitle: rewardObj?.fullTitle || null,
     countdownLabel,
@@ -232,7 +262,8 @@ export function getMondayWheelState(user: User | null | undefined, now = new Dat
 }
 
 /**
- * Yalnızca Pazartesi günleri çalışır. Kazanan dilimi kullanıcının hesabına anında yükler:
+ * Normal kullanıcılar için Pazartesi günleri, yöneticiler için her gün günde 1 kez çalışır.
+ * Kazanan dilimi kullanıcının hesabına anında yükler:
  * - XP ise: awardPoints ile puan tablosuna ve liderlik sıralamasına yazar.
  * - +2 Not Hakkı ise: kullanıcının indirme/görüntüleme kotasını kalıcı olarak +2 artırır.
  * - 1 Gün Sınırsız ise: 24 saatlik sınırsız not görüntüleme, indirme ve yükleme geçişini başlatır.
@@ -241,9 +272,11 @@ export async function claimMondayWheelReward(
   user: User,
   segment: WheelSegment,
   now = new Date(),
+  options?: MondayWheelOptions,
 ): Promise<{ ok: boolean; error?: string; newPointsTotal?: number | null }> {
-  const state = getMondayWheelState(user, now);
-  if (!state.isMonday) {
+  const isAdmin = Boolean(options?.isAdmin);
+  const state = getMondayWheelState(user, now, { isAdmin });
+  if (!state.isMonday && !isAdmin) {
     return {
       ok: false,
       error: 'Şans Çarkı yalnızca Pazartesi günleri çevrilebilir. Bir sonraki Pazartesi gününü beklemelisin!',
@@ -252,7 +285,9 @@ export async function claimMondayWheelReward(
   if (state.hasSpunToday) {
     return {
       ok: false,
-      error: 'Bu Pazartesi çark hakkını zaten kullandın. Haftaya Pazartesi tekrar çevirebilirsin!',
+      error: isAdmin
+        ? 'Bugünkü yönetici çark hakkını zaten kullandın. Yarın tekrar çevirebilirsin!'
+        : 'Bu Pazartesi çark hakkını zaten kullandın. Haftaya Pazartesi tekrar çevirebilirsin!',
     };
   }
 

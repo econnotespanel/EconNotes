@@ -1,6 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { CalendarClock, CheckCircle2, Gift, Lock, PartyPopper, Sparkles, X } from 'lucide-react';
+import {
+  CalendarClock,
+  CheckCircle2,
+  Gift,
+  Lock,
+  PartyPopper,
+  ShieldCheck,
+  Volume2,
+  VolumeX,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -17,10 +27,20 @@ import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import {
   claimMondayWheelReward,
   getMondayWheelState,
+  getTodayDateString,
   MONDAY_WHEEL_SEGMENTS,
   type WheelSegment,
 } from '@/lib/mondayWheel';
+import {
+  evaluateWheelEase,
+  playWheelTick,
+  playWheelWinSound,
+  unlockWheelAudio,
+} from '@/lib/wheelSoundEngine';
 import { cn } from '@/lib/utils';
+
+const WHEEL_SOUND_MUTED_KEY = 'econnotes_wheel_sound_muted';
+const SPIN_DURATION_MS = 4200;
 
 export const openMondayWheelModal = () => {
   window.dispatchEvent(new CustomEvent('econnotes:open-monday-wheel'));
@@ -84,7 +104,7 @@ export const EconWheelMiniGraphic = ({ className = 'h-10 w-10' }: { className?: 
 };
 
 const MondayWheelPopup = () => {
-  const { user, loading } = useAuth();
+  const { user, isAdmin, loading } = useAuth();
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
@@ -93,7 +113,47 @@ const MondayWheelPopup = () => {
   const [open, setOpen] = useState(false);
   const [LauncherDismissed, setLauncherDismissed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [wheelState, setWheelState] = useState(() => getMondayWheelState(user));
+  const [wheelState, setWheelState] = useState(() =>
+    getMondayWheelState(user, new Date(), { isAdmin }),
+  );
+  const [soundMuted, setSoundMuted] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(WHEEL_SOUND_MUTED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [pointerKick, setPointerKick] = useState(false);
+  const soundMutedRef = useRef(soundMuted);
+  const tickRafRef = useRef<number | null>(null);
+  const spinTimerRef = useRef<number | null>(null);
+  const pointerTimerRef = useRef<number | null>(null);
+
+  soundMutedRef.current = soundMuted;
+
+  const toggleSoundMuted = () => {
+    setSoundMuted((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(WHEEL_SOUND_MUTED_KEY, next ? '1' : '0');
+      } catch {
+        // ignore
+      }
+      if (!next) {
+        unlockWheelAudio();
+        playWheelTick(0.75);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (tickRafRef.current !== null) cancelAnimationFrame(tickRafRef.current);
+      if (spinTimerRef.current !== null) window.clearTimeout(spinTimerRef.current);
+      if (pointerTimerRef.current !== null) window.clearTimeout(pointerTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const handleSidebarState = (e: Event) => {
@@ -111,35 +171,38 @@ const MondayWheelPopup = () => {
 
   useEffect(() => {
     const syncState = () => {
-      const next = getMondayWheelState(user);
+      const next = getMondayWheelState(user, new Date(), { isAdmin });
       setWheelState(next);
       if (next.todayRewardId) {
         const found = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === next.todayRewardId) || null;
         setWonSegment(found);
+      } else {
+        setWonSegment(null);
       }
     };
 
     syncState();
 
-    // Pazartesi günü giriş yapıldığında ve henüz çevrilmediyse otomatik aç
+    // Pazartesi günü (veya yöneticiler için günlük hak hazır olduğunda) ilk girişte otomatik aç
     if (!loading && user) {
-      const current = getMondayWheelState(user);
-      const sessionPromptKey = `econnotes_monday_wheel_prompted_${user.id}`;
+      const current = getMondayWheelState(user, new Date(), { isAdmin });
+      const todayKey = getTodayDateString();
+      const sessionPromptKey = `econnotes_monday_wheel_prompted_${user.id}_${todayKey}`;
       if (current.canSpinNow && !sessionStorage.getItem(sessionPromptKey)) {
         sessionStorage.setItem(sessionPromptKey, '1');
         const t = window.setTimeout(() => setOpen(true), 650);
         return () => window.clearTimeout(t);
       }
     }
-  }, [user, loading]);
+  }, [user, isAdmin, loading]);
 
   useEffect(() => {
     const handleOpen = () => {
-      setWheelState(getMondayWheelState(user));
+      setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
       setOpen(true);
     };
     const handleUpdated = () => {
-      setWheelState(getMondayWheelState(user));
+      setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
     };
 
     window.addEventListener('econnotes:open-monday-wheel', handleOpen);
@@ -148,7 +211,7 @@ const MondayWheelPopup = () => {
       window.removeEventListener('econnotes:open-monday-wheel', handleOpen);
       window.removeEventListener('econnotes:wheel-updated', handleUpdated);
     };
-  }, [user]);
+  }, [user, isAdmin]);
 
   if (!user) return null;
 
@@ -157,6 +220,11 @@ const MondayWheelPopup = () => {
 
   const handleSpin = () => {
     if (spinning || !wheelState.canSpinNow) return;
+
+    // Unlock Web Audio inside the click gesture for iOS/Android & desktop browsers
+    if (!soundMutedRef.current) {
+      unlockWheelAudio();
+    }
 
     const weights = [18, 22, 20, 10, 14, 10, 6];
     const roll = Math.random() * 100;
@@ -174,24 +242,73 @@ const MondayWheelPopup = () => {
     const targetSliceCenter = chosenIdx * sliceAngle + sliceAngle / 2;
     const extraSpins = 360 * 6;
     const jitter = (Math.random() - 0.5) * (sliceAngle * 0.45);
+    const startRotation = rotationDeg;
     const nextRotation =
-      rotationDeg + extraSpins + (360 - targetSliceCenter) - (rotationDeg % 360) + jitter;
+      startRotation + extraSpins + (360 - targetSliceCenter) - (startRotation % 360) + jitter;
+    const totalDelta = nextRotation - startRotation;
 
     setSpinning(true);
     setRotationDeg(nextRotation);
 
-    window.setTimeout(async () => {
-      const res = await claimMondayWheelReward(user, chosen);
+    // Synchronize physical peg-click audio & pointer deflection to the CSS bezier rotation
+    if (tickRafRef.current !== null) cancelAnimationFrame(tickRafRef.current);
+    const pegAngle = 360 / 14;
+    let lastPegIdx = Math.floor(startRotation / pegAngle);
+    let lastTickMs = 0;
+    const spinStartedAt = performance.now();
+
+    const stepAudio = (now: number) => {
+      const elapsed = now - spinStartedAt;
+      const t = Math.min(1, elapsed / SPIN_DURATION_MS);
+      const eased = evaluateWheelEase(t);
+      const currentDeg = startRotation + totalDelta * eased;
+      const pegIdx = Math.floor(currentDeg / pegAngle);
+
+      if (pegIdx !== lastPegIdx && now - lastTickMs >= 32) {
+        lastPegIdx = pegIdx;
+        lastTickMs = now;
+        const speedRatio = Math.max(0.05, Math.min(1, (1 - t) * 1.15));
+        if (!soundMutedRef.current) {
+          playWheelTick(speedRatio);
+        }
+        setPointerKick(true);
+        if (pointerTimerRef.current !== null) window.clearTimeout(pointerTimerRef.current);
+        pointerTimerRef.current = window.setTimeout(() => setPointerKick(false), 55);
+      }
+
+      if (t < 1) {
+        tickRafRef.current = requestAnimationFrame(stepAudio);
+      } else {
+        tickRafRef.current = null;
+      }
+    };
+    tickRafRef.current = requestAnimationFrame(stepAudio);
+
+    if (spinTimerRef.current !== null) window.clearTimeout(spinTimerRef.current);
+    spinTimerRef.current = window.setTimeout(async () => {
+      if (tickRafRef.current !== null) {
+        cancelAnimationFrame(tickRafRef.current);
+        tickRafRef.current = null;
+      }
+      setPointerKick(false);
+
+      const res = await claimMondayWheelReward(user, chosen, new Date(), { isAdmin });
       setSpinning(false);
       if (!res.ok) {
         toast.error(res.error || 'Çark ödülü kaydedilemedi.');
-        setWheelState(getMondayWheelState(user));
+        setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
         return;
       }
+
+      if (!soundMutedRef.current) {
+        const isGrandPrize = chosen.id === 'xp_500' || chosen.type === 'unlimited_day';
+        playWheelWinSound(isGrandPrize);
+      }
+
       setWonSegment(chosen);
-      setWheelState(getMondayWheelState(user));
+      setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
       toast.success(`Tebrikler! ${chosen.fullTitle} hesabına tanımlandı!`);
-    }, 4200);
+    }, SPIN_DURATION_MS);
   };
 
   const cx = 160;
@@ -243,8 +360,12 @@ const MondayWheelPopup = () => {
                   <CalendarClock className="h-3 w-3 shrink-0 text-cyan-300" />
                   <span>
                     {wheelState.canSpinNow
-                      ? 'Hemen çevir, ödülünü kazan!'
-                      : wheelState.countdownLabel.replace('Bir sonraki Pazartesi çarkına ', '')}
+                      ? wheelState.isAdminDailyMode && !wheelState.isMonday
+                        ? 'Yönetici hakkın hazır, çevir!'
+                        : 'Hemen çevir, ödülünü kazan!'
+                      : wheelState.countdownLabel
+                          .replace('Bir sonraki Pazartesi çarkına ', '')
+                          .replace('Yarınki yönetici çark hakkına ', 'Yarınki hakka: ')}
                   </span>
                 </p>
               </div>
@@ -286,6 +407,15 @@ const MondayWheelPopup = () => {
           {/* Üst EconNotes Kobalt-Mavi Başlık Katmanı */}
           <div className="relative z-10 px-5 pt-5 pb-3 sm:px-6 sm:pt-6 text-center">
             <div className="relative flex items-center justify-center mb-3.5">
+              <button
+                type="button"
+                onClick={toggleSoundMuted}
+                aria-label={soundMuted ? 'Çark sesini aç' : 'Çark sesini kapat'}
+                title={soundMuted ? 'Sesi Aç' : 'Sesi Kapat'}
+                className="absolute left-0 top-1/2 -translate-y-1/2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/85 transition-all hover:bg-white/20 hover:text-white active:scale-90"
+              >
+                {soundMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+              </button>
               <EconLogo allWhite className="h-5 sm:h-6 w-auto" />
               <button
                 type="button"
@@ -303,8 +433,16 @@ const MondayWheelPopup = () => {
                 Pazartesi Şans Çarkı
               </DialogTitle>
               <DialogDescription className="w-full text-center text-xs text-blue-100/90 mt-1 leading-relaxed max-w-[340px] mx-auto">
-                Her Pazartesi giriş yap, çarkı çevir; 1 günlük sınırsız not erişimi, +2 not hakkı veya 500 XP’ye varan puanları anında kazan!
+                {wheelState.isAdminDailyMode
+                  ? 'Yönetici ayrıcalığıyla her gün 1 kez çarkı çevirebilir; 1 günlük sınırsız not erişimi, +2 not hakkı veya 500 XP’ye varan puanları anında kazanabilirsin!'
+                  : 'Her Pazartesi giriş yap, çarkı çevir; 1 günlük sınırsız not erişimi, +2 not hakkı veya 500 XP’ye varan puanları anında kazan!'}
               </DialogDescription>
+              {wheelState.isAdminDailyMode && (
+                <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-cyan-300/35 bg-cyan-400/15 px-3 py-0.5 text-[11px] font-bold text-cyan-100">
+                  <ShieldCheck className="h-3.5 w-3.5 text-cyan-300" />
+                  <span>Yönetici Günlük Çark Hakkı (Her Gün 1 Kez)</span>
+                </div>
+              )}
             </DialogHeader>
           </div>
 
@@ -314,8 +452,13 @@ const MondayWheelPopup = () => {
               {/* Arka Plan Mavi/Cyan Parlama Halesi */}
               <div className="pointer-events-none absolute inset-2 rounded-full bg-cyan-400/20 blur-2xl" />
 
-              {/* Üst EconNotes Cyan/Mavi İbre */}
-              <div className="absolute -top-2.5 left-1/2 z-30 -translate-x-1/2 drop-shadow-[0_4px_12px_rgba(0,12,36,0.75)]">
+              {/* Üst EconNotes Cyan/Mavi İbre (Çark dönerken pimlere çarpıp hafifçe tıklar) */}
+              <div
+                className={cn(
+                  'absolute -top-2.5 left-1/2 z-30 -translate-x-1/2 origin-top transition-transform duration-75 drop-shadow-[0_4px_12px_rgba(0,12,36,0.75)]',
+                  pointerKick ? '-rotate-[14deg]' : 'rotate-0',
+                )}
+              >
                 <svg width="34" height="34" viewBox="0 0 34 34">
                   <polygon
                     points="17,32 4,6 30,6"
@@ -444,10 +587,15 @@ const MondayWheelPopup = () => {
               <div className="rounded-2xl border border-cyan-300/25 bg-white/[0.08] p-4 text-center space-y-2 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
                 <div className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-300">
                   <PartyPopper className="h-4 w-4" />
-                  Bu Haftaki Pazartesi Ödülün Hesabına Yüklendi!
+                  {wheelState.isAdminDailyMode && !wheelState.isMonday
+                    ? 'Bugünkü Yönetici Ödülün Hesabına Yüklendi!'
+                    : 'Bu Haftaki Pazartesi Ödülün Hesabına Yüklendi!'}
                 </div>
                 <p className="text-base font-extrabold text-white">{wonSegment.fullTitle}</p>
                 <p className="text-xs text-blue-100/85">{wonSegment.description}</p>
+                {wheelState.isAdminDailyMode && (
+                  <p className="text-[11px] font-medium text-cyan-200/90">{wheelState.countdownLabel}</p>
+                )}
                 <div className="pt-2 flex gap-2 justify-center">
                   <Button
                     type="button"
@@ -472,7 +620,7 @@ const MondayWheelPopup = () => {
                   </Button>
                 </div>
               </div>
-            ) : !wheelState.isMonday ? (
+            ) : !wheelState.isMonday && !wheelState.isAdminDailyMode ? (
               <div className="rounded-2xl border border-cyan-300/25 bg-white/[0.08] p-4 text-center space-y-1.5 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
                 <div className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-200">
                   <Lock className="h-3.5 w-3.5 text-cyan-300" />
