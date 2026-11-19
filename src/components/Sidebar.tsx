@@ -28,7 +28,6 @@ import {
   Sparkles,
   LogOut,
   LifeBuoy,
-  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -165,9 +164,8 @@ const Sidebar = () => {
   ];
 
   const tools: LinkItem[] = [
-    { label: 'Çalışma Arenası',    icon: Zap,           path: '/arena',      isNew: true },
-    { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study' },
-    { label: 'KPSS Merkezi',       icon: Target,        path: '/kpss' },
+    { label: 'Çalışma Stüdyosu',   icon: GraduationCap, path: '/study',      isNew: true },
+    { label: 'KPSS Merkezi',       icon: Target,        path: '/kpss',       isNew: true },
     { label: 'Canlı Ders',         icon: Video,         path: '/live-class' },
     { label: 'Akademik Asistan',   icon: Bot,           path: '/assistant' },
   ];

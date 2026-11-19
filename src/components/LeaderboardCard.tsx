@@ -6,7 +6,6 @@ import { Trophy, Flame, Sparkles, Crown } from 'lucide-react';
 import { usePoints } from '@/hooks/usePoints';
 import { useAuth } from '@/contexts/AuthContext';
 import LoadingMessage from '@/components/ui/loading-message';
-import { getRankForPoints } from '@/lib/studyArenaData';
 
 const rankStyles = [
   'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 font-bold',
@@ -21,7 +20,6 @@ const LeaderboardCard = () => {
   const nextLevelStep = 250;
   const level = points ? Math.floor(points.points / nextLevelStep) + 1 : 1;
   const levelProgress = points ? ((points.points % nextLevelStep) / nextLevelStep) * 100 : 0;
-  const academicRank = getRankForPoints(points?.points ?? 0);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
@@ -44,9 +42,8 @@ const LeaderboardCard = () => {
               <div className="flex items-end gap-3">
                 <span className="text-4xl font-bold tracking-tight">{points?.points ?? 0}</span>
                 <span className="text-xs text-muted-foreground mb-1.5">puan</span>
-                <span className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-semibold">
-                  <span>{academicRank.current.emoji}</span>
-                  <span>{academicRank.current.title} · Sv.{level}</span>
+                <span className="ml-auto text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-semibold">
+                  Seviye {level}
                 </span>
               </div>
               <div>

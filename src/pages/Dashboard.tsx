@@ -15,7 +15,6 @@ import { Progress } from '@/components/ui/progress';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import LeaderboardCard from '@/components/LeaderboardCard';
 import DailyMissions from '@/components/DailyMissions';
-import DailyHabitHub from '@/components/DailyHabitHub';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { APP_VERSION } from '@/lib/version';
 import LoadingMessage from '@/components/ui/loading-message';
@@ -375,9 +374,6 @@ const Dashboard = () => {
             )}
           </div>
         </div>
-
-        {/* Daily Habit & Study Arena Command Center */}
-        <DailyHabitHub />
 
         {/* Quick Access Cards */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
