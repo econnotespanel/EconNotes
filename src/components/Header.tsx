@@ -232,82 +232,56 @@ const Header = () => {
         )}
         <div
           className={cn(
-            'group/logo flex h-11 min-w-0 cursor-pointer items-center justify-center rounded-2xl px-3 transition-all',
-            !seasonalTheme && 'md:w-[204px]',
+            'group/logo flex h-11 min-w-0 cursor-pointer items-center justify-center rounded-2xl border border-transparent px-3 transition-all',
+            !seasonalTheme && 'md:w-[172px]',
             seasonalTheme?.id !== 'november10' && 'econ-logo-trigger',
           )}
           onClick={() => navigate('/')}
         >
-          {/* Şimşek Hover Efekt Katmanı */}
+          {/* Temiz ve keskin elektrik / şimşek hover efekti */}
           {seasonalTheme?.id !== 'november10' && (
             <>
+              {/* Tek seferlik keskin diyagonal şimşek ışık geçişi */}
               <span
                 aria-hidden="true"
-                className="econ-lightning-sweep pointer-events-none absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-cyan-300/45 to-transparent dark:via-sky-300/35"
+                className="econ-lightning-sweep pointer-events-none absolute inset-y-0 -left-1/2 w-2/3 bg-gradient-to-r from-transparent via-sky-400/35 via-50% to-transparent dark:via-cyan-300/30"
               />
-              <svg
+              {/* Alt kenarda ince elektrik plazma çizgisi */}
+              <span
                 aria-hidden="true"
-                viewBox="0 0 220 56"
-                fill="none"
-                preserveAspectRatio="none"
-                className="econ-lightning-svg pointer-events-none absolute inset-0 h-full w-full"
-              >
-                <defs>
-                  <linearGradient id="econLightningGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#0284c7" />
-                    <stop offset="45%" stopColor="#38bdf8" />
-                    <stop offset="70%" stopColor="#ffffff" />
-                    <stop offset="100%" stopColor="#2563eb" />
-                  </linearGradient>
-                  <filter id="econBoltGlow" x="-25%" y="-25%" width="150%" height="150%">
-                    <feGaussianBlur stdDeviation="1.8" result="blur" />
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
-                {/* Ana elektrik şimşek yayı */}
-                <path
-                  d="M14 26 L46 18 L60 27 L92 12 L108 24 L144 10 L158 22 L198 14 L212 20"
-                  stroke="url(#econLightningGrad)"
-                  strokeWidth="2.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  filter="url(#econBoltGlow)"
-                  className="econ-bolt-path"
-                />
-                {/* Alt dallanan şimşek çatallanması */}
-                <path
-                  d="M42 36 L72 44 L86 33 L122 46 L138 35 L174 44 L204 34"
-                  stroke="#38bdf8"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  filter="url(#econBoltGlow)"
-                  className="econ-bolt-path-delay"
-                />
-                {/* E harfi üstü keskin yıldırım ikonu parlaması */}
-                <path
-                  d="M44 4 L37 16 L43 16 L38 26 L49 13 L43 13 Z"
-                  fill="#38bdf8"
-                  stroke="#ffffff"
-                  strokeWidth="0.7"
-                  filter="url(#econBoltGlow)"
-                />
-                <path
-                  d="M180 6 L175 15 L180 15 L176 23 L185 13 L180 13 Z"
-                  fill="#2563eb"
-                  stroke="#e0f2fe"
-                  strokeWidth="0.6"
-                  filter="url(#econBoltGlow)"
-                />
-              </svg>
+                className="econ-lightning-rail pointer-events-none absolute inset-x-4 bottom-0.5 h-[2px] rounded-full bg-gradient-to-r from-transparent via-blue-500 to-transparent dark:via-cyan-400"
+              />
             </>
           )}
 
           <div className="relative z-10 flex items-center justify-center gap-2 sm:gap-2.5">
-            <EconLogo className="econ-logo-mark h-6 w-auto sm:h-7 -translate-y-[2px]" />
+            <div className="relative inline-flex items-center">
+              <EconLogo className="econ-logo-mark h-6 w-auto sm:h-7 -translate-y-[2px]" />
+              {seasonalTheme?.id !== 'november10' && (
+                <>
+                  {/* E harfinin üstündeki şimşek simgesinde odaklanan parlama halkası */}
+                  <span
+                    aria-hidden="true"
+                    className="econ-spark-ring pointer-events-none absolute left-[12%] -top-1 h-4 w-4 rounded-full border border-sky-400/90 dark:border-cyan-300"
+                  />
+                  {/* E harfinin kıvılcım noktasında keskin mikro şimşek parlaması */}
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="econ-spark-bolt pointer-events-none absolute left-[11%] -top-2 h-4 w-4"
+                  >
+                    <path
+                      d="M13.5 2L5.5 13H11.5L10.5 22L18.5 11H12.5L13.5 2Z"
+                      fill="#38bdf8"
+                      stroke="#ffffff"
+                      strokeWidth="1.2"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </>
+              )}
+            </div>
             {seasonalTheme?.id === 'november10' ? (
               <div
                 className="flex items-center gap-1.5 sm:gap-2.5 border-l border-border/80 pl-2 sm:pl-2.5 transition-transform hover:scale-105"
