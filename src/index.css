@@ -1105,147 +1105,32 @@ math mtd.math-cell-divider-left {
   }
 }
 
-/* EconNotes Header Logo Hover Lightning (Şimşek) Effect */
-@keyframes econ-lightning-sweep {
+/* EconNotes Header Logo Canvas Lightning Illumination Sync */
+@keyframes econ-logo-electric-flash {
   0% {
-    transform: translateX(-80%) skewX(-24deg);
-    opacity: 0;
+    filter: drop-shadow(0 0 0 rgba(37, 99, 235, 0)) brightness(1);
   }
-  25% {
-    opacity: 1;
+  18% {
+    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.85)) drop-shadow(0 0 22px rgba(37, 99, 235, 0.5)) brightness(1.12);
+  }
+  32% {
+    filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.35)) brightness(1.02);
+  }
+  55% {
+    filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.7)) brightness(1.09);
   }
   100% {
-    transform: translateX(310%) skewX(-24deg);
-    opacity: 0;
+    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.32)) brightness(1.03);
   }
 }
 
-@keyframes econ-spark-strike {
-  0% {
-    opacity: 0;
-    transform: scale(0.4) rotate(-14deg);
-    filter: drop-shadow(0 0 0 rgba(56, 189, 248, 0));
-  }
-  22% {
-    opacity: 1;
-    transform: scale(1.22) rotate(0deg);
-    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.95)) drop-shadow(0 0 14px rgba(37, 99, 235, 0.75));
-  }
-  42% {
-    opacity: 0.25;
-    transform: scale(0.92) rotate(4deg);
-  }
-  62% {
-    opacity: 1;
-    transform: scale(1.12) rotate(-2deg);
-    filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.95));
-  }
-  100% {
-    opacity: 0.9;
-    transform: scale(1) rotate(0deg);
-    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.7));
-  }
-}
-
-@keyframes econ-spark-ring-pulse {
-  0% {
-    opacity: 0.9;
-    transform: scale(0.45);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(2.15);
-  }
-}
-
-@keyframes econ-logo-charge {
-  0% {
-    transform: translateY(-2px) scale(1);
-    filter: drop-shadow(0 0 0 rgba(37, 99, 235, 0));
-  }
-  30% {
-    transform: translateY(-2px) scale(1.03);
-    filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.7)) drop-shadow(0 0 18px rgba(37, 99, 235, 0.4));
-  }
-  100% {
-    transform: translateY(-2px) scale(1.02);
-    filter: drop-shadow(0 0 7px rgba(37, 99, 235, 0.35));
-  }
-}
-
-.econ-logo-trigger {
-  position: relative;
-  overflow: hidden;
-  transition: box-shadow 240ms ease, background-color 240ms ease, border-color 240ms ease;
-}
-
-.econ-logo-trigger:hover {
-  border-color: rgba(56, 189, 248, 0.42);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.09) 0%, rgba(37, 99, 235, 0.05) 100%);
-  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.14), inset 0 0 12px rgba(56, 189, 248, 0.12);
-}
-
-.dark .econ-logo-trigger:hover {
-  border-color: rgba(56, 189, 248, 0.5);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.14) 0%, rgba(37, 99, 235, 0.08) 100%);
-  box-shadow: 0 4px 22px rgba(56, 189, 248, 0.25), inset 0 0 14px rgba(56, 189, 248, 0.16);
-}
-
-.econ-logo-trigger .econ-logo-mark {
-  transition: transform 220ms ease, filter 220ms ease;
-}
-
-.econ-logo-trigger:hover .econ-logo-mark {
-  animation: econ-logo-charge 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.econ-logo-trigger .econ-lightning-sweep {
-  opacity: 0;
-}
-
-.econ-logo-trigger:hover .econ-lightning-sweep {
-  animation: econ-lightning-sweep 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.econ-logo-trigger .econ-lightning-rail {
-  opacity: 0;
-  transform: scaleX(0.35);
-  transition: opacity 220ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
-}
-
-.econ-logo-trigger:hover .econ-lightning-rail {
-  opacity: 0.95;
-  transform: scaleX(1);
-}
-
-.econ-logo-trigger .econ-spark-bolt {
-  opacity: 0;
-  transform: scale(0.4);
-}
-
-.econ-logo-trigger:hover .econ-spark-bolt {
-  animation: econ-spark-strike 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.econ-logo-trigger .econ-spark-ring {
-  opacity: 0;
-  transform: scale(0.45);
-}
-
-.econ-logo-trigger:hover .econ-spark-ring {
-  animation: econ-spark-ring-pulse 0.6s ease-out forwards;
+.econ-logo-electrified {
+  animation: econ-logo-electric-flash 0.5s ease-out forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .econ-logo-trigger:hover .econ-logo-mark,
-  .econ-logo-trigger:hover .econ-lightning-sweep,
-  .econ-logo-trigger:hover .econ-spark-bolt,
-  .econ-logo-trigger:hover .econ-spark-ring {
+  .econ-logo-electrified {
     animation: none;
-  }
-  .econ-logo-trigger:hover .econ-spark-bolt {
-    opacity: 0.9;
-    transform: scale(1);
+    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.32));
   }
 }

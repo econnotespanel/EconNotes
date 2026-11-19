@@ -18,6 +18,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import EconLogoLightning from '@/components/EconLogoLightning';
 import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
 import AtaturkPortrait from '@/components/AtaturkPortrait';
 import { cn } from '@/lib/utils';
@@ -58,6 +59,7 @@ const Header = () => {
     || 'Öğrenci';
   const navigate = useNavigate();
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [logoHovered, setLogoHovered] = useState(false);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -232,54 +234,25 @@ const Header = () => {
         )}
         <div
           className={cn(
-            'group/logo flex h-11 min-w-0 cursor-pointer items-center justify-center rounded-2xl border border-transparent px-3 transition-all',
+            'relative flex h-11 min-w-0 cursor-pointer items-center justify-center rounded-2xl px-3 transition-transform active:scale-95',
             !seasonalTheme && 'md:w-[172px]',
-            seasonalTheme?.id !== 'november10' && 'econ-logo-trigger',
           )}
+          onMouseEnter={() => setLogoHovered(true)}
+          onMouseLeave={() => setLogoHovered(false)}
           onClick={() => navigate('/')}
         >
-          {/* Temiz ve keskin elektrik / şimşek hover efekti */}
-          {seasonalTheme?.id !== 'november10' && (
-            <>
-              {/* Tek seferlik keskin diyagonal şimşek ışık geçişi */}
-              <span
-                aria-hidden="true"
-                className="econ-lightning-sweep pointer-events-none absolute inset-y-0 -left-1/2 w-2/3 bg-gradient-to-r from-transparent via-sky-400/35 via-50% to-transparent dark:via-cyan-300/30"
-              />
-              {/* Alt kenarda ince elektrik plazma çizgisi */}
-              <span
-                aria-hidden="true"
-                className="econ-lightning-rail pointer-events-none absolute inset-x-4 bottom-0.5 h-[2px] rounded-full bg-gradient-to-r from-transparent via-blue-500 to-transparent dark:via-cyan-400"
-              />
-            </>
-          )}
-
           <div className="relative z-10 flex items-center justify-center gap-2 sm:gap-2.5">
             <div className="relative inline-flex items-center">
-              <EconLogo className="econ-logo-mark h-6 w-auto sm:h-7 -translate-y-[2px]" />
+              <EconLogo
+                className={cn(
+                  'h-6 w-auto sm:h-7 -translate-y-[2px] transition-all duration-200',
+                  logoHovered &&
+                    seasonalTheme?.id !== 'november10' &&
+                    'econ-logo-electrified',
+                )}
+              />
               {seasonalTheme?.id !== 'november10' && (
-                <>
-                  {/* E harfinin üstündeki şimşek simgesinde odaklanan parlama halkası */}
-                  <span
-                    aria-hidden="true"
-                    className="econ-spark-ring pointer-events-none absolute left-[12%] -top-1 h-4 w-4 rounded-full border border-sky-400/90 dark:border-cyan-300"
-                  />
-                  {/* E harfinin kıvılcım noktasında keskin mikro şimşek parlaması */}
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    className="econ-spark-bolt pointer-events-none absolute left-[11%] -top-2 h-4 w-4"
-                  >
-                    <path
-                      d="M13.5 2L5.5 13H11.5L10.5 22L18.5 11H12.5L13.5 2Z"
-                      fill="#38bdf8"
-                      stroke="#ffffff"
-                      strokeWidth="1.2"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </>
+                <EconLogoLightning active={logoHovered} isDark={theme === 'dark'} />
               )}
             </div>
             {seasonalTheme?.id === 'november10' ? (
