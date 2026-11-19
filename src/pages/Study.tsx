@@ -56,12 +56,12 @@ const NeuralVideoStudioLazy = lazy(() => import('@/components/study/neural/Neura
 const DEFAULT_SETTINGS: StudioGenerationSettings = {
   materialType: 'summary',
   summaryDepth: 'comprehensive',
-  deepResearch: true,
-  pedagogicalStyle: 'academic_rigor',
+  deepResearch: false,
+  pedagogicalStyle: 'balanced',
   questionCount: 10,
   cardCount: 16,
   difficulty: 'mixed',
-  quizFormat: 'mixed',
+  quizFormat: 'multiple_choice',
   customPrompt: '',
   examFocus: '',
   faculty: 'auto',
@@ -339,7 +339,13 @@ export default function Study() {
       setMaterials((prev) => [saved, ...prev]);
       setActiveMaterial(saved);
       void indexMaterialSilent(saved);
-      toast.success('Çalışma materyali hazırlandı ve RAG indeksine eklendi.');
+      if (result.sourceMode === 'local') {
+        toast.warning(
+          'Yapay zekâ bağlantısına geçici olarak ulaşılamadı; temel yerel ayrıştırıcı ile oluşturuldu. Birkaç saniye sonra "Yeniden Üret" ile tekrar deneyebilirsiniz.',
+        );
+      } else {
+        toast.success('Çalışma materyali hazırlandı ve RAG indeksine eklendi.');
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Materyal oluşturulurken bir hata oluştu.');
     } finally {

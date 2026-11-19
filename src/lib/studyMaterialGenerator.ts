@@ -388,10 +388,13 @@ function buildSectionQuizDistractors(
     if (distractors.length >= 3) break;
     distractors.push(cand.slice(0, 145));
   }
+  const fallbackDistractors = [
+    'Bu süreçte temel mekanizma yalnızca tek bir dış faktöre indirgenir ve ders notundaki koşullar geçersiz sayılır.',
+    'İlgili kavram metinde açıklanan ilke ile çelişecek biçimde ters yönlü bir sonuç doğurur.',
+    'Bu durum ders notunun kapsamı dışında olup metinde belirtilen temel varsayımlarla örtüşmez.',
+  ];
   while (distractors.length < 3) {
-    distractors.push(
-      `Metindeki sıralama veya koşulun tersini savunan alternatif ifade (${distractors.length + 1})`,
-    );
+    distractors.push(fallbackDistractors[distractors.length % fallbackDistractors.length]);
   }
   return distractors;
 }
@@ -746,9 +749,10 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
         };
       });
     }
-    const isEconDoc = /iktisat|ekonomi|para|merkez bankas|enflasyon|faiz|piyasa|arz|talep|maliye|bütçe|vergi|kredi|likidite/i.test(
-      `${course} ${title} ${cleanText.slice(0, 1200)}`,
-    );
+    const isEconDoc =
+      /(?<![a-zçğıöşü])(iktisat|makroekonomi|mikroekonomi|ekonometri|para\s+teorisi|para\s+politikası|para\s+arzı|para\s+talebi|merkez\s+bankası|enflasyon|politika\s+faizi|arz\s+ve\s+talep|arz\s+eğrisi|talep\s+eğrisi|maliye\s+politikası|is-lm|phillips|gsyih|likidite|emisyon)(?![a-zçğıöşü])/i.test(
+        `${course} ${title} ${cleanText.slice(0, 1200)}`,
+      );
     const diagramPalette = isEconDoc
       ? (['visual', 'curve', 'table', 'shapes', 'scenario', 'comparison'] as const)
       : (['visual', 'table', 'timeline', 'comparison', 'shapes', 'scenario'] as const);

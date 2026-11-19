@@ -141,11 +141,11 @@ const EXAM_STUDY_PRESETS: Array<{
     mode: 'balanced',
     title: 'Vize / Final Tam Kapsam',
     badge: 'Önerilen',
-    desc: 'Ayrıntılı özet, kavram tabloları, sınav tuzakları ve öncelik haritası',
+    desc: 'Yalnızca yüklenen nota odaklanan akıcı özet, sınav tuzakları ve öncelik haritası',
     icon: Target,
     summaryDepth: 'comprehensive',
-    pedagogicalStyle: 'exam_blitz',
-    deepResearch: true,
+    pedagogicalStyle: 'balanced',
+    deepResearch: false,
   },
   {
     mode: 'cram_24h',
@@ -164,8 +164,8 @@ const EXAM_STUDY_PRESETS: Array<{
     desc: 'Uzun PDF ve birden fazla hafta notunu ünite atlamadan baştan sona özetler',
     icon: BookOpen,
     summaryDepth: 'textbook',
-    pedagogicalStyle: 'academic_rigor',
-    deepResearch: true,
+    pedagogicalStyle: 'balanced',
+    deepResearch: false,
   },
   {
     mode: 'deep_mastery',
@@ -680,7 +680,7 @@ export function NeuralCreateView({
                       <SelectItem value="balanced">Dengeli Akademik</SelectItem>
                       <SelectItem value="academic_rigor">Teorik & Formül</SelectItem>
                       <SelectItem value="feynman">Feynman Sezgisel</SelectItem>
-                      <SelectItem value="case_study">Vaka & Türkiye</SelectItem>
+                      <SelectItem value="case_study">Vaka & Uygulama</SelectItem>
                       <SelectItem value="quantitative">Sayısal Problem</SelectItem>
                       <SelectItem value="exam_blitz">Vize / Final Hızlı</SelectItem>
                     </SelectContent>
@@ -732,9 +732,9 @@ export function NeuralCreateView({
 
             <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background/50 px-3 py-2.5">
               <div>
-                <p className="text-xs font-semibold">Derin Akademik Araştırma & Vaka</p>
+                <p className="text-xs font-semibold">Ek Akademik Bağlam (İsteğe Bağlı)</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Teori, formül sezgisini ve Türkiye vaka bağlantılarını zenginleştirir
+                  Kapalıyken yalnızca yüklenen ders notuna %100 odaklanır; açıkken konuya ek bağlam ekler
                 </p>
               </div>
               <Switch

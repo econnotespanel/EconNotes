@@ -473,8 +473,8 @@ export function inferVisualTheme(text: string): VisualTheme {
 
   const scores: Record<VisualTheme, number> = {
     economics: scoreMatches([
-      [/para teorisi|merkez bankası|para politikası|emisyon|likidite|monetarizm|keynesyen|fisher|taylor|phillips|is-lm|ad-as/g, 4],
-      [/iktisat|ekonomi|piyasa|enflasyon|faiz|fiyat|arz|talep|maliye|vergi|bütçe|sermaye|yatırım|gsyh|para|banka|kredi|rezerv|döviz|esneklik|marjinal|hasıla|büyüme|işsizlik|işletme|muhasebe|bilanço|pazarlama/g, 2],
+      [/para teorisi|merkez bankası|para politikası|maliye politikası|emisyon|likidite|monetarizm|keynesyen|fisher|taylor|phillips|is-lm|ad-as|arz ve talep|arz eğrisi|talep eğrisi|para arzı|para talebi|piyasa dengesi/g, 4],
+      [/(?<![a-zçğıöşü])(iktisat|ekonomi|makroekonomi|mikroekonomi|ekonometri|enflasyon|deflasyon|stagflasyon|faiz oranı|politika faizi|maliye|vergi|bütçe|sermaye|yatırım|gsyh|gsyih|rezerv|döviz kuru|esneklik|marjinal fayda|marjinal maliyet|işsizlik|işletme|muhasebe|bilanço|pazarlama)(?![a-zçğıöşü])/g, 2],
     ]),
     history: scoreMatches([
       [/selçuklu|osmanlı|bizans|moğol|imparatorluk|sultan|fetih|ikta|tımar|miri|vakıf|kervansaray|devlet-i|hanedan|lonca|gedik|ahilik/g, 4],
@@ -566,32 +566,38 @@ const VALID_DIAGRAM_TYPES: DiagramType[] = [
 
 function inferDiagramType(text: string, sceneIdx: number): DiagramType {
   const t = text.toLocaleLowerCase('tr-TR');
+  const isEconTheme = inferVisualTheme(t) === 'economics';
   if (
+    isEconTheme &&
     isGraphDiagramAllowed(t) &&
-    /arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|para arzı|para talebi|emisyon|likidite|is-lm|phillips/.test(
+    /(?<![a-zçğıöşü])(arz ve talep|arz eğrisi|talep eğrisi|denge fiyatı|denge miktarı|denge faiz|esneklik|marjinal maliyet|marjinal fayda|faiz|enflasyon|gsyh|gsyih|para arzı|para talebi|emisyon|likidite|is-lm|phillips)(?![a-zçğıöşü])/.test(
       t,
     )
   ) {
-    return /denge|arz|talep|esneklik|faiz|para|emisyon|likidite|is-lm|phillips/.test(t) ? 'curve' : 'chart';
+    return /arz eğrisi|talep eğrisi|para arzı|para talebi|denge faiz|denge fiyatı|esneklik|faiz|emisyon|likidite|is-lm|phillips/.test(t)
+      ? 'curve'
+      : 'chart';
   }
   if (/sultan|hanedan|fetih|tanzimat|antlaşma|yüzyıl|dönem|kronoloji|tarih/.test(t)) return 'timeline';
   if (/kurum|devlet|bakanlık|merkez bankası|hiyerarşi|yapı/.test(t)) return 'structure';
   if (/aktör|ilişki|etkileşim|ağ|bağlantı|mekanizma/.test(t)) return 'network';
   if (/senaryo|örnek olay|vaka|uygulama|düşünelim|somut örnek/.test(t)) return 'scenario';
   if (/tablo|sınıflandır|türleri|unsurları|kategor|matris/.test(t) && sceneIdx % 3 === 1) return 'table';
-  if (isGraphDiagramAllowed(t) && /oran|yüzde|artış|düşüş|eğilim|grafik|denge|büyüme|etki düzeyi|dağılım/.test(t)) return 'chart';
+  if (isGraphDiagramAllowed(t) && /oran|yüzde|artış|düşüş|eğilim|grafik|etki düzeyi|dağılım/.test(t)) return 'chart';
   if (/karşılaştır|kıyas|fark|karşılık|oysa|aksine/.test(t)) return 'comparison';
   if (/\b(1[0-9]{3}|20[0-9]{2})\b/.test(t) || /kronoloji|yüzyıl|dönem|aşama|süreç/.test(t)) return 'timeline';
 
   const richCycle: DiagramType[] = isGraphDiagramAllowed(t)
-    ? ['visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'timeline', 'comparison']
+    ? isEconTheme
+      ? ['visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'timeline', 'comparison']
+      : ['visual', 'table', 'shapes', 'chart', 'scenario', 'timeline', 'comparison']
     : ['visual', 'shapes', 'table', 'scenario', 'timeline', 'comparison'];
   return richCycle[sceneIdx % richCycle.length];
 }
 
 /** Grafik yalnızca konu gerçekten sayısal ilişki, eğilim veya ekonomik model içeriyorsa kullanılır. */
 function supportsQuantitativeDiagram(text: string): boolean {
-  return /iktisat|ekonomi|piyasa|arz|talep|denge fiyatı|denge miktarı|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|üretim|gelir|fiyat|oran|yüzde|istatistik|veri|formül|fonksiyon|koordinat|ölçüm|deney|enerji|hız|mesafe|zaman serisi|dağılım|regresyon|para|emisyon|likidite|merkez bankası|rezerv|kredi/.test(
+  return /(?<![a-zçğıöşü])(iktisat|ekonomi|makroekonomi|mikroekonomi|arz ve talep|arz eğrisi|talep eğrisi|denge fiyatı|denge miktarı|esneklik|marjinal maliyet|marjinal fayda|faiz|enflasyon|gsyh|gsyih|oran|yüzde|istatistik|veri analizi|formül|fonksiyon|koordinat|ölçüm|deney|enerji|hız|mesafe|zaman serisi|dağılım|regresyon|para arzı|para talebi|emisyon|likidite|merkez bankası|rezerv)(?![a-zçğıöşü])/.test(
     text.toLocaleLowerCase('tr-TR'),
   );
 }
@@ -599,15 +605,15 @@ function supportsQuantitativeDiagram(text: string): boolean {
 function isGraphDiagramAllowed(text: string): boolean {
   const t = text.toLocaleLowerCase('tr-TR');
   const hasQuantitativeSignal =
-    /oran|yüzde|artış|düşüş|eğilim|grafik|denge|etki düzeyi|mali|sacayak|esneklik|maliyet|fayda|faiz|enflasyon|büyüme|gsyh|üretim|gelir|fiyat|miktar|istatistik|veri|formül|fonksiyon|koordinat|ölçüm|regresyon|para|emisyon|likidite|rezerv|çarpan|kredi|arz|talep/.test(
+    /(?<![a-zçğıöşü])(oran|yüzde|artış|düşüş|eğilim|grafik|etki düzeyi|esneklik|faiz|enflasyon|gsyh|gsyih|istatistik|veri analizi|formül|fonksiyon|koordinat|ölçüm|regresyon|para arzı|para talebi|emisyon|likidite|rezerv|çarpan|arz ve talep|arz eğrisi|talep eğrisi)(?![a-zçğıöşü])/.test(
       t,
     );
   const isEconomics =
-    /iktisat|iktisadi|ekonomi|piyasa|arz|talep|maliye|para politikası|para teorisi|merkez bankası|makroekonomi|mikroekonomi|enflasyon|faiz|banka|likidite|emisyon/.test(
+    /(?<![a-zçğıöşü])(iktisat|iktisadi|ekonomi|makroekonomi|mikroekonomi|maliye politikası|para politikası|para teorisi|para arzı|para talebi|merkez bankası|enflasyon|faiz|likidite|emisyon|arz ve talep|arz eğrisi|talep eğrisi|is-lm|phillips)(?![a-zçğıöşü])/.test(
       t,
     );
   const isScience =
-    /bilim|fizik|kimya|biyoloji|matematik|veri analizi|laboratuvar|deney|formül|fonksiyon|koordinat|ölçüm|regresyon/.test(
+    /(?<![a-zçğıöşü])(fizik|kimya|biyoloji|matematik|istatistik|veri analizi|laboratuvar|deney|formül|fonksiyon|koordinat|ölçüm|regresyon)(?![a-zçğıöşü])/.test(
       t,
     );
   return hasQuantitativeSignal && (isEconomics || isScience);
@@ -620,10 +626,17 @@ function chooseDistinctDiagramType(
   used: Set<DiagramType>,
 ): DiagramType {
   const graphAllowed = isGraphDiagramAllowed(text);
-  const safePreferred = !graphAllowed && (preferred === 'chart' || preferred === 'curve') ? 'visual' : preferred;
+  const isEconTheme = inferVisualTheme(text) === 'economics';
+  const safePreferred =
+    (!graphAllowed && (preferred === 'chart' || preferred === 'curve')) ||
+    (!isEconTheme && preferred === 'curve')
+      ? 'visual'
+      : preferred;
   const semantic = inferDiagramType(text, sceneIdx);
   const cycle: DiagramType[] = graphAllowed
-    ? ['curve', 'chart', 'timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual']
+    ? isEconTheme
+      ? ['curve', 'chart', 'timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual']
+      : ['chart', 'timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual']
     : ['timeline', 'structure', 'network', 'scenario', 'comparison', 'table', 'shapes', 'visual'];
   const candidates = [safePreferred, semantic, ...cycle.slice(sceneIdx % cycle.length), ...cycle];
   return candidates.find(type => !used.has(type)) || semantic;

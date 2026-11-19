@@ -22,7 +22,7 @@ interface ConceptNode {
   definition: string;
   sceneIdx: number;
   sceneTitle: string;
-  category: 'core' | 'policy' | 'market' | 'history' | 'formula';
+  category: 'core' | 'mechanism' | 'comparison' | 'principle' | 'application';
   x: number;
   y: number;
   connections: string[];
@@ -41,10 +41,10 @@ const CATEGORY_COLORS: Record<
   { bg: string; border: string; text: string; fill: string }
 > = {
   core: { bg: 'bg-cyan-500/15', border: 'border-cyan-400/50', text: 'text-cyan-300', fill: '#22d3ee' },
-  policy: { bg: 'bg-purple-500/15', border: 'border-purple-400/50', text: 'text-purple-300', fill: '#c084fc' },
-  market: { bg: 'bg-emerald-500/15', border: 'border-emerald-400/50', text: 'text-emerald-300', fill: '#34d399' },
-  history: { bg: 'bg-amber-500/15', border: 'border-amber-400/50', text: 'text-amber-300', fill: '#fbbf24' },
-  formula: { bg: 'bg-rose-500/15', border: 'border-rose-400/50', text: 'text-rose-300', fill: '#f43f5e' },
+  mechanism: { bg: 'bg-purple-500/15', border: 'border-purple-400/50', text: 'text-purple-300', fill: '#c084fc' },
+  comparison: { bg: 'bg-emerald-500/15', border: 'border-emerald-400/50', text: 'text-emerald-300', fill: '#34d399' },
+  principle: { bg: 'bg-amber-500/15', border: 'border-amber-400/50', text: 'text-amber-300', fill: '#fbbf24' },
+  application: { bg: 'bg-rose-500/15', border: 'border-rose-400/50', text: 'text-rose-300', fill: '#f43f5e' },
 };
 
 export const ConceptKnowledgeMap: React.FC<ConceptKnowledgeMapProps> = ({
@@ -84,16 +84,16 @@ export const ConceptKnowledgeMap: React.FC<ConceptKnowledgeMapProps> = ({
       const x = Math.round(centerX + r * Math.cos(angle));
       const y = Math.round(centerY + r * Math.sin(angle));
 
-      const termLower = item.term.toLocaleLowerCase('tr-TR');
+      const combinedLower = `${item.term} ${item.definition}`.toLocaleLowerCase('tr-TR');
       let cat: ConceptNode['category'] = 'core';
-      if (termLower.includes('vergi') || termLower.includes('iltizam') || termLower.includes('aşar') || termLower.includes('tımar') || termLower.includes('düyun')) {
-        cat = 'history';
-      } else if (termLower.includes('faiz') || termLower.includes('politika') || termLower.includes('enflasyon') || termLower.includes('para')) {
-        cat = 'policy';
-      } else if (termLower.includes('arz') || termLower.includes('talep') || termLower.includes('denge') || termLower.includes('piyasa') || termLower.includes('fiyat')) {
-        cat = 'market';
-      } else if (termLower.includes('eğri') || termLower.includes('rant') || termLower.includes('esneklik') || termLower.includes('fonksiyon')) {
-        cat = 'formula';
+      if (/süreç|mekanizma|aşama|döngü|etki|sonuç|reaksiyon|işleyiş/.test(combinedLower)) {
+        cat = 'mechanism';
+      } else if (/fark|karşılaştır|ayrım|tür|sınıf|çeşit|kıyas/.test(combinedLower)) {
+        cat = 'comparison';
+      } else if (/ilke|kural|yasa|kuram|teori|model|yaklaşım|madde/.test(combinedLower)) {
+        cat = 'principle';
+      } else if (/örnek|uygulama|vaka|formül|hesap|ölçüm|deney|yöntem/.test(combinedLower)) {
+        cat = 'application';
       }
 
       const scene = scenes[item.sceneIdx] || scenes[0];
@@ -233,10 +233,11 @@ export const ConceptKnowledgeMap: React.FC<ConceptKnowledgeMapProps> = ({
               <div className="flex items-center gap-1 overflow-x-auto text-[11px]">
                 {[
                   { id: 'all', label: 'Tümü' },
-                  { id: 'market', label: 'Piyasa & Arz-Talep' },
-                  { id: 'policy', label: 'Para & Faiz' },
-                  { id: 'history', label: 'Kurum & Tarih' },
-                  { id: 'formula', label: 'Grafik & Eğri' },
+                  { id: 'core', label: 'Temel Kavram' },
+                  { id: 'mechanism', label: 'Süreç & Mekanizma' },
+                  { id: 'principle', label: 'Kuram & İlke' },
+                  { id: 'comparison', label: 'Ayrım & Türler' },
+                  { id: 'application', label: 'Uygulama & Yöntem' },
                 ].map(cat => (
                   <button
                     key={cat.id}
@@ -367,16 +368,19 @@ export const ConceptKnowledgeMap: React.FC<ConceptKnowledgeMapProps> = ({
               <div className="absolute bottom-3 left-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-[#090f22]/90 px-3 py-1.5 backdrop-blur-md text-[10px] text-slate-300">
                 <span className="font-semibold text-white">Göstergeler:</span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" /> Piyasa & Denge
+                  <span className="h-2 w-2 rounded-full bg-cyan-400" /> Temel Kavram
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-purple-400" /> Para & Faiz
+                  <span className="h-2 w-2 rounded-full bg-purple-400" /> Süreç & Mekanizma
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-amber-400" /> Kurum & Tarih
+                  <span className="h-2 w-2 rounded-full bg-amber-400" /> Kuram & İlke
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-rose-400" /> Grafik & Rant
+                  <span className="h-2 w-2 rounded-full bg-emerald-400" /> Ayrım & Türler
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-rose-400" /> Uygulama
                 </span>
               </div>
             </div>

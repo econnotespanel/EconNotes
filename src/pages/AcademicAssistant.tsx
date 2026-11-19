@@ -377,12 +377,15 @@ const AcademicAssistant = () => {
     setLoading(true);
 
     try {
-      const notesContext = notes
-        .map(
-          (n) =>
-            `- ${n.title} (${n.course}, ${n.department}, ${n.semester}): ${n.description || 'Açıklama yok'}`,
-        )
-        .join('\n');
+      // Kullanıcı kendi ders notunu/dosyasını yüklediyse platformdaki diğer bölümlerin notlarını bağlama karıştırma
+      const notesContext = currentDocument
+        ? ''
+        : notes
+            .map(
+              (n) =>
+                `- ${n.title} (${n.course}, ${n.department}, ${n.semester}): ${n.description || 'Açıklama yok'}`,
+            )
+            .join('\n');
 
       const reply = await invokeAcademicAssistantResilient({
         userQuestion: effectivePrompt,

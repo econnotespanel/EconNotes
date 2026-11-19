@@ -204,7 +204,7 @@ export function detectDiscipline(text: string, course?: string, explicitFaculty?
     ],
     [
       'İktisat & Ekonometri',
-      /\b(ekonometri|mikroekonomi|makroekonomi|enflasyon|gsyih|elastikiyet|regresyon|ols|merkez\s+bankası|para\s+politikası|maliye\s+politikası|arz|talep|fayda|denge|is-lm|solow|keynes|tcmb|iktisat|para\s+teorisi)\b/g,
+      /\b(ekonometri|mikroekonomi|makroekonomi|enflasyon|gsyih|elastikiyet|regresyon|ols|merkez\s+bankası|para\s+politikası|maliye\s+politikası|arz\s+ve\s+talep|arz\s+eğrisi|talep\s+eğrisi|marjinal\s+fayda|piyasa\s+dengesi|is-lm|solow|keynes|tcmb|iktisat|para\s+teorisi|deflasyon|stagflasyon|cari\s+açık|döviz\s+kuru)\b/g,
     ],
     [
       'Finans & İşletme',
@@ -231,7 +231,7 @@ export function detectDiscipline(text: string, course?: string, explicitFaculty?
       bestLabel = label;
     }
   }
-  return bestLabel;
+  return bestScore >= 2 ? bestLabel : 'Üniversite Akademik Çalışma';
 }
 
 export function classifyStudyDomain(

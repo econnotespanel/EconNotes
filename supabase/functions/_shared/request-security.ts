@@ -13,7 +13,11 @@ export class RequestError extends Error {
   }
 }
 
-export const isTrustedOrigin = (origin: string | null): boolean => {
+export const isTrustedOrigin = (originOrReq: string | null | Request): boolean => {
+  const origin =
+    originOrReq && typeof originOrReq === 'object' && 'headers' in originOrReq
+      ? originOrReq.headers.get('origin')
+      : originOrReq;
   if (!origin) return true;
   if (trustedOrigins.has(origin)) return true;
 

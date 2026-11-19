@@ -482,47 +482,59 @@ YALNIZCA geçerli JSON döndür:
     return { system, userText, maxTokens: 14_000, temperature: 0.3 };
   }
 
-  // --- SINGLE-CALL SUMMARY (backward compatible e.g. LiveLectureCapture) ---
+  // --- SINGLE-CALL SUMMARY (ChatGPT-style fluent, comprehensive, 100% source-faithful) ---
   if (req.materialType === 'summary') {
     const isShort = req.summaryDepth === 'short' || req.detailLevel === 'concise';
-    const secCount = isShort ? '4-5' : '6-8';
-    const system = `Sen üniversite düzeyinde uzman bir akademisyen ve derin öğrenme editörüsün.
-Verilen kaynak notlardan kapsamlı, tutarlı ve sınav başarısını maksimize eden bir Çalışma Özeti üret.
+    const secCount = isShort ? '4-5' : '6-10';
+    const system = `Sen üniversite öğrencilerine ders notlarını tıpkı ChatGPT'de olduğu gibi çok anlaşılır, akıcı, düzenli ve eksiksiz biçimde özetleyen uzman bir akademik asistansın.
 ${styleInstruction}
 ${researchInstruction}${verbalInstruction}
 ${customDirective}
 
-KURALLAR:
-- Genel şablon ifadeler asla kullanma; metnin gerçek kavramlarını${domainMode === 'verbal' ? ', neden-sonuç ilişkilerini, karşılaştırma tablosunu ve klasik sınav ayrımlarını' : ', formüllerini ($...$, $$...$$), mekanizmalarını ve örneklerini'} derinlemesine yaz.
-- YALNIZCA geçerli JSON döndür:
+KESİN KURALLAR:
+1. %100 YALNIZCA YÜKLENEN NOTA ODAKLAN: Sadece kullanıcının yüklediği ders notunda yer alan gerçek konuları, başlıkları, kavramları, tanımları, olayları, süreçleri ve örnekleri özetle. Notta olmayan başka bir dersin veya alanın kavramlarını, grafiklerini veya örneklerini KESİNLİKLE ekleme.
+2. AKICI VE ANLAŞILIR DİL: Robotik şablon cümleler kullanma. Öğrencinin bir oturuşta birkaç sayfalık temiz, doyurucu bir ders özeti gibi okuyup hemen anlayabileceği doğal Türkçe Markdown kullan (net alt başlıklar \`####\`, anlaşılır paragraflar, önemli kavramlar **kalın**, madde listeleri, yalnızca metinde karşılaştırma varsa kısa tablo, yalnızca metinde denklem varsa LaTeX \`$...$\`).
+3. BAŞTAN SONA TAM KAPSAM: Nottaki ilk sayfadan son sayfaya kadar önemli hiçbir konuyu atlama.
+4. "studyPriorityMap" ile öğrencinin sınavda hangi konulara öncelik vermesi gerektiğini gerçek not başlıklarına göre sırala.
+5. YALNIZCA geçerli JSON döndür:
 {
-  "overview": "2-3 paragraflık yönetici özeti",
-  "disciplineTag": "Ders disiplini",
-  "keyPoints": ["8-10 güçlü madde"],
+  "overview": "Ders notunun neyi anlattığını sade ve bütüncül özetleyen 1-2 paragraf",
+  "disciplineTag": "Nottan çıkarılan ders/alan adı",
+  "keyPoints": ["Nottan 6-10 net ana çıkarım"],
   "sections": [
     {
-      "heading": "Bölüm Başlığı",
-      "pageRange": "Sayfa/Slayt",
-      "content": "${isShort ? '200-320' : '350-550'} kelimelik Markdown + LaTeX + somut örnek + tablo içeren derin bölüm anlatımı",
-      "takeaways": ["3-4 ana çıkarım"],
-      "deepResearchNote": "Teorik derinlik / literatür / vaka analizi",
-      "commonPitfalls": ["Yaygın hata / tuzak"]
+      "heading": "Nottaki gerçek konu başlığı",
+      "pageRange": "Varsa sayfa/slayt aralığı",
+      "content": "${isShort ? '200-320' : '320-520'} kelimelik akıcı, sade, anlaşılır Türkçe Markdown özet anlatımı",
+      "takeaways": ["Bu bölümden 2-3 kısa net çıkarım"],
+      "commonPitfalls": ["Varsa sınavda karıştırılabilecek 1 nokta"]
+    }
+  ],
+  "studyPriorityMap": [
+    {
+      "topic": "Nottaki gerçek konu başlığı",
+      "priority": "critical" | "important" | "review",
+      "reason": "Sınavda neden bakılması gerektiğini açıklayan 1-2 net cümle",
+      "estimatedMinutes": 8,
+      "focusConcepts": ["Kavram 1", "Kavram 2"],
+      "likelyQuestionType": "Tanım / Karşılaştırma / Uygulama / Yorum",
+      "sectionIndex": 0
     }
   ],
   "teacherEmphasis": [
-    { "point": "...", "whyImportant": "...", "examProbability": "Yüksek" }
+    { "point": "Nottaki kritik kavram", "whyImportant": "Neden önemli olduğu", "examProbability": "Yüksek" }
   ],
   "comparativeMatrix": {
-    "title": "Karşılaştırma Tablosu",
-    "columns": ["Kriter", "Kavram A", "Kavram B"],
+    "title": "Yalnızca metinde karşılaştırma varsa doldur",
+    "columns": ["Ölçüt", "Kavram A", "Kavram B"],
     "rows": [["...", "...", "..."]]
   },
-  "keyTerms": [{ "term": "...", "definition": "...", "formula": "..." }],
-  "studyChecklist": ["Kendini değerlendirme maddesi 1", "..."]
+  "keyTerms": [{ "term": "Nottaki terim", "definition": "Sade ve doğru tanım", "formula": "" }],
+  "studyChecklist": ["Bu notu bitirdiğimde ... konusunu açıklayabilirim."]
 }
 Tam ${secCount} bölüm üret ve kaynağın tamamını kapsa.`;
 
-    const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}\n\nKAYNAK NOT:\n${sampleBalancedContext(
+    const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}\n\nKAYNAK NOT (YALNIZCA BU METNE SADIK KAL):\n${sampleBalancedContext(
       enrichedContext,
       68_000,
     )}`;
@@ -572,31 +584,31 @@ KURALLAR:
         ? 'Soruların yaklaşık %75i 4 şıklı çoktan seçmeli (multiple_choice), %25i ise analiz gerektiren açık uçlu (short_answer) olsun.'
         : 'Tüm sorular 4 şıklı çoktan seçmeli (multiple_choice) formatında olsun.';
 
-    const system = `Sen seçkin bir üniversite sınav komisyonu başkanısın. Bloom Taksonomisi'ne uygun (Bilgi -> Uygulama -> Analiz/Sentez) tam ${qCount} soruluk üniversite sınav simülasyonu üret.
+    const system = `Sen üniversite düzeyinde çok net, adil ve anlaşılır sınav soruları hazırlayan uzman bir öğretim üyesisin.
+Kullanıcının yüklediği ders notuna %100 sadık kalarak tam ${qCount} soruluk gerçek vize/final deneme testi üret.
 ${formatInstruction}
 ZORLUK SEVİYESİ: ${req.difficulty || 'mixed'}
-${styleInstruction}
-${researchInstruction}
 ${customDirective}
 
-KRİTİK KURALLAR:
-1. ÇOKTAN SEÇMELİ ŞIK DENGESİ: Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt (asla hepsini 0 yapma!). Çeldiriciler mantıklı yaygın öğrenci hatalarından oluşsun.
-2. Matematiksel ifadeleri LaTeX ($...$ veya $$...$$) ile yaz.
-3. Her soru için 3 katmanlı çözüm açıklaması yaz: doğru cevabın mantığı + yanlış şıkların neden elendiği + hatırlatıcı not.
-4. YALNIZCA geçerli JSON döndür:
+KESİN KURALLAR:
+1. %100 KAYNAK SADAKATİ: Her soru YALNIZCA kullanıcının yüklediği ders notundaki gerçek bilgilerden üretilmelidir. Notun dışından alakasız başka bir dersin veya alanın kavramlarını KESİNLİKLE sorma.
+2. ANLAŞILIR VE NET SORU KÖKÜ: Her soru açık, dilbilgisi düzgün, tek bir doğru cevabı olan gerçek bir üniversite sınav sorusu olsun. Kesik cümleler, belirsiz ifadeler veya nottan rastgele kopyalanmış anlamsız parçalar YASAKTIR.
+3. GERÇEK ÇELDİRİCİLER & ŞIK DENGESİ: Çoktan seçmeli sorularda YALNIZCA 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır (asla nottan 4 doğru cümleyi şık yapma!). Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt.
+4. SADE AÇIKLAMA: Her soru için doğru cevabın neden doğru olduğunu nota dayanarak 2-3 anlaşılır cümleyle açıkla. Formül yalnızca derste gerçekten denklem varsa LaTeX ($...$) ile yaz.
+5. YALNIZCA geçerli JSON döndür:
 {
   "questions": [
     {
       "type": "multiple_choice" | "short_answer",
-      "question": "Soru metni (senaryo, denklem veya grafik yorumu içerebilir)",
+      "question": "Net, anlaşılır üniversite sınav sorusu?",
       "options": ["Şık A", "Şık B", "Şık C", "Şık D"],
       "correctIndex": 0,
-      "sampleAnswer": "Açık uçlu ise tam puanlık model cevap",
+      "sampleAnswer": "Açık uçlu ise tam puanlık net örnek cevap",
       "rubric": ["Puanlama kriteri 1", "Puanlama kriteri 2"],
-      "explanation": "Kapsamlı adım adım çözüm açıklaması ve çeldirici analizleri",
-      "topic": "Alt konu",
+      "explanation": "Doğru cevabın nota dayalı anlaşılır açıklaması",
+      "topic": "Nottaki ilgili alt konu",
       "difficulty": "easy" | "medium" | "hard",
-      "bloomLevel": "Anlama" | "Uygulama" | "Analiz" | "Değerlendirme"
+      "bloomLevel": "Anlama" | "Uygulama" | "Analiz"
     }
   ]
 }`;
@@ -989,7 +1001,7 @@ function buildServerFallback(req: GenerateReq, cleanText: string): any {
   }
 
   if (req.materialType === 'video') {
-    const diagramPalette = ['visual', 'curve', 'table', 'shapes', 'scenario', 'comparison'] as const;
+    const diagramPalette = ['visual', 'table', 'timeline', 'shapes', 'scenario', 'comparison'] as const;
     const chunkCount = Math.min(6, Math.max(3, Math.ceil(sentences.length / 3)));
     const scenes = Array.from({ length: chunkCount }, (_, i) => {
       const seg = sentences.slice(i * 3, i * 3 + 4);
@@ -1066,7 +1078,7 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return jsonResponse(req, { error: 'Yalnızca POST desteklenir.' }, 405);
   }
-  if (!isTrustedOrigin(req)) {
+  if (!isTrustedOrigin(req.headers.get('origin'))) {
     return jsonResponse(req, { error: 'Yetkisiz istek kaynağı.' }, 403);
   }
 

@@ -15,8 +15,10 @@ import {
 } from '@/lib/studySourceProcessor';
 import type {
   CoachMode,
+  FlashcardItem,
   OpenEndedGradeResult,
   ProcessedStudyBundle,
+  QuizQuestion,
   StudyContentPayload,
   StudioGenerationSettings,
   StudyTopicPriorityItem,
@@ -97,6 +99,798 @@ async function invokeEdgeGenerate(body: Record<string, unknown>): Promise<{
   }
 }
 
+/**
+ * Tier-1.5 Resilient Live Server AI Bridge:
+ * Calls already-live Supabase Edge Functions (`academic-assistant` running GPT-4o / Gemini 2.5 Pro
+ * with 6500 output tokens & low 0.15 temperature, and `study-coach` running GPT-4o-mini) whenever
+ * `generate-study-material` fails or returns fallback, guaranteeing real ChatGPT-level summaries,
+ * crystal-clear exam questions, flashcards, and on-topic videos immediately.
+ */
+async function invokeLiveServerAiText(params: {
+  materialType: 'summary' | 'quiz' | 'flashcards' | 'video';
+  title: string;
+  course?: string;
+  noteContext: string;
+  taskPrompt: string;
+  preferPro?: boolean;
+  images?: Array<{ data: string; mimeType: string; pageLabel?: string }>;
+}): Promise<{ text: string; model: string } | null> {
+  await ensureFreshSession();
+  const safeTitle = (params.title || 'Ders Notu').slice(0, 240);
+  const safeCourse = (params.course || safeTitle).slice(0, 120);
+  const safeTask = params.taskPrompt.slice(0, 7_200);
+  const hasImages = Array.isArray(params.images) && params.images.length > 0;
+
+  const tryAcademicAssistant = async (): Promise<{ text: string; model: string } | null> => {
+    try {
+      const noteBudget = Math.max(8_000, 73_500 - safeTask.length);
+      const sourceText = sampleUniformContext(params.noteContext, noteBudget);
+      const fullMessage = `${safeTask}\n\nKRİTİK BAĞLAM KURALI: YALNIZCA aşağıda verilen ders notunun kendi konusuna, terimlerine ve içeriğine sadık kal. Notta bulunmayan başka derslerden (veya alakasız alanlardan) kavram, grafik ya da formül ASLA ekleme.\n\n=== YÜKLENEN DERS NOTU (${safeTitle}) ===\n${sourceText}`.slice(
+        0,
+        78_500,
+      );
+
+      const payload: Record<string, unknown> = {
+        message: fullMessage,
+        mode: 'concept',
+        notesContext: '',
+        hasFile: true,
+        fileName: safeTitle,
+      };
+      if (hasImages && params.images) {
+        payload.images = params.images.slice(0, 4).map((img, i) => ({
+          name: img.pageLabel || `Sayfa-${i + 1}`,
+          mimeType: img.mimeType || 'image/jpeg',
+          data: img.data,
+        }));
+      }
+
+      const { data, error } = await supabase.functions.invoke('academic-assistant', {
+        body: payload,
+      });
+      if (!error && typeof data?.reply === 'string' && data.reply.trim().length > 60) {
+        return {
+          text: data.reply.trim(),
+          model: String(data.model || 'EconNotes Akademik AI'),
+        };
+      }
+    } catch {
+      // Fall through to secondary live bridge
+    }
+    return null;
+  };
+
+  const tryStudyCoach = async (): Promise<{ text: string; model: string } | null> => {
+    if (hasImages) return null;
+    try {
+      const { data, error } = await supabase.functions.invoke('study-coach', {
+        body: {
+          materialTitle: safeTitle,
+          materialType: params.materialType,
+          course: safeCourse,
+          materialContent: {
+            dersNotu: sampleUniformContext(params.noteContext, 52_000),
+          },
+          coachMode: 'tutor',
+          messages: [{ role: 'user', content: safeTask }],
+        },
+      });
+      if (!error && typeof data?.reply === 'string' && data.reply.trim().length > 60) {
+        return {
+          text: data.reply.trim(),
+          model: String(data.model || 'EconNotes Akademik AI'),
+        };
+      }
+    } catch {
+      // Fall through
+    }
+    return null;
+  };
+
+  if (params.preferPro || hasImages) {
+    const proRes = await tryAcademicAssistant();
+    if (proRes) return proRes;
+    return await tryStudyCoach();
+  }
+
+  const coachRes = await tryStudyCoach();
+  if (coachRes) return coachRes;
+  return await tryAcademicAssistant();
+}
+
+/**
+ * Converts a fluent ChatGPT-style Markdown lecture summary into structured SummaryContent
+ * if the AI responded in natural Markdown instead of strict JSON.
+ */
+function parseMarkdownSummaryToSections(
+  markdown: string,
+  title: string,
+  discipline: string,
+): SummaryContent | null {
+  const clean = markdown.trim();
+  if (clean.length < 180) return null;
+
+  const lines = clean.split('\n');
+  const introLines: string[] = [];
+  const rawSections: Array<{ heading: string; bodyLines: string[] }> = [];
+  let current: { heading: string; bodyLines: string[] } | null = null;
+
+  for (const line of lines) {
+    const hMatch = line.match(/^#{1,3}\s+(.+)$/);
+    if (hMatch) {
+      const heading = hMatch[1].replace(/\*\*/g, '').trim();
+      if (heading.length >= 2) {
+        if (current && current.bodyLines.join('\n').trim().length > 20) {
+          rawSections.push(current);
+        }
+        current = { heading, bodyLines: [] };
+        continue;
+      }
+    }
+    if (current) {
+      current.bodyLines.push(line);
+    } else {
+      introLines.push(line);
+    }
+  }
+  if (current && current.bodyLines.join('\n').trim().length > 20) {
+    rawSections.push(current);
+  }
+
+  if (rawSections.length === 0) {
+    // Split long prose into readable sections cleanly
+    const paragraphs = clean.split(/\n{2,}/).filter((p) => p.trim().length > 25);
+    if (paragraphs.length === 0) return null;
+    const overview = paragraphs[0];
+    const rest = paragraphs.slice(1);
+    const perGroup = Math.max(1, Math.ceil(rest.length / Math.min(5, Math.max(1, rest.length))));
+    const sections: SummarySection[] = [];
+    for (let i = 0; i < rest.length; i += perGroup) {
+      const chunk = rest.slice(i, i + perGroup).join('\n\n');
+      sections.push({
+        index: sections.length,
+        heading: `${title} — Bölüm ${sections.length + 1}`,
+        content: chunk,
+        takeaways: [],
+      });
+    }
+    return {
+      overview,
+      disciplineTag: discipline,
+      keyPoints: [],
+      sections: sections.length > 0 ? sections : [{ index: 0, heading: title, content: clean, takeaways: [] }],
+      studyPriorityMap: buildTopicPriorityGuide({
+        sections: sections.length > 0 ? sections : [{ index: 0, heading: title, content: clean }],
+        overview,
+        disciplineTag: discipline,
+      }),
+    };
+  }
+
+  const sections: SummarySection[] = rawSections.map((rs, idx) => {
+    const body = rs.bodyLines.join('\n').trim();
+    const bulletTakeaways = rs.bodyLines
+      .filter((l) => /^\s*[-*•]\s+/.test(l))
+      .map((l) => l.replace(/^\s*[-*•]\s+/, '').replace(/\*\*/g, '').trim())
+      .filter((l) => l.length >= 12 && l.length <= 180)
+      .slice(0, 3);
+    return {
+      index: idx,
+      heading: rs.heading,
+      content: body,
+      takeaways: bulletTakeaways,
+    };
+  });
+
+  const overview =
+    introLines.join('\n').trim() ||
+    `${title} ders notu ${sections.length} ana başlık altında ayrıntılı ve anlaşılır biçimde özetlenmiştir.`;
+
+  const keyPoints = sections
+    .map((s) => (s.takeaways && s.takeaways[0] ? `**${s.heading}:** ${s.takeaways[0]}` : `**${s.heading}**`))
+    .slice(0, 8);
+
+  return {
+    overview,
+    disciplineTag: discipline,
+    keyPoints,
+    sections,
+    studyPriorityMap: buildTopicPriorityGuide({
+      sections,
+      overview,
+      disciplineTag: discipline,
+    }),
+  };
+}
+
+function buildChatGptStyleSummaryPrompt(
+  bundle: ProcessedStudyBundle,
+  settings: StudioGenerationSettings,
+  disciplineLabel: string,
+  outlineList: string[],
+): string {
+  const isLarge = isLargeStudyBundle(bundle) || settings.examMode === 'large_note';
+  const sectionRange =
+    settings.summaryDepth === 'short'
+      ? '4-5'
+      : settings.summaryDepth === 'textbook' || isLarge
+      ? '8-12'
+      : '6-9';
+  const outlineHint =
+    outlineList.length > 0
+      ? `\nNottaki tespit edilen başlıklar (hiçbirini atlama): ${outlineList.slice(0, 18).join(' | ')}`
+      : '';
+  const customRule = settings.customPrompt?.trim()
+    ? `\nÖğrencinin özel isteği: ${settings.customPrompt.trim()}`
+    : '';
+  const examRule =
+    settings.examMode === 'cram_24h'
+      ? '\nOdak: Sınava son 24 saat — en yüksek sınav olasılıklı kavramları ve kritik ayrımları özellikle öne çıkar.'
+      : '';
+
+  return `Görev: Aşağıdaki ders notunu başından sonuna dikkatlice okuyup, öğrencinin sınav için birkaç sayfalık temiz, akıcı ve çok anlaşılır bir ders özeti gibi okuyabileceği kapsamlı bir Türkçe özet hazırla.
+KESİN KURALLAR:
+1. YALNIZCA bu ders notunda yer alan gerçek konuları, kavramları, tanımları, olayları ve örnekleri anlat. Notta bulunmayan başka bir dersin veya alanın kavramlarını, grafiklerini veya örneklerini KESİNLİKLE uydurma ve ekleme.
+2. Robotik tekrar eden şablon başlıklar yerine, tıpkı ChatGPT'ye bir ders notu atıp "bunu ayrıntılı özetler misin" dediğinde verilen gibi sade, akıcı, düzenli ve öğretici Markdown anlatım yaz (temiz alt başlıklar ####, akıcı paragraflar, madde listeleri, kalın anahtar kavramlar; yalnızca notta gerçek karşılaştırma varsa kısa tablo, yalnızca notta denklem varsa $...$).
+3. Nottaki ilk sayfadan son sayfaya kadar önemli hiçbir bölümü atlama (${sectionRange} bölüm oluştur, her bölüm 240-440 kelime arası doyurucu olsun).
+4. "studyPriorityMap" alanında nottaki gerçek konu başlıklarını sınav önceliğine göre (critical / important / review) sırala.${outlineHint}${examRule}${customRule}
+
+YANITINI YALNIZCA AŞAĞIDAKİ GEÇERLİ JSON FORMATINDA DÖNDÜR (başka sohbet metni yazma):
+{
+  "overview": "Ders notunun bütününü sade ve net anlatan 1-2 paragraf giriş özeti",
+  "disciplineTag": "${disciplineLabel}",
+  "keyPoints": ["Nottaki 6-8 en önemli ana nokta"],
+  "sections": [
+    {
+      "index": 0,
+      "heading": "Nottaki gerçek konu başlığı",
+      "pageRange": "Varsa sayfa/slayt",
+      "content": "Akıcı, anlaşılır, ayrıntılı Markdown özet anlatımı...",
+      "takeaways": ["Kısa net çıkarım 1", "Kısa net çıkarım 2"],
+      "commonPitfalls": ["Varsa sınavda karıştırılabilecek 1 nokta"]
+    }
+  ],
+  "studyPriorityMap": [
+    {
+      "topic": "Nottaki gerçek konu başlığı",
+      "priority": "critical",
+      "reason": "Sınavda neden mutlaka bakılması gerektiği (1-2 net cümle)",
+      "estimatedMinutes": 8,
+      "focusConcepts": ["Kavram 1", "Kavram 2"],
+      "likelyQuestionType": "Tanım / Karşılaştırma / Uygulama / Yorum",
+      "sectionIndex": 0
+    }
+  ],
+  "teacherEmphasis": [{ "point": "Nottaki kritik kavram", "whyImportant": "Neden önemli", "examProbability": "Yüksek" }],
+  "keyTerms": [{ "term": "Nottaki terim", "definition": "Net ve anlaşılır tanım", "formula": "" }],
+  "studyChecklist": ["Bu notu bitirdiğimde ... konusunu açıklayabilirim."]
+}`;
+}
+
+function buildStrictQuizPrompt(settings: StudioGenerationSettings): string {
+  const count = Math.min(Math.max(settings.questionCount || 10, 4), 25);
+  const formatRule =
+    settings.quizFormat === 'open_ended'
+      ? 'Tüm sorular klasik / açık uçlu (short_answer) olsun; her biri için net örnek cevap (sampleAnswer) yaz.'
+      : settings.quizFormat === 'mixed'
+      ? 'Soruların yaklaşık %75i 4 şıklı çoktan seçmeli (multiple_choice), %25i açık uçlu (short_answer) olsun.'
+      : 'Tüm sorular 4 şıklı çoktan seçmeli (multiple_choice) olsun.';
+
+  return `Görev: Yalnızca yüklenen ders notuna dayanarak tam ${count} adet net, anlaşılır, gerçek üniversite sınavı kalitesinde Türkçe soru üret.
+${formatRule}
+${settings.customPrompt?.trim() ? `Özel istek: ${settings.customPrompt.trim()}` : ''}
+
+KESİN KURALLAR:
+1. YALNIZCA bu ders notunda geçen gerçek kavram, tanım, mekanizma ve olaylardan soru yaz. Not dışından başka bir dersin veya alanın konularını ASLA sorma.
+2. Her soru kökü dilbilgisi düzgün, açık ve tek bir net cevabı olacak şekilde yazılmalıdır. Nottan rastgele kesilmiş anlamsız cümleler YASAKTIR.
+3. Çoktan seçmeli sorularda TAM OLARAK 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır. Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt (hepsini 0 yapma).
+4. Her soru için doğru cevabın neden doğru olduğunu nota dayanarak 2-3 sade cümleyle açıkla.
+
+YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
+{
+  "questions": [
+    {
+      "type": "multiple_choice",
+      "question": "Net ve anlaşılır soru metni?",
+      "options": ["Şık A", "Şık B", "Şık C", "Şık D"],
+      "correctIndex": 1,
+      "sampleAnswer": "",
+      "rubric": [],
+      "explanation": "Doğru şıkkın nottaki dayanağıyla net açıklaması.",
+      "topic": "Nottaki ilgili konu başlığı",
+      "difficulty": "medium",
+      "bloomLevel": "Anlama"
+    }
+  ]
+}`;
+}
+
+function buildStrictFlashcardsPrompt(settings: StudioGenerationSettings): string {
+  const count = Math.min(Math.max(settings.cardCount || 14, 6), 30);
+  return `Görev: Yalnızca yüklenen ders notuna dayanarak tam ${count} adet net, anlaşılır, sınav tekrarında gerçekten işe yarayan Türkçe çalışma kartı (flashcard) üret.
+KESİN KURALLAR:
+1. Sadece bu ders notunda yer alan gerçek kavram, tanım, süreç ve ayrımları kullan; not dışından başka bir dersin kavramlarını ASLA ekleme.
+2. Ön yüz (front) kısa, açık bir soru veya kavram olsun; arka yüz (back) sade, doğru ve akılda kalıcı net bir cevap olsun.
+YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
+{
+  "cards": [
+    {
+      "front": "Net soru veya kavram?",
+      "back": "Anlaşılır, doğru ve kısa cevap.",
+      "hint": "Kısa hatırlatıcı ipucu",
+      "topic": "Nottaki ilgili başlık",
+      "difficulty": "medium"
+    }
+  ]
+}`;
+}
+
+function buildStrictVideoPrompt(disciplineLabel: string, customPrompt?: string): string {
+  const extra = customPrompt?.trim() ? `\nÖğrencinin özel isteği: ${customPrompt.trim()}` : '';
+  return `Görev: Yüklenen ders notundan 5-7 sahneli, Dr. Deniz (anlatıcı) ve Barış (soru soran öğrenci) arasında geçen, ekranda çok rahat okunabilir ve %100 nota sadık Türkçe Video Ders JSON'u üret.${extra}
+KESİN KURALLAR:
+1. YALNIZCA yüklenen ders notunda geçen gerçek kavram, süreç, mekanizma ve örnekleri anlat. Notta olmayan başka bir dersin veya alanın kavramlarını, grafiklerini ya da klişe giriş cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda") KESİNLİKLE ekleme.
+2. OKUNABİLİRLİK: Her sahnenin "diagramData.nodes" dizisinde 3-4 net kavram kartı üret. Her kartta "label" en fazla 34 karakter, "subtext" ise en fazla 125 karakterlik 1-2 sade ve anlaşılır cümle olsun.
+3. GÖRSEL TİPİ: Sadece metne uygun şemalar seç: "visual", "table", "comparison", "timeline", "scenario", "shapes". Yalnızca notta gerçek sayısal veriler varsa "chart" kullan.
+4. "visualTheme" değerini yalnızca bu dersin gerçek alanına göre seç: "medicine" | "engineering" | "science" | "law" | "politics" | "education" | "sports" | "agriculture" | "history" | "economics" | "society". (Tespit edilen alan: ${disciplineLabel})
+YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
+{
+  "videoTitle": "Yüklenen ders notunun gerçek ve net başlığı",
+  "outline": "2-3 cümlelik doğrudan ders notuna sadık genel özet",
+  "keyFacts": ["Ders notundan net çıkarım 1", "Çıkarım 2", "Çıkarım 3"],
+  "scenes": [
+    {
+      "title": "Nottaki gerçek bölüm/konu başlığı",
+      "turns": [
+        { "speaker": "Deniz", "text": "Nottaki kavramı net, anlaşılır ve doğru akademik dille açıkla..." },
+        { "speaker": "Barış", "text": "Deniz hocam, bu kavramın işleyişi veya ayırt edici noktası nedir?" },
+        { "speaker": "Deniz", "text": "Nottaki gerçek mekanizma, koşul veya örnekle net yanıt..." }
+      ],
+      "diagramData": {
+        "diagramType": "visual",
+        "visualTheme": "society",
+        "mainTitle": "Slayt başlığı",
+        "highlightMetric": "Nottaki en kritik sınav çıkarımı",
+        "nodes": [
+          { "label": "Nottan Gerçek Kavram 1", "subtext": "Kısa, net ve ekranda kolayca okunabilir açıklama.", "badge": "Temel Kavram" },
+          { "label": "Nottan Gerçek Kavram 2", "subtext": "İkinci bileşenin işleyişi veya ayırt edici yönü.", "badge": "Mekanizma" },
+          { "label": "Nottan Gerçek Kavram 3", "subtext": "Üçüncü unsur, koşul veya sonuç.", "badge": "Sonuç" }
+        ]
+      },
+      "keyTakeaways": ["Net çıkarım 1", "Net çıkarım 2"],
+      "keyTerms": [{ "term": "Nottaki terim", "definition": "Kısa ve net tanım" }],
+      "examTip": "Bu konuya özgü gerçek sınav ipucu veya kavram ayrımı"
+    }
+  ],
+  "matchingPairs": [{ "term": "Nottaki terim", "definition": "Kısa tanım" }],
+  "examQuestions": [
+    { "question": "Nottan net soru?", "options": ["Şık A", "Şık B", "Şık C", "Şık D"], "correctIndex": 1, "explanation": "Nottaki dayanağıyla kısa açıklama." }
+  ]
+}`;
+}
+
+function sanitizeAiQuizQuestions(raw: unknown): QuizQuestion[] {
+  if (!Array.isArray(raw)) return [];
+  const cleaned: QuizQuestion[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const question = String(rec.question || '').trim();
+    if (question.length < 10) continue;
+
+    const rawType = String(rec.type || 'multiple_choice').toLowerCase();
+    const isShort = rawType === 'short_answer' || rawType === 'open_ended' || rawType === 'classic';
+    const rawDifficulty = String(rec.difficulty || 'medium').toLowerCase();
+    const difficulty: 'easy' | 'medium' | 'hard' =
+      rawDifficulty === 'easy' || rawDifficulty === 'kolay'
+        ? 'easy'
+        : rawDifficulty === 'hard' || rawDifficulty === 'zor'
+        ? 'hard'
+        : 'medium';
+
+    if (isShort) {
+      const sampleAnswer = String(rec.sampleAnswer || rec.explanation || '').trim();
+      if (!sampleAnswer) continue;
+      cleaned.push({
+        type: 'short_answer',
+        question,
+        options: [],
+        sampleAnswer,
+        rubric: Array.isArray(rec.rubric) ? rec.rubric.map(String).filter(Boolean).slice(0, 5) : [],
+        explanation: String(rec.explanation || sampleAnswer).trim(),
+        topic: String(rec.topic || 'Ders Notu').trim(),
+        difficulty,
+        bloomLevel: String(rec.bloomLevel || 'Analiz').trim(),
+      });
+      continue;
+    }
+
+    const opts = Array.isArray(rec.options)
+      ? rec.options.map((o) => String(o || '').trim()).filter(Boolean)
+      : [];
+    if (opts.length < 2) continue;
+    const rawIdx = Number(rec.correctIndex);
+    const correctIndex = Number.isFinite(rawIdx)
+      ? Math.max(0, Math.min(opts.length - 1, Math.round(rawIdx)))
+      : 0;
+
+    cleaned.push({
+      type: 'multiple_choice',
+      question,
+      options: opts.slice(0, 5),
+      correctIndex,
+      explanation: String(rec.explanation || '').trim(),
+      topic: String(rec.topic || 'Ders Notu').trim(),
+      difficulty,
+      bloomLevel: String(rec.bloomLevel || 'Anlama').trim(),
+    });
+  }
+  return cleaned;
+}
+
+function sanitizeAiFlashcards(raw: unknown): FlashcardItem[] {
+  if (!Array.isArray(raw)) return [];
+  const cleaned: FlashcardItem[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const front = String(rec.front || '').trim();
+    const back = String(rec.back || '').trim();
+    if (front.length < 3 || back.length < 3) continue;
+    const rawDiff = String(rec.difficulty || 'medium').toLowerCase();
+    const difficulty: 'easy' | 'medium' | 'hard' =
+      rawDiff === 'easy' ? 'easy' : rawDiff === 'hard' ? 'hard' : 'medium';
+    cleaned.push({
+      front,
+      back,
+      hint: rec.hint ? String(rec.hint).trim() : undefined,
+      topic: rec.topic ? String(rec.topic).trim() : undefined,
+      difficulty,
+      examTip: rec.examTip ? String(rec.examTip).trim() : undefined,
+    });
+  }
+  return cleaned;
+}
+
+function sanitizeAiSummarySections(raw: unknown): SummarySection[] {
+  if (!Array.isArray(raw)) return [];
+  const cleaned: SummarySection[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const rec = item as Record<string, unknown>;
+    const heading = String(rec.heading || rec.title || '').trim();
+    const content = String(rec.content || '').trim();
+    if (!heading || content.length < 30) continue;
+    cleaned.push({
+      index: cleaned.length,
+      heading,
+      pageRange: rec.pageRange ? String(rec.pageRange).trim() : undefined,
+      content,
+      takeaways: Array.isArray(rec.takeaways)
+        ? rec.takeaways.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 5)
+        : [],
+      commonPitfalls: Array.isArray(rec.commonPitfalls)
+        ? rec.commonPitfalls.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 3)
+        : undefined,
+      deepResearchNote: rec.deepResearchNote ? String(rec.deepResearchNote).trim() : undefined,
+    });
+  }
+  return cleaned;
+}
+
+function splitNoteIntoSequentialChunks(text: string, maxChunkChars: number, maxChunks: number): string[] {
+  const clean = text.trim();
+  if (clean.length <= maxChunkChars) return [clean];
+  const targetChunks = Math.min(maxChunks, Math.max(2, Math.ceil(clean.length / maxChunkChars)));
+  const chunkSize = Math.ceil(clean.length / targetChunks);
+  const chunks: string[] = [];
+  let cursor = 0;
+
+  for (let i = 0; i < targetChunks && cursor < clean.length; i++) {
+    if (i === targetChunks - 1) {
+      chunks.push(clean.slice(cursor).trim());
+      break;
+    }
+    let end = Math.min(clean.length, cursor + chunkSize);
+    const paraBreak = clean.lastIndexOf('\n\n', end);
+    if (paraBreak > cursor + Math.floor(chunkSize * 0.6)) {
+      end = paraBreak;
+    } else {
+      const lineBreak = clean.lastIndexOf('\n', end);
+      if (lineBreak > cursor + Math.floor(chunkSize * 0.6)) {
+        end = lineBreak;
+      }
+    }
+    const piece = clean.slice(cursor, end).trim();
+    if (piece.length > 0) chunks.push(piece);
+    cursor = end;
+  }
+
+  return chunks.filter((c) => c.length > 40);
+}
+
+/**
+ * Tier-1.5 ChatGPT-Style Multi-Page Summary Synthesizer via live server AI (`academic-assistant` / `study-coach`).
+ * Reads the entire uploaded lecture note (single pass <= 32k chars, or 2-4 sequential contiguous chunks for huge PDFs)
+ * and produces fluent, clean, 100% source-faithful summaries with zero off-topic invention.
+ */
+async function buildSummaryFromLiveAi(
+  bundle: ProcessedStudyBundle,
+  settings: StudioGenerationSettings,
+  domain: ReturnType<typeof classifyStudyDomain>,
+  fullOutlineHint: string[],
+  onProgress?: ProgressCallback,
+): Promise<OrchestrationResult | null> {
+  const largeBundle = isLargeStudyBundle(bundle) || settings.examMode === 'large_note';
+  const courseLabel =
+    bundle.course?.trim() ||
+    (domain.discipline !== 'Üniversite Akademik Çalışma' ? domain.discipline : bundle.title);
+
+  // Case A: Standard/medium notes (<= 32k chars, ~1-20 pages) -> ONE cohesive multi-page ChatGPT-style pass
+  if (bundle.combinedText.length <= 32_000) {
+    onProgress?.(45, 'Ders notu baştan sona incelenip kapsamlı özet yazılıyor...');
+    const taskPrompt = buildChatGptStyleSummaryPrompt(
+      bundle,
+      settings,
+      domain.discipline,
+      fullOutlineHint,
+    );
+    const liveRes = await invokeLiveServerAiText({
+      materialType: 'summary',
+      title: bundle.title,
+      course: courseLabel,
+      noteContext: bundle.combinedText,
+      taskPrompt,
+      preferPro: true,
+      images: bundle.images,
+    });
+    if (!liveRes) return null;
+
+    const parsed = extractJsonLoose(liveRes.text);
+    const jsonSections = sanitizeAiSummarySections(parsed?.sections);
+    if (parsed && jsonSections.length > 0) {
+      const overview =
+        String(parsed.overview || '').trim() ||
+        `${bundle.title} ders notu ${jsonSections.length} ana başlık altında ayrıntılı biçimde özetlenmiştir.`;
+      const keyPoints = Array.isArray(parsed.keyPoints)
+        ? parsed.keyPoints.map(String).filter(Boolean).slice(0, 10)
+        : jsonSections.map((s) => `**${s.heading}**`).slice(0, 8);
+      const keyTerms = Array.isArray(parsed.keyTerms)
+        ? (parsed.keyTerms as SummaryContent['keyTerms'])
+        : [];
+      const teacherEmphasis = Array.isArray(parsed.teacherEmphasis)
+        ? (parsed.teacherEmphasis as SummaryContent['teacherEmphasis'])
+        : [];
+      const disciplineTag = String(parsed.disciplineTag || domain.discipline);
+
+      onProgress?.(94, 'Özet ve sınav öncelik rehberi düzenleniyor...');
+      const summary: SummaryContent = {
+        overview,
+        disciplineTag,
+        keyPoints,
+        sections: jsonSections,
+        teacherEmphasis,
+        comparativeMatrix: parsed.comparativeMatrix as SummaryContent['comparativeMatrix'],
+        keyTerms,
+        studyChecklist: Array.isArray(parsed.studyChecklist)
+          ? parsed.studyChecklist.map(String).filter(Boolean)
+          : [],
+        studyPriorityMap: normalizePriorityMap(
+          parsed.studyPriorityMap,
+          jsonSections,
+          keyTerms,
+          teacherEmphasis,
+          overview,
+          disciplineTag,
+        ),
+        metadata: {
+          sourceMode: 'ai',
+          deepResearch: settings.deepResearch,
+          summaryDepth: settings.summaryDepth,
+          examMode: settings.examMode,
+          faculty: settings.faculty,
+          isLargeBundle: largeBundle,
+          sourceStats: {
+            sourceCount: bundle.sourceCount,
+            wordCount: bundle.totalWords,
+            pagesOrSlides: bundle.totalPagesOrSlides,
+            sectionCount: jsonSections.length,
+          },
+        },
+      };
+      return { content: summary, model: liveRes.model, sourceMode: 'ai' };
+    }
+
+    // Fallback parser if the AI responded in natural Markdown instead of JSON
+    const mdSummary = parseMarkdownSummaryToSections(liveRes.text, bundle.title, domain.discipline);
+    if (mdSummary && mdSummary.sections.length > 0) {
+      onProgress?.(94, 'Özet düzenleniyor...');
+      return {
+        content: {
+          ...mdSummary,
+          metadata: {
+            sourceMode: 'ai',
+            deepResearch: settings.deepResearch,
+            summaryDepth: settings.summaryDepth,
+            examMode: settings.examMode,
+            faculty: settings.faculty,
+            isLargeBundle: largeBundle,
+            sourceStats: {
+              sourceCount: bundle.sourceCount,
+              wordCount: bundle.totalWords,
+              pagesOrSlides: bundle.totalPagesOrSlides,
+              sectionCount: mdSummary.sections.length,
+            },
+          },
+        },
+        model: liveRes.model,
+        sourceMode: 'ai',
+      };
+    }
+
+    return null;
+  }
+
+  // Case B: Huge multi-page PDF / multi-week lecture notes (> 32k chars) -> 2-4 sequential contiguous passes
+  const chunks = splitNoteIntoSequentialChunks(bundle.combinedText, 24_000, 4);
+  const allSections: SummarySection[] = [];
+  const allKeyPoints: string[] = [];
+  const allKeyTerms: NonNullable<SummaryContent['keyTerms']> = [];
+  const allEmphasis: NonNullable<SummaryContent['teacherEmphasis']> = [];
+  const allChecklists: string[] = [];
+  const overviewParts: string[] = [];
+  let usedModel = 'EconNotes Akademik AI';
+
+  for (let c = 0; c < chunks.length; c++) {
+    const pct = Math.min(90, Math.round(28 + ((c + 1) / chunks.length) * 60));
+    onProgress?.(pct, `Kapsamlı ders notu baştan sona özetleniyor (${c + 1}/${chunks.length}. kısım)...`);
+
+    const chunkPrompt = `Görev: Aşağıda kapsamlı bir ders notunun ${c + 1}/${chunks.length}. kısmı yer alıyor. Bu kısımdaki TÜM önemli konuları başından sonuna atlamadan, tıpkı ChatGPT'nin birkaç sayfalık ders özeti hazırlaması gibi sade, akıcı ve öğretici Türkçe Markdown ile özetle.
+KESİN KURALLAR:
+1. YALNIZCA bu kısımdaki gerçek konu, tanım, süreç ve örnekleri anlat. Başka bir dersin/alanın kavramlarını veya uydurma bilgiyi ASLA ekleme.
+2. Bu kısım için 3-4 doyurucu bölüm (her biri 240-400 kelime) yaz.${
+      settings.customPrompt?.trim() ? `\nÖğrencinin özel isteği: ${settings.customPrompt.trim()}` : ''
+    }
+YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
+{
+  "overview": "Bu kısmın 2-3 cümlelik net özeti",
+  "keyPoints": ["Bu kısımdan 3-4 ana nokta"],
+  "sections": [
+    {
+      "index": 0,
+      "heading": "Nottaki gerçek konu başlığı",
+      "pageRange": "Varsa sayfa/slayt",
+      "content": "Akıcı, ayrıntılı, anlaşılır Markdown özet...",
+      "takeaways": ["Net çıkarım 1", "Net çıkarım 2"],
+      "commonPitfalls": ["Varsa sınavda karıştırılabilecek nokta"]
+    }
+  ],
+  "teacherEmphasis": [{ "point": "Önemli kavram", "whyImportant": "Neden önemli", "examProbability": "Yüksek" }],
+  "keyTerms": [{ "term": "Nottaki terim", "definition": "Net tanım", "formula": "" }],
+  "studyChecklist": ["Öğrenme hedefi"]
+}`;
+
+    const liveRes = await invokeLiveServerAiText({
+      materialType: 'summary',
+      title: `${bundle.title} (${c + 1}/${chunks.length})`,
+      course: courseLabel,
+      noteContext: chunks[c],
+      taskPrompt: chunkPrompt,
+      preferPro: true,
+      images: c === 0 ? bundle.images : undefined,
+    });
+    if (!liveRes) continue;
+    usedModel = liveRes.model;
+
+    const parsed = extractJsonLoose(liveRes.text);
+    const chunkSections = sanitizeAiSummarySections(parsed?.sections);
+    if (parsed && chunkSections.length > 0) {
+      if (typeof parsed.overview === 'string' && parsed.overview.trim()) {
+        overviewParts.push(parsed.overview.trim());
+      }
+      for (const sec of chunkSections) {
+        allSections.push({ ...sec, index: allSections.length });
+      }
+      if (Array.isArray(parsed.keyPoints)) {
+        for (const kp of parsed.keyPoints) {
+          const s = String(kp || '').trim();
+          if (s && !allKeyPoints.includes(s)) allKeyPoints.push(s);
+        }
+      }
+      if (Array.isArray(parsed.keyTerms)) {
+        for (const kt of parsed.keyTerms) {
+          if (kt && typeof kt === 'object') {
+            const rec = kt as Record<string, unknown>;
+            const term = String(rec.term || '').trim();
+            const definition = String(rec.definition || '').trim();
+            if (term && definition && !allKeyTerms.some((x) => x.term.toLowerCase() === term.toLowerCase())) {
+              allKeyTerms.push({
+                term,
+                definition,
+                formula: rec.formula ? String(rec.formula).trim() : undefined,
+              });
+            }
+          }
+        }
+      }
+      if (Array.isArray(parsed.teacherEmphasis)) {
+        for (const te of parsed.teacherEmphasis) {
+          if (te && typeof te === 'object') {
+            const rec = te as Record<string, unknown>;
+            const point = String(rec.point || '').trim();
+            if (point) {
+              allEmphasis.push({
+                point,
+                whyImportant: String(rec.whyImportant || '').trim(),
+                examProbability: String(rec.examProbability || 'Yüksek'),
+              });
+            }
+          }
+        }
+      }
+      if (Array.isArray(parsed.studyChecklist)) {
+        for (const cl of parsed.studyChecklist) {
+          const s = String(cl || '').trim();
+          if (s) allChecklists.push(s);
+        }
+      }
+    } else {
+      const mdPart = parseMarkdownSummaryToSections(liveRes.text, bundle.title, domain.discipline);
+      if (mdPart && mdPart.sections.length > 0) {
+        if (mdPart.overview) overviewParts.push(mdPart.overview);
+        for (const sec of mdPart.sections) {
+          allSections.push({ ...sec, index: allSections.length });
+        }
+      }
+    }
+  }
+
+  if (allSections.length === 0) return null;
+
+  onProgress?.(95, 'Tüm bölümler ve sınav öncelik haritası birleştiriliyor...');
+  const finalOverview =
+    overviewParts.slice(0, 2).join('\n\n') ||
+    `${bundle.title} ders notu ${allSections.length} ana başlık altında baştan sona eksiksiz özetlenmiştir.`;
+  const finalKeyPoints =
+    allKeyPoints.length > 0
+      ? allKeyPoints.slice(0, 10)
+      : allSections.map((s) => `**${s.heading}**`).slice(0, 8);
+
+  const summary: SummaryContent = {
+    overview: finalOverview,
+    disciplineTag: domain.discipline,
+    keyPoints: finalKeyPoints,
+    sections: allSections,
+    teacherEmphasis: allEmphasis.slice(0, 8),
+    keyTerms: allKeyTerms.slice(0, 20),
+    studyChecklist: allChecklists.slice(0, 8),
+    studyPriorityMap: normalizePriorityMap(
+      undefined,
+      allSections,
+      allKeyTerms,
+      allEmphasis,
+      finalOverview,
+      domain.discipline,
+    ),
+    metadata: {
+      sourceMode: 'ai',
+      deepResearch: settings.deepResearch,
+      summaryDepth: settings.summaryDepth,
+      examMode: settings.examMode,
+      faculty: settings.faculty,
+      isLargeBundle: largeBundle,
+      sourceStats: {
+        sourceCount: bundle.sourceCount,
+        wordCount: bundle.totalWords,
+        pagesOrSlides: bundle.totalPagesOrSlides,
+        sectionCount: allSections.length,
+      },
+    },
+  };
+
+  return { content: summary, model: usedModel, sourceMode: 'ai' };
+}
+
 async function postPublicJsonAttempt(
   systemPrompt: string,
   userPrompt: string,
@@ -168,19 +962,14 @@ function sectionsLackStructure(sections: SummarySection[]): boolean {
 function getDomainSummaryDirective(domainMode: AcademicDomainMode, examStyleHint?: string): string {
   const facultyHint = examStyleHint ? `\nFAKÜLTE / ALAN ODAĞI: ${examStyleHint}` : '';
   if (domainMode === 'verbal') {
-    return `SÖZEL / KURAMSAL & SOSYAL BİLİMLER UZMANLIK STANDARDI:${facultyHint}
-- Bu ders SÖZEL / KURAMSAL ağırlıklıdır (Siyaset Bilimi, Kamu Yönetimi, Uluslararası İlişkiler, Hukuk, Eğitim Bilimleri, Tarih, Sosyoloji, Psikoloji, Felsefe, Edebiyat veya Kuramsal Alanlar).
-- KESİN KAYNAK SADAKATİ: Yalnızca yüklenen ders notundaki konulara odaklan; başka bölümlerden (ör. alakasız iktisat/tarih örnekleri) konu dışı bilgi ekleme.
-- ASLA uydurma matematiksel formül veya yapay sembol EKLEME ($...$ / $$...$$ yalnız metinde gerçekten denklem varsa kullan).
-- Her bölümde şu yüksek verimli akademik yapıyı kur:
-  1. \`#### Kavramsal Öz ve Ana Tez\`: Kuramın/dönemin/konunun özünü, aktörlerini ve temel argümanını akıcı fakülte diliyle açıkla.
-  2. \`#### Neden–Sonuç Zinciri ve Süreç / Mekanizma\`: Kavramsal gelişim, hukuki/siyasal/pedagojik koşul–sonuç akışını net madde veya numaralı adımlarla kur.
-  3. \`#### Karşılaştırma ve Ayrım Tablosu\`: Ekoller, dönemler, görüşler veya karıştırılan kavram ikilileri arasında mutlaka net bir Markdown tablosu (\`| Ölçüt | ... | ... |\`) oluştur.
-  4. \`#### Sınav & Yorum Sorusu Çerçevesi\`: Vize/finalde buradan nasıl soru çıkacağını ve tam puan cevabın hangi kavramlara dayanması gerektiğini belirt.`;
+    return `SÖZEL / KURAMSAL & SOSYAL BİLİMLER ANLATIM STANDARDI:${facultyHint}
+- KESİN KAYNAK SADAKATİ: Yalnızca yüklenen ders notundaki konulara, kavramlara ve örneklere odaklan; not dışından başka bir dersin veya alanın kavramlarını kesinlikle ekleme.
+- ASLA uydurma matematiksel formül veya yapay sembol ekleme ($...$ / $$...$$ yalnız metinde gerçekten denklem varsa kullan).
+- Her bölümü akıcı, sade, birkaç sayfalık temiz bir ders özeti okur gibi anlaşılır Markdown ile yaz (alt başlıklar ####, akıcı paragraflar, madde listeleri; yalnızca metinde gerçek karşılaştırma varsa kısa Markdown tablosu).`;
   }
-  return `ANALİTİK / UYGULAMALI & FEN/SAĞLIK/MÜHENDİSLİK DERS STANDARDI:${facultyHint}
-- KESİN KAYNAK SADAKATİ: Yalnızca yüklenen ders notunun gerçek terminolojisine ve içeriğine sadık kal; konu dışı alakasız bölüm örnekleri veya uydurma veriler ekleme.
-- Her bölümde \`#### Analitik Çerçeve\`, sezgisel mantık + varsa metindeki formel LaTeX gösterimi (\`$...$\` veya \`$$...$$\`), somut uygulama/vaka örneği, net Markdown karşılaştırma tablosu (\`|...|...|\`) ve \`> **Sınav Odağı:**\` vurgusu sun.`;
+  return `ANALİTİK / UYGULAMALI DERS ANLATIM STANDARDI:${facultyHint}
+- KESİN KAYNAK SADAKATİ: Yalnızca yüklenen ders notunun gerçek terminolojisine ve içeriğine sadık kal; konu dışı alakasız bölüm örnekleri veya uydurma veriler kesinlikle ekleme.
+- Her bölümü sade, anlaşılır ve akıcı Markdown ile yaz (alt başlıklar ####, adım adım açıklamalar, yalnızca notta geçiyorsa formüller $...$ / $$...$$ ve varsa kısa karşılaştırma tablosu).`;
 }
 
 function getExamModeDirective(examMode?: StudioGenerationSettings['examMode']): string {
@@ -518,12 +1307,12 @@ function buildPublicSummaryPrompt(
 
   const domainDirective = getDomainSummaryDirective(domainMode);
 
-  const system = `Sen seçkin bir üniversite kürsü profesörüsün. Verilen notlardan kapsamlı, sıfır şablon cümleli ve mükemmel yapılandırılmış Türkçe Çalışma Özeti üret.
+  const system = `Sen üniversite ders notlarını sade, akıcı ve eksiksiz özetleyen akademik asistansın. YALNIZCA verilen ders notundaki gerçek konuları, kavramları ve örnekleri kullanarak anlaşılır Türkçe Çalışma Özeti üret.
 ${domainDirective}
 ${
   settings.deepResearch
-    ? 'Derin Araştırma aktif: teorik arka plan, literatür bağlamı ve Türkiye/dünya vaka örneklerini [Derin Akademik Araştırma] etiketiyle ekle.'
-    : ''
+    ? 'İsteğe bağlı ek akademik bağlam gerekiyorsa bunu yalnızca "deepResearchNote" alanında ve konuyla %100 ilgili biçimde kısaca belirt.'
+    : 'Notta bulunmayan dış konu veya başka ders örneklerini KESİNLİKLE ekleme.'
 }
 Hedef uzunluk: ${depthHint}.
 YALNIZCA geçerli JSON döndür:
@@ -629,9 +1418,13 @@ async function generateSummaryMapReduce(
     (a) => `${a.heading}${a.pageHint ? ` (${a.pageHint})` : ''}`,
   );
 
+  const resolvedCourse =
+    bundle.course?.trim() ||
+    (domain.discipline !== 'Üniversite Akademik Çalışma' ? domain.discipline : bundle.title);
+
   const commonReq = {
     noteTitle: bundle.title,
-    course: bundle.course || domain.discipline,
+    course: resolvedCourse,
     faculty: settings.faculty && settings.faculty !== 'auto' ? domain.discipline : undefined,
     examMode: settings.examMode || undefined,
     fullOutlineHint: fullOutlineHint.length > 0 ? fullOutlineHint : undefined,
@@ -642,8 +1435,9 @@ async function generateSummaryMapReduce(
     examFocus: settings.examFocus || undefined,
   };
 
-  // Use single pass ONLY when short depth AND compact text (< 300 words) AND not deep research
-  if (settings.summaryDepth === 'short' && bundle.totalWords < 300 && !settings.deepResearch) {
+  // Tier-1A: Single cohesive ChatGPT-style pass on `generate-study-material` for notes <= 28k chars
+  if (!largeBundle && bundle.combinedText.length <= 28_000) {
+    onProgress?.(32, '1/2 • Ders notu baştan sona incelenip akıcı özet oluşturuluyor...');
     const singleEdge = await invokeEdgeGenerate({
       ...commonReq,
       materialType: 'summary',
@@ -653,49 +1447,55 @@ async function generateSummaryMapReduce(
       audio: bundle.audio,
     });
     if (singleEdge && singleEdge.sourceMode === 'ai') {
-      const secs = (singleEdge.content?.sections || []) as SummarySection[];
-      return {
-        content: {
-          ...singleEdge.content,
-          disciplineTag: singleEdge.content?.disciplineTag || domain.discipline,
-          studyPriorityMap: normalizePriorityMap(
-            singleEdge.content?.studyPriorityMap,
-            secs,
-            singleEdge.content?.keyTerms,
-            singleEdge.content?.teacherEmphasis,
-            singleEdge.content?.overview,
-            singleEdge.content?.disciplineTag || domain.discipline,
-          ),
-          metadata: {
-            sourceMode: 'ai',
-            deepResearch: settings.deepResearch,
-            summaryDepth: settings.summaryDepth,
-            examMode: settings.examMode,
-            faculty: settings.faculty,
-            isLargeBundle: largeBundle,
-            sourceStats: {
-              sourceCount: bundle.sourceCount,
-              wordCount: bundle.totalWords,
-              pagesOrSlides: bundle.totalPagesOrSlides,
-              sectionCount: secs.length,
+      const secs = sanitizeAiSummarySections(singleEdge.content?.sections);
+      if (secs.length > 0) {
+        return {
+          content: {
+            ...singleEdge.content,
+            sections: secs,
+            disciplineTag: singleEdge.content?.disciplineTag || domain.discipline,
+            studyPriorityMap: normalizePriorityMap(
+              singleEdge.content?.studyPriorityMap,
+              secs,
+              singleEdge.content?.keyTerms,
+              singleEdge.content?.teacherEmphasis,
+              singleEdge.content?.overview,
+              singleEdge.content?.disciplineTag || domain.discipline,
+            ),
+            metadata: {
+              sourceMode: 'ai',
+              deepResearch: settings.deepResearch,
+              summaryDepth: settings.summaryDepth,
+              examMode: settings.examMode,
+              faculty: settings.faculty,
+              isLargeBundle: largeBundle,
+              sourceStats: {
+                sourceCount: bundle.sourceCount,
+                wordCount: bundle.totalWords,
+                pagesOrSlides: bundle.totalPagesOrSlides,
+                sectionCount: secs.length,
+              },
             },
           },
-        },
-        model: singleEdge.model,
-        sourceMode: 'ai',
-      };
+          model: singleEdge.model,
+          sourceMode: 'ai',
+        };
+      }
     }
   }
 
-  // Stage 1: Blueprint
-  const blueprintRes = await invokeEdgeGenerate({
-    ...commonReq,
-    materialType: 'summary',
-    stage: 'blueprint',
-    noteContext: sampleUniformContext(bundle.combinedText, 68_000),
-    images: bundle.images.length > 0 ? bundle.images : undefined,
-    audio: bundle.audio,
-  });
+  // Tier-1B: Map-Reduce Blueprint + Expand on `generate-study-material` (for huge notes or if single-pass missed)
+  const blueprintRes =
+    largeBundle || bundle.combinedText.length > 28_000
+      ? await invokeEdgeGenerate({
+          ...commonReq,
+          materialType: 'summary',
+          stage: 'blueprint',
+          noteContext: sampleUniformContext(bundle.combinedText, 68_000),
+          images: bundle.images.length > 0 ? bundle.images : undefined,
+          audio: bundle.audio,
+        })
+      : null;
 
   if (blueprintRes && blueprintRes.sourceMode === 'ai' && Array.isArray(blueprintRes.content?.sectionsPlan)) {
     const blueprint = blueprintRes.content;
@@ -751,10 +1551,37 @@ async function generateSummaryMapReduce(
           expandedSections.push(sec);
         }
       } else {
-        // Edge expand_batch başarısız olduysa veya yerel fallback döndürdüyse Tier-2 AI ile bölümü derinleştir
+        // Edge expand_batch başarısız olduysa önce Tier-1.5 canlı sunucu AI, sonra Tier-2 AI dene
+        const liveBatch = await invokeLiveServerAiText({
+          materialType: 'summary',
+          title: bundle.title,
+          course: resolvedCourse,
+          noteContext: sectionTargets.map((t) => `### ${t.title}\n${t.contextSlice || ''}`).join('\n\n'),
+          taskPrompt: `${buildSectionExpansionSystemPrompt(
+            settings,
+            domain.mode,
+            domain.examStyleHint,
+          )}\nAşağıdaki bölümleri sırasıyla (index değerlerini koruyarak) yalnızca verilen ders notu kesitlerine sadık kalarak yaz: ${sectionTargets
+            .map((t) => `[index=${t.index}] ${t.title}`)
+            .join(' | ')}`,
+          preferPro: true,
+        });
+        const liveBatchParsed = liveBatch ? extractJsonLoose(liveBatch.text) : null;
+        const liveBatchSections = sanitizeAiSummarySections(liveBatchParsed?.sections);
+        if (liveBatchSections.length > 0) {
+          liveBatchSections.forEach((sec, bi) => {
+            expandedSections.push({
+              ...sec,
+              index: sectionTargets[bi]?.index ?? sec.index,
+              heading: sec.heading || sectionTargets[bi]?.title || `Bölüm ${bi + 1}`,
+            });
+          });
+          continue;
+        }
+
         const pubBatch = await invokePublicJsonFallback(
           buildSectionExpansionSystemPrompt(settings, domain.mode, domain.examStyleHint),
-          `DERS: ${bundle.course || domain.discipline}\nBÖLÜMLER:\n${JSON.stringify(sectionTargets)}`,
+          `DERS: ${resolvedCourse}\nBÖLÜMLER:\n${JSON.stringify(sectionTargets)}`,
         );
         if (Array.isArray(pubBatch?.sections) && pubBatch.sections.length > 0) {
           for (const sec of pubBatch.sections as SummarySection[]) {
@@ -870,6 +1697,21 @@ async function generateSummaryMapReduce(
     };
   }
 
+  // Tier-1.5: Live Server AI Bridge (GPT-4o / Gemini 2.5 Pro via academic-assistant & study-coach)
+  // Guarantees fluent ChatGPT-style multi-page summaries focused 100% on the uploaded note!
+  if (bundle.combinedText.trim().length >= 30 || bundle.images.length > 0) {
+    const liveSummary = await buildSummaryFromLiveAi(
+      bundle,
+      settings,
+      domain,
+      fullOutlineHint,
+      onProgress,
+    );
+    if (liveSummary) {
+      return liveSummary;
+    }
+  }
+
   // Tier-2 Client Public AI Map-Reduce Synthesis (Blueprint + Batched Expansion)
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
     const pubSummary = await generatePublicMapReduceSummary(
@@ -952,11 +1794,15 @@ export async function generateMaterialWithOrchestration(
   );
 
   const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty);
+  const resolvedCourse =
+    bundle.course?.trim() ||
+    (domain.discipline !== 'Üniversite Akademik Çalışma' ? domain.discipline : bundle.title);
+
   const edgeRes = await invokeEdgeGenerate({
     materialType: settings.materialType,
     stage: 'single',
     noteTitle: bundle.title,
-    course: bundle.course || domain.discipline,
+    course: resolvedCourse,
     faculty: settings.faculty && settings.faculty !== 'auto' ? domain.discipline : undefined,
     examMode: settings.examMode || undefined,
     noteContext: sampleUniformContext(bundle.combinedText, 68_000),
@@ -987,49 +1833,100 @@ export async function generateMaterialWithOrchestration(
     };
   }
 
-  // Tier-2 Public Cloud AI fallback (quiz / flashcards / interactive video!)
+  // Tier-1.5 Live Server AI Bridge (GPT-4o / Gemini 2.5 Pro / GPT-4o-mini via live Edge functions)
+  if (bundle.combinedText.trim().length >= 30 || bundle.images.length > 0) {
+    onProgress?.(
+      52,
+      settings.materialType === 'quiz'
+        ? 'Ders notunuzdan sınav kalitesinde anlaşılır sorular hazırlanıyor...'
+        : settings.materialType === 'flashcards'
+        ? 'Ders notunuzdaki temel kavramlardan tekrar kartları hazırlanıyor...'
+        : 'Ders notunuza birebir sadık video ders sahneleri hazırlanıyor...',
+    );
+
+    if (settings.materialType === 'quiz') {
+      const liveQuiz = await invokeLiveServerAiText({
+        materialType: 'quiz',
+        title: bundle.title,
+        course: resolvedCourse,
+        noteContext: sampleUniformContext(bundle.combinedText, 50_000),
+        taskPrompt: buildStrictQuizPrompt(settings),
+        preferPro: true,
+        images: bundle.images,
+      });
+      if (liveQuiz) {
+        const parsed = extractJsonLoose(liveQuiz.text);
+        const questions = sanitizeAiQuizQuestions(parsed?.questions);
+        if (questions.length > 0) {
+          onProgress?.(95, 'Deneme sınavı hazırlandı.');
+          return {
+            content: {
+              questions,
+              metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch },
+            },
+            model: liveQuiz.model,
+            sourceMode: 'ai',
+          };
+        }
+      }
+    } else if (settings.materialType === 'flashcards') {
+      const liveCards = await invokeLiveServerAiText({
+        materialType: 'flashcards',
+        title: bundle.title,
+        course: resolvedCourse,
+        noteContext: sampleUniformContext(bundle.combinedText, 48_000),
+        taskPrompt: buildStrictFlashcardsPrompt(settings),
+        preferPro: false,
+        images: bundle.images,
+      });
+      if (liveCards) {
+        const parsed = extractJsonLoose(liveCards.text);
+        const cards = sanitizeAiFlashcards(parsed?.cards);
+        if (cards.length > 0) {
+          onProgress?.(95, 'Çalışma kartları hazırlandı.');
+          return {
+            content: {
+              cards,
+              metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch },
+            },
+            model: liveCards.model,
+            sourceMode: 'ai',
+          };
+        }
+      }
+    } else if (settings.materialType === 'video') {
+      const liveVideo = await invokeLiveServerAiText({
+        materialType: 'video',
+        title: bundle.title,
+        course: resolvedCourse,
+        noteContext: sampleUniformContext(bundle.combinedText, 44_000),
+        taskPrompt: buildStrictVideoPrompt(domain.discipline, settings.customPrompt),
+        preferPro: true,
+        images: bundle.images,
+      });
+      if (liveVideo) {
+        const parsed = extractJsonLoose(liveVideo.text);
+        if (Array.isArray(parsed?.scenes) && parsed.scenes.length > 0) {
+          onProgress?.(95, 'Videolu özet hazırlandı.');
+          return {
+            content: {
+              ...parsed,
+              metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch },
+            },
+            model: liveVideo.model,
+            sourceMode: 'ai',
+          };
+        }
+      }
+    }
+  }
+
+  // Tier-2 Public Cloud AI fallback (quiz / flashcards / interactive video)
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
-    onProgress?.(60, 'Alternatif bulut zekâ üzerinden zenginleştirilerek üretiliyor...');
+    onProgress?.(72, 'Bulut yapay zekâ üzerinden tamamlanıyor...');
     if (settings.materialType === 'video') {
-      const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty);
-      const videoSys = `Sen tüm üniversite fakülteleri (Tıp, Mühendislik, İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Eğitim, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat, Hukuk) için ders notlarını yüksek okunabilirlikli, tamamen konuya sadık videolu anlatıma dönüştüren akademik senaristsin.
-Verilen ders notlarından 5-7 sahneli, Dr. Deniz (anlatıcı) ve Barış (soru soran öğrenci) arasında geçen, net ve anlaşılır Türkçe Video Ders JSON'u üret.
-KESİN KURALLAR:
-1. KONU DIŞI BİLGİ YASAĞI: YALNIZCA yüklenen ders notundaki gerçek kavram, süreç, formül ve örnekleri anlat. Notla alakasız bölüm terimleri (ör. tıp/mühendislik/spor/ziraat/eğitim notuna iktisat veya tarih örneği katmak), uydurma yüzde/istatistik ve klişe dolgu cümleler ("Merhaba arkadaşlar", "Akıllı tahtamızda", "Tam 12'den vurdun") KESİNLİKLE YASAKTIR.
-2. OKUNABİLİRLİK: Her sahnenin 'diagramData.nodes' dizisinde 3-4 net kavram kartı üret. Her kartta 'label' 2-5 kelimelik net başlık (en fazla 36 karakter), 'subtext' ise 1-2 sade ve anlaşılır cümle (en fazla 130 karakter) olsun.
-3. GÖRSEL TİPİ: Sadece metne uygun şemalar seç: 'visual', 'table', 'comparison', 'timeline', 'scenario', 'shapes'. 'curve' tipini YALNIZCA gerçek bir iktisat arz-talep/faiz dengesi konusundaysa kullan; 'chart' tipini YALNIZCA notta gerçek sayısal veriler varsa kullan.
-4. 'visualTheme' değerini dersin gerçek fakültesine göre seç: "economics" | "history" | "law" | "politics" | "medicine" | "engineering" | "education" | "sports" | "agriculture" | "science" | "society".
-YALNIZCA JSON döndür:
-{
-  "videoTitle": "Yüklenen ders notunun gerçek ve net başlığı",
-  "outline": "2-3 cümlelik doğrudan ders notuna sadık genel özet",
-  "keyFacts": ["Ders notundan çıkarım 1", "Çıkarım 2", "Çıkarım 3"],
-  "scenes": [{
-    "title": "Nottaki gerçek bölüm/konu başlığı",
-    "turns": [
-      { "speaker": "Deniz", "text": "Nottaki kavramı net, anlaşılır ve doğru akademik dille açıkla..." },
-      { "speaker": "Barış", "text": "Deniz hocam, bu kavramın işleyişi veya ayırt edici noktası nedir?" },
-      { "speaker": "Deniz", "text": "Nottaki gerçek mekanizma, koşul veya örnekle net yanıt..." }
-    ],
-    "diagramData": {
-      "diagramType": "visual | table | comparison | timeline | scenario | shapes",
-      "visualTheme": "economics | history | law | politics | medicine | engineering | education | sports | agriculture | science | society",
-      "mainTitle": "Slayt başlığı",
-      "highlightMetric": "Nottaki en kritik sınav çıkarımı",
-      "nodes": [
-        { "label": "Nottan Gerçek Kavram 1", "subtext": "Kısa, net ve ekranda kolayca okunabilir açıklama.", "badge": "Temel Kavram" },
-        { "label": "Nottan Gerçek Kavram 2", "subtext": "İkinci bileşenin işleyişi veya ayırt edici yönü.", "badge": "Mekanizma" },
-        { "label": "Nottan Gerçek Kavram 3", "subtext": "Üçüncü unsur, koşul veya sonuç.", "badge": "Sonuç" }
-      ]
-    },
-    "keyTakeaways": ["Net çıkarım 1", "Net çıkarım 2"],
-    "keyTerms": [{ "term": "Nottaki terim", "definition": "Kısa ve net tanım" }],
-    "examTip": "Bu konuya özgü gerçek sınav ipucu veya kavram ayrımı"
-  }],
-  "matchingPairs": [{ "term": "...", "definition": "..." }],
-  "examQuestions": [{ "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }]
-}`;
-      const videoUser = `FAKÜLTE / ALAN: ${domain.discipline}\nDERS: ${bundle.course || domain.discipline}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
+      const videoSys = buildStrictVideoPrompt(domain.discipline, settings.customPrompt);
+      const videoUser = `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
         bundle.combinedText,
         14_000,
       )}`;
@@ -1044,20 +1941,32 @@ YALNIZCA JSON döndür:
     } else {
       const isQuiz = settings.materialType === 'quiz';
       const system = isQuiz
-        ? `Üniversite hocası olarak ${settings.questionCount} adet ${settings.difficulty} zorlukta Türkçe sınav sorusu üret. Şık sırasını (correctIndex: 0..3) dengeli dağıt. JSON döndür: { "questions": [{ "type": "multiple_choice", "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "...", "topic": "...", "difficulty": "medium", "bloomLevel": "Analiz" }] }`
-        : `Aktif hatırlama uzmanı olarak ${settings.cardCount} adet Türkçe flashcard üret. JSON döndür: { "cards": [{ "front": "...", "back": "...", "hint": "...", "topic": "...", "difficulty": "medium" }] }`;
-      const user = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\n\n${sampleUniformContext(
+        ? buildStrictQuizPrompt(settings)
+        : buildStrictFlashcardsPrompt(settings);
+      const user = `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
         bundle.combinedText,
         14_500,
       )}`;
 
       const pub = await invokePublicJsonFallback(system, user);
-      if ((isQuiz && Array.isArray(pub?.questions) && pub.questions.length > 0) || (!isQuiz && Array.isArray(pub?.cards) && pub.cards.length > 0)) {
-        return {
-          content: { ...pub, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
-          model: 'EconNotes Cloud Academic AI',
-          sourceMode: 'ai',
-        };
+      if (isQuiz) {
+        const questions = sanitizeAiQuizQuestions(pub?.questions);
+        if (questions.length > 0) {
+          return {
+            content: { questions, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
+            model: 'EconNotes Cloud Academic AI',
+            sourceMode: 'ai',
+          };
+        }
+      } else {
+        const cards = sanitizeAiFlashcards(pub?.cards);
+        if (cards.length > 0) {
+          return {
+            content: { cards, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
+            model: 'EconNotes Cloud Academic AI',
+            sourceMode: 'ai',
+          };
+        }
       }
     }
   }
@@ -1066,7 +1975,7 @@ YALNIZCA JSON döndür:
   const payload: GeneratePayload = {
     materialType: settings.materialType,
     noteTitle: bundle.title,
-    course: bundle.course || bundle.detectedDiscipline,
+    course: resolvedCourse,
     noteContext: bundle.combinedText,
     questionCount: settings.questionCount,
     cardCount: settings.cardCount,
@@ -1099,16 +2008,16 @@ export async function expandSingleSummarySection(params: {
   );
   const expandDirective =
     domain.mode === 'verbal'
-      ? 'Bu sözel/kuramsal bölümü iki kat derinleştir: kavramsal özü genişlet, neden-sonuç zinciri kur, karşılaştırma tablosu ve klasik sınav yorum çerçevesi ekle. Uydurma formül ekleme.'
-      : 'Bu bölümü çok daha ayrıntılı genişlet: ek çözümlü sayısal/somut örnek, formül türetimi veya vaka analizi ve karşılaştırma tablosu ekle.';
+      ? 'Bu bölümü yalnızca kendi ders konusuna sadık kalarak iki kat daha anlaşılır ve ayrıntılı hale getir: akıcı açıklamalar, neden-sonuç ilişkileri ve gerekiyorsa kısa karşılaştırma tablosu ekle. Başka derslerden kavram veya uydurma formül ekleme.'
+      : 'Bu bölümü yalnızca kendi ders konusuna sadık kalarak daha ayrıntılı ve anlaşılır hale getir: adım adım açıklama, somut örnek ve yalnızca notta varsa formül açıklaması ekle.';
 
   const edgeRes = await invokeEdgeGenerate({
     materialType: 'summary',
     stage: 'expand_batch',
     noteTitle: params.title,
     course: params.course || undefined,
-    deepResearch: true,
-    pedagogicalStyle: 'academic_rigor',
+    deepResearch: false,
+    pedagogicalStyle: 'balanced',
     customPrompt: expandDirective,
     globalOutline: {
       overview: params.existingOverview || params.title,
@@ -1130,12 +2039,30 @@ export async function expandSingleSummarySection(params: {
     return edgeRes.content.sections[0];
   }
 
+  // Tier-1.5 Live Server AI expansion
+  const liveExpand = await invokeLiveServerAiText({
+    materialType: 'summary',
+    title: params.title,
+    course: params.course || params.title,
+    noteContext: `BÖLÜM BAŞLIĞI: ${params.section.heading}\nMEVCUT ÖZET:\n${params.section.content}`,
+    taskPrompt: `${expandDirective}\nYANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:\n{ "sections": [{ "index": ${params.sectionIndex}, "heading": "${params.section.heading}", "content": "Daha ayrıntılı, akıcı ve anlaşılır Türkçe Markdown anlatım...", "takeaways": ["Net çıkarım 1", "Net çıkarım 2", "Net çıkarım 3"] }] }`,
+    preferPro: true,
+  });
+  if (liveExpand) {
+    const parsed = extractJsonLoose(liveExpand.text);
+    const secs = sanitizeAiSummarySections(parsed?.sections);
+    if (secs[0]) return { ...params.section, ...secs[0], index: params.sectionIndex };
+    if (liveExpand.text.length > params.section.content.length) {
+      return {
+        ...params.section,
+        index: params.sectionIndex,
+        content: liveExpand.text,
+      };
+    }
+  }
+
   const pub = await invokePublicJsonFallback(
-    `Üniversite profesörü olarak verilen ders özet bölümünü iki kat derinleştir (${
-      domain.mode === 'verbal'
-        ? 'kavramsal analiz, neden-sonuç zinciri, Markdown karşılaştırma tablosu ve klasik sınav çerçevesi ekle; uydurma formül ekleme'
-        : 'çözümlü somut örnek, formül ve Markdown karşılaştırma tablosu ekle'
-    }). YALNIZCA JSON döndür: { "sections": [{ "index": 0, "heading": "...", "content": "...", "takeaways": ["..."], "deepResearchNote": "..." }] }`,
+    `Verilen ders özet bölümünü yalnızca kendi konusuna sadık kalarak daha ayrıntılı ve anlaşılır biçimde genişlet. YALNIZCA JSON döndür: { "sections": [{ "index": 0, "heading": "...", "content": "...", "takeaways": ["..."] }] }`,
     `DERS: ${params.course || '-'} | BAŞLIK: ${params.title}\nBÖLÜM: ${params.section.heading}\nMEVCUT METİN:\n${params.section.content}`,
   );
   const pubSec = Array.isArray(pub?.sections) ? (pub.sections[0] as SummarySection | undefined) : undefined;
@@ -1163,6 +2090,30 @@ export async function gradeOpenEndedAnswer(params: {
 
   if (edgeRes?.content && typeof edgeRes.content.score === 'number') {
     return edgeRes.content as OpenEndedGradeResult;
+  }
+
+  // Tier-1.5 Live Server AI rubric grading
+  const liveGrade = await invokeLiveServerAiText({
+    materialType: 'quiz',
+    title: params.topic || 'Klasik Soru Değerlendirme',
+    course: params.course || undefined,
+    noteContext: `SORU: ${params.question}\nÖRNEK DOĞRU CEVAP: ${params.rubricAnswer}\nÖĞRENCİNİN CEVABI: ${params.studentAnswer}`,
+    taskPrompt:
+      'Öğrencinin cevabını örnek doğru cevapla karşılaştırarak 0-100 arası adil biçimde puanla ve kısa, yapıcı Türkçe geri bildirim yaz. YALNIZCA GEÇERLİ JSON DÖNDÜR: { "score": 80, "verdict": "Güçlü Cevap | Kısmi Doğru | Geliştirilmeli", "feedback": "Kısa net değerlendirme", "strengths": ["Doğru yön"], "missingConcepts": ["Eksik kavram"], "improvedAnswer": "Tam puan örnek cevap" }',
+    preferPro: false,
+  });
+  if (liveGrade) {
+    const parsed = extractJsonLoose(liveGrade.text);
+    if (parsed && typeof parsed.score === 'number') {
+      return {
+        score: Math.max(0, Math.min(100, Math.round(parsed.score))),
+        verdict: String(parsed.verdict || 'Değerlendirildi'),
+        feedback: String(parsed.feedback || ''),
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths.map(String) : [],
+        missingConcepts: Array.isArray(parsed.missingConcepts) ? parsed.missingConcepts.map(String) : [],
+        improvedAnswer: String(parsed.improvedAnswer || params.rubricAnswer),
+      };
+    }
   }
 
   // Honest deterministic lexical rubric scorer when Edge is offline
