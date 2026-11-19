@@ -54,7 +54,7 @@ const SupportNotificationListener = () => {
                   icon: '/icons/icon-192x192.png',
                   badge: '/icons/icon-192x192.png',
                   vibrate: [150, 60, 150],
-                  data: { url: path },
+                  data: { url: path, econnotesLocal: true },
                   renotify: true,
                 };
                 return reg.showNotification(title, options);

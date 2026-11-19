@@ -15,6 +15,11 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { toast } from 'sonner';
 import { Plus, Megaphone, Edit, Trash2, Share2, SortAsc, SortDesc, Search, Eye, MessageSquare, Smile, Pencil, Upload, FileIcon, Image as ImageIcon, X } from 'lucide-react';
 import { sendOneSignalNotification } from '@/lib/onesignal';
+import {
+  broadcastNewAnnouncement,
+  markLocalAnnouncementCreated,
+  notifyAnnouncementsUpdated,
+} from '@/lib/deviceNotifications';
 
 const EMOJIS = ['👍','👎','❤️','🔥','💯','🎓','📚','✅','❌','🙏','👏','🤔','😊','🥳','💪','📝','⭐','😀','😂','😍'];
 
@@ -48,6 +53,7 @@ const Announcements = () => {
           { onConflict: 'announcement_id,user_id' }
         );
       }
+      notifyAnnouncementsUpdated();
     }
 
     if (data) {
@@ -101,41 +107,39 @@ const Announcements = () => {
       if (error) { toast.error('Güncellenemedi.'); return; }
       toast.success('Duyuru güncellendi!');
     } else {
-      const { error } = await supabase.from('announcements').insert(data);
+      const { data: created, error } = await supabase
+        .from('announcements')
+        .insert(data)
+        .select('id, title, content, user_id, created_at')
+        .single();
       if (error) { toast.error('Eklenemedi: ' + error.message); return; }
       toast.success('Duyuru eklendi!');
 
-      // 1. OneSignal Cloud Push: Delivers directly to iPhone lock screens & Android devices even when website is closed!
-      void sendOneSignalNotification(data.title, data.content).then((res) => {
-        if (res.success) toast.success('Cihaz bildirimi gönderildi.');
-        else toast.error('Cihaz bildirimi gönderilemedi: ' + res.reason);
+      // Mark locally created in this tab so this tab doesn't double-toast while other devices DO get notified
+      markLocalAnnouncementCreated(created?.id || data.title);
+      markLocalAnnouncementCreated(data.title);
+      notifyAnnouncementsUpdated();
+
+      // 1. Broadcast announcement notification to all connected devices in real-time (collision-free)
+      void broadcastNewAnnouncement({
+        id: created?.id,
+        title: data.title,
+        content: data.content,
+        user_id: user?.id,
+        created_at: created?.created_at || new Date().toISOString(),
       });
 
-      // 2. Broadcast announcement notification to other devices in real-time
-      try {
-        const bc = supabase.channel('realtime-announcements-push', {
-          config: { broadcast: { self: false } },
-        });
-        if (bc.state === 'joined') {
-          void bc.send({
-            type: 'broadcast',
-            event: 'new-announcement',
-            payload: { title: data.title, content: data.content, user_id: user?.id },
-          });
+      // 2. OneSignal Cloud Push: Delivers directly to iPhone lock screens & Android devices even when website is closed
+      void sendOneSignalNotification(data.title, data.content).then((res) => {
+        if (res.success) {
+          const suffix = typeof res.recipients === 'number' && res.recipients > 0
+            ? ` (${res.recipients} cihaz)`
+            : '';
+          toast.success(`Cihaz bildirimi gönderildi${suffix}.`);
         } else {
-          bc.subscribe(async (status) => {
-            if (status === 'SUBSCRIBED') {
-              await bc.send({
-                type: 'broadcast',
-                event: 'new-announcement',
-                payload: { title: data.title, content: data.content, user_id: user?.id },
-              });
-            }
-          });
+          toast.warning('Anlık duyuru iletildi; arka plan push bildirimi gönderilemedi: ' + res.reason);
         }
-      } catch (e) {
-        console.warn('Realtime announcement broadcast could not be sent:', e);
-      }
+      });
     }
 
     setDialogOpen(false); setEditingItem(null); setForm({ title: '', content: '' }); setConfirmUpload(false); setAttachmentFile(null); fetchData();
@@ -144,7 +148,9 @@ const Announcements = () => {
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from('announcements').delete().eq('id', id);
     if (error) { toast.error('Silinemedi.'); return; }
-    toast.success('Duyuru silindi!'); fetchData();
+    toast.success('Duyuru silindi!');
+    notifyAnnouncementsUpdated();
+    fetchData();
   };
 
   const handleEdit = (item: any) => {

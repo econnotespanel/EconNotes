@@ -1,8 +1,6 @@
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import MobileBottomNav from '@/components/MobileBottomNav';
-import SupportNotificationListener from '@/components/SupportNotificationListener';
-import ContentNotificationListener from '@/components/ContentNotificationListener';
 import DeviceNotificationBanner from '@/components/DeviceNotificationBanner';
 import ExamWishPopup from '@/components/ExamWishPopup';
 import BirthdayCelebrationPopup from '@/components/BirthdayCelebrationPopup';
@@ -36,8 +34,6 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="md:hidden absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
       </div>
 
-      <SupportNotificationListener />
-      <ContentNotificationListener />
       <DeviceNotificationBanner />
       <ExamWishPopup />
       <BirthdayCelebrationPopup />

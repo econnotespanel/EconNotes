@@ -24,11 +24,14 @@ import {
 import { useNavigate } from "react-router-dom";
 import EconLogo from "@/components/EconLogo";
 import { APP_VERSION } from "@/lib/version";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
+import {
+  BeforeInstallPromptEvent,
+  isAndroidDevice,
+  isIOSDevice,
+  isStandalonePwa,
+  subscribeToInstallPrompt,
+  triggerNativePwaInstall,
+} from "@/lib/pwaInstall";
 
 type PlatformTab = "ios" | "android" | "desktop";
 
@@ -64,15 +67,11 @@ const Install = () => {
   const [detectedPlatform, setDetectedPlatform] = useState<PlatformTab>("desktop");
 
   useEffect(() => {
-    // Cihaz tespiti
-    const ua = navigator.userAgent || "";
-    const isIos = /iPad|iPhone|iPod/.test(ua);
-    const isAndroid = /Android/.test(ua);
-
-    if (isIos) {
+    // Cihaz tespiti (iPadOS dahil)
+    if (isIOSDevice()) {
       setActiveTab("ios");
       setDetectedPlatform("ios");
-    } else if (isAndroid) {
+    } else if (isAndroidDevice()) {
       setActiveTab("android");
       setDetectedPlatform("android");
     } else {
@@ -80,28 +79,26 @@ const Install = () => {
       setDetectedPlatform("desktop");
     }
 
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-
-    window.addEventListener("beforeinstallprompt", handler);
-
-    if (window.matchMedia("(display-mode: standalone)").matches) {
+    if (isStandalonePwa()) {
       setIsInstalled(true);
     }
 
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return subscribeToInstallPrompt((prompt, installed) => {
+      setDeferredPrompt(prompt);
+      if (installed) {
+        setIsInstalled(true);
+      }
+    });
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    const outcome = await triggerNativePwaInstall();
     if (outcome === "accepted") {
       setIsInstalled(true);
+      setDeferredPrompt(null);
+    } else if (outcome === "dismissed") {
+      setDeferredPrompt(null);
     }
-    setDeferredPrompt(null);
   };
 
   return (

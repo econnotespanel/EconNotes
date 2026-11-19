@@ -12,12 +12,14 @@ createRoot(document.getElementById("root")!).render(<App />);
 // Initialize OneSignal Web Push for Mobile & Desktop
 initOneSignal();
 
-// Register Service Worker for PWA and Mobile Push Notifications
+// Register Service Worker for PWA and Mobile Push Notifications (matches OneSignal root scope)
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   const registerServiceWorker = () => {
-    navigator.serviceWorker.register('/OneSignalSDKWorker.js').catch((err) => {
-      console.warn('EconNotes Service Worker kaydı yapılamadı:', err);
-    });
+    navigator.serviceWorker
+      .register('/OneSignalSDKWorker.js', { scope: '/' })
+      .catch((err) => {
+        console.warn('EconNotes Service Worker kaydı yapılamadı:', err);
+      });
   };
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {

@@ -16,6 +16,42 @@ interface NotificationPayload {
   url?: string;
 }
 
+const dispatchToOneSignal = async (
+  restApiKey: string,
+  segments: string[],
+  title: string,
+  cleanContent: string,
+  targetUrl: string,
+) => {
+  const response = await fetch('https://api.onesignal.com/notifications', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Key ${restApiKey}`,
+    },
+    body: JSON.stringify({
+      app_id: ONESIGNAL_APP_ID,
+      target_channel: 'push',
+      included_segments: segments,
+      headings: { tr: title, en: title },
+      contents: { tr: cleanContent, en: cleanContent },
+      url: targetUrl,
+      chrome_web_icon: 'https://econnotes.online/icons/icon-192x192.png',
+      chrome_web_badge: 'https://econnotes.online/icons/icon-192x192.png',
+      firefox_icon: 'https://econnotes.online/icons/icon-192x192.png',
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  const hasErrors = Boolean(
+    !response.ok ||
+      (Array.isArray(data?.errors) && data.errors.length > 0) ||
+      (data?.errors && typeof data.errors === 'object' && Object.keys(data.errors).length > 0),
+  );
+
+  return { ok: response.ok && !hasErrors, status: response.status, data };
+};
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return preflightResponse(req);
   if (!isTrustedOrigin(req.headers.get('origin'))) {
@@ -47,7 +83,7 @@ Deno.serve(async (req) => {
       throw new RequestError('Başlık ve içerik zorunludur.', 400);
     }
 
-    const restApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY');
+    const restApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY')?.trim();
     if (!restApiKey) {
       console.warn('ONESIGNAL_REST_API_KEY is not configured on server.');
       return jsonResponse(req, { success: false, reason: 'ONESIGNAL_REST_API_KEY not configured' }, 200);
@@ -56,26 +92,16 @@ Deno.serve(async (req) => {
     const cleanContent = String(body.content).replace(/<[^>]*>/g, '').trim().slice(0, 180);
     const targetUrl = body.url || 'https://econnotes.online/announcements';
 
-    const response = await fetch('https://api.onesignal.com/notifications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Key ${restApiKey}`,
-      },
-      body: JSON.stringify({
-        app_id: ONESIGNAL_APP_ID,
-        included_segments: ['Total Subscriptions', 'Active Subscriptions'],
-        headings: { tr: body.title, en: body.title },
-        contents: { tr: cleanContent, en: cleanContent },
-        url: targetUrl,
-        chrome_web_icon: 'https://econnotes.online/icons/icon-192x192.png',
-        chrome_web_badge: 'https://econnotes.online/icons/icon-192x192.png',
-        firefox_icon: 'https://econnotes.online/icons/icon-192x192.png',
-      }),
-    });
+    // Try modern OneSignal v2 default segment first; fallback to legacy 'Subscribed Users' if segment name differs
+    let result = await dispatchToOneSignal(restApiKey, ['Total Subscriptions'], body.title, cleanContent, targetUrl);
+    if (!result.ok) {
+      const errStr = JSON.stringify(result.data?.errors || '');
+      if (/segment/i.test(errStr)) {
+        result = await dispatchToOneSignal(restApiKey, ['Subscribed Users'], body.title, cleanContent, targetUrl);
+      }
+    }
 
-    const data = await response.json();
-    return jsonResponse(req, { success: Boolean(data && !data.errors), data });
+    return jsonResponse(req, { success: result.ok, status: result.status, data: result.data });
   } catch (error) {
     if (error instanceof RequestError) return jsonResponse(req, { error: error.message }, error.status);
     console.error('send-notification request failed:', error);

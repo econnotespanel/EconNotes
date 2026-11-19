@@ -44,6 +44,7 @@ import {
   isDeviceNotificationEnabled,
   setDeviceNotificationEnabled,
 } from '@/lib/deviceNotifications';
+import { requestOneSignalPermission } from '@/lib/onesignal';
 import {
   buildSupportTickets,
   encodeSupportMessage,
@@ -478,13 +479,10 @@ const Support = () => {
       return;
     }
     try {
-      const permission =
-        Notification.permission === 'default'
-          ? await Notification.requestPermission()
-          : Notification.permission;
-      setNotificationsEnabled(permission === 'granted');
-      if (permission === 'granted' && user) {
-        const now = new Date().toISOString();
+      const granted = await requestOneSignalPermission(user?.id);
+      setNotificationsEnabled(granted);
+      if (granted && user) {
+        const now = new Date(Date.now() - 30_000).toISOString();
         setDeviceNotificationEnabled(user.id, true);
         localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);
         localStorage.setItem(getNotificationCursorKey(user.id, 'announcements'), now);

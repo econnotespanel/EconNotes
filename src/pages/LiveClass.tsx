@@ -10,6 +10,12 @@ import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { sendOneSignalNotification } from '@/lib/onesignal';
+import {
+  broadcastNewAnnouncement,
+  markLocalAnnouncementCreated,
+  notifyAnnouncementsUpdated,
+} from '@/lib/deviceNotifications';
 
 const LIVE_CLASS_RULES = [
   'Canlı ders süresince tüm katılımcılar birbirine saygılı davranmalıdır.',
@@ -57,13 +63,31 @@ const LiveClass = () => {
     setRoomName(room);
     setIsLive(true);
 
-    await supabase.from('announcements').insert({
-      title: '🔴 Canlı Ders Başladı!',
-      content: `Canlı ders şu anda aktif! Katılmak için Canlı Ders sayfasına gidin.\nOda: ${room}`,
-      user_id: user!.id,
-      author_name: 'Yönetici',
+    const title = '🔴 Canlı Ders Başladı!';
+    const content = `Canlı ders şu anda aktif! Katılmak için Canlı Ders sayfasına gidin.\nOda: ${room}`;
+    const { data: created } = await supabase
+      .from('announcements')
+      .insert({
+        title,
+        content,
+        user_id: user!.id,
+        author_name: 'Yönetici',
+      })
+      .select('id, title, content, user_id, created_at')
+      .single();
+
+    markLocalAnnouncementCreated(created?.id || title);
+    markLocalAnnouncementCreated(title);
+    notifyAnnouncementsUpdated();
+    void broadcastNewAnnouncement({
+      id: created?.id,
+      title,
+      content,
+      user_id: user?.id,
+      created_at: created?.created_at || new Date().toISOString(),
     });
-    toast.success('Canlı ders başlatıldı! Duyuru paylaşıldı.');
+    void sendOneSignalNotification(title, content, 'https://econnotes.online/live-class');
+    toast.success('Canlı ders başlatıldı! Duyuru ve bildirim paylaşıldı.');
   };
 
   const endClass = async () => {

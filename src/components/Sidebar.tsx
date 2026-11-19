@@ -103,9 +103,11 @@ const Sidebar = () => {
     fetchUnread();
     const interval = setInterval(fetchUnread, 120000);
     window.addEventListener('econnotes:support-read-updated', fetchUnread);
+    window.addEventListener('econnotes:announcements-updated', fetchUnread);
     return () => {
       clearInterval(interval);
       window.removeEventListener('econnotes:support-read-updated', fetchUnread);
+      window.removeEventListener('econnotes:announcements-updated', fetchUnread);
     };
   }, [fetchUnread]);
 

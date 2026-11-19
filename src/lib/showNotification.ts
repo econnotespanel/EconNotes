@@ -13,13 +13,13 @@ export const playChime = () => {
     }
     lastChimeTimestamp = now;
 
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtx) return;
     if (!audioContext || audioContext.state === 'closed') {
       audioContext = new AudioCtx();
     }
     if (audioContext.state === 'suspended') {
-      audioContext.resume();
+      void audioContext.resume().catch(() => {});
     }
     const osc = audioContext.createOscillator();
     const gain = audioContext.createGain();
@@ -33,14 +33,57 @@ export const playChime = () => {
     gain.connect(audioContext.destination);
     osc.start();
     osc.stop(audioContext.currentTime + 0.36);
-  } catch (e) {
+  } catch {
     // Audio autostart might be restricted before user gesture
   }
 };
 
+const isMobileOrTouchOS = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1)
+  );
+};
+
+const getActiveServiceWorkerRegistration = async (): Promise<ServiceWorkerRegistration | null> => {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
+
+  try {
+    const readyReg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800)),
+    ]);
+    if (readyReg && typeof readyReg.showNotification === 'function') {
+      return readyReg;
+    }
+
+    const existing = await navigator.serviceWorker.getRegistration('/');
+    if (existing && typeof existing.showNotification === 'function') {
+      return existing;
+    }
+
+    const anyReg = await navigator.serviceWorker.getRegistration();
+    if (anyReg && typeof anyReg.showNotification === 'function') {
+      return anyReg;
+    }
+
+    // Last resort: register the worker on demand
+    const fresh = await navigator.serviceWorker.register('/OneSignalSDKWorker.js', { scope: '/' });
+    if (fresh && typeof fresh.showNotification === 'function') {
+      return fresh;
+    }
+  } catch (err) {
+    console.warn('Service worker lookup for notification failed:', err);
+  }
+
+  return null;
+};
+
 export const displayDeviceNotification = async (
   title: string,
-  options: NotificationOptions & { data?: { url?: string } } = {}
+  options: NotificationOptions & { data?: { url?: string } } = {},
 ): Promise<boolean> => {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return false;
@@ -55,60 +98,66 @@ export const displayDeviceNotification = async (
   const tag = options.tag || `econnotes-${Date.now()}`;
   const body = options.body || '';
 
-  const notificationOptions: NotificationOptions = {
+  const baseOptions: NotificationOptions = {
     body,
     icon: iconUrl,
+    badge: iconUrl,
     tag,
-    data: { url: targetUrl },
+    data: { url: targetUrl, econnotesLocal: true },
   };
 
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const extendedOptions: NotificationOptions & { renotify?: boolean } = {
+    ...baseOptions,
+    renotify: true,
+  };
+
+  const isMobile = isMobileOrTouchOS();
 
   // 1. DESKTOP (Windows, macOS, Linux): Native browser Notification constructor
-  // When this succeeds, exit immediately so we NEVER fire a duplicate from the service worker
   if (!isMobile) {
     try {
-      const n = new Notification(title, notificationOptions);
+      const n = new Notification(title, baseOptions);
       n.onclick = () => {
         window.focus();
         window.location.assign(targetUrl);
         n.close();
       };
-      return true; // Already delivered once! Stop further delivery.
+      return true;
     } catch (desktopErr) {
       console.warn('Desktop Notification constructor error, falling back to Service Worker:', desktopErr);
     }
   }
 
-  // 2. MOBILE (Android Chrome, iOS PWA) & Service Worker
+  // 2. MOBILE (Android Chrome, iOS PWA) & Service Worker fallback
   if ('serviceWorker' in navigator) {
-    try {
-      const reg = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<any>((resolve) => setTimeout(() => resolve(null), 1500)),
-      ]);
-
-      if (reg && typeof reg.showNotification === 'function') {
-        await reg.showNotification(title, notificationOptions);
-        return true; // Delivered once! Stop further delivery.
+    const reg = await getActiveServiceWorkerRegistration();
+    if (reg) {
+      try {
+        await reg.showNotification(title, extendedOptions);
+        return true;
+      } catch {
+        // Retry with minimal cross-browser options (e.g. strict iOS Safari PWA)
+        try {
+          await reg.showNotification(title, {
+            body,
+            icon: iconUrl,
+            tag,
+            data: { url: targetUrl, econnotesLocal: true },
+          });
+          return true;
+        } catch (swErr) {
+          console.warn('Service Worker showNotification error:', swErr);
+        }
       }
-
-      const fallbackReg = await navigator.serviceWorker.getRegistration();
-      if (fallbackReg && typeof fallbackReg.showNotification === 'function') {
-        await fallbackReg.showNotification(title, notificationOptions);
-        return true; // Delivered once! Stop further delivery.
-      }
-    } catch (swErr) {
-      console.warn('Service Worker showNotification error:', swErr);
     }
 
-    // 3. Last-ditch fallback: Service Worker postMessage (only if direct showNotification wasn't available)
+    // 3. Last-ditch fallback: Service Worker postMessage
     if (navigator.serviceWorker.controller) {
       try {
         navigator.serviceWorker.controller.postMessage({
           type: 'SHOW_NOTIFICATION',
           title,
-          options: notificationOptions,
+          options: baseOptions,
         });
         return true;
       } catch (pmErr) {

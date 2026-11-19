@@ -8,6 +8,9 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ForcePasswordChange from "@/components/ForcePasswordChange";
 import { MfaGate } from "@/components/TwoFactor";
 import AdminMessageListener from "@/components/AdminMessageListener";
+import ContentNotificationListener from "@/components/ContentNotificationListener";
+import SupportNotificationListener from "@/components/SupportNotificationListener";
+import MobileHomeScreenPrompt from "@/components/MobileHomeScreenPrompt";
 import UserPenaltyMonitor from "@/components/UserPenaltyMonitor";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { SiteConfigProvider } from "@/contexts/SiteConfigContext";
@@ -92,9 +95,12 @@ const App = () => {
                 <ScrollToTop />
                 <Suspense fallback={<RouteLoader />}>
                   <SystemGate>
+                    <MobileHomeScreenPrompt splashActive={showSplash} />
                     <PasswordChangeGate><MfaGate>
                       <ApprovalGate>
                         <AdminMessageListener />
+                        <ContentNotificationListener />
+                        <SupportNotificationListener />
                         <DailyWelcomePosterModal />
                         <Routes>
                         <Route path="/" element={<Index />} />

@@ -37,9 +37,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePoints } from '@/hooks/usePoints';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import { SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
-import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
+import {
+  ANNOUNCEMENTS_UPDATED_EVENT,
+  getNotificationCursorKey,
+  isDeviceNotificationEnabled,
+  setDeviceNotificationEnabled,
+} from '@/lib/deviceNotifications';
 import { displayDeviceNotification, playChime } from '@/lib/showNotification';
-import { requestOneSignalPermission } from '@/lib/onesignal';
+import { requestOneSignalPermission, syncOneSignalSubscription } from '@/lib/onesignal';
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
@@ -94,7 +99,11 @@ const Header = () => {
   useEffect(() => {
     fetchUnread();
     const interval = setInterval(fetchUnread, 120000);
-    return () => clearInterval(interval);
+    window.addEventListener(ANNOUNCEMENTS_UPDATED_EVENT, fetchUnread);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(ANNOUNCEMENTS_UPDATED_EVENT, fetchUnread);
+    };
   }, [fetchUnread]);
 
   useEffect(() => {
@@ -171,6 +180,7 @@ const Header = () => {
     if (deviceNotificationsEnabled) {
       setDeviceNotificationEnabled(user.id, false);
       setDeviceNotificationsEnabled(false);
+      void syncOneSignalSubscription(user.id, false);
       toast.success('Cihaz bildirimleri kapatıldı.');
       return;
     }
@@ -185,7 +195,7 @@ const Header = () => {
 
     // 3. OneSignal / Native Browser Permission Prompt
     try {
-      const granted = await requestOneSignalPermission();
+      const granted = await requestOneSignalPermission(user.id);
 
       if (granted) {
         const now = new Date(Date.now() - 30_000).toISOString();

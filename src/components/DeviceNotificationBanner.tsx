@@ -1,16 +1,50 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bell, BellRing, Smartphone, X } from 'lucide-react';
+import { Bell, BellRing, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
-import { getNotificationCursorKey, isDeviceNotificationEnabled, setDeviceNotificationEnabled } from '@/lib/deviceNotifications';
+import {
+  getNotificationCursorKey,
+  isDeviceNotificationEnabled,
+  setDeviceNotificationEnabled,
+} from '@/lib/deviceNotifications';
 import { displayDeviceNotification, playChime } from '@/lib/showNotification';
-import { requestOneSignalPermission } from '@/lib/onesignal';
+import { requestOneSignalPermission, syncOneSignalSubscription } from '@/lib/onesignal';
+import {
+  isIOSDevice,
+  isMobileInstallPromptVisible,
+  isStandalonePwa,
+  PWA_PROMPT_VISIBILITY_EVENT,
+} from '@/lib/pwaInstall';
 
 const DeviceNotificationBanner = () => {
   const { user } = useAuth();
   const [visible, setVisible] = useState(false);
   const [isIOSWeb, setIsIOSWeb] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pwaPromptOpen, setPwaPromptOpen] = useState<boolean>(() => isMobileInstallPromptVisible());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handlePwaPromptVisibility = (e: Event) => {
+      const custom = e as CustomEvent<{ open: boolean }>;
+      if (custom.detail && typeof custom.detail.open === 'boolean') {
+        setPwaPromptOpen(custom.detail.open);
+      }
+    };
+    const handleSidebarState = (e: Event) => {
+      const custom = e as CustomEvent<{ open: boolean }>;
+      if (custom.detail && typeof custom.detail.open === 'boolean') {
+        setIsSidebarOpen(custom.detail.open);
+      }
+    };
+
+    window.addEventListener(PWA_PROMPT_VISIBILITY_EVENT, handlePwaPromptVisibility as EventListener);
+    window.addEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
+    return () => {
+      window.removeEventListener(PWA_PROMPT_VISIBILITY_EVENT, handlePwaPromptVisibility as EventListener);
+      window.removeEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
@@ -19,31 +53,30 @@ const DeviceNotificationBanner = () => {
     const dismissed = sessionStorage.getItem('econnotes_notification_banner_dismissed') === 'true';
     if (dismissed) return;
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const isStandalone = 
-      window.matchMedia('(display-mode: standalone)').matches || 
-      (window.navigator as any).standalone === true;
+    const isIOS = isIOSDevice();
+    const isStandalone = isStandalonePwa();
 
-    // If on iOS browser (not yet added to home screen as PWA)
-    if (isIOS && !isStandalone) {
-      setIsIOSWeb(true);
-      const timer = setTimeout(() => setVisible(true), 1200);
-      return () => clearTimeout(timer);
-    }
-
-    // If notifications are already granted, ensure OneSignal is opted-in
+    // If notifications are already granted, silently ensure OneSignal is synced
     if ('Notification' in window && Notification.permission === 'granted') {
-      void requestOneSignalPermission();
+      void syncOneSignalSubscription(user.id, isDeviceNotificationEnabled(user.id));
       if (isDeviceNotificationEnabled(user.id)) {
         return;
       }
     }
 
-    // Only show if the device has not denied permission and is ready for native prompt
-    if ('Notification' in window && Notification.permission === 'default') {
-      const timer = setTimeout(() => setVisible(true), 1200);
-      return () => clearTimeout(timer);
+    // If on iOS browser (not yet added to home screen as PWA), MobileHomeScreenPrompt already guides them;
+    // only show this compact banner if MobileHomeScreenPrompt is closed/dismissed.
+    if (isIOS && !isStandalone) {
+      setIsIOSWeb(true);
+      const timer = window.setTimeout(() => setVisible(true), 1600);
+      return () => window.clearTimeout(timer);
+    }
+
+    // Show if device supports notifications and has not denied permission yet
+    if ('Notification' in window && (Notification.permission === 'default' || !isDeviceNotificationEnabled(user.id))) {
+      if (Notification.permission === 'denied') return;
+      const timer = window.setTimeout(() => setVisible(true), 1500);
+      return () => window.clearTimeout(timer);
     }
   }, [user]);
 
@@ -57,7 +90,7 @@ const DeviceNotificationBanner = () => {
     e?.stopPropagation();
     toast.info(
       'iPhone Bildirim Kurulumu: Safari ekranının en altındaki "Paylaş" (kare ve yukarı ok) simgesine dokunun, ardından "Ana Ekrana Ekle"yi seçin. Uygulamayı ana ekrandan açtığınızda bildirimler cihazınıza gelecektir.',
-      { duration: 10000 }
+      { duration: 10000 },
     );
     handleDismiss();
   };
@@ -68,7 +101,7 @@ const DeviceNotificationBanner = () => {
 
     setLoading(true);
     try {
-      const granted = await requestOneSignalPermission();
+      const granted = await requestOneSignalPermission(user.id);
 
       if (granted) {
         const now = new Date(Date.now() - 30_000).toISOString();
@@ -93,12 +126,13 @@ const DeviceNotificationBanner = () => {
     }
   };
 
-  if (!visible) return null;
+  // Never overlap MobileHomeScreenPrompt or open mobile sidebar
+  if (!visible || pwaPromptOpen || isSidebarOpen) return null;
 
   return (
     <aside
       aria-label="Bildirim İzni"
-      className="fixed bottom-20 md:bottom-4 left-3 right-3 sm:left-auto sm:right-6 z-[99999] pointer-events-auto mx-auto max-w-sm rounded-2xl border border-primary/30 bg-card/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom duration-300"
+      className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:bottom-4 left-3 right-3 sm:left-auto sm:right-6 z-[70] pointer-events-auto mx-auto max-w-sm rounded-2xl border border-primary/30 bg-card/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom duration-300"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">

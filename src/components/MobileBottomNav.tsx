@@ -117,7 +117,11 @@ const MobileBottomNav = () => {
   useEffect(() => {
     fetchUnread();
     const interval = setInterval(fetchUnread, 120000);
-    return () => clearInterval(interval);
+    window.addEventListener('econnotes:announcements-updated', fetchUnread);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('econnotes:announcements-updated', fetchUnread);
+    };
   }, [fetchUnread]);
 
   useEffect(() => {
