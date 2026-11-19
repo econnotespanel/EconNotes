@@ -50,33 +50,32 @@ function buildFractalPath(a: Point, b: Point, displace: number, depth: number): 
 
 function generateStrikeSet(width: number, height: number): BoltSegment[] {
   const segments: BoltSegment[] = [];
-  // Anchor near the E-mark spark on the left, arcing naturally across the logo span
-  const startX = width * (0.14 + Math.random() * 0.06);
-  const startY = height * (0.28 + Math.random() * 0.16);
-  const endX = width * (0.82 + Math.random() * 0.12);
-  const endY = height * (0.34 + Math.random() * 0.34);
+  // Sleek translucent plasma arc flowing smoothly from the E-spark across the logo
+  const startX = width * (0.14 + Math.random() * 0.05);
+  const startY = height * (0.28 + Math.random() * 0.14);
+  const endX = width * (0.84 + Math.random() * 0.1);
+  const endY = height * (0.36 + Math.random() * 0.28);
 
-  // Main upper/through plasma bolt
   const main = buildFractalPath(
     { x: startX, y: startY },
     { x: endX, y: endY },
-    height * 0.28,
+    height * 0.2,
     5,
   );
-  segments.push({ points: main, width: 2.1, alpha: 1 });
+  segments.push({ points: main, width: 1.35, alpha: 0.78 });
 
-  // 2-3 organic hairline branches forking off the main bolt
-  const branchCount = 2 + Math.floor(Math.random() * 2);
+  // 2 fine modern hairline branches
+  const branchCount = 2;
   for (let b = 0; b < branchCount; b++) {
-    const idx = Math.floor(main.length * (0.22 + b * 0.24 + Math.random() * 0.1));
+    const idx = Math.floor(main.length * (0.26 + b * 0.28 + Math.random() * 0.08));
     const origin = main[Math.min(main.length - 2, Math.max(1, idx))];
-    const dirY = Math.random() > 0.5 ? 1 : -1;
+    const dirY = b % 2 === 0 ? -1 : 1;
     const target: Point = {
-      x: Math.min(width - 4, origin.x + width * (0.12 + Math.random() * 0.16)),
-      y: Math.max(4, Math.min(height - 4, origin.y + dirY * height * (0.22 + Math.random() * 0.26))),
+      x: Math.min(width - 4, origin.x + width * (0.12 + Math.random() * 0.14)),
+      y: Math.max(4, Math.min(height - 4, origin.y + dirY * height * (0.18 + Math.random() * 0.22))),
     };
-    const branch = buildFractalPath(origin, target, height * 0.14, 3);
-    segments.push({ points: branch, width: 1.05, alpha: 0.72 });
+    const branch = buildFractalPath(origin, target, height * 0.1, 3);
+    segments.push({ points: branch, width: 0.72, alpha: 0.52 });
   }
 
   return segments;
@@ -139,23 +138,23 @@ export default function EconLogoLightning({ active, isDark = false }: EconLogoLi
 
     const spawnSparks = (count: number) => {
       const ox = cssW * 0.17;
-      const oy = cssH * 0.36;
+      const oy = cssH * 0.35;
       for (let i = 0; i < count; i++) {
         const angle = -Math.PI * 0.65 + Math.random() * Math.PI * 1.3;
-        const speed = 1.1 + Math.random() * 2.8;
+        const speed = 0.85 + Math.random() * 2.1;
         sparks.push({
           x: ox + (Math.random() - 0.5) * 10,
           y: oy + (Math.random() - 0.5) * 8,
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
           life: 0,
-          maxLife: 16 + Math.random() * 18,
-          size: 1.1 + Math.random() * 1.5,
+          maxLife: 18 + Math.random() * 18,
+          size: 0.85 + Math.random() * 1.15,
         });
       }
     };
 
-    spawnSparks(11);
+    spawnSparks(9);
     let cycleStart = performance.now();
     let lastMorph = cycleStart;
 
@@ -171,33 +170,51 @@ export default function EconLogoLightning({ active, isDark = false }: EconLogoLi
         }
       };
 
+      // Modern iridescent cyan -> electric blue -> soft violet gradient along the arc
+      const arcGrad = ctx.createLinearGradient(
+        seg.points[0].x,
+        seg.points[0].y,
+        seg.points[seg.points.length - 1].x,
+        seg.points[seg.points.length - 1].y,
+      );
+      if (dark) {
+        arcGrad.addColorStop(0, `rgba(125, 211, 252, ${0.55 * seg.alpha * intensity})`);
+        arcGrad.addColorStop(0.55, `rgba(56, 189, 248, ${0.48 * seg.alpha * intensity})`);
+        arcGrad.addColorStop(1, `rgba(129, 140, 248, ${0.42 * seg.alpha * intensity})`);
+      } else {
+        arcGrad.addColorStop(0, `rgba(14, 165, 233, ${0.5 * seg.alpha * intensity})`);
+        arcGrad.addColorStop(0.55, `rgba(37, 99, 235, ${0.42 * seg.alpha * intensity})`);
+        arcGrad.addColorStop(1, `rgba(99, 102, 241, ${0.36 * seg.alpha * intensity})`);
+      }
+
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
+      if (dark) {
+        ctx.globalCompositeOperation = 'screen';
+      }
 
-      // Layer 1: Wide outer electric cobalt/cyan plasma glow
+      // Layer 1: Airy translucent plasma aura
       trace();
       ctx.strokeStyle = dark
-        ? `rgba(56, 189, 248, ${0.42 * seg.alpha * intensity})`
-        : `rgba(29, 78, 216, ${0.48 * seg.alpha * intensity})`;
-      ctx.lineWidth = seg.width * 4.2;
-      ctx.shadowColor = dark ? '#38bdf8' : '#2563eb';
+        ? `rgba(56, 189, 248, ${0.2 * seg.alpha * intensity})`
+        : `rgba(37, 99, 235, ${0.18 * seg.alpha * intensity})`;
+      ctx.lineWidth = seg.width * 3.8;
+      ctx.shadowColor = dark ? '#38bdf8' : '#3b82f6';
       ctx.shadowBlur = dark ? 14 : 10;
       ctx.stroke();
 
-      // Layer 2: Vivid mid-sheath electric blue/cyan
+      // Layer 2: Sleek translucent cyan-indigo gradient filament
       trace();
-      ctx.strokeStyle = dark
-        ? `rgba(125, 211, 252, ${0.85 * seg.alpha * intensity})`
-        : `rgba(14, 165, 233, ${0.9 * seg.alpha * intensity})`;
-      ctx.lineWidth = seg.width * 1.85;
-      ctx.shadowBlur = 6;
+      ctx.strokeStyle = arcGrad;
+      ctx.lineWidth = seg.width * 1.45;
+      ctx.shadowBlur = 5;
       ctx.stroke();
 
-      // Layer 3: Blinding pure white hot plasma filament core
+      // Layer 3: Fine glassy white-ice highlight core
       trace();
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.98 * seg.alpha * intensity})`;
-      ctx.lineWidth = Math.max(0.8, seg.width * 0.72);
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.65 * seg.alpha * intensity})`;
+      ctx.lineWidth = Math.max(0.65, seg.width * 0.55);
       ctx.shadowBlur = 2;
       ctx.stroke();
 
@@ -241,27 +258,27 @@ export default function EconLogoLightning({ active, isDark = false }: EconLogoLi
         lastMorph = now;
       }
 
-      // Soft origin flash halo at the E-spark mark
+      // Soft translucent origin shimmer at the E-spark mark
       if (intensity > 0.1) {
         const gx = cssW * 0.17;
         const gy = cssH * 0.35;
-        const grad = ctx.createRadialGradient(gx, gy, 1, gx, gy, 24);
+        const grad = ctx.createRadialGradient(gx, gy, 1, gx, gy, 22);
         grad.addColorStop(
           0,
           darkRef.current
-            ? `rgba(224, 242, 254, ${0.85 * intensity})`
-            : `rgba(56, 189, 248, ${0.7 * intensity})`,
+            ? `rgba(224, 242, 254, ${0.45 * intensity})`
+            : `rgba(56, 189, 248, ${0.36 * intensity})`,
         );
         grad.addColorStop(
           0.45,
           darkRef.current
-            ? `rgba(56, 189, 248, ${0.35 * intensity})`
-            : `rgba(37, 99, 235, ${0.3 * intensity})`,
+            ? `rgba(56, 189, 248, ${0.18 * intensity})`
+            : `rgba(59, 130, 246, ${0.14 * intensity})`,
         );
         grad.addColorStop(1, 'rgba(37, 99, 235, 0)');
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(gx, gy, 24, 0, Math.PI * 2);
+        ctx.arc(gx, gy, 22, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -269,7 +286,7 @@ export default function EconLogoLightning({ active, isDark = false }: EconLogoLi
         drawBolt(seg, intensity);
       }
 
-      // Update & render luminous micro-sparks
+      // Update & render delicate translucent micro-sparks
       for (let i = sparks.length - 1; i >= 0; i--) {
         const s = sparks[i];
         s.x += s.vx;
@@ -281,15 +298,15 @@ export default function EconLogoLightning({ active, isDark = false }: EconLogoLi
           sparks.splice(i, 1);
           continue;
         }
-        const a = 1 - s.life / s.maxLife;
+        const a = (1 - s.life / s.maxLife) * 0.65;
         ctx.save();
         ctx.fillStyle = darkRef.current
           ? `rgba(224, 242, 254, ${a})`
-          : `rgba(37, 99, 235, ${a})`;
+          : `rgba(14, 165, 233, ${a})`;
         ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 6;
+        ctx.shadowBlur = 5;
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size * a, 0, Math.PI * 2);
+        ctx.arc(s.x, s.y, s.size * (1 - s.life / s.maxLife), 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }

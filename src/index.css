@@ -1108,19 +1108,19 @@ math mtd.math-cell-divider-left {
 /* EconNotes Header Logo Canvas Lightning Illumination Sync */
 @keyframes econ-logo-electric-flash {
   0% {
-    filter: drop-shadow(0 0 0 rgba(37, 99, 235, 0)) brightness(1);
+    filter: drop-shadow(0 0 0 rgba(56, 189, 248, 0)) brightness(1);
   }
-  18% {
-    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.85)) drop-shadow(0 0 22px rgba(37, 99, 235, 0.5)) brightness(1.12);
+  20% {
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5)) drop-shadow(0 0 16px rgba(59, 130, 246, 0.25)) brightness(1.06);
   }
-  32% {
-    filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.35)) brightness(1.02);
+  38% {
+    filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.22)) brightness(1.01);
   }
-  55% {
-    filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.7)) brightness(1.09);
+  60% {
+    filter: drop-shadow(0 0 7px rgba(56, 189, 248, 0.42)) brightness(1.04);
   }
   100% {
-    filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.32)) brightness(1.03);
+    filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.22)) brightness(1.02);
   }
 }
 
