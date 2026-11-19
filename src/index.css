@@ -1086,3 +1086,158 @@ math mtd.math-cell-divider-left {
     animation: none;
   }
 }
+
+/* EconNotes Header Logo Hover Lightning (Şimşek) Effect */
+@keyframes econ-lightning-flash {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  16% {
+    opacity: 0.2;
+  }
+  24% {
+    opacity: 1;
+  }
+  38% {
+    opacity: 0.15;
+  }
+  48% {
+    opacity: 0.92;
+  }
+  70% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0.85;
+  }
+}
+
+@keyframes econ-bolt-draw {
+  0% {
+    stroke-dashoffset: 180;
+    opacity: 0;
+  }
+  12% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  28% {
+    stroke-dashoffset: 0;
+    opacity: 0.35;
+  }
+  40% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  75% {
+    stroke-dashoffset: 0;
+    opacity: 0.7;
+  }
+  100% {
+    stroke-dashoffset: -180;
+    opacity: 0;
+  }
+}
+
+@keyframes econ-lightning-sweep {
+  0% {
+    transform: translateX(-140%) skewX(-22deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.95;
+  }
+  65% {
+    opacity: 0.65;
+  }
+  100% {
+    transform: translateX(220%) skewX(-22deg);
+    opacity: 0;
+  }
+}
+
+@keyframes econ-logo-zap {
+  0%, 100% {
+    transform: translateY(-2px) scale(1);
+    filter: drop-shadow(0 0 0 rgba(0, 145, 255, 0));
+  }
+  14% {
+    transform: translateY(-2px) scale(1.035);
+    filter: drop-shadow(0 0 10px rgba(0, 145, 255, 0.85)) drop-shadow(0 0 20px rgba(56, 189, 248, 0.55));
+  }
+  26% {
+    transform: translateY(-2px) scale(1.01);
+    filter: drop-shadow(0 0 5px rgba(0, 145, 255, 0.45));
+  }
+  40% {
+    transform: translateY(-2px) scale(1.04);
+    filter: drop-shadow(0 0 12px rgba(37, 99, 235, 0.85)) drop-shadow(0 0 24px rgba(0, 212, 255, 0.65));
+  }
+  75% {
+    transform: translateY(-2px) scale(1.02);
+    filter: drop-shadow(0 0 8px rgba(0, 145, 255, 0.55));
+  }
+}
+
+.econ-logo-trigger {
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 220ms ease, background-color 220ms ease, border-color 220ms ease;
+}
+
+.econ-logo-trigger:hover {
+  background: radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.14) 0%, rgba(37, 99, 235, 0.06) 65%, transparent 100%);
+  box-shadow: 0 0 20px rgba(37, 99, 235, 0.22), inset 0 0 14px rgba(56, 189, 248, 0.16);
+}
+
+.dark .econ-logo-trigger:hover {
+  background: radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.2) 0%, rgba(37, 99, 235, 0.1) 65%, transparent 100%);
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.34), inset 0 0 16px rgba(56, 189, 248, 0.2);
+}
+
+.econ-logo-trigger:hover .econ-logo-mark {
+  animation: econ-logo-zap 1.15s ease-out infinite;
+}
+
+.econ-logo-trigger .econ-lightning-sweep {
+  opacity: 0;
+}
+
+.econ-logo-trigger:hover .econ-lightning-sweep {
+  animation: econ-lightning-sweep 0.9s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.econ-logo-trigger .econ-lightning-svg {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.econ-logo-trigger:hover .econ-lightning-svg {
+  animation: econ-lightning-flash 1.15s ease-out infinite;
+}
+
+.econ-logo-trigger:hover .econ-bolt-path {
+  stroke-dasharray: 180;
+  animation: econ-bolt-draw 1.15s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.econ-logo-trigger:hover .econ-bolt-path-delay {
+  stroke-dasharray: 180;
+  animation: econ-bolt-draw 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.18s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .econ-logo-trigger:hover .econ-logo-mark,
+  .econ-logo-trigger:hover .econ-lightning-sweep,
+  .econ-logo-trigger:hover .econ-lightning-svg,
+  .econ-logo-trigger:hover .econ-bolt-path,
+  .econ-logo-trigger:hover .econ-bolt-path-delay {
+    animation: none;
+  }
+  .econ-logo-trigger:hover .econ-lightning-svg {
+    opacity: 0.9;
+  }
+}
