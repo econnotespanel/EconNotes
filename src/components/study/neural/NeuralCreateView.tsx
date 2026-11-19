@@ -293,7 +293,7 @@ export function NeuralCreateView({
           <div>
             <h2 className="text-lg font-bold tracking-tight">Yeni Çalışma Materyali Hazırla</h2>
             <p className="text-xs text-muted-foreground">
-              İktisat, Siyaset Bilimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık, İşletme, Spor ve Ziraat dâhil tüm üniversite bölümleri için tam uyumlu.
+              Dosya yükle, metin yapıştır veya EconNotes kütüphanesindeki notlardan seçerek çalışma setini oluştur.
             </p>
           </div>
           <Badge variant="outline" className="gap-1 text-[11px] text-primary">

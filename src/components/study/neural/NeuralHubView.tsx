@@ -146,9 +146,6 @@ export function NeuralHubView({
             <h2 className="text-lg font-bold tracking-tight sm:text-xl text-foreground">
               Bugün nasıl çalışmak istersin?
             </h2>
-            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              İktisat, Siyaset Bilimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık, İşletme, Spor ve Ziraat dâhil tüm üniversite bölümleri için sınav odaklı çalışma stüdyon.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <Button
