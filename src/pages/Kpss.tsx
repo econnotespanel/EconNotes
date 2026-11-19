@@ -5,13 +5,11 @@ import EconLogo from '@/components/EconLogo';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import { cn } from '@/lib/utils';
 import {
-  ArrowUpRight,
   BookOpen,
   CheckCircle2,
   ExternalLink,
   Layers,
   ListChecks,
-  Sparkles,
   Target,
   Trophy,
 } from 'lucide-react';
@@ -45,12 +43,17 @@ const Kpss = () => {
             <div className="pointer-events-none absolute -left-16 -bottom-16 h-56 w-56 rounded-full bg-blue-400/20 blur-2xl" />
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
 
-            <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div className="relative z-10 flex flex-wrap items-center gap-3.5 sm:gap-4 mb-6">
               <EconLogo allWhite className="h-7 w-auto" />
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3.5 py-1 text-xs font-semibold text-white backdrop-blur-md">
-                <Sparkles className="h-3.5 w-3.5 text-cyan-300" />
-                Yeni Platform · econkpss.online
-              </span>
+              <span className="h-5 w-px bg-white/30" aria-hidden="true" />
+              <img
+                src="/econkpss-logo.png"
+                alt="EconKPSS"
+                className={cn(
+                  'h-5 sm:h-6 w-auto object-contain select-none',
+                  isNovember10 && 'grayscale contrast-125',
+                )}
+              />
             </div>
 
             <div className="relative z-10 max-w-2xl space-y-3">
