@@ -174,7 +174,7 @@ export const buildSupportTickets = (
     const userId = initiatedBy === 'admin' ? row.receiver_id : row.sender_id;
     const adminId = initiatedBy === 'admin' ? row.sender_id : row.receiver_id;
 
-    if (adminView ? adminId !== currentUserId : userId !== currentUserId) continue;
+    if (adminView ? adminId !== currentUserId && userId !== currentUserId : userId !== currentUserId) continue;
 
     const isUnreadForCurrentUser = row.is_read === false && row.receiver_id === currentUserId;
 

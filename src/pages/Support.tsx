@@ -38,7 +38,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { verifyMessageAdmins } from '@/lib/adminMessages';
+import { markAdminNoticeIdsSeen, verifyMessageAdmins } from '@/lib/adminMessages';
 import {
   getNotificationCursorKey,
   isDeviceNotificationEnabled,
@@ -427,10 +427,11 @@ const Support = () => {
     [filteredTickets, selectedId, tickets],
   );
 
-  // Mark only opened Support conversation messages as read
+  // Mark only opened Support conversation messages as read (and persist seen IDs so notice popup never loops)
   useEffect(() => {
     if (!user || !selectedTicket || selectedTicket.unreadRowIds.length === 0) return;
     const idsToMark = [...selectedTicket.unreadRowIds];
+    markAdminNoticeIdsSeen(user.id, idsToMark);
 
     const markRead = async () => {
       const { error } = await supabase
@@ -444,8 +445,8 @@ const Support = () => {
             t.id === selectedTicket.id ? { ...t, hasUnread: false, unreadRowIds: [] } : t,
           ),
         );
-        window.dispatchEvent(new CustomEvent('econnotes:support-read-updated'));
       }
+      window.dispatchEvent(new CustomEvent('econnotes:support-read-updated'));
     };
     void markRead();
   }, [selectedTicket, user]);

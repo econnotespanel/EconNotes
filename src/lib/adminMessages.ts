@@ -52,3 +52,42 @@ export async function verifyMessageAdmins(ids: string[]): Promise<string[]> {
   );
   return results.filter((id): id is string => id !== null);
 }
+
+const SEEN_ADMIN_NOTICE_PREFIX = 'econnotes_seen_admin_notice_ids_v1_';
+const MAX_STORED_NOTICE_IDS = 300;
+
+export function getSeenAdminNoticeIds(userId: string): Set<string> {
+  if (!userId || typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(`${SEEN_ADMIN_NOTICE_PREFIX}${userId}`);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((item): item is string => typeof item === 'string' && item.length > 0));
+  } catch {
+    return new Set();
+  }
+}
+
+export function markAdminNoticeIdsSeen(userId: string, messageIds: string[]): void {
+  if (!userId || messageIds.length === 0 || typeof window === 'undefined') return;
+  try {
+    const existing = Array.from(getSeenAdminNoticeIds(userId));
+    const merged = Array.from(new Set([...existing, ...messageIds.filter(Boolean)]));
+    const trimmed = merged.slice(-MAX_STORED_NOTICE_IDS);
+    window.localStorage.setItem(`${SEEN_ADMIN_NOTICE_PREFIX}${userId}`, JSON.stringify(trimmed));
+  } catch {
+    // Ignore storage quota/privacy-mode errors
+  }
+}
+
+export function extractDeletedSupportTicketIds(rows: Pick<AdminMessageRow, 'content'>[]): Set<string> {
+  const deleted = new Set<string>();
+  for (const row of rows) {
+    const payload = parseSupportMessage(row.content);
+    if (payload?.kind === 'deleted' && payload.ticketId) {
+      deleted.add(payload.ticketId);
+    }
+  }
+  return deleted;
+}
