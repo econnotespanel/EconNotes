@@ -1,5 +1,6 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { getAuthenticatedUser } from '../_shared/request-security.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -12,16 +13,8 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization') ?? '';
-    if (!authHeader.startsWith('Bearer ')) return json({ error: 'Yetkisiz.' }, 401);
-
-    const userClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } }, auth: { persistSession: false } },
-    );
-
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData.user) return json({ error: 'Oturum geçersiz.' }, 401);
+    const token = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
+    if (!token) return json({ error: 'Yetkisiz.' }, 401);
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -29,7 +22,17 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
 
-    const { data: isAdmin } = await admin.rpc('is_admin', { _user_id: userData.user.id });
+    // 1) Validate JWT using shared getClaims + getUser(token), with service-client getUser(token) fallback
+    let authUserId: string | null = (await getAuthenticatedUser(req))?.id ?? null;
+    if (!authUserId) {
+      const { data: userData, error: userErr } = await admin.auth.getUser(token);
+      if (!userErr && userData?.user?.id) {
+        authUserId = userData.user.id;
+      }
+    }
+    if (!authUserId) return json({ error: 'Oturum geçersiz.' }, 401);
+
+    const { data: isAdmin } = await admin.rpc('is_admin', { _user_id: authUserId });
     if (!isAdmin) return json({ error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
 
     const users: {

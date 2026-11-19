@@ -300,14 +300,41 @@ const AdminPanel = () => {
     setNotePasswords(prev => ({ ...prev, [noteId]: (data as string) || '(boş)' }));
   };
 
+  const invokeAdminUserEmails = async (): Promise<{ data: any; error: any }> => {
+    try {
+      let { data: sessionData } = await supabase.auth.getSession();
+      let accessToken = sessionData.session?.access_token;
+      const expiresAtMs = (sessionData.session?.expires_at ?? 0) * 1000;
+      if (!accessToken || (expiresAtMs > 0 && expiresAtMs - Date.now() < 60_000)) {
+        const refreshed = await supabase.auth.refreshSession().catch(() => ({ data: { session: null } }));
+        accessToken = refreshed.data.session?.access_token ?? accessToken;
+      }
+      if (!accessToken) return { data: null, error: null };
+
+      const firstAttempt = await supabase.functions.invoke('admin-user-emails', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!firstAttempt.error) return firstAttempt;
+
+      // Retry once after explicitly refreshing the session token in case of transient 401
+      const refreshed = await supabase.auth.refreshSession().catch(() => ({ data: { session: null } }));
+      const freshToken = refreshed.data.session?.access_token;
+      if (!freshToken || freshToken === accessToken) return firstAttempt;
+
+      return await supabase.functions.invoke('admin-user-emails', {
+        headers: { Authorization: `Bearer ${freshToken}` },
+      });
+    } catch (err) {
+      return { data: null, error: err };
+    }
+  };
+
   const fetchAll = async () => {
     setUsersLoading(true);
     setNotesLoading(true);
     const usersPromise = supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(1000);
     const notesPromise = supabase.from('notes').select(NOTE_SELECT).order('created_at', { ascending: false }).limit(1000);
-    const emailsInvokePromise = supabase.functions
-      .invoke('admin-user-emails')
-      .catch((err) => ({ data: null, error: err }));
+    const emailsInvokePromise = invokeAdminUserEmails();
     setStudyLoading(true);
     const secondaryPromise = Promise.all([
       supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(500),
@@ -332,7 +359,7 @@ const AdminPanel = () => {
       setNotes((notesRes.data as any[]) || []);
       void emailsInvokePromise.then(({ data, error }) => {
         if (error) {
-          console.error('admin-user-emails hatası:', error);
+          console.warn('admin-user-emails alınamadı:', error);
           return;
         }
         applyAuthUsers(((data as any)?.users as AuthAdminUserMeta[]) || []);

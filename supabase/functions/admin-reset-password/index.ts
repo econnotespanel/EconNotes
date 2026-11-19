@@ -1,5 +1,6 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { getAuthenticatedUser } from '../_shared/request-security.ts';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -18,17 +19,21 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
     const authHeader = req.headers.get('Authorization') ?? '';
-    if (!authHeader.startsWith('Bearer ')) return json({ error: 'Yetkisiz.' }, 401);
-    const userClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: authHeader } }, auth: { persistSession: false },
-    });
-    const { data: me, error: meErr } = await userClient.auth.getUser();
-    if (meErr || !me.user) return json({ error: 'Oturum geçersiz.' }, 401);
+    const token = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
+    if (!token) return json({ error: 'Yetkisiz.' }, 401);
 
     const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const { data: isAdmin } = await admin.rpc('is_admin', { _user_id: me.user.id });
+
+    let actor = await getAuthenticatedUser(req);
+    if (!actor?.id) {
+      const { data: me } = await admin.auth.getUser(token);
+      actor = me?.user ? { id: me.user.id, email: me.user.email } : null;
+    }
+    if (!actor?.id) return json({ error: 'Oturum geçersiz.' }, 401);
+
+    const { data: isAdmin } = await admin.rpc('is_admin', { _user_id: actor.id });
     if (!isAdmin) return json({ error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
 
     const body = await req.json().catch(() => ({}));
@@ -51,7 +56,7 @@ Deno.serve(async (req) => {
     await admin.auth.admin.signOut(userId, 'global').catch(() => {});
 
     await admin.from('activity_logs').insert({
-      user_id: me.user.id, user_name: 'Yönetici', user_email: me.user.email ?? '',
+      user_id: actor.id, user_name: 'Yönetici', user_email: actor.email ?? '',
       action: 'admin_temp_password', details: 'Kullanıcıya tek kullanımlık parola tanımlandı', entity_type: 'user', entity_id: userId,
     });
 
