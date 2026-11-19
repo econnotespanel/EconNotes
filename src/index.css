@@ -1020,9 +1020,18 @@ math mtd.math-cell-divider-left {
 }
 
 /* GTA VI Vice City Maintenance / Update Theme Typography & Animations */
+@font-face {
+  font-family: 'Pricedown Bl';
+  src: url('/fonts/pricedown-bl.woff') format('woff');
+  font-weight: 400 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 .font-gta-display {
-  font-family: 'Anton', 'Oswald', Impact, 'Arial Narrow', sans-serif;
-  letter-spacing: 0.04em;
+  font-family: 'Pricedown Bl', 'Anton', 'Oswald', Impact, sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.015em;
 }
 
 .font-gta-condensed {
@@ -1032,25 +1041,34 @@ math mtd.math-cell-divider-left {
 
 .gta-wordmark-white {
   color: #ffffff;
-  -webkit-text-stroke: 2px #140421;
+  -webkit-text-stroke: 5px #000000;
   paint-order: stroke fill;
   text-shadow:
-    0 4px 0 #140421,
-    0 8px 24px rgba(255, 46, 147, 0.55),
-    0 0 40px rgba(255, 190, 11, 0.35);
+    0 6px 0 #000000,
+    0 12px 28px rgba(0, 0, 0, 0.65),
+    0 0 36px rgba(255, 46, 147, 0.45);
 }
 
 .gta-wordmark-sunset {
-  background: linear-gradient(180deg, #fff1a8 0%, #ffbe3b 26%, #ff6b7a 62%, #ff2e93 88%, #c04dff 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter:
-    drop-shadow(0 2px 0 #140421)
-    drop-shadow(2px 0 0 #140421)
-    drop-shadow(-2px 0 0 #140421)
-    drop-shadow(0 -1.5px 0 #140421)
-    drop-shadow(0 6px 18px rgba(255, 46, 147, 0.58));
+  color: #ffffff;
+  -webkit-text-stroke: 5px #000000;
+  paint-order: stroke fill;
+  text-shadow:
+    0 6px 0 #000000,
+    0 12px 28px rgba(0, 0, 0, 0.65),
+    0 0 42px rgba(255, 190, 11, 0.42),
+    0 0 64px rgba(255, 46, 147, 0.38);
+}
+
+@media (max-width: 639px) {
+  .gta-wordmark-white,
+  .gta-wordmark-sunset {
+    -webkit-text-stroke: 3.5px #000000;
+    text-shadow:
+      0 4px 0 #000000,
+      0 8px 20px rgba(0, 0, 0, 0.65),
+      0 0 28px rgba(255, 46, 147, 0.45);
+  }
 }
 
 .gta-roman-vi {

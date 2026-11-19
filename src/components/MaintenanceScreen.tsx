@@ -204,9 +204,6 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
               <Link to="/" className="flex items-center gap-2 transition-transform active:scale-95">
                 <EconLogo className="h-6 w-auto sm:h-7" allWhite />
               </Link>
-              <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-amber-300/35 bg-gradient-to-r from-amber-400/20 via-pink-500/25 to-fuchsia-500/20 px-2.5 py-0.5 font-gta-condensed text-xs text-amber-200 tracking-[0.16em]">
-                VICE UPDATE · VI
-              </span>
             </div>
 
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -237,34 +234,28 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
           </div>
         </header>
 
-        {/* GTA VI Typographic Hero Centerpiece */}
-        <div className="relative z-10 w-full pt-8 pb-24 sm:pt-12 sm:pb-32 px-4 text-center">
+        {/* GTA Typographic Hero Centerpiece */}
+        <div className="relative z-10 w-full pt-10 pb-24 sm:pt-14 sm:pb-32 px-4 text-center">
           <div className="relative max-w-3xl mx-auto flex flex-col items-center">
             {/* Iconic Translucent Roman Numeral VI Watermark Behind Wordmark */}
             <span
               aria-hidden="true"
-              className="pointer-events-none select-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[46%] gta-roman-vi text-[10rem] sm:text-[14rem] md:text-[16rem] leading-none opacity-75"
+              className="pointer-events-none select-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[48%] gta-roman-vi text-[10rem] sm:text-[14rem] md:text-[16rem] leading-none opacity-75"
             >
               VI
             </span>
 
-            {/* Neon Event Pill */}
-            <div className="relative z-10 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#160529]/75 backdrop-blur-md text-[11px] sm:text-xs font-bold uppercase tracking-[0.18em] text-amber-200 border border-pink-400/40 shadow-[0_0_25px_rgba(255,46,147,0.35)] mb-4">
-              <Sparkles className="h-3.5 w-3.5 text-amber-300 shrink-0" />
-              <span>GTA VI ÖZEL · SİSTEM GÜNCELLEMESİ</span>
-            </div>
-
-            {/* GTA 6 Style Typography Lockup: ECONNOTES GÜNCELLENİYOR */}
-            <h1 className="relative z-10 flex flex-col items-center leading-[0.95] select-none">
-              <span className="font-gta-display gta-wordmark-white text-4xl sm:text-6xl md:text-7xl uppercase tracking-[0.06em]">
+            {/* Authentic GTA (Pricedown) Typography Lockup: EconNotes Güncelleniyor */}
+            <h1 className="relative z-10 flex flex-col items-center leading-[0.88] select-none">
+              <span className="font-gta-display gta-wordmark-white text-5xl sm:text-7xl md:text-[5.5rem]">
                 EconNotes
               </span>
-              <span className="font-gta-display gta-wordmark-sunset text-4xl sm:text-6xl md:text-7xl uppercase tracking-[0.05em] mt-1">
+              <span className="font-gta-display gta-wordmark-sunset text-5xl sm:text-7xl md:text-[5.5rem] mt-1">
                 Güncelleniyor
               </span>
             </h1>
 
-            <p className="relative z-10 mt-5 inline-flex items-center gap-2 rounded-full bg-[#120424]/70 border border-white/15 px-4 py-1.5 text-xs sm:text-sm font-medium text-pink-100/95 backdrop-blur-md shadow-lg">
+            <p className="relative z-10 mt-6 inline-flex items-center gap-2 rounded-full bg-[#120424]/70 border border-white/15 px-4 py-1.5 text-xs sm:text-sm font-medium text-pink-100/95 backdrop-blur-md shadow-lg">
               <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_#fbbf24]" />
               <span>Yeni özellikler ve performans geliştirmeleri yükleniyor</span>
             </p>
@@ -278,22 +269,6 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
             <div className="h-1.5 w-full gta-loading-bar" />
 
             <div className="p-4 sm:p-8 space-y-5 sm:space-y-6">
-              {/* GTA Loading Status Bar Strip */}
-              <div className="rounded-2xl border border-pink-400/20 bg-gradient-to-r from-[#24093d]/80 via-[#1d0833]/80 to-[#14072b]/80 p-3.5 sm:p-4 space-y-2.5">
-                <div className="flex items-center justify-between gap-2 text-[11px] sm:text-xs font-semibold">
-                  <span className="flex items-center gap-2 text-amber-200 uppercase tracking-wider font-gta-condensed text-sm sm:text-base">
-                    <Sparkles className="h-3.5 w-3.5 text-pink-400" />
-                    VICE ENGINE GÜNCELLEME AKIŞI
-                  </span>
-                  <span className="text-pink-200/80 font-mono text-[11px]">
-                    Son kontrol: {lastChecked}
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full w-3/4 rounded-full gta-loading-bar shadow-[0_0_16px_rgba(255,46,147,0.75)]" />
-                </div>
-              </div>
-
               {/* Main Status Announcement Header */}
               <div className="flex items-start sm:items-center gap-3 sm:gap-4 pb-4 sm:pb-6 border-b border-white/10">
                 <div className="h-11 w-11 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 bg-gradient-to-br from-amber-400/25 via-pink-500/25 to-fuchsia-600/30 border border-pink-400/40 text-amber-300 shadow-[0_0_24px_rgba(255,46,147,0.28)]">
@@ -497,7 +472,7 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
             <p className="text-xs sm:text-sm font-medium text-pink-100/85">
               EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.
             </p>
-            <p className="font-mono text-[11px] text-amber-200/80">{APP_VERSION_LABEL} · GTA VI Edition</p>
+            <p className="font-mono text-[11px] text-amber-200/80">{APP_VERSION_LABEL}</p>
           </div>
         </footer>
       </div>
