@@ -33,6 +33,7 @@ import { downloadLectureSummary, downloadLectureSummaryPdf } from '@/lib/liveLec
 import { buildTopicPriorityGuide } from '@/lib/studySourceProcessor';
 import { cn } from '@/lib/utils';
 import type {
+  CoachMode,
   MaterialType,
   StudyMaterial,
   StudyTopicPriorityItem,
@@ -49,7 +50,7 @@ interface NeuralSummaryWorkspaceProps {
   expandingSectionIdx: number | null;
   onRegenerateDeep: () => Promise<void>;
   isRegenerating: boolean;
-  onAskCoach: (prompt: string) => void;
+  onAskCoach: (prompt: string, mode?: CoachMode) => void;
 }
 
 export function NeuralSummaryWorkspace({
@@ -576,7 +577,22 @@ export function NeuralSummaryWorkspace({
                       <span className="text-[11px] text-muted-foreground">{sec.pageRange}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        onAskCoach(
+                          `"${sec.heading}" bölümünü tam anlayamadım. Yalnızca ders notuma dayanarak en basit haliyle, somut örnekle ve 1 mini kontrol sorusuyla pekiştirerek anlatır mısın?`,
+                          'reinforce',
+                        )
+                      }
+                      className="gap-1.5 border-primary/35 bg-primary/5 text-xs text-primary hover:bg-primary/15"
+                    >
+                      <Compass className="h-3.5 w-3.5" />
+                      Anlamadım, Pekiştir
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"

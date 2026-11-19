@@ -10,7 +10,7 @@ import { NeuralExamSimView } from '@/components/study/neural/NeuralExamSimView';
 import { NeuralHubView } from '@/components/study/neural/NeuralHubView';
 import { NeuralLibraryView } from '@/components/study/neural/NeuralLibraryView';
 import { NeuralPlannerView } from '@/components/study/neural/NeuralPlannerView';
-import { NeuralRagChatView } from '@/components/study/neural/NeuralRagChatView';
+import { NeuralRagChatView, type IncomingInspectBatch } from '@/components/study/neural/NeuralRagChatView';
 import { NeuralReportDialog } from '@/components/study/neural/NeuralReportDialog';
 import { NeuralWorkspaceFrame } from '@/components/study/neural/NeuralWorkspaceFrame';
 import { useNeuralEngine } from '@/components/study/neural/useNeuralEngine';
@@ -100,6 +100,7 @@ export default function Study() {
   const [indexedDocsCount, setIndexedDocsCount] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [breakDialogOpen, setBreakDialogOpen] = useState(false);
+  const [incomingInspectBatch, setIncomingInspectBatch] = useState<IncomingInspectBatch | null>(null);
 
   const deepLinkAppliedRef = useRef(false);
 
@@ -670,6 +671,14 @@ export default function Study() {
                 generationPct={generationPct}
                 generationLabel={generationLabel}
                 onGenerate={handleGenerate}
+                onInspectInChat={(items, courseLabel) => {
+                  setIncomingInspectBatch({
+                    id: Date.now(),
+                    sources: items,
+                    course: courseLabel,
+                  });
+                  setActiveTab('rag');
+                }}
                 onExtractRemoteNoteFile={handleExtractRemoteNoteFile}
                 engine={engine}
               />
@@ -689,6 +698,7 @@ export default function Study() {
             {activeTab === 'rag' && (
               <NeuralRagChatView
                 materials={materials}
+                incomingBatch={incomingInspectBatch}
                 onIndexChanged={refreshIndexedDocsCount}
                 onOpenMaterial={setActiveMaterial}
               />

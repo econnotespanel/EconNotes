@@ -27,23 +27,31 @@ interface ChatMessage {
 
 interface NeuralCoachPanelProps {
   material: StudyMaterial;
-  injectedPrompt?: { id: number; text: string } | null;
+  injectedPrompt?: { id: number; text: string; mode?: CoachMode } | null;
 }
 
 const MODES: Array<{ id: CoachMode; label: string }> = [
-  { id: 'tutor', label: 'Akademik Hoca' },
-  { id: 'feynman', label: 'Feynman' },
-  { id: 'socratic', label: 'Sokratik' },
+  { id: 'reinforce', label: 'Pekiştirerek Anlat' },
+  { id: 'tutor', label: 'Net & Kaynaklı' },
+  { id: 'feynman', label: 'Basitçe (Feynman)' },
+  { id: 'socratic', label: 'Beni Test Et' },
   { id: 'deep_research', label: 'Derin Araştırma' },
+];
+
+const QUICK_COACH_CHIPS = [
+  'Bunu en basit haliyle anlat',
+  'Somut örnekle pekiştir',
+  'Beni 1 kısa soruyla test et',
+  'Karıştırılan noktaları ayır',
 ];
 
 export function NeuralCoachPanel({ material, injectedPrompt }: NeuralCoachPanelProps) {
   const engine = useNeuralEngine();
-  const [coachMode, setCoachMode] = useState<CoachMode>('tutor');
+  const [coachMode, setCoachMode] = useState<CoachMode>('reinforce');
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: 'assistant',
-      content: `Merhaba! **${material.title}** materyali üzerinde seninle birlikteyim. İstersen kavramları Feynman tekniğiyle sıfırdan açabilir veya vize sorusu türetebiliriz.`,
+      content: `**${material.title}** notunu inceledim. Konu dışı bilgi eklemeden içinden istediğin soruyu sorabilir veya anlayamadığın bir bölümü söyleyip adım adım örnekle pekiştirmemi isteyebilirsin.`,
     },
   ]);
   const [input, setInput] = useState('');
@@ -68,9 +76,14 @@ export function NeuralCoachPanel({ material, injectedPrompt }: NeuralCoachPanelP
     }
   }, [scratch, scratchKey]);
 
-  const sendMessage = async (textToSend: string) => {
+  const sendMessage = async (textToSend: string, modeOverride?: CoachMode) => {
     const trimmed = textToSend.trim();
     if (!trimmed || busy) return;
+
+    const effectiveMode = modeOverride || coachMode;
+    if (modeOverride && modeOverride !== coachMode) {
+      setCoachMode(modeOverride);
+    }
 
     const nextHistory: ChatMessage[] = [...messages, { role: 'user', content: trimmed }];
     setMessages(nextHistory);
@@ -86,7 +99,7 @@ export function NeuralCoachPanel({ material, injectedPrompt }: NeuralCoachPanelP
         materialType: material.material_type,
         materialContent: material.content,
         messages: nextHistory.map((m) => ({ role: m.role, content: m.content })),
-        coachMode,
+        coachMode: effectiveMode,
         onToken: (partial, tps) => {
           setStreamingText(partial);
           setLiveTps(tps);
@@ -117,7 +130,7 @@ export function NeuralCoachPanel({ material, injectedPrompt }: NeuralCoachPanelP
 
   useEffect(() => {
     if (injectedPrompt?.text) {
-      void sendMessage(injectedPrompt.text);
+      void sendMessage(injectedPrompt.text, injectedPrompt.mode);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [injectedPrompt?.id]);
@@ -206,10 +219,24 @@ export function NeuralCoachPanel({ material, injectedPrompt }: NeuralCoachPanelP
             </div>
           </ScrollArea>
 
+          <div className="flex flex-wrap gap-1">
+            {QUICK_COACH_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                disabled={busy}
+                onClick={() => void sendMessage(chip)}
+                className="rounded-full border border-border/60 bg-background/70 px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
           <div className="flex gap-2">
             <Textarea
               rows={2}
-              placeholder="Formül, kavram veya örnek soru iste..."
+              placeholder="Anlamadığın bölümü yaz veya notun içinden soru sor..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {

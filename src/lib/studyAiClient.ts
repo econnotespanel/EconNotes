@@ -1190,6 +1190,50 @@ export async function gradeOpenEndedAnswer(params: {
   };
 }
 
+function flattenMaterialContextForCoach(materialContent: StudyContentPayload | Record<string, unknown> | undefined): string {
+  if (!materialContent || typeof materialContent !== 'object') return '';
+  const c = materialContent as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof c.overview === 'string' && c.overview.trim()) {
+    parts.push(c.overview.trim());
+  }
+  if (Array.isArray(c.keyPoints) && c.keyPoints.length > 0) {
+    parts.push(`Anahtar Noktalar:\n- ${c.keyPoints.map(String).join('\n- ')}`);
+  }
+  if (Array.isArray(c.sections)) {
+    for (const sec of c.sections) {
+      if (sec && typeof sec === 'object') {
+        const s = sec as Record<string, unknown>;
+        parts.push(`## ${String(s.heading || 'Bölüm')}\n${String(s.content || '')}`);
+      }
+    }
+  }
+  if (Array.isArray(c.keyTerms)) {
+    const terms = c.keyTerms
+      .filter((t): t is Record<string, unknown> => Boolean(t && typeof t === 'object'))
+      .map((t) => `${String(t.term || '')}: ${String(t.definition || '')}`)
+      .filter(Boolean);
+    if (terms.length > 0) parts.push(`Kavramlar:\n${terms.join('\n')}`);
+  }
+  if (Array.isArray(c.cards)) {
+    const cards = c.cards
+      .filter((t): t is Record<string, unknown> => Boolean(t && typeof t === 'object'))
+      .map((t) => `S: ${String(t.front || '')} | C: ${String(t.back || '')}`);
+    if (cards.length > 0) parts.push(`Kartlar:\n${cards.join('\n')}`);
+  }
+  if (Array.isArray(c.questions)) {
+    const qs = c.questions
+      .filter((t): t is Record<string, unknown> => Boolean(t && typeof t === 'object'))
+      .map((t) => `Soru: ${String(t.question || '')} | Açıklama: ${String(t.explanation || t.sampleAnswer || '')}`);
+    if (qs.length > 0) parts.push(`Sorular:\n${qs.join('\n')}`);
+  }
+  if (typeof c.videoScript === 'string' && c.videoScript.trim()) {
+    parts.push(c.videoScript.trim());
+  }
+  if (parts.length > 0) return parts.join('\n\n');
+  return JSON.stringify(materialContent).slice(0, 14_000);
+}
+
 export async function askStudyCoach(params: {
   materialTitle: string;
   course?: string | null;
@@ -1220,18 +1264,27 @@ export async function askStudyCoach(params: {
     // Fall through to resilient cloud fallback
   }
 
-  // Tier-2 Public Reasoning fallback so Akıl Hocası keeps working cleanly
+  // Tier-2 Public Reasoning fallback with strict source-fidelity & zero-nonsense guardrails
   const modeNote =
-    params.coachMode === 'feynman'
-      ? 'Feynman analojisiyle sadeleştirerek anlat ve ardından öğrenciye geri özet sor.'
+    params.coachMode === 'reinforce'
+      ? 'PEKİŞTİREREK ANLAT MODU: (1) Konuyu sade ve anlaşılır biçimde adım adım açıkla, (2) Öğrencinin notundaki/slaytındaki gerçek kavram veya örneğe doğrudan bağla, (3) En sık karıştırılan 1 noktaya dikkat çek, (4) Sonunda öğrencinin anlayıp anlamadığını ölçen 1 kısa kontrol sorusu sor.'
+      : params.coachMode === 'feynman'
+      ? 'FEYNMAN MODU: Konuyu önce sade bir günlük hayat örneğiyle sezdir, ardından nottaki gerçek akademik tanıma bağla ve öğrenciden tek cümleyle özetlemesini iste.'
       : params.coachMode === 'socratic'
-      ? 'Sokratik yöntemle ipucu ver ve tek bir yönlendirici soru sor.'
+      ? 'SOKRATİK MOD: Hazır cevabı hemen verme; 1-2 cümlelik net ipucu verip öğrenciyi doğru sonuca götüren tek bir soru sor.'
       : params.coachMode === 'deep_research'
-      ? 'Yüksek lisans düzeyinde teorik arka plan, LaTeX formül ($...$) ve gerçek dünya örneğiyle derinlemesine açıkla.'
-      : 'Üniversite ders koçu gibi net, adım adım, formüllü ve örnekli Türkçe yanıt ver.';
+      ? 'DERİN ARAŞTIRMA MODU: Teorik arka plan, varsa formüller ve alana özgü somut vaka örneğiyle derinlemesine açıkla. Notta olmayan bilgileri [Not Dışı Genel Bilgi] diye açıkça işaretle.'
+      : 'NET VE KAYNAKLI ANLATIM: Doğrudan nottaki içeriğe dayanarak sade, net, adım adım ve pekiştirici Türkçe yanıt ver.';
+
+  const plainContext = flattenMaterialContextForCoach(params.materialContent);
+  const lastUserQuestion =
+    [...params.messages].reverse().find((m) => m.role === 'user')?.content || '';
+  const focusedContext =
+    plainContext.length > 13_000
+      ? sliceContextForSection(plainContext, lastUserQuestion || params.materialTitle, 0, 1, [], 13_000)
+      : plainContext;
 
   try {
-    const snippet = JSON.stringify(params.materialContent || {}).slice(0, 12_000);
     const res = await fetch(PUBLIC_REASONING_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1240,13 +1293,21 @@ export async function askStudyCoach(params: {
         messages: [
           {
             role: 'system',
-            content: `Sen EconNotes Akıl Hocası'sın. Ders: ${params.course || '-'} | Başlık: ${
+            content: `Sen EconNotes Akıl Hocası'sın. Ders/Alan: ${params.course || 'Üniversite Dersi'} | Materyal: ${
               params.materialTitle
-            }. ${modeNote} Materyal bağlamı: ${snippet}`,
+            }.
+${modeNote}
+KESİN DOĞRULUK KURALI:
+- Yalnızca aşağıdaki ders notu/slayt içeriğine ve bu bilim dalının doğrulanmış akademik bilgisine sadık kal.
+- Uydurma veri, konu dışı alakasız bölüm örnekleri veya boş dolgu cümleler KESİNLİKLE YASAKTIR.
+- Sorulan bilgi notta geçmiyorsa "Yüklediğin notta bu bilgi doğrudan geçmiyor." diyerek dürüstçe belirt.
+
+DERS NOTU / SLAYT BAĞLAMI:
+${focusedContext}`,
           },
-          ...params.messages.slice(-8),
+          ...params.messages.slice(-10),
         ],
-        temperature: 0.3,
+        temperature: 0.25,
       }),
     });
     if (res.ok) {
@@ -1257,7 +1318,33 @@ export async function askStudyCoach(params: {
       }
     }
   } catch {
-    // Ignore
+    // Ignore and fall back to grounded local excerpt
+  }
+
+  // Tier-3 Honest Grounded Excerpt Fallback (never hallucinates even if cloud is temporarily busy)
+  if (focusedContext.trim().length > 40) {
+    const queryWords = lastUserQuestion
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 3);
+    const blocks = plainContext.split(/\n{2,}/).filter((b) => b.trim().length > 25);
+    const ranked = blocks
+      .map((b) => {
+        const lower = b.toLocaleLowerCase('tr-TR');
+        const score = queryWords.reduce((s, w) => s + (lower.includes(w) ? 1 : 0), 0);
+        return { b, score };
+      })
+      .sort((a, b) => b.score - a.score);
+    const best = ranked.filter((r) => r.score > 0).slice(0, 2).map((r) => r.b.trim());
+    if (best.length > 0) {
+      return {
+        reply: `Şu an bulut yanıt motorunda kısa bir yoğunluk var; ancak uydurma bilgi vermek yerine doğrudan notunda bu soruyla en ilgili bölümleri çıkardım:\n\n${best
+          .map((p, idx) => `**${idx + 1}. İlgili Not Pasajı:**\n${p.slice(0, 650)}`)
+          .join('\n\n')}\n\nBirkaç saniye sonra tekrar sorarsan bu bölümü adım adım pekiştirerek anlatabilirim.`,
+        model: 'EconNotes Kaynaklı Pasaj Tarayıcı',
+      };
+    }
   }
 
   throw new Error('Akıl Hocası şu anda yanıt veremedi. Lütfen biraz sonra tekrar deneyin.');

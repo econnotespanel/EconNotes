@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Layers,
   Loader2,
+  MessageSquareText,
   Search,
   Sparkles,
   Target,
@@ -77,6 +78,7 @@ interface NeuralCreateViewProps {
   generationPct: number;
   generationLabel: string;
   onGenerate: (bundle: ProcessedStudyBundle) => void;
+  onInspectInChat?: (sources: ExtractedSourceItem[], course?: string) => void;
   onExtractRemoteNoteFile?: (note: NoteSourceOption) => Promise<ExtractedSourceItem>;
   engine: NeuralEngineState;
 }
@@ -194,6 +196,7 @@ export function NeuralCreateView({
   generationPct,
   generationLabel,
   onGenerate,
+  onInspectInChat,
   onExtractRemoteNoteFile,
   engine,
 }: NeuralCreateViewProps) {
@@ -799,6 +802,19 @@ export function NeuralCreateView({
               )}
               {isGenerating ? 'Üretiliyor...' : 'Çalışma Materyalini Oluştur'}
             </Button>
+
+            {onInspectInChat && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isGenerating || bundle.combinedText.trim().length < 25}
+                onClick={() => onInspectInChat(sources, customCourse.trim() || bundle.detectedDiscipline)}
+                className="h-10 w-full gap-2 border-primary/35 bg-primary/5 text-xs font-semibold text-primary hover:bg-primary/15"
+              >
+                <MessageSquareText className="h-4 w-4" />
+                Notu Hemen İncele &amp; Soru Sor (Pekiştir)
+              </Button>
+            )}
           </div>
         </div>
       </div>

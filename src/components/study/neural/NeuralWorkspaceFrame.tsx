@@ -3,7 +3,7 @@ import { ArrowLeft, Bot, Flag, PanelRightClose, PanelRightOpen } from 'lucide-re
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import type { MaterialType, StudyMaterial } from '@/types/study';
+import type { CoachMode, MaterialType, StudyMaterial } from '@/types/study';
 import { NeuralCoachPanel } from './NeuralCoachPanel';
 import { NeuralFlashcardWorkspace } from './NeuralFlashcardWorkspace';
 import { NeuralQuizWorkspace } from './NeuralQuizWorkspace';
@@ -35,11 +35,11 @@ export function NeuralWorkspaceFrame({
   onReportIssue,
 }: NeuralWorkspaceFrameProps) {
   const [coachOpen, setCoachOpen] = useState(false);
-  const [injectedPrompt, setInjectedPrompt] = useState<{ id: number; text: string } | null>(null);
+  const [injectedPrompt, setInjectedPrompt] = useState<{ id: number; text: string; mode?: CoachMode } | null>(null);
 
-  const handleAskCoach = (prompt: string) => {
+  const handleAskCoach = (prompt: string, mode?: CoachMode) => {
     setCoachOpen(true);
-    setInjectedPrompt({ id: Date.now(), text: prompt });
+    setInjectedPrompt({ id: Date.now(), text: prompt, mode });
   };
 
   return (
@@ -66,7 +66,7 @@ export function NeuralWorkspaceFrame({
             <SheetTrigger asChild>
               <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs lg:hidden">
                 <Bot className="h-3.5 w-3.5 text-primary" />
-                Soru Sor
+                Sor &amp; Pekiştir
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[90vw] max-w-md p-3">
@@ -86,7 +86,7 @@ export function NeuralWorkspaceFrame({
             ) : (
               <PanelRightOpen className="h-3.5 w-3.5" />
             )}
-            {coachOpen ? 'Asistanı Gizle' : 'Not Hakkında Sor'}
+            {coachOpen ? 'Asistanı Gizle' : 'Notu Sor & Pekiştir'}
           </Button>
 
           <Button type="button" variant="ghost" size="sm" onClick={onReportIssue} className="gap-1.5 text-xs">

@@ -118,31 +118,50 @@ export async function indexDocumentInVectorStore(params: {
 export async function routedRagAnswer(params: {
   question: string;
   docIds?: string[];
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  coachMode?: CoachMode;
   onToken?: (partial: string, tokensPerSec: number) => void;
 }): Promise<RoutedRagResponse> {
   const startedAt = performance.now();
   const snap = neuralEngine.getSnapshot();
+  const activeMode: CoachMode = params.coachMode || 'reinforce';
+
+  // Kısa takip sorularında ("anlamadım", "örnek ver", "biraz daha basit anlat") önceki konunun anahtar kelimelerini aramaya dahil et
+  const isFollowUpPrompt =
+    params.question.trim().length < 55 ||
+    /\b(anlamadım|anlayamadım|basit|örnek|pekiştir|tekrar|açıkla|devam|soru\s*sor|test\s*et|neden|nasıl)\b/i.test(
+      params.question,
+    );
+  const recentUserTurns = (params.history || [])
+    .filter((m) => m.role === 'user')
+    .slice(-2)
+    .map((m) => m.content)
+    .join(' ');
+  const retrievalQuery = isFollowUpPrompt && recentUserTurns
+    ? `${params.question} ${recentUserTurns}`.slice(0, 320)
+    : params.question;
+
   let queryVector: number[] | undefined;
 
   if (snap.embedderStatus === 'ready') {
-    const qVecs = await neuralEngine.embedTexts([`query: ${params.question}`]);
+    const qVecs = await neuralEngine.embedTexts([`query: ${retrievalQuery}`]);
     if (qVecs[0]) queryVector = qVecs[0];
   }
 
   const hits = await searchChunks({
-    query: params.question,
+    query: retrievalQuery,
     docIds: params.docIds,
-    topK: 5,
+    topK: 7,
     queryVector,
   });
 
   if (hits.length === 0) {
     return {
       answer:
-        'Seçili kaynaklarda bu soruya doğrudan karşılık gelen bir pasaj bulunamadı. Lütfen önce kütüphaneden veya materyallerden en az bir kaynağı indeksleyin.',
+        'Seçili notlarda veya slaytlarda bu soruyla doğrudan eşleşen bir pasaj bulunamadı. Lütfen sol taraftan bir PDF/slayt yükleyin veya ilgili ders notunu seçip tekrar sorun.',
       hits: [],
       engineUsed: 'local',
-      model: 'EconNotes Vektör Arama',
+      model: 'EconNotes Kaynak Tarayıcı',
       tokensPerSec: null,
       latencyMs: Math.round(performance.now() - startedAt),
     };
@@ -155,22 +174,35 @@ export async function routedRagAnswer(params: {
     )
     .join('\n\n---\n\n');
 
+  const conversationTurns: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    ...(params.history || []).slice(-8),
+    { role: 'user', content: params.question },
+  ];
+
+  const modeHint =
+    activeMode === 'reinforce'
+      ? 'PEKİŞTİREREK ANLAT: (1) Sade ve anlaşılır adım adım açıklama, (2) Yalnızca verilen kaynak pasajlarına dayalı somut bağlantı/örnek ([Kaynak 1] şeklinde atıf yap), (3) Sık karıştırılan 1 noktaya uyarı, (4) Sonunda 1 kısa pekiştirme sorusu sor.'
+      : activeMode === 'feynman'
+      ? 'FEYNMAN: Karmaşık kavramı en basit günlük mantıkla sadeleştir, ardından verilen not pasajındaki gerçek tanıma bağla.'
+      : activeMode === 'socratic'
+      ? 'SOKRATİK: Hazır cevabı hemen verme; nottaki ilgili pasaja dayalı kısa bir ipucu ve tek bir yönlendirici soru sor.'
+      : 'NET & KAYNAKLI: YALNIZCA verilen kaynak parçalarına dayanarak net, gereksiz uzatmasız ve [Kaynak 1] atıflı cevap ver.';
+
   if (shouldUseLocalGpu('instant')) {
     try {
       const gpuRes = await neuralEngine.streamChat({
         taskLabel: 'Notlarıma Sor (RAG)',
-        temperature: 0.25,
-        maxTokens: 700,
+        temperature: 0.2,
+        maxTokens: 750,
         messages: [
           {
             role: 'system',
-            content:
-              'Sen EconNotes Neural Studio akademik asistanısın. YALNIZCA verilen kaynak parçalarına dayanarak Türkçe, net ve sınav odaklı cevap ver. İlgili yerlerde [Kaynak 1], [Kaynak 2] gibi atıf yap.',
+            content: `Sen EconNotes Çalışma Stüdyosu Akademik Rehberisin. ${modeHint}
+KESİN KURAL: Yalnızca verilen kaynak parçalarına sadık kal; konu dışı saçma bilgi, uydurma sayı/terim veya başka bölüm örnekleri ASLA ekleme. Pasajlarda geçmiyorsa "Yüklediğin notta bu bilgi doğrudan geçmiyor." diye açıkça belirt.
+KAYNAK PASAJLARI:
+${contextBlock}`,
           },
-          {
-            role: 'user',
-            content: `KAYNAKLAR:\n${contextBlock}\n\nSORU: ${params.question}`,
-          },
+          ...conversationTurns,
         ],
         onToken: params.onToken,
       });
@@ -191,7 +223,6 @@ export async function routedRagAnswer(params: {
   }
 
   if (snap.prefs.routingPolicy === 'local_privacy') {
-    // Strictly avoid external network in privacy mode even if GPU isn't ready; synthesize directly from top chunks
     const summary = hits
       .slice(0, 3)
       .map((h, i) => `**${i + 1}. ${h.chunk.docTitle} (${h.chunk.sectionHeading})**\n${h.chunk.text}`)
@@ -206,14 +237,14 @@ export async function routedRagAnswer(params: {
     };
   }
 
-  // Cloud RAG Synthesis via askStudyCoach
+  // Cloud Grounded Synthesis via askStudyCoach with full conversation history & mode
   const cloudRes = await askStudyCoach({
-    materialTitle: 'Kişisel Bilgi Tabanı (RAG)',
+    materialTitle: hits[0]?.chunk.docTitle || 'Yüklenen Ders Notları ve Slaytlar',
     course: hits[0]?.chunk.course,
     materialType: 'summary',
     materialContent: { overview: contextBlock },
-    coachMode: 'tutor',
-    messages: [{ role: 'user', content: params.question }],
+    coachMode: activeMode,
+    messages: conversationTurns,
   });
 
   const latencyMs = Math.round(performance.now() - startedAt);
@@ -251,22 +282,24 @@ export async function routedAskCoach(params: {
     try {
       const compactContext = JSON.stringify(params.materialContent).slice(0, 5000);
       const modeHint =
-        params.coachMode === 'feynman'
-          ? 'Konuyu bir üniversite öğrencisine sıfırdan, sezgisel ve analoji ile öğret.'
+        params.coachMode === 'reinforce'
+          ? 'Konuyu sade adımlarla anlat, nottaki gerçek kavramla örnekle, sık karıştırılan 1 noktayı vurgula ve sonunda 1 kısa pekiştirme sorusu sor.'
+          : params.coachMode === 'feynman'
+          ? 'Konuyu bir üniversite öğrencisine sıfırdan, sezgisel ve konuyla tutarlı analoji ile öğret.'
           : params.coachMode === 'socratic'
-          ? 'Cevabı direkt verme, Sokratik sorularla öğrencinin bulmasını sağla.'
+          ? 'Cevabı direkt verme, Sokratik ipucu ve tek bir yönlendirici soruyla öğrencinin bulmasını sağla.'
           : params.coachMode === 'deep_research'
-          ? 'Literatür bağlantısı, matematiksel sezgi ve vaka örneğiyle derinlemesine açıkla.'
-          : 'Üniversite hocası gibi net, formüllü ve sınav odaklı cevap ver.';
+          ? 'Literatür bağlantısı, kuramsal sezgi ve alanına uygun vaka örneğiyle derinlemesine açıkla.'
+          : 'Üniversite hocası gibi net, yalnızca nota sadık ve anlaşılır cevap ver.';
 
       const gpuRes = await neuralEngine.streamChat({
         taskLabel: 'AI Çalışma Koçu',
-        temperature: 0.35,
-        maxTokens: 700,
+        temperature: 0.25,
+        maxTokens: 750,
         messages: [
           {
             role: 'system',
-            content: `Sen EconNotes Akademik Çalışma Koçusun. ${modeHint}\nDERS: ${params.course || 'Genel'} | MATERYAL: ${params.materialTitle}\nBAĞLAM:\n${compactContext}`,
+            content: `Sen EconNotes Akademik Çalışma Koçusun. ${modeHint} Konu dışı saçma bilgi veya uydurma terim asla ekleme; notta geçmiyorsa açıkça belirt.\nDERS: ${params.course || 'Genel'} | MATERYAL: ${params.materialTitle}\nBAĞLAM:\n${compactContext}`,
           },
           ...params.messages.slice(-6).map((m) => ({
             role: m.role as 'user' | 'assistant',

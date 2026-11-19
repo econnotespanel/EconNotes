@@ -159,7 +159,7 @@ export function NeuralHubView({
               className="gap-1.5 text-xs"
             >
               <MessageSquareText className="h-3.5 w-3.5 text-primary" />
-              Notlarıma Soru Sor
+              Not / Slayt Yükle &amp; Soru Sor
             </Button>
             <Button
               type="button"

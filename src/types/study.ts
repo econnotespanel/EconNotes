@@ -12,7 +12,7 @@ export type PedagogicalStyle =
 
 export type QuizFormat = 'multiple_choice' | 'open_ended' | 'mixed';
 export type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'mixed';
-export type CoachMode = 'tutor' | 'feynman' | 'socratic' | 'deep_research' | 'grade_answer';
+export type CoachMode = 'reinforce' | 'tutor' | 'feynman' | 'socratic' | 'deep_research' | 'grade_answer';
 
 export interface SummaryCheckpointQuestion {
   question: string;
