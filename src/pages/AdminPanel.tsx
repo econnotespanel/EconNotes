@@ -24,6 +24,7 @@ import { NOTE_SELECT } from '@/lib/noteColumns';
 import SiteDesignPanel from '@/components/admin/SiteDesignPanel';
 import AdminNotePreviewDialog from '@/components/admin/AdminNotePreviewDialog';
 import FatalErrorScreen from '@/components/FatalErrorScreen';
+import MaintenanceScreen from '@/components/MaintenanceScreen';
 import { downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
 import { parseLoginLogDevice } from '@/lib/deviceInfo';
 import { buildLoginAnalytics, formatRelativeLoginTime, type AuthAdminUserMeta } from '@/lib/adminLoginAnalytics';
@@ -89,6 +90,7 @@ const AdminPanel = () => {
   const [closureImageUrl, setClosureImageUrl] = useState('');
   const [closureMode, setClosureMode] = useState('maintenance');
   const [showFatalPreview, setShowFatalPreview] = useState(false);
+  const [showGtaPreview, setShowGtaPreview] = useState(false);
   const [closedUntilInput, setClosedUntilInput] = useState('');
   const [promoteLoading, setPromoteLoading] = useState(false);
   const [promoteDialog, setPromoteDialog] = useState(false);
@@ -393,8 +395,8 @@ const AdminPanel = () => {
       ? { is_system_open: true }
       : {
           is_system_open: false,
-          closure_title: closureTitle || 'EconNotes güncelleniyor',
-          closure_message: closureMessage || 'Sunucu bakım güncellemesi yapılıyor. Lütfen daha sonra tekrar deneyin.',
+          closure_title: closureTitle || 'EconNotes Güncelleniyor',
+          closure_message: closureMessage || 'Yeni özellikler ve performans geliştirmeleri için güncelleme yapılıyor. Çok yakında tekrar buradayız!',
           closure_mode: closureMode || 'maintenance',
         };
     const { error } = await supabase.from('system_settings').update(patch).not('id', 'is', null);
@@ -892,9 +894,10 @@ const AdminPanel = () => {
                 >
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="summer">🌴 Yaz Tatili</SelectItem>
-                    <SelectItem value="maintenance">🛠️ Bakım</SelectItem>
-                    <SelectItem value="announcement">📣 Duyuru</SelectItem>
+                    <SelectItem value="maintenance">🌴 GTA 6 Güncelleme / Bakım Teması</SelectItem>
+                    <SelectItem value="gta6">🎮 GTA VI Özel Güncelleme Ekranı</SelectItem>
+                    <SelectItem value="summer">☀️ Yaz Tatili</SelectItem>
+                    <SelectItem value="announcement">📣 Duyuru (GTA 6 Teması)</SelectItem>
                     <SelectItem value="fatal_error">🔴 Sunucu Hatası (Fatal Error)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -921,6 +924,16 @@ const AdminPanel = () => {
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
               <Button size="sm" variant="outline" onClick={() => saveClosureSettings()}>Ayarları Kaydet</Button>
+              {(closureMode === 'maintenance' || closureMode === 'gta6' || closureMode === 'announcement') && (
+                <Button
+                  size="sm"
+                  type="button"
+                  className="bg-gradient-to-r from-amber-400 via-pink-500 to-fuchsia-600 hover:brightness-110 text-white text-xs font-bold gap-1.5 shadow-md"
+                  onClick={() => setShowGtaPreview(true)}
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> 🌴 GTA 6 Ekranını Önizle
+                </Button>
+              )}
               {closureMode === 'fatal_error' && (
                 <Button
                   size="sm"
@@ -2347,6 +2360,44 @@ const AdminPanel = () => {
             }
             onGoHome={() => setShowFatalPreview(false)}
             onReload={() => window.location.reload()}
+          />
+        </div>
+      )}
+      {showGtaPreview && (
+        <div className="fixed inset-0 z-[99999] overflow-auto bg-[#0c0318]">
+          <div className="fixed bottom-4 right-4 z-[100000] flex flex-wrap items-center gap-2 bg-[#140526]/90 backdrop-blur-md border border-pink-400/50 p-2.5 rounded-2xl shadow-[0_12px_40px_rgba(255,46,147,0.35)]">
+            <div className="flex items-center gap-2 px-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400 animate-ping" />
+              <span className="text-xs font-mono text-amber-200 font-bold uppercase tracking-wider">
+                GTA 6 GÜNCELLEME ÖNİZLEME
+              </span>
+            </div>
+            <Button
+              size="sm"
+              className="h-8 text-xs font-bold bg-gradient-to-r from-amber-400 via-pink-500 to-fuchsia-600 hover:brightness-110 text-white"
+              onClick={() => {
+                saveClosureSettings({ close: true });
+                setShowGtaPreview(false);
+              }}
+            >
+              <Power className="h-3.5 w-3.5 mr-1" />
+              Sistemi Kapat & Yayınla
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
+              onClick={() => setShowGtaPreview(false)}
+            >
+              ← Yönetim Paneline Dön
+            </Button>
+          </div>
+          <MaintenanceScreen
+            closedUntil={closedUntilInput ? new Date(closedUntilInput).toISOString() : null}
+            title={closureTitle || 'EconNotes Güncelleniyor'}
+            message={closureMessage || null}
+            imageUrl={closureImageUrl || null}
+            mode={closureMode || 'gta6'}
           />
         </div>
       )}
