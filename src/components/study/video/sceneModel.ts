@@ -15,7 +15,18 @@ export type DiagramType =
   | 'network'
   | 'curve';
 
-export type VisualTheme = 'history' | 'economics' | 'law' | 'science' | 'society';
+export type VisualTheme =
+  | 'history'
+  | 'economics'
+  | 'law'
+  | 'science'
+  | 'society'
+  | 'medicine'
+  | 'engineering'
+  | 'education'
+  | 'sports'
+  | 'agriculture'
+  | 'politics';
 export type Speaker = 'Deniz' | 'Barış';
 
 export interface DiagramNode {
@@ -449,7 +460,7 @@ function pickAnalyticalExamTip(
   if (goodNode) {
     return `${goodNode.label}: ${ensureSentenceEnd(lowerFirstIfNotProper(goodNode.subtext))}`;
   }
-  return `${title} konusunda temel tanımlar ile politika araçlarının nedensel sonuçlarını ayrı tutun.`;
+  return `${title} konusunda temel tanımlar ile bu kavramların işleyiş ve sonuçlarını birbirinden ayırt edin.`;
 }
 
 export function inferVisualTheme(text: string): VisualTheme {
@@ -463,7 +474,7 @@ export function inferVisualTheme(text: string): VisualTheme {
   const scores: Record<VisualTheme, number> = {
     economics: scoreMatches([
       [/para teorisi|merkez bankası|para politikası|emisyon|likidite|monetarizm|keynesyen|fisher|taylor|phillips|is-lm|ad-as/g, 4],
-      [/iktisat|ekonomi|piyasa|enflasyon|faiz|fiyat|arz|talep|maliye|vergi|bütçe|sermaye|yatırım|gsyh|para|banka|kredi|rezerv|döviz|esneklik|marjinal|hasıla|büyüme|işsizlik/g, 2],
+      [/iktisat|ekonomi|piyasa|enflasyon|faiz|fiyat|arz|talep|maliye|vergi|bütçe|sermaye|yatırım|gsyh|para|banka|kredi|rezerv|döviz|esneklik|marjinal|hasıla|büyüme|işsizlik|işletme|muhasebe|bilanço|pazarlama/g, 2],
     ]),
     history: scoreMatches([
       [/selçuklu|osmanlı|bizans|moğol|imparatorluk|sultan|fetih|ikta|tımar|miri|vakıf|kervansaray|devlet-i|hanedan|lonca|gedik|ahilik/g, 4],
@@ -474,18 +485,56 @@ export function inferVisualTheme(text: string): VisualTheme {
       [/anayasa|yargıtay|danıştay|mevzuat|borçlar hukuku|ceza hukuku|medeni kanun|idare hukuku/g, 4],
       [/hukuk|kanun|mahkeme|yargı|tüzük|haklar|sözleşme|madde|meclis|içtihat|dava/g, 2],
     ]),
+    politics: scoreMatches([
+      [/siyaset bilimi|kamu yönetimi|uluslararası ilişkiler|dış politika|diplomasi|jeopolitik|bürokrasi|yerel yönetim|parlamenter|başkanlık sistemi/g, 4],
+      [/siyaset|demokrasi|egemenlik|realizm|liberalizm|konstrüktivizm|nato|birleşmiş milletler|kamu politikası/g, 2],
+    ]),
+    medicine: scoreMatches([
+      [/anatomi|fizyoloji|patoloji|patofizyoloji|farmakoloji|histoloji|immünoloji|mikrobiyoloji|hemşirelik|fizyoterapi|rehabilitasyon|beslenme ve diyetetik|eczacılık/g, 4],
+      [/tıp|klinik|semptom|tanı|sendrom|etiyoloji|hasta bakımı|hücre|enzim|metabolizma|biyokimya|sağlık bilimleri/g, 2],
+    ]),
+    engineering: scoreMatches([
+      [/algoritma|veri yapıları|big-o|termodinamik|mukavemet|akışkanlar mekaniği|devre analizi|kontrol sistemleri|sinyal işleme|makine öğrenmesi|veritabanı/g, 4],
+      [/mühendislik|yazılım|donanım|devre|sistem tasarımı|programlama|python|java|sql|statik|dinamik/g, 2],
+    ]),
+    education: scoreMatches([
+      [/eğitim bilimleri|pedagoji|öğretim ilke|müfredat|ölçme ve değerlendirme|gelişim psikolojisi|öğrenme psikolojisi|sınıf yönetimi|bloom taksonomi|yapılandırmacılık/g, 4],
+      [/öğretmenlik|öğrenci|öğretim|rehberlik|pdr|özel eğitim|geçerlik|güvenirlik/g, 2],
+    ]),
+    sports: scoreMatches([
+      [/spor bilimleri|egzersiz fizyolojisi|spor biyomekaniği|antrenman bilimi|kinesiyoloji|motor öğrenme|beden eğitimi|antrenörlük/g, 4],
+      [/aerobik|anaerobik|vo2|laktat|kas kasılması|hipertrofi|periyotlama|rekreasyon|spor yönetimi/g, 2],
+    ]),
+    agriculture: scoreMatches([
+      [/ziraat|tarım bilimleri|bitki koruma|tarla bitkileri|bahçe bitkileri|toprak bilimi|zootekni|bitki besleme|fitopatoloji|entomoloji/g, 4],
+      [/tarım|toprak|sulama|gübreleme|tohum|seracılık|fotosentez|hayvansal üretim|organik tarım/g, 2],
+    ]),
     science: scoreMatches([
-      [/algoritma|termodinamik|kuantum|elektromanyetik|molekül|kinetik|teorem|türev|integral|regresyon|ekonometri/g, 4],
+      [/kuantum|elektromanyetik|molekül|kinetik|teorem|türev|integral|regresyon|ekonometri|organik kimya/g, 4],
       [/bilim|fizik|kimya|biyoloji|matematik|veri|istatistik|deney|formül|enerji|hipotez/g, 2],
     ]),
     society: scoreMatches([
-      [/sosyoloji|demografi|kentleşme|toplumsal sınıf|kültür|eğitim politikası|kurumlar/g, 2],
+      [/sosyoloji|psikoloji|felsefe|edebiyat|demografi|kentleşme|toplumsal sınıf|kültür|iletişim|sanat tarihi/g, 2],
     ]),
   };
 
   let bestTheme: VisualTheme = 'society';
   let bestScore = 0;
-  (['economics', 'history', 'law', 'science', 'society'] as VisualTheme[]).forEach(theme => {
+  (
+    [
+      'economics',
+      'history',
+      'law',
+      'politics',
+      'medicine',
+      'engineering',
+      'education',
+      'sports',
+      'agriculture',
+      'science',
+      'society',
+    ] as VisualTheme[]
+  ).forEach(theme => {
     if (scores[theme] > bestScore) {
       bestScore = scores[theme];
       bestTheme = theme;
@@ -916,8 +965,8 @@ function buildConversationalSentences(
 
   const focusTerm = terms[0]?.term || takeaways[0] || sceneTitle;
   const probingQuestionBank = [
-    `Deniz hocam, ${focusTerm} mekanizmasının ortaya çıkışında hangi yapısal kırılma veya ihtiyaç belirleyici oluyor?`,
-    `Bu dönüşümü ${focusTerm} ekseninde somutlaştırırsak hocam; başlangıçtaki sorun hangi kurumsal çözüme yol açıyor?`,
+    `Deniz hocam, ${focusTerm} konusunun temel işleyişinde en belirleyici unsur nedir?`,
+    `Bu noktayı ${focusTerm} üzerinden netleştirirsek hocam; temel neden ve sonuç ilişkisi nasıl kuruluyor?`,
     `${focusTerm} kavramını alternatif yaklaşımlardan ayıran en kritik yapısal sınır nedir Deniz hocam?`,
     `Bu aşamada ${focusTerm} devreye girdiğinde sistemin dengesi nasıl değişiyor, Deniz hocam?`,
   ];
@@ -926,7 +975,7 @@ function buildConversationalSentences(
     `Buradaki nedensellik zincirinin ilk halkası şöyle kuruluyor Barış:`,
     `Dönüşümün arkasındaki temel dinamik tam olarak şu Barış:`,
     `Kavramsal çerçeveyi netleştirdiğimizde tablo şöyle ortaya çıkıyor Barış:`,
-    `Neden ile sonuç arasındaki kurumsal köprü şöyle işliyor Barış:`,
+    `Neden ile sonuç arasındaki doğrudan bağlantı şöyle kuruluyor Barış:`,
   ];
 
   const firstSpeaker = leadSpeaker;
@@ -981,9 +1030,9 @@ function buildConversationalSentences(
   );
 
   const termQuestionTemplates = [
-    (term: string) => `Deniz hocam, kaynak metindeki ${term} kavramı bu tarihsel ve kuramsal akışın neresine oturuyor?`,
+    (term: string) => `Deniz hocam, ders notundaki ${term} kavramı bu konunun tam olarak neresinde yer alıyor?`,
     (term: string) => `Burada sıkça karşılaştığımız ${term} kavramının ayırıcı mekanizması nedir Deniz hocam?`,
-    (term: string) => `Hocam, ${term} kavramını diğer kurum ve araçlardan ayıran temel ölçüt nedir?`,
+    (term: string) => `Hocam, ${term} kavramını diğerlerinden ayıran temel ölçüt nedir?`,
   ];
   const termAnswerOpeners = [
     'Bu kavramı yerli yerine oturtmak için önce işlevini, ardından yapısal sonucunu görelim:',
@@ -1017,7 +1066,7 @@ function buildConversationalSentences(
       sentences.push(`Bu çerçeveyi tamamlayan ikinci yapısal sonuç ise şudur: ${ensureSentenceEnd(lowerFirstIfNotProper(unusedTakeaways[1]))}`);
       speakers.push('Deniz');
     } else {
-      sentences.push(`Bu nedenle konunun omurgasını başlangıçtaki kısıt ile ortaya çıkan kurumsal çözüm arasındaki bu bağ oluşturuyor.`);
+      sentences.push(`Bu bağlantı konunun bütününü anlamada temel dayanağı oluşturuyor.`);
       speakers.push('Deniz');
     }
   }
@@ -1131,6 +1180,18 @@ function ensureRichFiveMinuteCurriculum(
       ? 'hukuki ve anayasal'
       : visualTheme === 'science'
       ? 'bilimsel ve metodolojik'
+      : visualTheme === 'politics'
+      ? 'siyasal ve yönetsel'
+      : visualTheme === 'medicine'
+      ? 'klinik ve fizyolojik'
+      : visualTheme === 'engineering'
+      ? 'mühendislik ve sistem odaklı'
+      : visualTheme === 'education'
+      ? 'eğitsel ve pedagojik'
+      : visualTheme === 'sports'
+      ? 'egzersiz ve performans odaklı'
+      : visualTheme === 'agriculture'
+      ? 'tarımsal ve ekolojik'
       : 'kuramsal ve toplumsal';
 
   // Eski tekdüze şema tiplerini zengin çok-modlu tiplere yükselt

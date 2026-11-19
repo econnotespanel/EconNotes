@@ -119,7 +119,7 @@ export function NeuralFlashcardWorkspace({
             variant="ghost"
             size="sm"
             onClick={() =>
-              onAskCoach(`"${card.front}" kartındaki kavramı gerçek ekonomi örneğiyle anlatır mısın?`)
+              onAskCoach(`"${card.front}" kartındaki kavramı gerçek hayat veya vaka örneğiyle anlatır mısın?`)
             }
             className="gap-1.5 text-xs text-primary"
           >

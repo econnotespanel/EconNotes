@@ -45,6 +45,9 @@ interface GenerateReq {
   difficulty?: 'easy' | 'medium' | 'hard' | 'mixed';
   quizFormat?: 'multiple_choice' | 'open_ended' | 'mixed';
   examFocus?: string;
+  faculty?: string;
+  examMode?: string;
+  fullOutlineHint?: string[];
   sectionTargets?: SectionTarget[];
   globalOutline?: {
     overview?: string;
@@ -270,11 +273,11 @@ function detectEdgeDomainMode(
     []
   ).length;
   const verbalTopic =
-    /(hukuk|anayasa|borçlar|ceza|medeni|idare|tarih|osmanlı|cumhuriyet|sosyoloji|psikoloji|felsefe|edebiyat|siyaset|kamu yönetimi|uluslararası ilişkiler|iktisat tarihi|iktisadi düşünceler|yönetim|insan kaynakları|eğitim|etik)/.test(
+    /(hukuk|anayasa|borçlar|ceza|medeni|idare|tarih|osmanlı|cumhuriyet|sosyoloji|psikoloji|felsefe|edebiyat|siyaset|kamu yönetimi|uluslararası ilişkiler|diplomasi|iktisat tarihi|iktisadi düşünceler|yönetim|insan kaynakları|eğitim|pedagoji|etik|iletişim)/.test(
       header,
     );
   const quantTopic =
-    /(ekonometri|matematik|istatistik|kalkülüs|integral|türev|algoritma|fizik|muhasebe|mühendislik)/.test(
+    /(ekonometri|matematik|istatistik|kalkülüs|integral|türev|algoritma|fizik|kimya|muhasebe|mühendislik|termodinamik|mukavemet|devre)/.test(
       header,
     );
 
@@ -323,36 +326,65 @@ Yanıtını YALNIZCA geçerli bir JSON objesi olarak döndür:
 
   // --- STAGE 1: SUMMARY BLUEPRINT ---
   if (req.materialType === 'summary' && stage === 'blueprint') {
+    const isLargeDoc = enrichedContext.length >= 20_000 || req.examMode === 'large_note';
     const targetSections =
       req.summaryDepth === 'short'
         ? '4-5'
         : req.summaryDepth === 'standard'
-        ? '6-8'
+        ? isLargeDoc
+          ? '7-10'
+          : '6-8'
         : req.summaryDepth === 'textbook'
-        ? '8-12'
+        ? isLargeDoc
+          ? '10-14'
+          : '8-12'
+        : isLargeDoc
+        ? '9-12'
         : '7-10';
+    const facultyDirective = req.faculty
+      ? `\nFAKÜLTE / BÖLÜM: ${req.faculty}. Yalnızca bu alanın gerçek akademik terminolojisine ve ders notuna sadık kal; başka bölümlerden alakasız örnek ekleme.`
+      : '\nTÜM FAKÜLTELER STANDARDI: EconNotes tüm üniversite bölümlerine (İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat, Hukuk) hizmet verir. Yalnızca yüklenen notun kendi alanına ve içeriğine sadık kal.';
+    const outlineBlock =
+      Array.isArray(req.fullOutlineHint) && req.fullOutlineHint.length > 0
+        ? `\nDOKÜMANIN BAŞTAN SONA BAŞLIK HARİTASI (HİÇBİR ÜNİTEYİ ATLAMA):\n${req.fullOutlineHint
+            .slice(0, 24)
+            .map((h, i) => `${i + 1}. ${h}`)
+            .join('\n')}\n`
+        : '';
 
     const system = `Sen üst düzey bir üniversite kürsü profesörü ve akademik editörsün.
-Görevin, verilen ders materyalinin TAMAMINI (ilk sayfadan son sayfaya kadar hiçbir bölümü atlamadan) tarayıp eksiksiz bir Çalışma Stüdyosu Ders Mimarisi (Blueprint) oluşturmaktır.
+Görevin, verilen ders materyalinin TAMAMINI (ilk sayfadan son sayfaya kadar hiçbir bölümü atlamadan) tarayıp eksiksiz bir Çalışma Stüdyosu Ders Mimarisi (Blueprint) ve "Hangi Konulara Bakmalıyım?" sınav öncelik haritası (studyPriorityMap) oluşturmaktır.
+${facultyDirective}
 ${styleInstruction}
 ${researchInstruction}${verbalInstruction}
 ${customDirective}
 
 KRİTİK KURALLAR:
-1. Kesinlikle genel geçer şablon cümleler kullanma. Her başlık kaynak metindeki gerçek konulara özel olmalıdır.
-2. ${domainMode === 'verbal' ? 'Sözel derslerde kavram ayrımlarına, neden-sonuç zincirine ve ekol/kuram kıyaslamalarına odaklan; gereksiz formül ekleme.' : 'Matematiksel ifadeleri LaTeX ($...$ veya $$...$$) ile yaz.'}
+1. Kesinlikle genel geçer şablon cümleler veya konu dışı bölüm örnekleri kullanma. Her başlık kaynak metindeki gerçek konulara özel olmalıdır.
+2. ${domainMode === 'verbal' ? 'Sözel derslerde kavram ayrımlarına, neden-sonuç zincirine ve ekol/kuram kıyaslamalarına odaklan; gereksiz formül ekleme.' : 'Matematiksel ifadeleri yalnızca metinde/alanda geçerliyse LaTeX ($...$ veya $$...$$) ile yaz.'}
 3. YALNIZCA geçerli JSON döndür (ekstra düz metin yok):
 {
   "overview": "Dersin ana tezini, kapsamını, metodolojisini ve neden önemli olduğunu anlatan 2-3 paragraflık kapsamlı yönetici özeti.",
-  "disciplineTag": "Örn: Mikroekonomi / Ekonometri / Türk Hukuku / Bilgisayar Bilimleri",
+  "disciplineTag": "Örn: Tıp Bilimleri / Mühendislik / Siyaset Bilimi / Uluslararası İlişkiler / Eğitim / Spor Bilimleri / Ziraat / İktisat / Hukuk",
   "keyPoints": ["Madde 1 — somut kavram ve mekanizma", "Madde 2...", "... (8-12 güçlü madde)"],
   "sectionsPlan": [
     {
       "index": 0,
       "title": "Bölüm 1: ...",
       "pageRange": "Sayfa 1-4 veya Slayt 1-6",
-      "focusPoints": ["Alt başlık A", "Alt başlık B", "Formül/model C"],
+      "focusPoints": ["Alt başlık A", "Alt başlık B", "Kavram/model C"],
       "keyConcepts": ["Terim 1", "Terim 2"]
+    }
+  ],
+  "studyPriorityMap": [
+    {
+      "topic": "Bölüm / Konu başlığı",
+      "priority": "critical" | "important" | "review",
+      "reason": "Sınavda neden mutlaka bakılması veya pekiştirilmesi gerektiğini açıklayan 1-2 somut cümle",
+      "estimatedMinutes": 10,
+      "focusConcepts": ["Kavram 1", "Kavram 2"],
+      "likelyQuestionType": "Karşılaştırma / Tanım & Ayrım / Vaka / Uygulama",
+      "sectionIndex": 0
     }
   ],
   "teacherEmphasis": [
@@ -370,26 +402,26 @@ KRİTİK KURALLAR:
   "deepResearchTopics": [
     {
       "topic": "İleri Okuma / Akademik Bağlam Başlığı",
-      "literatureContext": "Teorinin literatürdeki yeri, tarihsel gelişimi veya ampirik bulgular",
-      "realWorldApplication": "Türkiye veya küresel ekonomiden/dünyadan somut güncel uygulama"
+      "literatureContext": "Teorinin literatürdeki yeri, gelişimi veya ampirik bulgular",
+      "realWorldApplication": "Somut güncel veya mesleki uygulama örneği"
     }
   ],
   "keyTerms": [
     { "term": "Akademik Terim", "definition": "Net, derinlemesine ve ayırt edici tanım", "formula": "Varsa LaTeX formül" }
   ],
   "studyChecklist": [
-    "Bu bölümü bitirdiğimde ... arasındaki farkı grafikle açıklayabilirim.",
+    "Bu bölümü bitirdiğimde ... arasındaki temel farkı açıklayabilirim.",
     "..."
   ]
 }
 sectionsPlan dizisi tam ${targetSections} bölüm içermeli ve kaynak notun BAŞINDAN SONUNA tüm sayfalarını kapsayacak şekilde sıralanmalıdır.`;
 
-    const userText = `DERS: ${courseName}\nMATERYAL BAŞLIĞI: ${noteTitle}\n\nKAYNAK İÇERİĞİ:\n${sampleBalancedContext(
+    const userText = `DERS: ${courseName}\nMATERYAL BAŞLIĞI: ${noteTitle}${outlineBlock}\n\nKAYNAK İÇERİĞİ:\n${sampleBalancedContext(
       enrichedContext,
       70_000,
     )}`;
 
-    return { system, userText, maxTokens: 7000, temperature: 0.25 };
+    return { system, userText, maxTokens: 7800, temperature: 0.25 };
   }
 
   // --- STAGE 2: SUMMARY EXPAND BATCH ---
@@ -575,50 +607,50 @@ KRİTİK KURALLAR:
     return { system, userText, maxTokens: 10_000, temperature: 0.3 };
   }
 
-  // --- VIDEO (InteractiveVideoStudio compatible: turns + diagramData + 4-node visual schemas) ---
-  const system = `Sen 3Blue1Brown, Kurzgesagt ve MIT OpenCourseWare düzeyinde etkileşimli akademik video ders senaristi ve görsel yönetmensin.
-Verilen ders materyalinden 6-8 sahneli, HER SAHNEDE FARKLI GÖRSEL MOD ('visual', 'curve', 'chart', 'table', 'shapes', 'scenario', 'timeline', 'comparison') kullanan ve Dr. Deniz (anlatıcı akademisyen) ile Barış (meraklı öğrenci) arasında geçen doğal Türkçe Video Ders paketi oluştur.
+  // --- VIDEO (High-readability, strictly source-faithful, all university faculties) ---
+  const system = `Sen tüm üniversite fakülteleri (İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat, Hukuk) için ders notlarını yüksek okunabilirlikli, tamamen konuya sadık etkileşimli video derslere dönüştüren akademik senaristsin.
+Verilen ders materyalinden 5-7 sahneli, Dr. Deniz (anlatıcı akademisyen) ile Barış (meraklı öğrenci) arasında geçen doğal, akıcı ve %100 not içeriğine bağlı Türkçe Video Ders paketi oluştur.
 ${styleInstruction}
 ${customDirective}
 
 KESİN KURALLAR:
-1. Görsellik asla tekdüze olmasın: ardışık sahnelerde 'diagramData.diagramType' değerini sürekli değiştir ('visual' -> 'curve' -> 'table' -> 'shapes' -> 'chart' -> 'scenario' -> 'comparison'). Sayısal/iktisat derslerinde en az 1 'curve' (arz-talep/para piyasası) ve 1 'chart' sahnesi koy.
-2. Her sahnenin 'diagramData.nodes' dizisinde EN AZ 3-4 tane dolu, eksiksiz, kesintisiz kavram kartı üret (asla tek kart bırakma!).
-3. 'examTip' alanı KESİNLİKLE 'Merhaba arkadaşlar' veya selamlama olmasın; o sahneye özgü gerçek sınav tuzağını veya kavram ayrımını yaz.
-4. 'visualTheme' değerini dersin gerçek alanına göre seç: iktisat/para/banka/maliye için "economics", tarih/imparatorluk için "history", hukuk için "law", fen/veri için "science".
+1. KONU DIŞI BİLGİ KESİNLİKLE YASAKTIR: Yalnızca kullanıcının yüklediği ders notundaki gerçek kavram, süreç, formül ve bilgileri anlat. Notla ilgisi olmayan başka bölüm terimleri (ör. tıp/mühendislik/spor/ziraat/eğitim notuna iktisat veya tarih örneği katmak), uydurma istatistik/yüzde (%88, %76 gibi) ve klişe sohbet cümleleri ("Merhaba arkadaşlar", "Akıllı tahtamızda") kesinlikle EKLEME.
+2. YÜKSEK OKUNABİLİRLİK: Her sahnenin 'diagramData.nodes' dizisinde 3-4 net ve kısa kavram kartı üret. 'label' en fazla 36 karakterlik net kavram başlığı; 'subtext' ise ekranda rahatça okunabilecek 1-2 sade cümle (en fazla 130 karakter) olsun.
+3. DOĞRU GÖRSEL ŞEMA: Görsel türü olarak 'visual', 'table', 'comparison', 'timeline', 'scenario', 'shapes' türlerini dengeli kullan. 'curve' türünü YALNIZCA iktisat arz-talep/faiz dengesi konusundaysa kullan; 'chart' türünü YALNIZCA ders notunda gerçek sayısal veriler varsa kullan.
+4. 'examTip' alanı asla selamlama veya genel klişe olmasın; o sahneye özgü gerçek sınav tuzağını veya kavram ayrımını yaz.
+5. 'visualTheme' değerini dersin gerçek fakültesine göre seç: "economics" | "history" | "law" | "politics" | "medicine" | "engineering" | "education" | "sports" | "agriculture" | "science" | "society".
 
 YALNIZCA geçerli JSON döndür:
 {
-  "videoTitle": "Dersin net akademik video başlığı",
-  "overview": "Video dersin amacı ve genel çerçevesi",
-  "outline": "3-4 cümlelik bütünsel ders kapsamı",
+  "videoTitle": "Yüklenen ders notunun gerçek ve net başlığı",
+  "overview": "Video dersin amacı ve doğrudan nota dayalı özeti",
+  "outline": "2-3 cümlelik ders kapsamı",
   "keyFacts": ["Sınavlık kritik çıkarım 1", "Sınavlık kritik çıkarım 2", "Sınavlık kritik çıkarım 3"],
   "scenes": [
     {
       "id": "scene-1",
       "order": 1,
-      "title": "Somut ve çarpıcı sahne başlığı",
+      "title": "Nottaki gerçek bölüm/konu başlığı",
       "turns": [
-        { "speaker": "Deniz", "text": "Konunun çekirdeğini kuran net akademik açıklama (50-90 kelime)" },
-        { "speaker": "Barış", "text": "Deniz hocam hitabıyla analitik veya neden-sonuç sorusu (20-35 kelime)" },
-        { "speaker": "Deniz", "text": "Soruyu somut mekanizma ve sınav ayrımıyla yanıtlayan devam cümlesi (45-80 kelime)" }
+        { "speaker": "Deniz", "text": "Nottaki kavramı net ve anlaşılır akademik dille açıkla (45-85 kelime)" },
+        { "speaker": "Barış", "text": "Deniz hocam hitabıyla doğrudan bu konuya ait anlamlı bir soru (18-30 kelime)" },
+        { "speaker": "Deniz", "text": "Soruyu nottaki gerçek mekanizma, koşul veya örnekle yanıtla (40-75 kelime)" }
       ],
       "diagramData": {
-        "diagramType": "visual | curve | table | shapes | chart | scenario | timeline | comparison",
-        "visualTheme": "economics | history | law | science | society",
-        "mainTitle": "Tahta üzerindeki ana şema başlığı",
-        "highlightMetric": "Tek cümlelik analitik formül veya ana bulgu",
+        "diagramType": "visual | table | comparison | timeline | scenario | shapes | curve | chart",
+        "visualTheme": "economics | history | law | politics | medicine | engineering | education | sports | agriculture | science | society",
+        "mainTitle": "Slayt başlığı",
+        "highlightMetric": "Nottaki tek cümlelik ana bulgu",
         "nodes": [
-          { "label": "Kısa Terim 1", "subtext": "Tam cümlelik açık tanım veya işleyiş (80-150 karakter)", "badge": "Temel İlke", "value": 88 },
-          { "label": "Kısa Terim 2", "subtext": "İkinci bileşen veya aktarım kanalı", "badge": "Mekanizma", "value": 76 },
-          { "label": "Kısa Terim 3", "subtext": "Üçüncü yapısal etken veya koşul", "badge": "Koşul", "value": 69 },
-          { "label": "Kısa Terim 4", "subtext": "Sonuç veya politika çıktısı", "badge": "Çıktı", "value": 82 }
+          { "label": "Nottan Gerçek Kavram 1", "subtext": "Kısa, net ve kolay okunabilir açıklama (en fazla 130 karakter)", "badge": "Temel Kavram" },
+          { "label": "Nottan Gerçek Kavram 2", "subtext": "İkinci bileşenin işleyişi veya ayırt edici yönü", "badge": "Mekanizma" },
+          { "label": "Nottan Gerçek Kavram 3", "subtext": "Üçüncü yapısal etken, koşul veya sonuç", "badge": "Sonuç" }
         ]
       },
       "keyTakeaways": ["Madde 1", "Madde 2", "Madde 3"],
-      "keyTerms": [{ "term": "Terim", "definition": "Tam tanım" }],
+      "keyTerms": [{ "term": "Terim", "definition": "Tam ve kısa tanım" }],
       "examTip": "Bu sahneye özgü gerçek sınav ayrımı veya çeldirici uyarısı",
-      "visualCue": "Ekranda görülecek animasyon/şema tarifi",
+      "visualCue": "Kısa slayt düzeni notu",
       "checkpointQuestion": {
         "question": "Sahne sonu kontrol sorusu",
         "options": ["A", "B", "C", "D"],
@@ -675,6 +707,7 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
         : undefined,
       deepResearchTopics: Array.isArray(raw.deepResearchTopics) ? raw.deepResearchTopics : [],
       keyTerms: Array.isArray(raw.keyTerms) ? raw.keyTerms : [],
+      studyPriorityMap: Array.isArray(raw.studyPriorityMap) ? raw.studyPriorityMap : [],
       studyChecklist: Array.isArray(raw.studyChecklist) ? raw.studyChecklist.map(String) : [],
     };
   }
@@ -726,6 +759,7 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
         : undefined,
       deepResearchTopics: Array.isArray(raw.deepResearchTopics) ? raw.deepResearchTopics : [],
       keyTerms: Array.isArray(raw.keyTerms) ? raw.keyTerms : [],
+      studyPriorityMap: Array.isArray(raw.studyPriorityMap) ? raw.studyPriorityMap : [],
       studyChecklist: Array.isArray(raw.studyChecklist) ? raw.studyChecklist.map(String) : [],
     };
   }

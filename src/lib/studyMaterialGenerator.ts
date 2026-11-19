@@ -4,7 +4,11 @@
  * without injecting foreign-domain boilerplate into user notes.
  */
 
-import { classifyStudyDomain, type AcademicDomainMode } from './studySourceProcessor';
+import {
+  buildTopicPriorityGuide,
+  classifyStudyDomain,
+  type AcademicDomainMode,
+} from './studySourceProcessor';
 import type { SummarySection } from '@/types/study';
 
 export interface GeneratePayload {
@@ -746,9 +750,9 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
       `${course} ${title} ${cleanText.slice(0, 1200)}`,
     );
     const diagramPalette = isEconDoc
-      ? (['visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'comparison'] as const)
-      : (['visual', 'table', 'shapes', 'scenario', 'timeline', 'comparison'] as const);
-    const badges = ['Temel İlke', 'Mekanizma', 'Kurumsal Koşul', 'Politika Çıktısı'];
+      ? (['visual', 'curve', 'table', 'shapes', 'scenario', 'comparison'] as const)
+      : (['visual', 'table', 'timeline', 'comparison', 'shapes', 'scenario'] as const);
+    const badges = ['Temel İlke', 'Mekanizma', 'Kritik Koşul', 'Sonuç / Çıktı'];
 
     const scenes = units.slice(0, 7).map((u, idx) => {
       const nonGreetingUnitSents = u.sentences.filter(
@@ -768,14 +772,13 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
         const rawSent = facetSources[ni % facetSources.length] || u.heading;
         const colonParts = rawSent.split(/[:–-]/);
         const labelCandidate =
-          colonParts.length >= 2 && colonParts[0].trim().length <= 42
+          colonParts.length >= 2 && colonParts[0].trim().length <= 36
             ? colonParts[0].trim()
             : rawSent.split(/\s+/).slice(0, 4).join(' ').replace(/[,.;:!?]$/, '');
         return {
           label: labelCandidate || `${u.heading.slice(0, 24)} ${ni + 1}`,
-          subtext: rawSent.slice(0, 180),
+          subtext: rawSent.slice(0, 145),
           badge: badges[ni % badges.length],
-          value: 86 - ni * 7,
         };
       });
 
@@ -838,8 +841,21 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
   }
 
   // ---------------- SUMMARY ----------------
+  const isLargeLocalDoc = cleanText.length >= 18_000;
   const targetSections =
-    effectiveDepth === 'short' ? 4 : effectiveDepth === 'standard' ? 6 : effectiveDepth === 'textbook' ? 9 : 7;
+    effectiveDepth === 'short'
+      ? 4
+      : effectiveDepth === 'standard'
+      ? isLargeLocalDoc
+        ? 8
+        : 6
+      : effectiveDepth === 'textbook'
+      ? isLargeLocalDoc
+        ? 12
+        : 9
+      : isLargeLocalDoc
+      ? 10
+      : 7;
   const units = splitDocumentIntoUnits(cleanText, title, targetSections);
 
   const sections = units.map((u, idx) =>
@@ -887,23 +903,35 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
         }))
       : [];
 
+  const teacherEmphasis = keyTerms.slice(0, 5).map((kt, idx) => ({
+    point: kt.term,
+    whyImportant: isVerbal
+      ? `Kavramsal sınır ve karşıt yaklaşımlarla farkı üzerinden klasik/test sorusu potansiyeli taşır: "${kt.definition.slice(0, 140)}"`
+      : kt.definition.slice(0, 160),
+    examProbability: idx < 2 ? 'Yüksek' : 'Orta',
+  }));
+
+  const disciplineTag = isVerbal ? `${domain.discipline} · Sözel Özet` : domain.discipline;
+  const studyPriorityMap = buildTopicPriorityGuide({
+    sections,
+    keyTerms: keyTerms.slice(0, 10),
+    teacherEmphasis,
+    overview: overviewText,
+    disciplineTag,
+  });
+
   return {
     overview: overviewText,
-    disciplineTag: isVerbal ? `${domain.discipline} · Sözel Özet` : domain.discipline,
+    disciplineTag,
     keyPoints: (sentences.length > 0 ? sentences : [title])
       .slice(0, 8)
       .map((s) => highlightKeyTermsInProse(s.slice(0, 195), keyTerms.slice(0, 4).map((k) => k.term))),
     sections,
-    teacherEmphasis: keyTerms.slice(0, 5).map((kt, idx) => ({
-      point: kt.term,
-      whyImportant: isVerbal
-        ? `Kavramsal sınır ve karşıt yaklaşımlarla farkı üzerinden klasik/test sorusu potansiyeli taşır: "${kt.definition.slice(0, 140)}"`
-        : kt.definition.slice(0, 160),
-      examProbability: idx < 2 ? 'Yüksek' : 'Orta',
-    })),
+    teacherEmphasis,
     comparativeMatrix,
     deepResearchTopics,
     keyTerms: keyTerms.slice(0, 10),
+    studyPriorityMap,
     studyChecklist: sections.map((s) =>
       isVerbal
         ? `"${s.heading}" bölümündeki temel kavramları, neden–sonuç zincirini ve karşıt görüş farklarını kendi cümlelerimle özetleyebilirim.`
@@ -913,6 +941,7 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
       sourceMode: 'local',
       deepResearch: Boolean(req.deepResearch),
       summaryDepth: effectiveDepth,
+      isLargeBundle: isLargeLocalDoc,
     },
   };
 }

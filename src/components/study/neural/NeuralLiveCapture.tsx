@@ -27,7 +27,7 @@ interface NeuralLiveCaptureProps {
 
 export default function NeuralLiveCapture({ userId, onSaved }: NeuralLiveCaptureProps) {
   const [title, setTitle] = useState('');
-  const [course, setCourse] = useState('İktisat');
+  const [course, setCourse] = useState('');
   const [transcript, setTranscript] = useState('');
   const [recording, setRecording] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -160,14 +160,18 @@ export default function NeuralLiveCapture({ userId, onSaved }: NeuralLiveCapture
         <div className="space-y-1">
           <Label className="text-xs">Ders Başlığı</Label>
           <Input
-            placeholder="Örn: Para Teorisi 6. Hafta"
+            placeholder="Örn: Anayasa Hukuku / Biyokimya / Termodinamik 6. Hafta"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Ders / Alan</Label>
-          <Input value={course} onChange={(e) => setCourse(e.target.value)} />
+          <Label className="text-xs">Ders / Bölüm</Label>
+          <Input
+            placeholder="Örn: Tıp, Mühendislik, İktisat, Eğitim, Spor Bilimleri..."
+            value={course}
+            onChange={(e) => setCourse(e.target.value)}
+          />
         </div>
       </div>
 

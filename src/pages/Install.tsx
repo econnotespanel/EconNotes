@@ -550,7 +550,7 @@ const Install = () => {
                                 <EconLogo className="h-4 w-auto" />
                               </div>
                               <p className="text-[11px] text-slate-400 leading-relaxed">
-                                "EconNotes İktisat ve Akademik Not Platformu bilgisayarınıza kurulacaktır. Kuruluma devam etmek için İleri butonuna tıklayın."
+                                "EconNotes Üniversite Akademik Not ve Çalışma Platformu bilgisayarınıza kurulacaktır. Kuruluma devam etmek için İleri butonuna tıklayın."
                               </p>
                               <div className="pt-1 flex justify-end">
                                 <span className="px-2.5 py-1 rounded bg-blue-600 text-white font-semibold text-[10px]">İleri &gt;</span>

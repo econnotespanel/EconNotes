@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BookOpen,
   CalendarCheck2,
+  Compass,
   FileText,
   Flame,
   GraduationCap,
@@ -10,6 +11,7 @@ import {
   MessageSquareText,
   Plus,
   Sparkles,
+  Target,
   Timer,
   TrendingUp,
   Video,
@@ -27,7 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { NeuralEngineState } from '@/lib/neural/neuralEngine';
 import type { SrsCardState, TopicMasteryMetric } from '@/lib/neural/studyPlanner';
-import type { MaterialType, StudyMaterial, StudyProgressRow } from '@/types/study';
+import type { ExamStudyMode, MaterialType, StudyMaterial, StudyProgressRow } from '@/types/study';
 import type { NeuralTabId } from './NeuralCommandShell';
 import NeuralLiveCapture from './NeuralLiveCapture';
 
@@ -43,6 +45,7 @@ interface NeuralHubViewProps {
   onGoTab: (tab: NeuralTabId) => void;
   onOpenMaterial: (mat: StudyMaterial) => void;
   onQuickCreateType?: (type: MaterialType) => void;
+  onQuickExamPreset?: (mode: ExamStudyMode) => void;
 }
 
 const TYPE_BADGE: Record<StudyMaterial['material_type'], string> = {
@@ -62,8 +65,8 @@ const QUICK_CREATE_FORMATS: Array<{
 }> = [
   {
     type: 'summary',
-    title: 'Ders Özeti Çıkar',
-    desc: 'Bölüm başlıkları, karşılaştırma tabloları ve vize-final notları',
+    title: 'Ayrıntılı Ders Özeti',
+    desc: 'Kalın notları tam kapsamla özetler, "Hangi Konulara Bakmalıyım?" haritası çıkarır',
     icon: FileText,
     iconColor: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-500/10 border-blue-500/20',
@@ -71,7 +74,7 @@ const QUICK_CREATE_FORMATS: Array<{
   {
     type: 'video',
     title: 'Videolu Özet',
-    desc: 'Görsel şemalar, illüstrasyonlar ve sesli anlatımla video ders',
+    desc: 'Yalnızca notuna sadık, net okunaklı slaytlar ve sesli anlatımla video ders',
     icon: Video,
     iconColor: 'text-violet-600 dark:text-violet-400',
     bgColor: 'bg-violet-500/10 border-violet-500/20',
@@ -105,6 +108,7 @@ export function NeuralHubView({
   onGoTab,
   onOpenMaterial,
   onQuickCreateType,
+  onQuickExamPreset,
 }: NeuralHubViewProps) {
   const avgScore = useMemo(() => {
     if (progress.length === 0) return null;
@@ -143,7 +147,7 @@ export function NeuralHubView({
               Bugün nasıl çalışmak istersin?
             </h2>
             <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-              Ders notunu yükle veya kütüphaneden seç; istediğin çalışma formatını saniyeler içinde hazırla.
+              İktisat, Siyaset Bilimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık, İşletme, Spor ve Ziraat dâhil tüm üniversite bölümleri için sınav odaklı çalışma stüdyon.
             </p>
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
@@ -199,6 +203,108 @@ export function NeuralHubView({
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Sınav Dönemi Verimli Çalışma Stili (4 Adımda Vize & Final) */}
+      <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.05] via-card to-violet-500/[0.04] p-5 shadow-xs space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Badge className="gap-1 bg-primary text-primary-foreground text-[10px]">
+                <Target className="h-3 w-3" />
+                Vize &amp; Final Çalışma Stili
+              </Badge>
+              <span className="text-[11px] font-medium text-muted-foreground">
+                4 Adımlı Bilimsel Sınav Akışı
+              </span>
+            </div>
+            <h3 className="mt-1 text-sm sm:text-base font-bold text-foreground">
+              Sınav Haftasında En Yüksek Verimi Al
+            </h3>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => (onQuickExamPreset ? onQuickExamPreset('cram_24h') : handleSelectFormat('summary'))}
+              className="h-8 gap-1.5 border-rose-500/35 bg-rose-500/5 text-xs text-rose-700 dark:text-rose-300 hover:bg-rose-500/15"
+            >
+              <Flame className="h-3.5 w-3.5" />
+              Son 24 Saat Acil Özet
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => (onQuickExamPreset ? onQuickExamPreset('large_note') : handleSelectFormat('summary'))}
+              className="h-8 gap-1.5 border-primary/35 bg-primary/5 text-xs text-primary hover:bg-primary/15"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              Kalın Not Tam Analiz
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              step: '01',
+              title: 'Tüm Notları Yükle',
+              desc: 'Kalın PDF veya çoklu slaytları tek seferde birleştirip ayrıntılı özet çıkar.',
+              actionLabel: 'Özet Oluştur',
+              onClick: () => (onQuickExamPreset ? onQuickExamPreset('large_note') : handleSelectFormat('summary')),
+            },
+            {
+              step: '02',
+              title: 'Hangi Konulara Bakmalıyım?',
+              desc: 'Özet içindeki Sınav Öncelik Haritasıyla 🔴 Kesin Bak konularından başla.',
+              actionLabel: materials.some((m) => m.material_type === 'summary') ? 'Son Özete Git' : 'Özetle Başla',
+              onClick: () => {
+                const latestSummary = materials.find((m) => m.material_type === 'summary');
+                if (latestSummary) onOpenMaterial(latestSummary);
+                else handleSelectFormat('summary');
+              },
+            },
+            {
+              step: '03',
+              title: 'Aktif Tekrar (SM-2)',
+              desc: 'Bilgi kartlarıyla unutma eğrisini kır; eksik kaldığın konuları hafızaya kilitle.',
+              actionLabel: dueCards.length > 0 ? `${dueCards.length} Kartı Tekrar Et` : 'Tekrar Planı',
+              onClick: () => onGoTab('planner'),
+            },
+            {
+              step: '04',
+              title: 'Süreli Sınav Provası',
+              desc: 'Gerçek sınav simülatöründe zamanla yarışarak zayıf noktalarını gör.',
+              actionLabel: 'Simülatöre Gir',
+              onClick: () => onGoTab('exam'),
+            },
+          ].map((s) => (
+            <button
+              key={s.step}
+              type="button"
+              onClick={s.onClick}
+              className="group flex flex-col justify-between rounded-xl border border-border/60 bg-background/70 p-3.5 text-left transition-all hover:border-primary/40 hover:bg-card"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-primary/15 text-[11px] font-extrabold text-primary">
+                    {s.step}
+                  </span>
+                  <Compass className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+                <p className="text-xs font-bold text-foreground">{s.title}</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{s.desc}</p>
+              </div>
+              <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+                {s.actionLabel}
+                <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 

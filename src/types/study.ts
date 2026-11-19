@@ -56,6 +56,20 @@ export interface KeyTermItem {
   formula?: string;
 }
 
+export type TopicPriorityLevel = 'critical' | 'important' | 'review';
+
+export interface StudyTopicPriorityItem {
+  topic: string;
+  priority: TopicPriorityLevel;
+  reason: string;
+  estimatedMinutes: number;
+  focusConcepts: string[];
+  likelyQuestionType?: string;
+  sectionIndex?: number;
+}
+
+export type ExamStudyMode = 'balanced' | 'cram_24h' | 'deep_mastery' | 'large_note';
+
 export interface SummaryContent {
   overview: string;
   disciplineTag?: string;
@@ -66,10 +80,14 @@ export interface SummaryContent {
   deepResearchTopics?: DeepResearchTopic[];
   keyTerms?: KeyTermItem[];
   studyChecklist?: string[];
+  studyPriorityMap?: StudyTopicPriorityItem[];
   metadata?: {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
     summaryDepth?: SummaryDepth;
+    examMode?: ExamStudyMode;
+    faculty?: string;
+    isLargeBundle?: boolean;
     sourceStats?: {
       sourceCount: number;
       wordCount: number;
@@ -136,6 +154,9 @@ export type StudyContentPayload = Partial<SummaryContent> &
       sourceMode?: 'ai' | 'fallback' | 'local';
       deepResearch?: boolean;
       summaryDepth?: SummaryDepth;
+      examMode?: ExamStudyMode;
+      faculty?: string;
+      isLargeBundle?: boolean;
       sourceStats?: {
         sourceCount: number;
         wordCount: number;
@@ -226,4 +247,6 @@ export interface StudioGenerationSettings {
   quizFormat: QuizFormat;
   customPrompt: string;
   examFocus: string;
+  faculty?: string;
+  examMode?: ExamStudyMode;
 }

@@ -35,6 +35,26 @@ export const SearchTranscriptModal: React.FC<SearchTranscriptModalProps> = ({
 }) => {
   const [query, setQuery] = useState('');
 
+  const suggestedKeywords = useMemo<string[]>(() => {
+    const raw = [
+      ...scenes.flatMap((sc) => sc.keyTerms.map((t) => t.term)),
+      ...scenes.flatMap((sc) => sc.diagram.nodes.map((n) => n.label)),
+    ]
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 3 && s.length <= 28);
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const item of raw) {
+      const k = item.toLocaleLowerCase('tr-TR');
+      if (!seen.has(k)) {
+        seen.add(k);
+        unique.push(item);
+      }
+      if (unique.length >= 7) break;
+    }
+    return unique.length > 0 ? unique : ['tanım', 'neden', 'sonuç', 'süreç', 'fark', 'ilke'];
+  }, [scenes]);
+
   const searchResults = useMemo<SearchResultItem[]>(() => {
     const q = query.trim().toLocaleLowerCase('tr-TR');
     if (!q || q.length < 2) return [];
@@ -164,7 +184,7 @@ export const SearchTranscriptModal: React.FC<SearchTranscriptModalProps> = ({
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-1.5 pt-2">
-                {['denge', 'fiyat', 'enflasyon', 'rant', 'faiz', 'vergi', 'talep'].map(keyword => (
+                {suggestedKeywords.map(keyword => (
                   <button
                     key={keyword}
                     onClick={() => setQuery(keyword)}
@@ -181,7 +201,7 @@ export const SearchTranscriptModal: React.FC<SearchTranscriptModalProps> = ({
                 "{query}" ile eşleşen bir anlatım cümlesi bulunamadı.
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                Farklı bir iktisadi kavram veya kelime kökü ile tekrar arama yapabilirsiniz.
+                Farklı bir kavram veya kelime kökü ile tekrar arama yapabilirsiniz.
               </p>
             </div>
           ) : (

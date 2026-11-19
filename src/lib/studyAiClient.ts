@@ -5,7 +5,10 @@ import {
   type GeneratePayload,
 } from '@/lib/studyMaterialGenerator';
 import {
+  buildTopicPriorityGuide,
   classifyStudyDomain,
+  extractFullDocumentOutline,
+  isLargeStudyBundle,
   sampleUniformContext,
   sliceContextForSection,
   type AcademicDomainMode,
@@ -16,6 +19,7 @@ import type {
   ProcessedStudyBundle,
   StudyContentPayload,
   StudioGenerationSettings,
+  StudyTopicPriorityItem,
   SummaryContent,
   SummarySection,
 } from '@/types/study';
@@ -161,24 +165,92 @@ function sectionsLackStructure(sections: SummarySection[]): boolean {
   return structuredCount < Math.ceil(sections.length / 2);
 }
 
-function getDomainSummaryDirective(domainMode: AcademicDomainMode): string {
+function getDomainSummaryDirective(domainMode: AcademicDomainMode, examStyleHint?: string): string {
+  const facultyHint = examStyleHint ? `\nFAKÜLTE / ALAN ODAĞI: ${examStyleHint}` : '';
   if (domainMode === 'verbal') {
-    return `SÖZEL / KURAMSAL & SOSYAL BİLİMLER UZMANLIK STANDARDI:
-- Bu ders SÖZEL / KURAMSAL ağırlıklıdır (Hukuk, Tarih, Sosyoloji, Psikoloji, Felsefe, Siyaset, Yönetim veya Kuramsal İktisat).
+    return `SÖZEL / KURAMSAL & SOSYAL BİLİMLER UZMANLIK STANDARDI:${facultyHint}
+- Bu ders SÖZEL / KURAMSAL ağırlıklıdır (Siyaset Bilimi, Kamu Yönetimi, Uluslararası İlişkiler, Hukuk, Eğitim Bilimleri, Tarih, Sosyoloji, Psikoloji, Felsefe, Edebiyat veya Kuramsal Alanlar).
+- KESİN KAYNAK SADAKATİ: Yalnızca yüklenen ders notundaki konulara odaklan; başka bölümlerden (ör. alakasız iktisat/tarih örnekleri) konu dışı bilgi ekleme.
 - ASLA uydurma matematiksel formül veya yapay sembol EKLEME ($...$ / $$...$$ yalnız metinde gerçekten denklem varsa kullan).
 - Her bölümde şu yüksek verimli akademik yapıyı kur:
-  1. \`#### Kavramsal Öz ve Ana Tez\`: Kuramın/dönemin/kanunun özünü, aktörlerini ve temel argümanını akıcı fakülte diliyle açıkla.
-  2. \`#### Neden–Sonuç Zinciri ve Süreç / Mekanizma\`: Tarihsel gelişim, hukuki koşul–yaptırım veya sosyolojik/psikolojik sebep–sonuç akışını net madde veya numaralı adımlarla kur.
+  1. \`#### Kavramsal Öz ve Ana Tez\`: Kuramın/dönemin/konunun özünü, aktörlerini ve temel argümanını akıcı fakülte diliyle açıkla.
+  2. \`#### Neden–Sonuç Zinciri ve Süreç / Mekanizma\`: Kavramsal gelişim, hukuki/siyasal/pedagojik koşul–sonuç akışını net madde veya numaralı adımlarla kur.
   3. \`#### Karşılaştırma ve Ayrım Tablosu\`: Ekoller, dönemler, görüşler veya karıştırılan kavram ikilileri arasında mutlaka net bir Markdown tablosu (\`| Ölçüt | ... | ... |\`) oluştur.
-  4. \`#### Klasik Sınav & Yorum Sorusu Çerçevesi\`: Vize/finalde buradan nasıl klasik/yorum sorusu çıkacağını ve tam puan cevabın hangi kavramlara dayanması gerektiğini belirt.`;
+  4. \`#### Sınav & Yorum Sorusu Çerçevesi\`: Vize/finalde buradan nasıl soru çıkacağını ve tam puan cevabın hangi kavramlara dayanması gerektiğini belirt.`;
   }
-  return `ANALİTİK / SAYISAL DERS STANDARDI:
-- Her bölümde \`#### Analitik Çerçeve\`, sezgisel mantık + formel LaTeX gösterimi (\`$...$\` veya \`$$...$$\`, yalnız metindeki veya konudaki geçerli ifadelerle), çözümlü/somut uygulama örneği, net Markdown karşılaştırma tablosu (\`|...|...|\`) ve \`> **Sınav Odağı:**\` vurgusu sun.`;
+  return `ANALİTİK / UYGULAMALI & FEN/SAĞLIK/MÜHENDİSLİK DERS STANDARDI:${facultyHint}
+- KESİN KAYNAK SADAKATİ: Yalnızca yüklenen ders notunun gerçek terminolojisine ve içeriğine sadık kal; konu dışı alakasız bölüm örnekleri veya uydurma veriler ekleme.
+- Her bölümde \`#### Analitik Çerçeve\`, sezgisel mantık + varsa metindeki formel LaTeX gösterimi (\`$...$\` veya \`$$...$$\`), somut uygulama/vaka örneği, net Markdown karşılaştırma tablosu (\`|...|...|\`) ve \`> **Sınav Odağı:**\` vurgusu sun.`;
+}
+
+function getExamModeDirective(examMode?: StudioGenerationSettings['examMode']): string {
+  if (examMode === 'cram_24h') {
+    return 'SINAV MODU — SON 24 SAAT ACİL KURTARMA: Sınavda çıkma olasılığı en yüksek çekirdek kavramları, kritik ayrımları, sık yapılan tuzakları ve hızlı hatırlama tablolarını öne çıkar. Gereksiz uzatmalardan kaçın.';
+  }
+  if (examMode === 'large_note') {
+    return 'SINAV MODU — KALIN / ÇOKLU DERS NOTU TAM KAPSAM: Kullanıcının yüklediği kapsamlı/çok sayfalı notun başından sonuna TEK BİR ÜNİTEYİ BİLE ATLAMADAN tüm önemli detayları bölüm bölüm eksiksiz özetle ve mutlaka "studyPriorityMap" ile hangi konulara öncelik vermesi gerektiğini derecelendir.';
+  }
+  if (examMode === 'deep_mastery') {
+    return 'SINAV MODU — DERİN KAVRAMA (FEYNMAN): Karmaşık kavramları adım adım sadeleştirip somut vaka örnekleriyle kalıcı öğrenme sağla.';
+  }
+  return 'SINAV MODU — VİZE/FİNAL TAM KAPSAM: Tüm önemli ayrıntıları sistematik biçimde özetle, sınavda çıkabilecek noktaları işaretle ve "studyPriorityMap" ile öncelikli çalışma sırası sun.';
+}
+
+function normalizePriorityMap(
+  raw: unknown,
+  sections: SummarySection[],
+  keyTerms?: SummaryContent['keyTerms'],
+  teacherEmphasis?: SummaryContent['teacherEmphasis'],
+  overview?: string,
+  disciplineTag?: string,
+): StudyTopicPriorityItem[] {
+  if (Array.isArray(raw) && raw.length >= 2) {
+    const cleaned: StudyTopicPriorityItem[] = [];
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const topic = String(rec.topic || '').trim();
+      if (!topic) continue;
+      const rawPri = String(rec.priority || '').toLowerCase();
+      const priority: StudyTopicPriorityItem['priority'] =
+        rawPri === 'critical' || rawPri.includes('kritik') || rawPri.includes('yüksek')
+          ? 'critical'
+          : rawPri === 'review' || rawPri.includes('göz') || rawPri.includes('düşük')
+          ? 'review'
+          : 'important';
+      const secIdx =
+        typeof rec.sectionIndex === 'number' && rec.sectionIndex >= 0 && rec.sectionIndex < sections.length
+          ? rec.sectionIndex
+          : sections.findIndex((s) =>
+              s.heading.toLocaleLowerCase('tr-TR').includes(topic.toLocaleLowerCase('tr-TR').slice(0, 14)),
+            );
+      cleaned.push({
+        topic,
+        priority,
+        reason: String(rec.reason || 'Sınav kapsamı ve temel kavram bağlantısı nedeniyle önceliklidir.').trim(),
+        estimatedMinutes: Math.max(3, Math.min(25, Number(rec.estimatedMinutes) || 8)),
+        focusConcepts: Array.isArray(rec.focusConcepts)
+          ? rec.focusConcepts.map(String).filter(Boolean).slice(0, 4)
+          : [],
+        likelyQuestionType: rec.likelyQuestionType ? String(rec.likelyQuestionType) : undefined,
+        sectionIndex: secIdx >= 0 ? secIdx : undefined,
+      });
+    }
+    if (cleaned.length >= 2) return cleaned;
+  }
+  return buildTopicPriorityGuide({
+    sections,
+    keyTerms,
+    teacherEmphasis,
+    overview,
+    disciplineTag,
+  });
 }
 
 function buildSectionExpansionSystemPrompt(
   settings: StudioGenerationSettings,
   domainMode: AcademicDomainMode = 'hybrid',
+  examStyleHint?: string,
 ): string {
   const wordsTarget =
     settings.summaryDepth === 'short'
@@ -188,13 +260,15 @@ function buildSectionExpansionSystemPrompt(
       : settings.summaryDepth === 'comprehensive'
       ? '320-460'
       : '250-350';
-  const domainDirective = getDomainSummaryDirective(domainMode);
+  const domainDirective = getDomainSummaryDirective(domainMode, examStyleHint);
+  const examDirective = getExamModeDirective(settings.examMode);
   return `Sen seçkin bir üniversite kürsü profesörüsün. Sana verilen ders bölümü taslağını ve kaynak metin kesitini kullanarak derin, akıcı, akademik ders kitabı düzeyinde Türkçe özet bölümleri yaz.
 ${domainDirective}
-${settings.deepResearch ? 'Derin Araştırma aktif: teorik arka plan, literatür bağlamı ve Türkiye/küresel uygulama örneğini "deepResearchNote" alanında sun.' : ''}
+${examDirective}
+${settings.deepResearch ? 'Derin Araştırma aktif: teorik arka plan, literatür bağlamı ve güncel uygulama örneğini "deepResearchNote" alanında sun.' : ''}
 Kurallar:
 - Her bölüm ${wordsTarget} kelime civarında eksiksiz Markdown prose olsun.
-- Kopya/yüzeysel cümle dizimi veya genel şablon klişeler asla kullanma; kaynak metindeki kavramları sebep-sonuç zinciriyle, net başlıklar ve karşılaştırmalarla sentezle.
+- Kopya/yüzeysel cümle dizimi, konu dışı bilgi veya genel şablon klişeler asla kullanma; kaynak metindeki kavramları sebep-sonuç zinciriyle, net başlıklar ve karşılaştırmalarla sentezle.
 YALNIZCA JSON döndür:
 {
   "sections": [
@@ -216,37 +290,70 @@ async function generatePublicMapReduceSummary(
   bundle: ProcessedStudyBundle,
   settings: StudioGenerationSettings,
   domainMode: AcademicDomainMode,
+  examStyleHint: string,
   onProgress?: ProgressCallback,
 ): Promise<SummaryContent | null> {
+  const largeBundle = isLargeStudyBundle(bundle) || settings.examMode === 'large_note';
   const targetCount =
     settings.summaryDepth === 'short'
       ? 4
       : settings.summaryDepth === 'textbook'
-      ? 8
+      ? largeBundle
+        ? 11
+        : 8
       : settings.summaryDepth === 'comprehensive'
-      ? 7
+      ? largeBundle
+        ? 10
+        : 7
+      : largeBundle
+      ? 8
       : 6;
 
-  onProgress?.(32, 'Akademik ders planı ve kavram mimarisi çıkarılıyor...');
-  const bpSystem = `Sen seçkin bir üniversite profesörüsün. Verilen ders materyalini tarayarak ${targetCount} ana bölümlük kapsamlı bir özet mimarisi oluştur.
-${domainMode === 'verbal' ? 'DERS TÜRÜ: Sözel / Kuramsal & Sosyal Bilimler. Kavram ayrımlarına, tarihsel/hukuki neden-sonuç akışına, karşılaştırma matrisine ve klasik sınav beklentisine odaklan; uydurma formül ekleme.' : ''}
+  const fullOutlineAnchors = extractFullDocumentOutline(bundle.combinedText, 24);
+  const outlineMapText =
+    fullOutlineAnchors.length > 0
+      ? `\nDOKÜMANIN TAM BAŞLIK HARİTASI (BAŞTAN SONA HİÇBİR ÜNİTEYİ ATLAMA):\n${fullOutlineAnchors
+          .map((a, i) => `${i + 1}. ${a.heading}${a.pageHint ? ` (${a.pageHint})` : ''}`)
+          .join('\n')}\n`
+      : '';
+
+  onProgress?.(
+    32,
+    largeBundle
+      ? `Büyük ders notu (${bundle.totalWords} kelime) baştan sona taranıyor ve öncelik haritası kuruluyor...`
+      : 'Akademik ders planı ve kavram mimarisi çıkarılıyor...',
+  );
+  const bpSystem = `Sen seçkin bir üniversite profesörüsün. Verilen ders materyalinin TAMAMINI (ilk sayfadan son sayfaya kadar hiçbir önemli konuyu atlamadan) tarayarak ${targetCount} ana bölümlük kapsamlı bir özet mimarisi ve "Hangi Konulara Bakmalıyım?" sınav öncelik haritası oluştur.
+${getDomainSummaryDirective(domainMode, examStyleHint)}
+${getExamModeDirective(settings.examMode)}
 YALNIZCA JSON döndür:
 {
   "overview": "Konunun amacını, temel tezini ve büyük resmini anlatan 2 güçlü paragraf",
-  "disciplineTag": "Örn: ${bundle.detectedDiscipline}",
-  "keyPoints": ["6-8 kapsamlı anahtar çıkarım"],
+  "disciplineTag": "${bundle.detectedDiscipline}",
+  "keyPoints": ["6-10 kapsamlı anahtar çıkarım"],
   "sectionsPlan": [
     { "index": 0, "title": "Net akademik bölüm başlığı", "pageRange": "", "focusPoints": ["Odak 1", "Odak 2", "Odak 3"] }
   ],
+  "studyPriorityMap": [
+    {
+      "topic": "Bölüm / Konu adı",
+      "priority": "critical | important | review",
+      "reason": "Sınavda neden mutlaka bakılması veya pekiştirilmesi gerektiği (1-2 net cümle)",
+      "estimatedMinutes": 10,
+      "focusConcepts": ["Anahtar kavram 1", "Anahtar kavram 2"],
+      "likelyQuestionType": "Karşılaştırma / Tanım / Uygulama / Vaka",
+      "sectionIndex": 0
+    }
+  ],
   "teacherEmphasis": [{ "point": "Kritik kavram veya ayrım", "whyImportant": "Sınavda neden sorulur ve nasıl cevaplanmalı", "examProbability": "Yüksek" }],
   "comparativeMatrix": { "title": "Karşılaştırma Tablosu", "columns": ["Boyut", "Yaklaşım / Kavram A", "Yaklaşım / Kavram B"], "rows": [["...", "...", "..."], ["...", "...", "..."]] },
-  "deepResearchTopics": [{ "topic": "İleri Okuma Başlığı", "literatureContext": "Kuramsal / tarihsel bağlam", "realWorldApplication": "Güncel veya kurumsal örnek" }],
+  "deepResearchTopics": [{ "topic": "İleri Okuma Başlığı", "literatureContext": "Kuramsal / akademik bağlam", "realWorldApplication": "Güncel veya uygulamalı örnek" }],
   "keyTerms": [{ "term": "Terim", "definition": "Tam tanım", "formula": "" }],
   "studyChecklist": ["Öğrenme hedefi 1", "Öğrenme hedefi 2"]
 }`;
-  const bpUser = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\n${
+  const bpUser = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\nKAYNAK İSTATİSTİĞİ: ${bundle.sourceCount} kaynak, ~${bundle.totalWords} kelime, ~${bundle.totalPagesOrSlides} sayfa/slayt\n${
     settings.customPrompt ? `ÖZEL İSTEK: ${settings.customPrompt}\n` : ''
-  }\nKAYNAK ÖZETİ:\n${sampleUniformContext(bundle.combinedText, 14_000)}`;
+  }${outlineMapText}\nKAYNAK ÖZETİ:\n${sampleUniformContext(bundle.combinedText, 13_500)}`;
 
   const bp = await invokePublicJsonFallback(bpSystem, bpUser);
   const rawPlan = Array.isArray(bp?.sectionsPlan)
@@ -258,18 +365,30 @@ YALNIZCA JSON döndür:
     const singlePrompt = buildPublicSummaryPrompt(bundle, settings, domainMode);
     const singleJson = await invokePublicJsonFallback(singlePrompt.system, singlePrompt.user);
     if (singleJson && Array.isArray(singleJson.sections) && singleJson.sections.length > 0) {
+      const singleSections = singleJson.sections as SummarySection[];
       return {
         ...(singleJson as unknown as SummaryContent),
         disciplineTag: String(singleJson.disciplineTag || bundle.detectedDiscipline),
+        studyPriorityMap: normalizePriorityMap(
+          singleJson.studyPriorityMap,
+          singleSections,
+          singleJson.keyTerms as SummaryContent['keyTerms'],
+          singleJson.teacherEmphasis as SummaryContent['teacherEmphasis'],
+          String(singleJson.overview || ''),
+          String(singleJson.disciplineTag || bundle.detectedDiscipline),
+        ),
         metadata: {
           sourceMode: 'ai',
           deepResearch: settings.deepResearch,
           summaryDepth: settings.summaryDepth,
+          examMode: settings.examMode,
+          faculty: settings.faculty,
+          isLargeBundle: largeBundle,
           sourceStats: {
             sourceCount: bundle.sourceCount,
             wordCount: bundle.totalWords,
             pagesOrSlides: bundle.totalPagesOrSlides,
-            sectionCount: singleJson.sections.length,
+            sectionCount: singleSections.length,
           },
         },
       };
@@ -284,20 +403,27 @@ YALNIZCA JSON döndür:
     focusPoints: Array.isArray(p.focusPoints) ? p.focusPoints.map(String) : [],
   }));
 
-  const expandSys = buildSectionExpansionSystemPrompt(settings, domainMode);
+  const expandSys = buildSectionExpansionSystemPrompt(settings, domainMode, examStyleHint);
   const expandedSections: SummarySection[] = [];
   const batchSize = 2;
 
   for (let i = 0; i < normalizedPlan.length; i += batchSize) {
     const batch = normalizedPlan.slice(i, i + batchSize);
     const pct = Math.min(92, Math.round(45 + ((i + batch.length) / Math.max(1, normalizedPlan.length)) * 45));
-    onProgress?.(pct, `Ders kitabı bölümleri yazılıyor (${i + 1}-${Math.min(i + batchSize, normalizedPlan.length)}/${normalizedPlan.length})...`);
+    onProgress?.(pct, `Ders bölümleri ayrıntılarıyla yazılıyor (${i + 1}-${Math.min(i + batchSize, normalizedPlan.length)}/${normalizedPlan.length})...`);
 
     const batchPayload = batch.map((b) => ({
       index: b.index,
       heading: b.title,
       focusPoints: b.focusPoints,
-      sourceExcerpt: sliceContextForSection(bundle.combinedText, b.title, b.index, normalizedPlan.length, b.focusPoints, 4_200),
+      sourceExcerpt: sliceContextForSection(
+        bundle.combinedText,
+        b.title,
+        b.index,
+        normalizedPlan.length,
+        b.focusPoints,
+        largeBundle ? 5_200 : 4_200,
+      ),
     }));
 
     const batchUser = `DERS: ${bundle.course || bundle.detectedDiscipline} | BAŞLIK: ${bundle.title}\nGENEL ÖZET: ${String(
@@ -336,23 +462,38 @@ YALNIZCA JSON döndür:
   }
 
   expandedSections.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+  const finalKeyTerms = Array.isArray(bp?.keyTerms) ? (bp.keyTerms as SummaryContent['keyTerms']) : [];
+  const finalEmphasis = Array.isArray(bp?.teacherEmphasis) ? (bp.teacherEmphasis as SummaryContent['teacherEmphasis']) : [];
+  const finalOverview = String(bp?.overview || `${bundle.title} çalışma özeti`);
+  const finalDiscipline = String(bp?.disciplineTag || bundle.detectedDiscipline);
 
   return {
-    overview: String(bp?.overview || `${bundle.title} çalışma özeti`),
-    disciplineTag: String(bp?.disciplineTag || bundle.detectedDiscipline),
+    overview: finalOverview,
+    disciplineTag: finalDiscipline,
     keyPoints: Array.isArray(bp?.keyPoints) ? bp.keyPoints.map(String) : [],
     sections: expandedSections,
-    teacherEmphasis: Array.isArray(bp?.teacherEmphasis) ? (bp.teacherEmphasis as SummaryContent['teacherEmphasis']) : [],
+    teacherEmphasis: finalEmphasis,
     comparativeMatrix: bp?.comparativeMatrix as SummaryContent['comparativeMatrix'],
     deepResearchTopics: Array.isArray(bp?.deepResearchTopics)
       ? (bp.deepResearchTopics as SummaryContent['deepResearchTopics'])
       : [],
-    keyTerms: Array.isArray(bp?.keyTerms) ? (bp.keyTerms as SummaryContent['keyTerms']) : [],
+    keyTerms: finalKeyTerms,
     studyChecklist: Array.isArray(bp?.studyChecklist) ? bp.studyChecklist.map(String) : [],
+    studyPriorityMap: normalizePriorityMap(
+      bp?.studyPriorityMap,
+      expandedSections,
+      finalKeyTerms,
+      finalEmphasis,
+      finalOverview,
+      finalDiscipline,
+    ),
     metadata: {
       sourceMode: 'ai',
       deepResearch: settings.deepResearch,
       summaryDepth: settings.summaryDepth,
+      examMode: settings.examMode,
+      faculty: settings.faculty,
+      isLargeBundle: largeBundle,
       sourceStats: {
         sourceCount: bundle.sourceCount,
         wordCount: bundle.totalWords,
@@ -476,12 +617,24 @@ async function generateSummaryMapReduce(
   settings: StudioGenerationSettings,
   onProgress?: ProgressCallback,
 ): Promise<OrchestrationResult> {
-  onProgress?.(12, '1/3 • Kaynak mimarisi ve ders haritası çıkarılıyor...');
-  const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title);
+  const largeBundle = isLargeStudyBundle(bundle) || settings.examMode === 'large_note';
+  onProgress?.(
+    12,
+    largeBundle
+      ? `1/3 • Kapsamlı ders notu (~${bundle.totalWords} kelime) baştan sona taranıyor...`
+      : '1/3 • Kaynak mimarisi ve ders haritası çıkarılıyor...',
+  );
+  const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty);
+  const fullOutlineHint = extractFullDocumentOutline(bundle.combinedText, 24).map(
+    (a) => `${a.heading}${a.pageHint ? ` (${a.pageHint})` : ''}`,
+  );
 
   const commonReq = {
     noteTitle: bundle.title,
-    course: bundle.course || bundle.detectedDiscipline,
+    course: bundle.course || domain.discipline,
+    faculty: settings.faculty && settings.faculty !== 'auto' ? domain.discipline : undefined,
+    examMode: settings.examMode || undefined,
+    fullOutlineHint: fullOutlineHint.length > 0 ? fullOutlineHint : undefined,
     summaryDepth: settings.summaryDepth,
     deepResearch: settings.deepResearch,
     pedagogicalStyle: settings.pedagogicalStyle,
@@ -500,18 +653,31 @@ async function generateSummaryMapReduce(
       audio: bundle.audio,
     });
     if (singleEdge && singleEdge.sourceMode === 'ai') {
+      const secs = (singleEdge.content?.sections || []) as SummarySection[];
       return {
         content: {
           ...singleEdge.content,
+          disciplineTag: singleEdge.content?.disciplineTag || domain.discipline,
+          studyPriorityMap: normalizePriorityMap(
+            singleEdge.content?.studyPriorityMap,
+            secs,
+            singleEdge.content?.keyTerms,
+            singleEdge.content?.teacherEmphasis,
+            singleEdge.content?.overview,
+            singleEdge.content?.disciplineTag || domain.discipline,
+          ),
           metadata: {
             sourceMode: 'ai',
             deepResearch: settings.deepResearch,
             summaryDepth: settings.summaryDepth,
+            examMode: settings.examMode,
+            faculty: settings.faculty,
+            isLargeBundle: largeBundle,
             sourceStats: {
               sourceCount: bundle.sourceCount,
               wordCount: bundle.totalWords,
               pagesOrSlides: bundle.totalPagesOrSlides,
-              sectionCount: singleEdge.content?.sections?.length || 0,
+              sectionCount: secs.length,
             },
           },
         },
@@ -575,7 +741,7 @@ async function generateSummaryMapReduce(
         globalOutline: {
           overview: blueprint.overview,
           keyPoints: blueprint.keyPoints,
-          courseTitle: bundle.course,
+          courseTitle: bundle.course || domain.discipline,
         },
         sectionTargets,
       });
@@ -587,8 +753,8 @@ async function generateSummaryMapReduce(
       } else {
         // Edge expand_batch başarısız olduysa veya yerel fallback döndürdüyse Tier-2 AI ile bölümü derinleştir
         const pubBatch = await invokePublicJsonFallback(
-          buildSectionExpansionSystemPrompt(settings, domain.mode),
-          `DERS: ${bundle.course || bundle.detectedDiscipline}\nBÖLÜMLER:\n${JSON.stringify(sectionTargets)}`,
+          buildSectionExpansionSystemPrompt(settings, domain.mode, domain.examStyleHint),
+          `DERS: ${bundle.course || domain.discipline}\nBÖLÜMLER:\n${JSON.stringify(sectionTargets)}`,
         );
         if (Array.isArray(pubBatch?.sections) && pubBatch.sections.length > 0) {
           for (const sec of pubBatch.sections as SummarySection[]) {
@@ -604,7 +770,7 @@ async function generateSummaryMapReduce(
                 pageRange: target.pageRange,
                 rawSlice: target.contextSlice || '',
                 focusPoints: target.focusPoints || [],
-                course: bundle.course || bundle.detectedDiscipline,
+                course: bundle.course || domain.discipline,
                 title: bundle.title,
                 deepResearch: settings.deepResearch,
               }),
@@ -616,10 +782,10 @@ async function generateSummaryMapReduce(
 
     expandedSections.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
-    onProgress?.(96, '3/3 • Karşılaştırma matrisi ve kontrol listesi birleştiriliyor...');
+    onProgress?.(96, '3/3 • Sınav öncelik haritası, karşılaştırma matrisi ve kontrol listesi birleştiriliyor...');
     const finalSummary: SummaryContent = {
       overview: blueprint.overview,
-      disciplineTag: blueprint.disciplineTag || bundle.detectedDiscipline,
+      disciplineTag: blueprint.disciplineTag || domain.discipline,
       keyPoints: blueprint.keyPoints || [],
       sections: expandedSections,
       teacherEmphasis: blueprint.teacherEmphasis || [],
@@ -627,10 +793,21 @@ async function generateSummaryMapReduce(
       deepResearchTopics: blueprint.deepResearchTopics || [],
       keyTerms: blueprint.keyTerms || [],
       studyChecklist: blueprint.studyChecklist || [],
+      studyPriorityMap: normalizePriorityMap(
+        blueprint.studyPriorityMap,
+        expandedSections,
+        blueprint.keyTerms,
+        blueprint.teacherEmphasis,
+        blueprint.overview,
+        blueprint.disciplineTag || domain.discipline,
+      ),
       metadata: {
         sourceMode: allBatchesAi ? 'ai' : 'fallback',
         deepResearch: settings.deepResearch,
         summaryDepth: settings.summaryDepth,
+        examMode: settings.examMode,
+        faculty: settings.faculty,
+        isLargeBundle: largeBundle,
         sourceStats: {
           sourceCount: bundle.sourceCount,
           wordCount: bundle.totalWords,
@@ -664,11 +841,22 @@ async function generateSummaryMapReduce(
     return {
       content: {
         ...deepened,
-        disciplineTag: deepened.disciplineTag || bundle.detectedDiscipline,
+        disciplineTag: deepened.disciplineTag || domain.discipline,
+        studyPriorityMap: normalizePriorityMap(
+          deepened.studyPriorityMap,
+          deepened.sections || [],
+          deepened.keyTerms,
+          deepened.teacherEmphasis,
+          deepened.overview,
+          deepened.disciplineTag || domain.discipline,
+        ),
         metadata: {
           sourceMode: 'ai',
           deepResearch: settings.deepResearch,
           summaryDepth: settings.summaryDepth,
+          examMode: settings.examMode,
+          faculty: settings.faculty,
+          isLargeBundle: largeBundle,
           sourceStats: {
             sourceCount: bundle.sourceCount,
             wordCount: bundle.totalWords,
@@ -684,7 +872,13 @@ async function generateSummaryMapReduce(
 
   // Tier-2 Client Public AI Map-Reduce Synthesis (Blueprint + Batched Expansion)
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
-    const pubSummary = await generatePublicMapReduceSummary(bundle, settings, domain.mode, onProgress);
+    const pubSummary = await generatePublicMapReduceSummary(
+      bundle,
+      settings,
+      domain.mode,
+      domain.examStyleHint,
+      onProgress,
+    );
     if (pubSummary && pubSummary.sections.length > 0) {
       return {
         content: pubSummary,
@@ -695,30 +889,42 @@ async function generateSummaryMapReduce(
   }
 
   // Tier-3 Local Deterministic Structured Parser (guarantees zero crash + zero foreign boilerplate)
-  onProgress?.(90, 'Yerel yapısal ders ayrıştırıcı ile özet hazırlanıyor...');
+  onProgress?.(90, 'Yerel yapısal ders ayrıştırıcı ile özet ve öncelik haritası hazırlanıyor...');
   const local = generateClientStudyMaterial({
     materialType: 'summary',
     noteTitle: bundle.title,
-    course: bundle.course || bundle.detectedDiscipline,
+    course: bundle.course || domain.discipline,
     noteContext: bundle.combinedText,
     summaryDepth: settings.summaryDepth,
     deepResearch: settings.deepResearch,
     pedagogicalStyle: settings.pedagogicalStyle,
     customPrompt: settings.customPrompt,
   });
+  const localSections = Array.isArray(local.sections) ? (local.sections as SummarySection[]) : [];
   return {
     content: {
       ...local,
-      disciplineTag: bundle.detectedDiscipline,
+      disciplineTag: domain.discipline,
+      studyPriorityMap: normalizePriorityMap(
+        local.studyPriorityMap,
+        localSections,
+        local.keyTerms as SummaryContent['keyTerms'],
+        local.teacherEmphasis as SummaryContent['teacherEmphasis'],
+        String(local.overview || ''),
+        domain.discipline,
+      ),
       metadata: {
         sourceMode: 'local',
         deepResearch: settings.deepResearch,
         summaryDepth: settings.summaryDepth,
+        examMode: settings.examMode,
+        faculty: settings.faculty,
+        isLargeBundle: largeBundle,
         sourceStats: {
           sourceCount: bundle.sourceCount,
           wordCount: bundle.totalWords,
           pagesOrSlides: bundle.totalPagesOrSlides,
-          sectionCount: local.sections?.length || 0,
+          sectionCount: localSections.length,
         },
       },
     },
@@ -745,11 +951,14 @@ export async function generateMaterialWithOrchestration(
       : 'İnteraktif video ders sahneleri ve görsel diyagramlar hazırlanıyor...',
   );
 
+  const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty);
   const edgeRes = await invokeEdgeGenerate({
     materialType: settings.materialType,
     stage: 'single',
     noteTitle: bundle.title,
-    course: bundle.course || bundle.detectedDiscipline,
+    course: bundle.course || domain.discipline,
+    faculty: settings.faculty && settings.faculty !== 'auto' ? domain.discipline : undefined,
+    examMode: settings.examMode || undefined,
     noteContext: sampleUniformContext(bundle.combinedText, 68_000),
     questionCount: settings.questionCount,
     cardCount: settings.cardCount,
@@ -782,43 +991,45 @@ export async function generateMaterialWithOrchestration(
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
     onProgress?.(60, 'Alternatif bulut zekâ üzerinden zenginleştirilerek üretiliyor...');
     if (settings.materialType === 'video') {
-      const videoSys = `Sen Google Gemini NotebookLM "Videolu Özet" (Video Overview) ve 3Blue1Brown kalitesinde editoryal video ders baş senaristisin.
-Verilen ders notlarından 7 sahneli, HER SAHNEDE FARKLI GÖRSEL ŞEMA ('visual', 'curve', 'table', 'shapes', 'chart', 'scenario', 'comparison') kullanan, neden-sonuç zincirini ("Kıtlık → Tarım", "Çöküş → Feodalizm", "Emisyon → Likidite" gibi) hikayeleştirerek anlatan ve Dr. Deniz ile Barış arasındaki doğal, derinlikli akademik diyalogla ilerleyen JSON üret.
+      const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty);
+      const videoSys = `Sen tüm üniversite fakülteleri (Tıp, Mühendislik, İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Eğitim, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat, Hukuk) için ders notlarını yüksek okunabilirlikli, tamamen konuya sadık videolu anlatıma dönüştüren akademik senaristsin.
+Verilen ders notlarından 5-7 sahneli, Dr. Deniz (anlatıcı) ve Barış (soru soran öğrenci) arasında geçen, net ve anlaşılır Türkçe Video Ders JSON'u üret.
 KESİN KURALLAR:
-1. Sıfır klişe: Asla "Akıllı tahtamızda", "Merhaba arkadaşlar", "Tam 12'den vurdun" gibi yapay dolgu cümleler kullanma; doğrudan kavramsal kırılma, mekanizma, tarihsel/iktisadi kanıt ve sınav ayrımıyla konuş.
-2. Her sahnenin 'diagramData.nodes' dizisinde 3-4 dolu kavram kartı olmalı; 'label' alanı mümkün olduğunca "Neden → Sonuç" veya net kavram başlığı olmalı, 'subtext' alanı tam ve doyurucu açıklama içermeli.
-3. İktisat/para konularında 'visualTheme': 'economics', tarih konularında 'history', hukukta 'law' olmalı.
+1. KONU DIŞI BİLGİ YASAĞI: YALNIZCA yüklenen ders notundaki gerçek kavram, süreç, formül ve örnekleri anlat. Notla alakasız bölüm terimleri (ör. tıp/mühendislik/spor/ziraat/eğitim notuna iktisat veya tarih örneği katmak), uydurma yüzde/istatistik ve klişe dolgu cümleler ("Merhaba arkadaşlar", "Akıllı tahtamızda", "Tam 12'den vurdun") KESİNLİKLE YASAKTIR.
+2. OKUNABİLİRLİK: Her sahnenin 'diagramData.nodes' dizisinde 3-4 net kavram kartı üret. Her kartta 'label' 2-5 kelimelik net başlık (en fazla 36 karakter), 'subtext' ise 1-2 sade ve anlaşılır cümle (en fazla 130 karakter) olsun.
+3. GÖRSEL TİPİ: Sadece metne uygun şemalar seç: 'visual', 'table', 'comparison', 'timeline', 'scenario', 'shapes'. 'curve' tipini YALNIZCA gerçek bir iktisat arz-talep/faiz dengesi konusundaysa kullan; 'chart' tipini YALNIZCA notta gerçek sayısal veriler varsa kullan.
+4. 'visualTheme' değerini dersin gerçek fakültesine göre seç: "economics" | "history" | "law" | "politics" | "medicine" | "engineering" | "education" | "sports" | "agriculture" | "science" | "society".
 YALNIZCA JSON döndür:
 {
-  "videoTitle": "Çarpıcı Editoryal Başlık (Örn: 10.000 Yıllık İktisadi Devrim)",
-  "outline": "2-3 cümlelik bütünsel tez özeti",
-  "keyFacts": ["...","...","..."],
+  "videoTitle": "Yüklenen ders notunun gerçek ve net başlığı",
+  "outline": "2-3 cümlelik doğrudan ders notuna sadık genel özet",
+  "keyFacts": ["Ders notundan çıkarım 1", "Çıkarım 2", "Çıkarım 3"],
   "scenes": [{
-    "title": "Net ve Çarpıcı Sahne Başlığı",
+    "title": "Nottaki gerçek bölüm/konu başlığı",
     "turns": [
-      { "speaker": "Deniz", "text": "Derin kuramsal ve nedensel anlatım..." },
-      { "speaker": "Barış", "text": "Deniz hocam, bu mekanizmanın bir sonraki aşamaya etkisi..." },
-      { "speaker": "Deniz", "text": "Somut tarihsel/iktisadi örnek ve sınav ayrımı..." }
+      { "speaker": "Deniz", "text": "Nottaki kavramı net, anlaşılır ve doğru akademik dille açıkla..." },
+      { "speaker": "Barış", "text": "Deniz hocam, bu kavramın işleyişi veya ayırt edici noktası nedir?" },
+      { "speaker": "Deniz", "text": "Nottaki gerçek mekanizma, koşul veya örnekle net yanıt..." }
     ],
     "diagramData": {
-      "diagramType": "visual | curve | table | shapes | chart | scenario | comparison",
-      "visualTheme": "economics | history | law | science | society",
-      "mainTitle": "...",
-      "highlightMetric": "...",
+      "diagramType": "visual | table | comparison | timeline | scenario | shapes",
+      "visualTheme": "economics | history | law | politics | medicine | engineering | education | sports | agriculture | science | society",
+      "mainTitle": "Slayt başlığı",
+      "highlightMetric": "Nottaki en kritik sınav çıkarımı",
       "nodes": [
-        { "label": "Kıtlık → Tarım Devrimi", "subtext": "Yerleşik üretime geçiş ve artı ürünün doğuşu.", "badge": "1. Kırılma", "value": 90 },
-        { "label": "Çöküş → Kurumsal Düzen", "subtext": "Merkezi otorite ve toprak rejiminin yeniden inşası.", "badge": "2. Mekanizma", "value": 82 },
-        { "label": "Karmaşıklık → Ticaret Ağı", "subtext": "Uzmanlaşma, para ekonomisi ve kurumsal büyüme.", "badge": "3. Sonuç", "value": 76 }
+        { "label": "Nottan Gerçek Kavram 1", "subtext": "Kısa, net ve ekranda kolayca okunabilir açıklama.", "badge": "Temel Kavram" },
+        { "label": "Nottan Gerçek Kavram 2", "subtext": "İkinci bileşenin işleyişi veya ayırt edici yönü.", "badge": "Mekanizma" },
+        { "label": "Nottan Gerçek Kavram 3", "subtext": "Üçüncü unsur, koşul veya sonuç.", "badge": "Sonuç" }
       ]
     },
-    "keyTakeaways": ["...","..."],
-    "keyTerms": [{ "term": "...", "definition": "..." }],
-    "examTip": "Sınavda ayırt edici analitik kriter"
+    "keyTakeaways": ["Net çıkarım 1", "Net çıkarım 2"],
+    "keyTerms": [{ "term": "Nottaki terim", "definition": "Kısa ve net tanım" }],
+    "examTip": "Bu konuya özgü gerçek sınav ipucu veya kavram ayrımı"
   }],
   "matchingPairs": [{ "term": "...", "definition": "..." }],
   "examQuestions": [{ "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }]
 }`;
-      const videoUser = `DERS: ${bundle.course || bundle.detectedDiscipline}\nBAŞLIK: ${bundle.title}\n\nKAYNAK:\n${sampleUniformContext(
+      const videoUser = `FAKÜLTE / ALAN: ${domain.discipline}\nDERS: ${bundle.course || domain.discipline}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
         bundle.combinedText,
         14_000,
       )}`;

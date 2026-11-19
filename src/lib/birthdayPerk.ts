@@ -14,6 +14,45 @@ const STORAGE_BIRTHDATE_PREFIX = 'econnotes_birth_date_';
 const STORAGE_PASS_PREFIX = 'econnotes_bday_pass_';
 const STORAGE_CELEBRATED_PREFIX = 'econnotes_bday_celebrated_';
 
+/**
+ * 19 Kasım 2026 (00:00 TRT) tarihinden önce kayıt/giriş yapmış ve doğum tarihi
+ * bilgisi eksik olan kullanıcılar doğum tarihi tamamlama bilgilendirmesi görür.
+ */
+export const BIRTHDATE_REQUIRED_CUTOFF_ISO = '2026-11-19T00:00:00+03:00';
+export const BIRTHDATE_REQUIRED_CUTOFF_MS = Date.parse(BIRTHDATE_REQUIRED_CUTOFF_ISO);
+
+function parseIsoTimestampMs(value: unknown): number | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+export function isRegisteredOrLoggedInBeforeCutoff(
+  user: User | null | undefined,
+  profile?: { created_at?: string | null; last_login?: string | null } | null,
+  cutoffMs = BIRTHDATE_REQUIRED_CUTOFF_MS,
+): boolean {
+  if (!user) return false;
+  const candidates = [
+    parseIsoTimestampMs(user.created_at),
+    parseIsoTimestampMs(profile?.created_at),
+    parseIsoTimestampMs(user.last_sign_in_at),
+    parseIsoTimestampMs(profile?.last_login),
+  ].filter((ms): ms is number => ms !== null);
+
+  if (candidates.length === 0) return false;
+  return candidates.some((ms) => ms < cutoffMs);
+}
+
+export function needsBirthDateCompletion(
+  user: User | null | undefined,
+  profile?: { birth_date?: string | null; created_at?: string | null; last_login?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  if (getUserBirthDate(user, profile)) return false;
+  return isRegisteredOrLoggedInBeforeCutoff(user, profile);
+}
+
 function getTodayMonthDay(now = new Date()): { year: number; month: number; day: number; mmdd: string } {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;

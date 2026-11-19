@@ -113,15 +113,15 @@ const DEFAULT_A11Y: AccessibilitySettings = {
 };
 
 const DIAGRAM_BADGE_TR: Record<DiagramType, string> = {
-  visual: 'Görsel & İllüstrasyon',
-  shapes: 'Şekiller & Döngü',
+  visual: 'Temel Kavramlar',
+  shapes: 'Yapısal İlişkiler',
   table: 'Karşılaştırma Tablosu',
-  chart: 'Analitik Grafik',
-  curve: 'Ekonomik Eğri & Denge',
+  chart: 'Öncelik & Etki Analizi',
+  curve: 'Denge & İlişki Analizi',
   scenario: 'Vaka Senaryosu',
-  timeline: 'Zaman Akışı',
+  timeline: 'Adım Adım Akış',
   comparison: 'İkili Kıyaslama',
-  structure: 'Kurumsal Yapı',
+  structure: 'Temel Bileşenler',
   network: 'Kavram Ağı',
 };
 
@@ -139,11 +139,23 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
   onReport,
   onOpenCoach,
 }) => {
-  const studio = useMemo<StudioContent>(
-    () => buildStudioContent(material.content, material.title, material.course || ''),
-    [material.content, material.title, material.course],
-  );
+  const studio = useMemo<StudioContent>(() => {
+    const rawScenes = Array.isArray((material.content as { scenes?: unknown[] } | null)?.scenes)
+      ? ((material.content as { scenes?: unknown[] }).scenes || [])
+      : [];
+    return buildStudioContent(material.content, material.title, material.course || '', {
+      disableCurriculumExpansion: rawScenes.length >= 2,
+    });
+  }, [material.content, material.title, material.course]);
   const { scenes, totalDurationSec, keyFacts, examQuestions, matchingPairs } = studio;
+
+  const isEconomicsStudio = useMemo(() => {
+    const hay = `${material.course || ''} ${material.title || ''}`.toLocaleLowerCase('tr-TR');
+    return (
+      scenes.some((s) => s.diagram.visualTheme === 'economics') ||
+      /\b(iktisat|ekonomi|para\s+teorisi|makro|mikro|ekonometri|maliye|merkez\s+bankası|enflasyon)\b/i.test(hay)
+    );
+  }, [material.course, material.title, scenes]);
 
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [completedScenes, setCompletedScenes] = useState<Set<number>>(() => {
@@ -160,7 +172,7 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [showSubtitles, setShowSubtitles] = useState(false);
+  const [showSubtitles, setShowSubtitles] = useState(true);
   const [layoutMode, setLayoutMode] = useState<StudioLayoutMode>('standard');
   const [liveSpeaker, setLiveSpeaker] = useState<Speaker>('Deniz');
   const [inBreathPause, setInBreathPause] = useState(false);
@@ -744,20 +756,22 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
             <Network className="h-3.5 w-3.5 text-cyan-400" />
             <span className="hidden lg:inline">Harita</span>
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setIsPlaying(false);
-              setActiveOverlay('lab');
-            }}
-            title="İnteraktif İktisat Laboratuvarı"
-            className="h-8 gap-1.5 text-xs text-slate-200 hover:bg-white/10"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5 text-emerald-400" />
-            <span className="hidden xl:inline">İktisat Lab</span>
-          </Button>
+          {isEconomicsStudio && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setIsPlaying(false);
+                setActiveOverlay('lab');
+              }}
+              title="İnteraktif İktisat Laboratuvarı"
+              className="h-8 gap-1.5 text-xs text-slate-200 hover:bg-white/10"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 text-emerald-400" />
+              <span className="hidden xl:inline">İktisat Lab</span>
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"
@@ -1349,7 +1363,7 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
         />
       )}
 
-      {activeOverlay === 'lab' && (
+      {activeOverlay === 'lab' && isEconomicsStudio && (
         <InteractiveEconomicsLab
           courseTitle={material.course || studio.title}
           onClose={() => setActiveOverlay(null)}

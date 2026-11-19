@@ -21,6 +21,7 @@ import RouteLoader, { prefetchRoutes } from "@/components/RouteLoader";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import SystemGate from "@/components/SystemGate";
 import ApprovalGate from "@/components/ApprovalGate";
+import BirthDatePromptModal from "@/components/BirthDatePromptModal";
 import DailyWelcomePosterModal from "@/components/DailyWelcomePosterModal";
 import ScrollToTop from "@/components/ScrollToTop";
 
@@ -101,6 +102,7 @@ const App = () => {
                         <AdminMessageListener />
                         <ContentNotificationListener />
                         <SupportNotificationListener />
+                        <BirthDatePromptModal />
                         <DailyWelcomePosterModal />
                         <Routes>
                         <Route path="/" element={<Index />} />

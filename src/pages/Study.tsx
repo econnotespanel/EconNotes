@@ -64,6 +64,8 @@ const DEFAULT_SETTINGS: StudioGenerationSettings = {
   quizFormat: 'mixed',
   customPrompt: '',
   examFocus: '',
+  faculty: 'auto',
+  examMode: 'balanced',
 };
 
 const VALID_TABS: NeuralTabId[] = ['hub', 'create', 'library', 'rag', 'planner', 'exam', 'engine'];
@@ -626,6 +628,27 @@ export default function Study() {
                 onOpenMaterial={setActiveMaterial}
                 onQuickCreateType={(type) => {
                   setSettings((prev) => ({ ...prev, materialType: type }));
+                  setActiveTab('create');
+                }}
+                onQuickExamPreset={(mode) => {
+                  setSettings((prev) => ({
+                    ...prev,
+                    materialType: 'summary',
+                    examMode: mode,
+                    summaryDepth:
+                      mode === 'cram_24h'
+                        ? 'standard'
+                        : mode === 'large_note'
+                        ? 'textbook'
+                        : 'comprehensive',
+                    pedagogicalStyle:
+                      mode === 'cram_24h'
+                        ? 'exam_blitz'
+                        : mode === 'deep_mastery'
+                        ? 'feynman'
+                        : 'academic_rigor',
+                    deepResearch: mode !== 'cram_24h',
+                  }));
                   setActiveTab('create');
                 }}
               />

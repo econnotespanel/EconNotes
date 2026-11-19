@@ -13,6 +13,7 @@ interface Profile {
   university: string;
   department: string;
   grade: number | null;
+  birth_date?: string | null;
   avatar_url: string | null;
   approval_status?: 'pending' | 'approved' | 'rejected' | string;
   approved_at?: string | null;

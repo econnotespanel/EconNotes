@@ -385,7 +385,8 @@ const Register = () => {
                   <GraduationCap className="absolute left-3.5 top-3.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="department"
-                    placeholder="Örn: İktisat"
+                    list="popular-departments"
+                    placeholder="Örn: Tıp, Mühendislik, İktisat, Siyaset Bilimi..."
                     value={formData.department}
                     onChange={(e) => setFormData({...formData, department: e.target.value})}
                     onBlur={() => {
@@ -396,6 +397,38 @@ const Register = () => {
                     className="pl-10 h-10 sm:h-11 rounded-xl bg-card/60 border-border/80 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:border-primary transition-all text-sm"
                     required
                   />
+                  <datalist id="popular-departments">
+                    {[
+                      'İktisat',
+                      'Siyaset Bilimi ve Kamu Yönetimi',
+                      'Uluslararası İlişkiler',
+                      'İşletme',
+                      'Hukuk',
+                      'Tıp',
+                      'Bilgisayar Mühendisliği',
+                      'Elektrik-Elektronik Mühendisliği',
+                      'Makine Mühendisliği',
+                      'İnşaat Mühendisliği',
+                      'Endüstri Mühendisliği',
+                      'Eğitim Bilimleri',
+                      'Rehberlik ve Psikolojik Danışmanlık',
+                      'Hemşirelik',
+                      'Fizyoterapi ve Rehabilitasyon',
+                      'Beslenme ve Diyetetik',
+                      'Spor Bilimleri',
+                      'Antrenörlük Eğitimi',
+                      'Ziraat Mühendisliği',
+                      'Psikoloji',
+                      'Sosyoloji',
+                      'Tarih',
+                      'Matematik',
+                      'Fizik',
+                      'Kimya',
+                      'Biyoloji',
+                    ].map((dept) => (
+                      <option key={dept} value={dept} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
             </div>

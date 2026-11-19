@@ -42,6 +42,9 @@ const About = () => {
               iletişim kurmalarını sağlamaktadır.
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed">
+              EconNotes yalnızca İktisat bölümü için değil; <strong>İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat ve Hukuk</strong> başta olmak üzere tüm üniversite fakülte ve bölümlerinde okuyan öğrenciler için tasarlanmıştır.
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
               Platformumuz; ders notlarının sınıf, bölüm ve ders bazında filtrelenmesini, interaktif video dersleri, 
               bilgi kartları, kısa sınavlar, KPSS hazırlık paneli, güvenli mesajlaşma sistemini, duyuru takibini ve 
               7/24 yapay zeka akademik asistan desteğini tek bir çatı altında sunmaktadır.

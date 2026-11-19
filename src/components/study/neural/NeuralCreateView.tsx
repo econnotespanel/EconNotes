@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookMarked,
+  BookOpen,
+  Brain,
   CheckCircle2,
   ClipboardPaste,
+  Compass,
   FileText,
   FileUp,
+  Flame,
+  GraduationCap,
   Layers,
   Loader2,
   Search,
   Sparkles,
+  Target,
   Trash2,
   Video,
   Wand2,
@@ -33,15 +39,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { ACCEPTED_FILES } from '@/lib/extractFile';
 import {
+  FACULTY_CATALOG,
   buildNoteSourceItem,
   buildPastedSourceItem,
   classifyStudyDomain,
   combineStudySources,
   extractUploadedSource,
+  isLargeStudyBundle,
 } from '@/lib/studySourceProcessor';
 import { cn } from '@/lib/utils';
 import type { NeuralEngineState } from '@/lib/neural/neuralEngine';
 import type {
+  ExamStudyMode,
   ExtractedSourceItem,
   MaterialType,
   NoteSourceOption,
@@ -110,10 +119,62 @@ const MATERIAL_CARDS: Array<{
 ];
 
 const PROMPT_CHIPS = [
+  'Hangi konulara kesinlikle bakmam gerektiğini öncelik sırasıyla çıkar',
   'Kavramları karşılaştırma tablosu ve neden-sonuç zinciriyle özetle',
-  'Vize & final tuzaklarına ve klasik sınav ayrımlarına vurgu yap',
-  'Tarihsel, kurumsal veya Türkiye bağlamı örnekleriyle zenginleştir',
-  'Varsa formül, grafik ve sayısal örnekleri adım adım çöz',
+  'Vize & final tuzaklarına ve karıştırılan kavram ayrımlarına vurgu yap',
+  'Varsa formül, klinik/vaka örneği veya sayısal uygulamaları adım adım açıkla',
+];
+
+const EXAM_STUDY_PRESETS: Array<{
+  mode: ExamStudyMode;
+  title: string;
+  badge: string;
+  desc: string;
+  icon: typeof Target;
+  summaryDepth: SummaryDepth;
+  pedagogicalStyle: PedagogicalStyle;
+  deepResearch: boolean;
+}> = [
+  {
+    mode: 'balanced',
+    title: 'Vize / Final Tam Kapsam',
+    badge: 'Önerilen',
+    desc: 'Ayrıntılı özet, kavram tabloları, sınav tuzakları ve öncelik haritası',
+    icon: Target,
+    summaryDepth: 'comprehensive',
+    pedagogicalStyle: 'exam_blitz',
+    deepResearch: true,
+  },
+  {
+    mode: 'cram_24h',
+    title: 'Sınava Son 24 Saat',
+    badge: 'Hızlı Kurtarma',
+    desc: 'En yüksek sınav olasılıklı konular, özet ayrımlar ve kritik tuzaklar',
+    icon: Flame,
+    summaryDepth: 'standard',
+    pedagogicalStyle: 'exam_blitz',
+    deepResearch: false,
+  },
+  {
+    mode: 'large_note',
+    title: 'Kalın / Çoklu Ders Notu',
+    badge: 'Tam Tarama',
+    desc: 'Uzun PDF ve birden fazla hafta notunu ünite atlamadan baştan sona özetler',
+    icon: BookOpen,
+    summaryDepth: 'textbook',
+    pedagogicalStyle: 'academic_rigor',
+    deepResearch: true,
+  },
+  {
+    mode: 'deep_mastery',
+    title: 'Zor Konuyu Kavra',
+    badge: 'Feynman',
+    desc: 'Karmaşık kavramları sadeleştirip somut örneklerle kalıcı öğretir',
+    icon: Brain,
+    summaryDepth: 'comprehensive',
+    pedagogicalStyle: 'feynman',
+    deepResearch: true,
+  },
 ];
 
 const LIVE_PASTE_DRAFT_ID = 'live-pasted-draft';
@@ -229,34 +290,107 @@ export function NeuralCreateView({
           <div>
             <h2 className="text-lg font-bold tracking-tight">Yeni Çalışma Materyali Hazırla</h2>
             <p className="text-xs text-muted-foreground">
-              Dosya yükle, metin yapıştır veya EconNotes kütüphanesindeki notlardan seçerek çalışma setini oluştur.
+              İktisat, Siyaset Bilimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık, İşletme, Spor ve Ziraat dâhil tüm üniversite bölümleri için tam uyumlu.
             </p>
           </div>
+          <Badge variant="outline" className="gap-1 text-[11px] text-primary">
+            <GraduationCap className="h-3.5 w-3.5" />
+            Tüm Fakülteler Destekli
+          </Badge>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1">
             <Label htmlFor="neural-study-title" className="text-xs">
               Çalışma Seti Başlığı
             </Label>
             <Input
               id="neural-study-title"
-              placeholder="Örn: Para Teorisi 5. Hafta — Merkez Bankası"
+              placeholder="Örn: Anayasa Hukuku 4. Hafta, Biyokimya, Termodinamik..."
               value={customTitle}
               onChange={(e) => onCustomTitleChange(e.target.value)}
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor="neural-study-course" className="text-xs">
-              Ders / Bilim Dalı (Otomatik algılanır)
+              Ders Adı (İsteğe bağlı)
             </Label>
             <Input
               id="neural-study-course"
-              placeholder="Örn: Makroekonomi, Ekonometri, Hukuk..."
+              placeholder="Örn: Fizyoloji, Antrenman Bilimi, Uluslararası İlişkiler..."
               value={customCourse}
               onChange={(e) => onCustomCourseChange(e.target.value)}
             />
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Fakülte / Bölüm</Label>
+            <Select
+              value={settings.faculty || 'auto'}
+              onValueChange={(v) => onSettingsChange({ ...settings, faculty: v })}
+            >
+              <SelectTrigger className="h-10 text-xs">
+                <SelectValue placeholder="Otomatik Algıla" />
+              </SelectTrigger>
+              <SelectContent>
+                {FACULTY_CATALOG.map((fac) => (
+                  <SelectItem key={fac.id} value={fac.id} className="text-xs">
+                    {fac.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* Sınav Dönemi Çalışma Stili (Tek Tıkla Verimli Profil) */}
+      <div className="neural-card p-4 sm:p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Compass className="h-4 w-4 text-primary" />
+            <h3 className="text-xs sm:text-sm font-bold">
+              Sınav Dönemi Çalışma Stili — En Verimli Modu Seç
+            </h3>
+          </div>
+          <span className="text-[11px] text-muted-foreground">
+            Seçtiğin mod özet derinliğini ve sınav öncelik rehberini otomatik ayarlar
+          </span>
+        </div>
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          {EXAM_STUDY_PRESETS.map((preset) => {
+            const Icon = preset.icon;
+            const active = (settings.examMode || 'balanced') === preset.mode;
+            return (
+              <button
+                key={preset.mode}
+                type="button"
+                onClick={() =>
+                  onSettingsChange({
+                    ...settings,
+                    examMode: preset.mode,
+                    summaryDepth: preset.summaryDepth,
+                    pedagogicalStyle: preset.pedagogicalStyle,
+                    deepResearch: preset.deepResearch,
+                  })
+                }
+                className={cn(
+                  'rounded-xl border p-3 text-left transition-all',
+                  active
+                    ? 'border-primary bg-primary/10 shadow-xs'
+                    : 'border-border/60 bg-background/60 hover:border-primary/40 hover:bg-muted/40',
+                )}
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <Icon className={cn('h-4 w-4', active ? 'text-primary' : 'text-muted-foreground')} />
+                  <Badge variant={active ? 'default' : 'secondary'} className="text-[9px] px-1.5 py-0">
+                    {preset.badge}
+                  </Badge>
+                </div>
+                <p className="text-xs font-bold leading-snug">{preset.title}</p>
+                <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{preset.desc}</p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -402,11 +536,16 @@ export function NeuralCreateView({
                 {sources.length > 0 && (
                   <>
                     <Badge variant="outline" className="text-[11px] text-cyan-600 dark:text-cyan-300">
-                      {bundle.detectedDiscipline}
+                      {classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty).discipline}
                     </Badge>
                     <Badge variant="secondary" className="text-[11px]">
                       {(() => {
-                        const mode = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title).mode;
+                        const mode = classifyStudyDomain(
+                          bundle.combinedText,
+                          bundle.course,
+                          bundle.title,
+                          settings.faculty,
+                        ).mode;
                         return mode === 'verbal'
                           ? 'Sözel & Kuramsal Odak'
                           : mode === 'quantitative'
@@ -421,6 +560,17 @@ export function NeuralCreateView({
                 {bundle.sourceCount} kaynak · {bundle.totalWords} kelime · ~{bundle.totalPagesOrSlides} sayfa
               </span>
             </div>
+
+            {sources.length > 0 && isLargeStudyBundle(bundle) && (
+              <div className="mt-2.5 flex items-start gap-2 rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-foreground">
+                <Compass className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                <span>
+                  <strong>Kapsamlı Ders Notu Algılandı (~{bundle.totalWords.toLocaleString('tr-TR')} kelime):</strong>{' '}
+                  Notun başından sonuna tüm üniteleri ayrıntılı özetlenecek ve isteğe bağlı{' '}
+                  <strong>&quot;Hangi Konulara Bakmalıyım?&quot;</strong> sınav öncelik haritası otomatik hazırlanacak.
+                </span>
+              </div>
+            )}
 
             {sources.length === 0 ? (
               <p className="mt-2 text-xs text-muted-foreground">
@@ -596,7 +746,7 @@ export function NeuralCreateView({
                 Özel Talimat & Hoca Odakları
               </Label>
               <Input
-                placeholder="Örn: Özellikle Taylor kuralı ve IS-LM kaymalarını detaylandır"
+                placeholder="Örn: Sınavda çıkabilecek en kritik kavram ayrımlarını ve vaka örneklerini detaylandır"
                 value={settings.customPrompt}
                 onChange={(e) => onSettingsChange({ ...settings, customPrompt: e.target.value })}
                 className="text-xs"

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Sparkles, X } from 'lucide-react';
+import { needsBirthDateCompletion } from '@/lib/birthdayPerk';
 
 export const getDailyPosterStorageKey = (userId: string, date: Date = new Date()): string => {
   const year = date.getFullYear();
@@ -12,11 +13,19 @@ export const getDailyPosterStorageKey = (userId: string, date: Date = new Date()
 };
 
 export const DailyWelcomePosterModal: React.FC = () => {
-  const { user, isApproved, loading } = useAuth();
+  const { user, profile, isApproved, loading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [birthDateCompletedTick, setBirthDateCompletedTick] = useState(0);
+
+  useEffect(() => {
+    const onBirthDateUpdated = () => setBirthDateCompletedTick((v) => v + 1);
+    window.addEventListener('econnotes:birthdate-updated', onBirthDateUpdated);
+    return () => window.removeEventListener('econnotes:birthdate-updated', onBirthDateUpdated);
+  }, []);
 
   useEffect(() => {
     if (loading || !user?.id || !isApproved) return;
+    if (profile && needsBirthDateCompletion(user, profile)) return;
 
     const key = getDailyPosterStorageKey(user.id);
     const alreadyShown = localStorage.getItem(key);
@@ -28,7 +37,7 @@ export const DailyWelcomePosterModal: React.FC = () => {
       }, 700);
       return () => window.clearTimeout(timer);
     }
-  }, [user?.id, isApproved, loading]);
+  }, [user, profile, isApproved, loading, birthDateCompletedTick]);
 
   useEffect(() => {
     const handleManualOpen = () => setIsOpen(true);
