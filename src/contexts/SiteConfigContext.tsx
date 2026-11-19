@@ -93,6 +93,7 @@ export const MANAGED_PAGES: { path: string; label: string }[] = [
   { path: '/announcements', label: 'Duyurular' },
   { path: '/messages', label: 'Mesajlar' },
   { path: '/study', label: 'Çalışma Stüdyosu' },
+  { path: '/arena', label: 'Çalışma Arenası' },
   { path: '/kpss', label: 'KPSS Merkezi' },
   { path: '/live-class', label: 'Canlı Ders' },
   { path: '/assistant', label: 'Akademik Asistan' },

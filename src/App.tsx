@@ -11,6 +11,8 @@ import AdminMessageListener from "@/components/AdminMessageListener";
 import ContentNotificationListener from "@/components/ContentNotificationListener";
 import SupportNotificationListener from "@/components/SupportNotificationListener";
 import MobileHomeScreenPrompt from "@/components/MobileHomeScreenPrompt";
+import FloatingFocusPill from "@/components/FloatingFocusPill";
+import { FocusTimerProvider } from "@/contexts/FocusTimerContext";
 import UserPenaltyMonitor from "@/components/UserPenaltyMonitor";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { SiteConfigProvider } from "@/contexts/SiteConfigContext";
@@ -44,6 +46,7 @@ const Kpss = lazy(() => import("./pages/Kpss"));
 const Welcome = lazy(() => import("./pages/Welcome"));
 const Points = lazy(() => import("./pages/Points"));
 const Support = lazy(() => import("./pages/Support"));
+const StudyArena = lazy(() => import("./pages/StudyArena"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -85,6 +88,7 @@ const App = () => {
         <ThemeProvider>
           <SiteConfigProvider>
           <AuthProvider>
+            <FocusTimerProvider>
             <UserPenaltyMonitor />
             <TooltipProvider>
               <Toaster />
@@ -101,6 +105,7 @@ const App = () => {
                         <AdminMessageListener />
                         <ContentNotificationListener />
                         <SupportNotificationListener />
+                        <FloatingFocusPill />
                         <DailyWelcomePosterModal />
                         <Routes>
                         <Route path="/" element={<Index />} />
@@ -116,6 +121,7 @@ const App = () => {
                         <Route path="/about" element={<PageGuard path="/about"><About /></PageGuard>} />
                         <Route path="/assistant" element={<PageGuard path="/assistant"><AcademicAssistant /></PageGuard>} />
                         <Route path="/study" element={<PageGuard path="/study"><Study /></PageGuard>} />
+                        <Route path="/arena" element={<PageGuard path="/arena"><StudyArena /></PageGuard>} />
                         <Route path="/kpss" element={<PageGuard path="/kpss"><Kpss /></PageGuard>} />
                         <Route path="/welcome" element={<Welcome />} />
                         <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
@@ -130,6 +136,7 @@ const App = () => {
                 </Suspense>
               </BrowserRouter>
             </TooltipProvider>
+            </FocusTimerProvider>
           </AuthProvider>
           </SiteConfigProvider>
         </ThemeProvider>

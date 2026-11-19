@@ -57,7 +57,16 @@ const DailyMissions = () => {
     setLoading(false);
   }, [user]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const onRefresh = () => void load();
+    window.addEventListener('econnotes:points-updated', onRefresh);
+    window.addEventListener('econnotes:arena-updated', onRefresh);
+    return () => {
+      window.removeEventListener('econnotes:points-updated', onRefresh);
+      window.removeEventListener('econnotes:arena-updated', onRefresh);
+    };
+  }, [load]);
 
   const claim = async (m: Progressed) => {
     setClaiming(m.key);

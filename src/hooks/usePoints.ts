@@ -63,7 +63,11 @@ export const usePoints = (leaderboardLimit = 10) => {
 /** Awards points for an in-app action. Fails silently — points are a bonus. */
 export const awardPoints = async (reason: string, amount: number) => {
   try {
-    const { data } = await (supabase as any).rpc('award_points', { _reason: reason, _amount: amount });
+    const { data, error } = await (supabase as any).rpc('award_points', { _reason: reason, _amount: amount });
+    if (error) return null;
+    if (typeof window !== 'undefined' && data != null) {
+      window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+    }
     return data as number | null;
   } catch {
     return null;

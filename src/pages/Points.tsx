@@ -19,9 +19,23 @@ const REASON_LABEL: Record<string, string> = {
   study_material: 'Materyal üretimi',
 };
 
+const normalizeReasonKey = (reason: string) => {
+  if (reason.startsWith('mission_checkin_')) return 'mission_checkin';
+  if (reason.startsWith('mission_blitz_')) return 'mission_blitz';
+  if (reason.startsWith('mission_match_')) return 'mission_match';
+  if (reason.startsWith('mission_focus_')) return 'mission_focus';
+  if (reason.startsWith('mission:')) return 'mission';
+  if (reason.startsWith('monday_wheel')) return 'monday_wheel';
+  return reason;
+};
+
 const labelFor = (reason: string) => {
-  if (reason.startsWith('mission:')) return 'Mini görev bonusu';
-  if (reason.startsWith('monday_wheel')) return 'Pazartesi Şans Çarkı';
+  if (reason === 'mission_checkin' || reason.startsWith('mission_checkin_')) return 'Günlük seri sandığı';
+  if (reason === 'mission_blitz' || reason.startsWith('mission_blitz_')) return 'Günün iktisat düellosu';
+  if (reason === 'mission_match' || reason.startsWith('mission_match_')) return 'Kavram eşleştirme arenası';
+  if (reason === 'mission_focus' || reason.startsWith('mission_focus_')) return 'Derin odak stüdyosu';
+  if (reason === 'mission' || reason.startsWith('mission:')) return 'Mini görev bonusu';
+  if (reason === 'monday_wheel' || reason.startsWith('monday_wheel')) return 'Pazartesi Şans Çarkı';
   return REASON_LABEL[reason] || reason;
 };
 
@@ -50,7 +64,7 @@ const Points = () => {
   }, [user]);
 
   const reasons = useMemo(() => {
-    const set = new Set(events.map(e => (e.reason.startsWith('mission:') ? 'mission' : e.reason)));
+    const set = new Set(events.map(e => normalizeReasonKey(e.reason)));
     return [...set];
   }, [events]);
 
@@ -59,8 +73,7 @@ const Points = () => {
     return events.filter(e => {
       if (new Date(e.created_at).getTime() < from) return false;
       if (reasonFilter === 'all') return true;
-      if (reasonFilter === 'mission') return e.reason.startsWith('mission:');
-      return e.reason === reasonFilter;
+      return normalizeReasonKey(e.reason) === reasonFilter;
     });
   }, [events, range, reasonFilter]);
 
