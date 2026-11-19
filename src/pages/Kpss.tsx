@@ -44,16 +44,18 @@ const Kpss = () => {
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
 
             <div className="relative z-10 flex flex-wrap items-center gap-3.5 sm:gap-4 mb-6">
-              <EconLogo allWhite className="h-7 w-auto" />
-              <span className="h-5 w-px bg-white/30" aria-hidden="true" />
-              <img
-                src="/econkpss-logo.png"
-                alt="EconKPSS"
-                className={cn(
-                  'h-5 sm:h-6 w-auto object-contain select-none',
-                  isNovember10 && 'grayscale contrast-125',
-                )}
-              />
+              <EconLogo allWhite className="h-7 sm:h-8 w-auto" />
+              <span className="h-6 w-px bg-white/30" aria-hidden="true" />
+              <span className="inline-flex h-7 sm:h-8 shrink-0 items-center">
+                <img
+                  src="/econkpss-logo.png"
+                  alt="EconKPSS"
+                  className={cn(
+                    'h-full w-auto max-h-full object-contain object-center select-none',
+                    isNovember10 && 'grayscale contrast-125',
+                  )}
+                />
+              </span>
             </div>
 
             <div className="relative z-10 max-w-2xl space-y-3">
