@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,7 +20,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Loader2, Upload, Cake, Gift } from 'lucide-react';
+import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Loader2, Upload, Cake, Gift, Clock } from 'lucide-react';
+import {
+  fetchNoteEngagementCounts,
+  formatEngagementNumber,
+  recordNoteDownload,
+  recordNoteView,
+} from '@/lib/noteEngagement';
 import { getBirthdayStatus, isBirthdayUnlimitedActive } from '@/lib/birthdayPerk';
 import { getMondayWheelState, getWheelBonusQuota, isWheelUnlimitedActive } from '@/lib/mondayWheel';
 import { logActivity } from '@/lib/activityLogger';
@@ -126,6 +133,7 @@ const Notes = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<string | null>(null);
+  const [previewNote, setPreviewNote] = useState<any | null>(null);
   const [previewSlides, setPreviewSlides] = useState<string[]>([]);
   const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
   const [uploadRestricted, setUploadRestricted] = useState(true);
@@ -208,10 +216,9 @@ const Notes = () => {
       return;
     }
 
-    // Only load engagement data for notes currently shown on this page.
-    const [viewsRes, downloadsRes, commentsRes] = await Promise.all([
-      supabase.from('note_views').select('note_id').in('note_id', noteIds),
-      supabase.from('note_downloads').select('note_id').in('note_id', noteIds),
+    // Tüm kullanıcılar ve yöneticiler için toplam görüntülenme/indirme sayılarını ve yorumları çek.
+    const [engagementMap, commentsRes] = await Promise.all([
+      fetchNoteEngagementCounts(noteIds),
       supabase
         .from('comments')
         .select('id, entity_id, content, user_name, created_at')
@@ -221,11 +228,12 @@ const Notes = () => {
     ]);
 
     const vc: Record<string, number> = {};
-    (viewsRes.data || []).forEach((v: any) => { vc[v.note_id] = (vc[v.note_id] || 0) + 1; });
-    setViewCounts(vc);
-
     const dc: Record<string, number> = {};
-    (downloadsRes.data || []).forEach((d: any) => { dc[d.note_id] = (dc[d.note_id] || 0) + 1; });
+    for (const id of noteIds) {
+      vc[id] = engagementMap[id]?.views ?? 0;
+      dc[id] = engagementMap[id]?.downloads ?? 0;
+    }
+    setViewCounts(vc);
     setDownloadCounts(dc);
 
     const grouped: Record<string, any[]> = {};
@@ -273,6 +281,7 @@ const Notes = () => {
 
         // Önizleme için EconNotes filigranını dosyaya ekle
         const displayUrl = await prepareWatermarkedPreview(signed, note.file_name, note.file_type, viewerName);
+        setPreviewNote(note);
         setPreviewUrl(displayUrl);
         setPreviewType(note.file_type);
         setPreviewSlides([]);
@@ -321,19 +330,34 @@ const Notes = () => {
 
   const trackView = async (noteId: string) => {
     if (!user) return;
-    await supabase.from('note_views').upsert(
-      { note_id: noteId, user_id: user.id },
-      { onConflict: 'note_id,user_id' }
-    );
+    const updated = await recordNoteView(noteId, user.id);
+    if (updated) {
+      setViewCounts((prev) => ({ ...prev, [noteId]: updated.views }));
+      setDownloadCounts((prev) => ({ ...prev, [noteId]: updated.downloads }));
+      return;
+    }
+    setViewCounts((prev) => ({ ...prev, [noteId]: (prev[noteId] || 0) + 1 }));
+    const refreshed = await fetchNoteEngagementCounts([noteId]);
+    if (refreshed[noteId]) {
+      setViewCounts((prev) => ({ ...prev, [noteId]: Math.max(prev[noteId] || 0, refreshed[noteId].views) }));
+      setDownloadCounts((prev) => ({ ...prev, [noteId]: Math.max(prev[noteId] || 0, refreshed[noteId].downloads) }));
+    }
   };
 
   const trackDownload = async (noteId: string) => {
     if (!user) return;
-    await supabase.from('note_downloads').upsert(
-      { note_id: noteId, user_id: user.id },
-      { onConflict: 'note_id,user_id' }
-    );
-    fetchNotes();
+    const updated = await recordNoteDownload(noteId, user.id);
+    if (updated) {
+      setViewCounts((prev) => ({ ...prev, [noteId]: updated.views }));
+      setDownloadCounts((prev) => ({ ...prev, [noteId]: updated.downloads }));
+    } else {
+      setDownloadCounts((prev) => ({ ...prev, [noteId]: (prev[noteId] || 0) + 1 }));
+      const refreshed = await fetchNoteEngagementCounts([noteId]);
+      if (refreshed[noteId]) {
+        setViewCounts((prev) => ({ ...prev, [noteId]: Math.max(prev[noteId] || 0, refreshed[noteId].views) }));
+        setDownloadCounts((prev) => ({ ...prev, [noteId]: Math.max(prev[noteId] || 0, refreshed[noteId].downloads) }));
+      }
+    }
     refreshQuota();
   };
 
@@ -823,6 +847,14 @@ const Notes = () => {
                       <strong className="text-amber-600 dark:text-amber-400">Yönetici Geri Bildirimi: </strong>
                       {getCleanRevisionNotes(n)}
                     </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2 py-0.5">
+                        <Eye className="h-3 w-3 text-primary" /> {formatEngagementNumber(viewCounts[n.id] || 0)} görüntülenme
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted/70 px-2 py-0.5">
+                        <Download className="h-3 w-3 text-secondary" /> {formatEngagementNumber(downloadCounts[n.id] || 0)} indirme
+                      </span>
+                    </div>
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2">
@@ -858,9 +890,17 @@ const Notes = () => {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
               {myPendingNotes.map((n) => (
-                <div key={n.id} className="p-2.5 rounded-xl border border-border/60 bg-card/60 text-xs space-y-1">
+                <div key={n.id} className="p-2.5 rounded-xl border border-border/60 bg-card/60 text-xs space-y-1.5">
                   <p className="font-semibold text-foreground truncate">{n.title}</p>
                   <p className="text-muted-foreground truncate">{n.course} • {n.department || 'Bölüm yok'} • {n.university || 'Üniversite yok'}</p>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground pt-0.5">
+                    <span className="inline-flex items-center gap-1">
+                      <Eye className="h-3 w-3 text-primary" /> {formatEngagementNumber(viewCounts[n.id] || 0)}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Download className="h-3 w-3 text-secondary" /> {formatEngagementNumber(downloadCounts[n.id] || 0)}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1136,6 +1176,8 @@ const Notes = () => {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {Object.entries(universityGroups).map(([university, universityNotes]) => {
                   const universityLogo = getUniversityLogo(university);
+                  const uniViews = universityNotes.reduce((sum, n) => sum + (viewCounts[n.id] || 0), 0);
+                  const uniDownloads = universityNotes.reduce((sum, n) => sum + (downloadCounts[n.id] || 0), 0);
                   return (
                   <button
                     key={university}
@@ -1161,7 +1203,15 @@ const Notes = () => {
                     </div>
                     <div className="relative mt-4">
                       <span className="block truncate text-base font-semibold text-foreground">{university}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">Ders klasörlerini görüntüle</span>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1" title="Toplam görüntülenme">
+                          <Eye className="h-3 w-3 text-primary/80" /> {formatEngagementNumber(uniViews)}
+                        </span>
+                        <span className="opacity-40">•</span>
+                        <span className="inline-flex items-center gap-1" title="Toplam indirme">
+                          <Download className="h-3 w-3 text-secondary" /> {formatEngagementNumber(uniDownloads)}
+                        </span>
+                      </div>
                     </div>
                   </button>
                   );
@@ -1169,7 +1219,10 @@ const Notes = () => {
               </div>
             ) : (
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-                {Object.entries(courseGroups).map(([course, courseNotes]) => (
+                {Object.entries(courseGroups).map(([course, courseNotes]) => {
+                  const courseViews = courseNotes.reduce((sum, n) => sum + (viewCounts[n.id] || 0), 0);
+                  const courseDownloads = courseNotes.reduce((sum, n) => sum + (downloadCounts[n.id] || 0), 0);
+                  return (
                   <button
                     key={course}
                     onClick={() => setSelectedCourse(course)}
@@ -1183,12 +1236,21 @@ const Notes = () => {
                     </div>
                     <div className="mt-3 w-full min-w-0">
                       <span className="block truncate text-sm font-semibold text-foreground">{course}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
+                      <span className="mt-1 block truncate text-xs text-muted-foreground">
                         {Array.from(new Set(courseNotes.map((note) => note.semester).filter(Boolean))).join(' · ') || 'Ders notları'}
                       </span>
+                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1" title="Toplam görüntülenme">
+                          <Eye className="h-3 w-3 text-primary/80" /> {formatEngagementNumber(courseViews)}
+                        </span>
+                        <span className="inline-flex items-center gap-1" title="Toplam indirme">
+                          <Download className="h-3 w-3 text-secondary" /> {formatEngagementNumber(courseDownloads)}
+                        </span>
+                      </div>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
             {!loading && Object.keys(filterUniversity === 'all' ? universityGroups : courseGroups).length === 0 && (
@@ -1230,6 +1292,18 @@ const Notes = () => {
                         </div>
                         <p className="font-semibold">{note.title}</p>
                         <p className="text-xs text-muted-foreground">Bu not şifreli. Görüntülemek için şifre girin.</p>
+                        <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/70 px-2.5 py-1" title="Toplam görüntülenme">
+                            <Eye className="h-3.5 w-3.5 text-primary/80" />
+                            <strong className="font-semibold text-foreground tabular-nums">{formatEngagementNumber(viewCounts[note.id] || 0)}</strong>
+                            <span>görüntülenme</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/70 px-2.5 py-1" title="Toplam indirme">
+                            <Download className="h-3.5 w-3.5 text-secondary" />
+                            <strong className="font-semibold text-foreground tabular-nums">{formatEngagementNumber(downloadCounts[note.id] || 0)}</strong>
+                            <span>indirme</span>
+                          </span>
+                        </div>
                         <div className="flex gap-2">
                           <Input
                             type="password"
@@ -1350,10 +1424,30 @@ const Notes = () => {
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-1.5"><Eye className="h-3.5 w-3.5 text-primary/80" /> {viewCounts[note.id] || 0}</span>
-                            <span className="flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-1.5"><Download className="h-3.5 w-3.5 text-secondary" /> {downloadCounts[note.id] || 0}</span>
-                            <span className="flex items-center gap-1.5 rounded-full bg-muted/70 px-2.5 py-1.5"><MessageSquare className="h-3.5 w-3.5 text-primary/80" /> {(comments[note.id] || []).length}</span>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-full border border-primary/15 bg-primary/[0.06] px-2.5 py-1.5"
+                              title={`Toplam ${formatEngagementNumber(viewCounts[note.id] || 0)} görüntülenme`}
+                            >
+                              <Eye className="h-3.5 w-3.5 text-primary" />
+                              <strong className="font-semibold text-foreground tabular-nums">{formatEngagementNumber(viewCounts[note.id] || 0)}</strong>
+                              <span className="text-[11px]">görüntülenme</span>
+                            </span>
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-full border border-secondary/20 bg-secondary/[0.08] px-2.5 py-1.5"
+                              title={`Toplam ${formatEngagementNumber(downloadCounts[note.id] || 0)} indirme`}
+                            >
+                              <Download className="h-3.5 w-3.5 text-secondary" />
+                              <strong className="font-semibold text-foreground tabular-nums">{formatEngagementNumber(downloadCounts[note.id] || 0)}</strong>
+                              <span className="text-[11px]">indirme</span>
+                            </span>
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/70 px-2.5 py-1.5"
+                              title={`${formatEngagementNumber((comments[note.id] || []).length)} yorum`}
+                            >
+                              <MessageSquare className="h-3.5 w-3.5 text-primary/80" />
+                              <strong className="font-semibold text-foreground tabular-nums">{formatEngagementNumber((comments[note.id] || []).length)}</strong>
+                            </span>
                           </div>
                           <div className="flex flex-wrap gap-2 border-t border-border/50 pt-3">
                             {note.file_url && (
@@ -1478,19 +1572,36 @@ const Notes = () => {
               }
               setPreviewUrl(null);
               setPreviewType(null);
+              setPreviewNote(null);
               setPreviewSlides([]);
             }}
           >
             <DialogContent className="flex h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
-              <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-16 text-left sm:px-6 sm:pr-20">
+              <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-16 text-left sm:px-6 sm:pr-20">
                 <DialogClose className="absolute right-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
                   <X className="h-5 w-5" aria-hidden="true" />
                 </DialogClose>
                 <div className="flex min-w-0 items-center gap-3">
-                  <EconLogo allWhite className="h-8 w-28 sm:h-9 sm:w-36" />
-                  <span className="h-8 w-px bg-white/15" />
-                  <div>
-                    <DialogTitle className="text-sm font-semibold text-white sm:text-base">Önizleme</DialogTitle>
+                  <EconLogo allWhite className="h-8 w-28 shrink-0 sm:h-9 sm:w-36" />
+                  <span className="h-8 w-px shrink-0 bg-white/15" />
+                  <div className="min-w-0">
+                    <DialogTitle className="truncate text-sm font-semibold text-white sm:text-base">
+                      {previewNote?.title || 'Önizleme'}
+                    </DialogTitle>
+                    {previewNote && (
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-white/75">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5">
+                          <Eye className="h-3 w-3 text-sky-300" />
+                          <strong className="font-semibold text-white tabular-nums">{formatEngagementNumber(viewCounts[previewNote.id] || 0)}</strong>
+                          <span>görüntülenme</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5">
+                          <Download className="h-3 w-3 text-emerald-300" />
+                          <strong className="font-semibold text-white tabular-nums">{formatEngagementNumber(downloadCounts[previewNote.id] || 0)}</strong>
+                          <span>indirme</span>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </DialogHeader>

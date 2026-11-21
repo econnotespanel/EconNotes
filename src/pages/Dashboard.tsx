@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones, Cake, Gift, Lock } from 'lucide-react';
+import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones, Cake, Gift, Lock, Eye } from 'lucide-react';
+import { fetchNoteEngagementCounts, formatEngagementNumber, type NoteEngagementMap } from '@/lib/noteEngagement';
 import { getBirthdayStatus, getUserBirthDate } from '@/lib/birthdayPerk';
 import { getMondayWheelState } from '@/lib/mondayWheel';
 import { openMondayWheelModal, EconWheelMiniGraphic } from '@/components/MondayWheelPopup';
@@ -46,6 +47,7 @@ const Dashboard = () => {
   const isNovember10 = seasonalTheme?.id === 'november10';
   const [stats, setStats] = useState({ notes: 0, announcements: 0 });
   const [recentNotes, setRecentNotes] = useState<any[]>([]);
+  const [noteEngagement, setNoteEngagement] = useState<NoteEngagementMap>({});
   const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([]);
   const [syncTime] = useState(new Date().toLocaleString('tr-TR'));
   const [academicWeek, setAcademicWeek] = useState<{ week: number | null; label: string | null; semester: string | null }>({ week: null, label: null, semester: null });
@@ -86,8 +88,17 @@ const Dashboard = () => {
         const settingsRes = results[2].status === 'fulfilled' ? results[2].value : { data: null };
         const bannersRes = results[3].status === 'fulfilled' ? results[3].value : { data: [] };
 
+        const loadedNotes = (notesRes as any).data || [];
         setStats({ notes: (notesRes as any).count || 0, announcements: (announcementsRes as any).count || 0 });
-        setRecentNotes((notesRes as any).data || []);
+        setRecentNotes(loadedNotes);
+        const noteIds = loadedNotes.map((n: any) => n.id).filter(Boolean);
+        if (noteIds.length > 0) {
+          void fetchNoteEngagementCounts(noteIds)
+            .then((counts) => setNoteEngagement(counts))
+            .catch(() => {});
+        } else {
+          setNoteEngagement({});
+        }
         setRecentAnnouncements((announcementsRes as any).data || []);
         setBanners((bannersRes as any).data || []);
         if (settingsRes && (settingsRes as any).data) {
@@ -629,7 +640,9 @@ const Dashboard = () => {
                 <p className="text-sm text-muted-foreground">Henüz not paylaşılmamış.</p>
               ) : (
                 <>
-                  {displayedNotes.map((note, idx) => (
+                  {displayedNotes.map((note, idx) => {
+                    const counts = noteEngagement[note.id] || { views: 0, downloads: 0 };
+                    return (
                     <div key={note.id} className="flex min-w-0 flex-col gap-2 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between" onClick={() => navigate('/notes')}>
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
@@ -638,9 +651,24 @@ const Dashboard = () => {
                           <p className="break-words text-xs text-muted-foreground sm:truncate">{note.uploader_name} • {note.course} • {note.semester}</p>
                         </div>
                       </div>
-                      <span className="pl-7 text-[11px] text-muted-foreground sm:pl-0 sm:text-xs shrink-0">{formatDateTime(note.created_at)}</span>
+                      <div className="flex flex-wrap items-center gap-2 pl-7 sm:pl-0 shrink-0">
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-primary/15 bg-primary/[0.06] px-2 py-0.5 text-[11px] font-medium text-foreground/85 tabular-nums"
+                          title={`${formatEngagementNumber(counts.views)} görüntülenme`}
+                        >
+                          <Eye className="h-3 w-3 text-primary" /> {formatEngagementNumber(counts.views)}
+                        </span>
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-secondary/20 bg-secondary/[0.08] px-2 py-0.5 text-[11px] font-medium text-foreground/85 tabular-nums"
+                          title={`${formatEngagementNumber(counts.downloads)} indirme`}
+                        >
+                          <Download className="h-3 w-3 text-secondary" /> {formatEngagementNumber(counts.downloads)}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground sm:text-xs">{formatDateTime(note.created_at)}</span>
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {recentNotes.length > 5 && (
                     <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowAllNotes(!showAllNotes)}>
                       {showAllNotes ? <><ChevronUp className="h-3 w-3 mr-1" /> Daha az göster</> : <><ChevronDown className="h-3 w-3 mr-1" /> Tümünü göster ({recentNotes.length})</>}

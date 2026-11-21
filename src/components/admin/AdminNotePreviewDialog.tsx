@@ -24,9 +24,11 @@ import {
   User,
   Lock,
   Eye,
+  Download,
   RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatEngagementNumber } from '@/lib/noteEngagement';
 
 interface AdminNotePreviewDialogProps {
   note: any | null;
@@ -37,6 +39,7 @@ interface AdminNotePreviewDialogProps {
   onReject: (id: string) => Promise<void>;
   notePassword?: string;
   onRevealPassword?: (id: string) => Promise<void>;
+  engagement?: { views: number; downloads: number };
 }
 
 export const AdminNotePreviewDialog: React.FC<AdminNotePreviewDialogProps> = ({
@@ -48,6 +51,7 @@ export const AdminNotePreviewDialog: React.FC<AdminNotePreviewDialogProps> = ({
   onReject,
   notePassword,
   onRevealPassword,
+  engagement,
 }) => {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [loadingFile, setLoadingFile] = useState(false);
@@ -256,6 +260,28 @@ export const AdminNotePreviewDialog: React.FC<AdminNotePreviewDialogProps> = ({
               ) : (
                 <span className="text-muted-foreground">Şifresiz</span>
               )}
+            </div>
+          </div>
+
+          {/* Görüntülenme & İndirme İstatistikleri */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="flex items-center justify-between p-2.5 rounded-xl border border-primary/20 bg-primary/[0.06]">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Eye className="h-3.5 w-3.5 text-primary" />
+                <span className="font-semibold">Toplam Görüntülenme</span>
+              </div>
+              <span className="text-sm font-bold text-foreground tabular-nums">
+                {formatEngagementNumber(engagement?.views ?? 0)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06]">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Download className="h-3.5 w-3.5 text-emerald-500" />
+                <span className="font-semibold">Toplam İndirme</span>
+              </div>
+              <span className="text-sm font-bold text-foreground tabular-nums">
+                {formatEngagementNumber(engagement?.downloads ?? 0)}
+              </span>
             </div>
           </div>
 

@@ -21,6 +21,12 @@ import { logActivity } from '@/lib/activityLogger';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { NOTE_SELECT } from '@/lib/noteColumns';
+import {
+  fetchNoteEngagementCounts,
+  formatEngagementNumber,
+  sumNoteEngagement,
+  type NoteEngagementMap,
+} from '@/lib/noteEngagement';
 import SiteDesignPanel from '@/components/admin/SiteDesignPanel';
 import AdminNotePreviewDialog from '@/components/admin/AdminNotePreviewDialog';
 import FatalErrorScreen from '@/components/FatalErrorScreen';
@@ -68,8 +74,36 @@ const AdminPanel = () => {
   const [notesSubTab, setNotesSubTab] = useState<'active' | 'archive'>('active');
   const [userEmails, setUserEmails] = useState<Record<string, string>>({});
   const [notePasswords, setNotePasswords] = useState<Record<string, string>>({});
+  const [noteEngagement, setNoteEngagement] = useState<NoteEngagementMap>({});
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
+  const totalNoteEngagement = useMemo(
+    () => sumNoteEngagement(noteEngagement, notes.map((n) => n.id)),
+    [noteEngagement, notes],
+  );
+  const renderNoteEngagementBadges = (noteId: string) => {
+    const counts = noteEngagement[noteId] || { views: 0, downloads: 0 };
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[11px] text-muted-foreground">
+        <span
+          className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/[0.07] px-2 py-0.5 text-foreground/90 tabular-nums"
+          title={`Toplam ${formatEngagementNumber(counts.views)} görüntülenme`}
+        >
+          <Eye className="h-3 w-3 text-primary" />
+          <strong className="font-semibold">{formatEngagementNumber(counts.views)}</strong>
+          <span className="text-muted-foreground">görüntülenme</span>
+        </span>
+        <span
+          className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-2 py-0.5 text-foreground/90 tabular-nums"
+          title={`Toplam ${formatEngagementNumber(counts.downloads)} indirme`}
+        >
+          <Download className="h-3 w-3 text-emerald-500" />
+          <strong className="font-semibold">{formatEngagementNumber(counts.downloads)}</strong>
+          <span className="text-muted-foreground">indirme</span>
+        </span>
+      </div>
+    );
+  };
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [penalties, setPenalties] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
@@ -355,8 +389,17 @@ const AdminPanel = () => {
         console.error('Kullanıcı veya not verileri yüklenemedi:', usersRes.error || notesRes.error);
         toast.error('Kullanıcı veya not listesi yüklenemedi.');
       }
+      const loadedNotes = (notesRes.data as any[]) || [];
       setUsers(usersRes.data || []);
-      setNotes((notesRes.data as any[]) || []);
+      setNotes(loadedNotes);
+      const loadedNoteIds = loadedNotes.map((n: any) => n.id).filter(Boolean);
+      if (loadedNoteIds.length > 0) {
+        void fetchNoteEngagementCounts(loadedNoteIds)
+          .then((counts) => setNoteEngagement(counts))
+          .catch(() => {});
+      } else {
+        setNoteEngagement({});
+      }
       void emailsInvokePromise.then(({ data, error }) => {
         if (error) {
           console.warn('admin-user-emails alınamadı:', error);
@@ -369,6 +412,7 @@ const AdminPanel = () => {
       toast.error('Kullanıcı ve not listesi yüklenemedi.');
       setUsers([]);
       setNotes([]);
+      setNoteEngagement({});
     } finally {
       setUsersLoading(false);
       setNotesLoading(false);
@@ -1495,15 +1539,33 @@ const AdminPanel = () => {
                     </Button>
                   </div>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={fetchAll}
-                    className="h-8 rounded-xl gap-1 text-xs"
-                    title="Notları yenile"
-                  >
-                    <RotateCcw className="h-3 w-3" /> Yenile
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-primary/20 bg-primary/[0.06] px-2.5 py-1.5 text-xs text-foreground"
+                      title="Tüm notların toplam görüntülenme sayısı"
+                    >
+                      <Eye className="h-3.5 w-3.5 text-primary" />
+                      <strong className="font-bold tabular-nums">{formatEngagementNumber(totalNoteEngagement.views)}</strong>
+                      <span className="text-muted-foreground">görüntülenme</span>
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-1.5 text-xs text-foreground"
+                      title="Tüm notların toplam indirme sayısı"
+                    >
+                      <Download className="h-3.5 w-3.5 text-emerald-500" />
+                      <strong className="font-bold tabular-nums">{formatEngagementNumber(totalNoteEngagement.downloads)}</strong>
+                      <span className="text-muted-foreground">indirme</span>
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={fetchAll}
+                      className="h-8 rounded-xl gap-1 text-xs"
+                      title="Notları yenile"
+                    >
+                      <RotateCcw className="h-3 w-3" /> Yenile
+                    </Button>
+                  </div>
                 </div>
 
                 {notesLoading && (
@@ -1573,6 +1635,7 @@ const AdminPanel = () => {
                                   <p className="text-xs text-muted-foreground truncate">
                                     {n.uploader_name} • {n.course} • {n.department || 'Bölüm yok'} • {n.university || 'Üniversite yok'} • {new Date(n.created_at).toLocaleString('tr-TR')}
                                   </p>
+                                  {renderNoteEngagementBadges(n.id)}
                                 </div>
 
                                 <div className="flex items-center gap-1.5 shrink-0">
@@ -1659,6 +1722,7 @@ const AdminPanel = () => {
                                   <p className="text-xs text-cyan-500 dark:text-cyan-300 bg-cyan-500/10 rounded-lg p-1.5 border border-cyan-500/20">
                                     <strong>İstenen Düzeltme:</strong> {getCleanRevisionNotes(n)}
                                   </p>
+                                  {renderNoteEngagementBadges(n.id)}
                                 </div>
 
                                 <div className="flex items-center gap-1.5 shrink-0">
@@ -1717,6 +1781,7 @@ const AdminPanel = () => {
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground truncate">{n.uploader_name} • {n.course} • {n.university || 'Üniversite yok'} • {new Date(n.created_at).toLocaleDateString('tr-TR')}</p>
+                            {renderNoteEngagementBadges(n.id)}
                           </div>
 
                           <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -1767,6 +1832,7 @@ const AdminPanel = () => {
                               <p className="text-[11px] text-amber-500 bg-amber-500/10 rounded px-2 py-1 inline-block">
                                 Arşiv Sebebi: {n.rejection_reason || '72 saat içerisinde düzenlenmedi veya yönetici tarafından arşivlendi'}
                               </p>
+                              {renderNoteEngagementBadges(n.id)}
                             </div>
 
                             <div className="flex items-center gap-1.5 shrink-0">
@@ -2439,6 +2505,7 @@ const AdminPanel = () => {
         onReject={rejectNote}
         notePassword={previewNote ? notePasswords[previewNote.id] : undefined}
         onRevealPassword={revealNotePassword}
+        engagement={previewNote ? noteEngagement[previewNote.id] : undefined}
       />
       </Layout>
   );

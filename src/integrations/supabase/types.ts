@@ -529,6 +529,27 @@ export type Database = {
         }
         Relationships: []
       }
+      note_stats: {
+        Row: {
+          download_count: number
+          note_id: string
+          updated_at: string
+          view_count: number
+        }
+        Insert: {
+          download_count?: number
+          note_id: string
+          updated_at?: string
+          view_count?: number
+        }
+        Update: {
+          download_count?: number
+          note_id?: string
+          updated_at?: string
+          view_count?: number
+        }
+        Relationships: []
+      }
       note_views: {
         Row: {
           created_at: string
@@ -1164,6 +1185,14 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_note_engagement_counts: {
+        Args: { _note_ids?: string[] | null }
+        Returns: {
+          download_count: number
+          note_id: string
+          view_count: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1181,6 +1210,20 @@ export type Database = {
         Returns: {
           graduated_total: number
           promoted_total: number
+        }[]
+      }
+      record_note_download: {
+        Args: { _note_id: string }
+        Returns: {
+          download_count: number
+          view_count: number
+        }[]
+      }
+      record_note_view: {
+        Args: { _note_id: string }
+        Returns: {
+          download_count: number
+          view_count: number
         }[]
       }
       verify_note_password: {
