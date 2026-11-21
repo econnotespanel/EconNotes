@@ -752,10 +752,10 @@ export default function DailyTrivia() {
       {/* Independent Standalone Header (not coupled to any sidebar/menu) */}
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between gap-3 px-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <EconLogo className="h-6 w-auto shrink-0" />
-            <span className="h-5 w-px bg-border" />
-            <span className="truncate text-xs font-bold tracking-tight text-foreground sm:text-sm">
+          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+            <EconLogo className="h-6 w-[108px] shrink-0 justify-center -translate-y-[2.5px] sm:h-[26px] sm:w-[117px] sm:-translate-y-[3px]" />
+            <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border sm:h-5" />
+            <span className="truncate text-xs font-bold leading-none tracking-tight text-foreground sm:text-sm sm:leading-none">
               Günlük Bilgi Yarışması
             </span>
           </div>
@@ -1248,9 +1248,10 @@ export default function DailyTrivia() {
               <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-rose-400/20 blur-3xl" />
               <div className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
               <div className="relative z-10 flex flex-col items-center space-y-3">
-                <div className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
-                  <EconLogo onDark className="h-4 w-auto" />
-                </div>
+                <EconLogo
+                  allWhite
+                  className="h-[26px] w-[117px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.22)] sm:h-[27px] sm:w-[121px]"
+                />
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-300/40 bg-rose-500/20 text-rose-100 shadow-inner backdrop-blur-md">
                   <ShieldAlert className="h-7 w-7" />
                 </div>
@@ -1330,9 +1331,10 @@ export default function DailyTrivia() {
               <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/25 blur-3xl" />
               <div className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-amber-400/20 blur-3xl" />
               <div className="relative z-10 flex flex-col items-center space-y-3">
-                <div className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
-                  <EconLogo onDark className="h-4 w-auto" />
-                </div>
+                <EconLogo
+                  allWhite
+                  className="h-[26px] w-[117px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.22)] sm:h-[27px] sm:w-[121px]"
+                />
                 <div
                   className={cn(
                     'flex h-14 w-14 items-center justify-center rounded-2xl border shadow-inner backdrop-blur-md',

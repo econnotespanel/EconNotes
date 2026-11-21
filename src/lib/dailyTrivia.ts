@@ -186,7 +186,7 @@ export function getDailyRenewalInfo(now = new Date()): DailyRenewalInfo {
     resetsAtIso: new Date(targetMs).toISOString(),
     remainingMs,
     compactTime,
-    label: `Yarınki 15 yeni soruya: ${compactTime} kaldı`,
+    label: `Yarınki yarışmaya: ${compactTime} kaldı`,
   };
 }
 

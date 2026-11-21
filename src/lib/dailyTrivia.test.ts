@@ -140,7 +140,7 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     const evening = getDailyRenewalInfo(new Date('2026-11-21T19:25:00+03:00'));
     expect(evening.dateStr).toBe('2026-11-21');
     expect(evening.compactTime).toBe('4 saat 35 dk');
-    expect(evening.label).toBe('Yarınki 15 yeni soruya: 4 saat 35 dk kaldı');
+    expect(evening.label).toBe('Yarınki yarışmaya: 4 saat 35 dk kaldı');
 
     const beforeMidnight = getDailyRenewalInfo(new Date('2026-11-21T23:59:59+03:00'));
     expect(beforeMidnight.dateStr).toBe('2026-11-21');
@@ -149,7 +149,7 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     const afterMidnight = getDailyRenewalInfo(new Date('2026-11-22T00:00:01+03:00'));
     expect(afterMidnight.dateStr).toBe('2026-11-22');
     expect(afterMidnight.remainingMs).toBeGreaterThan(23 * 60 * 60 * 1000);
-    expect(afterMidnight.label).toContain('Yarınki 15 yeni soruya:');
+    expect(afterMidnight.label).toContain('Yarınki yarışmaya:');
     expect(afterMidnight.label).toContain('kaldı');
   });
 
