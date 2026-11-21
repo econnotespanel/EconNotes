@@ -192,12 +192,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    const { data: roleData } = await supabase
+    const { data: roleRows } = await supabase
       .from('user_roles')
       .select('role')
-      .eq('user_id', userId)
-      .single();
-    if (roleData) setIsAdmin(roleData.role === 'admin');
+      .eq('user_id', userId);
+    if (Array.isArray(roleRows)) {
+      setIsAdmin(roleRows.some((r) => r.role === 'admin'));
+    }
     return resolvedName;
   };
 

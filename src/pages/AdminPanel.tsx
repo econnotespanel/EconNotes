@@ -70,6 +70,7 @@ const AdminPanel = () => {
   const [userRoleFilter, setUserRoleFilter] = useState('all');
   const [userApprovalFilter, setUserApprovalFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [previewNote, setPreviewNote] = useState<any | null>(null);
+  const [previewOpenRevision, setPreviewOpenRevision] = useState(false);
   const [notesSubTab, setNotesSubTab] = useState<'active' | 'archive'>('active');
   const [userEmails, setUserEmails] = useState<Record<string, string>>({});
   const [notePasswords, setNotePasswords] = useState<Record<string, string>>({});
@@ -609,6 +610,7 @@ const AdminPanel = () => {
   const approveNote = async (id: string) => {
     let { error } = await supabase.from('notes').update({
       status: 'approved',
+      visibility_status: 'visible',
       approved_at: new Date().toISOString(),
       approved_by: user!.id,
       rejection_reason: null,
@@ -618,6 +620,7 @@ const AdminPanel = () => {
     if (error && (error.message.includes('schema cache') || error.message.includes('revision_deadline'))) {
       ({ error } = await supabase.from('notes').update({
         status: 'approved',
+        visibility_status: 'visible',
         approved_at: new Date().toISOString(),
         approved_by: user!.id,
         rejection_reason: null,
@@ -1619,7 +1622,10 @@ const AdminPanel = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => setPreviewNote(n)}
+                                    onClick={() => {
+                                      setPreviewOpenRevision(false);
+                                      setPreviewNote(n);
+                                    }}
                                     className="h-8 rounded-lg gap-1.5 text-xs text-primary border-primary/40 hover:bg-primary/10"
                                     title="Not İçeriğini Önizle"
                                   >
@@ -1630,7 +1636,10 @@ const AdminPanel = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => setPreviewNote(n)}
+                                    onClick={() => {
+                                      setPreviewOpenRevision(true);
+                                      setPreviewNote(n);
+                                    }}
                                     className="h-8 rounded-lg text-amber-500 border-amber-500/40 hover:bg-amber-500/10 text-xs px-2.5"
                                     title="Düzeltme İste (72 Saat)"
                                   >
@@ -1706,7 +1715,10 @@ const AdminPanel = () => {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => setPreviewNote(n)}
+                                    onClick={() => {
+                                      setPreviewOpenRevision(false);
+                                      setPreviewNote(n);
+                                    }}
                                     className="h-8 rounded-lg gap-1 text-xs"
                                   >
                                     <Eye className="h-3.5 w-3.5" /> İncele
@@ -1762,7 +1774,7 @@ const AdminPanel = () => {
                           </div>
 
                           <div className="flex items-center gap-1 ml-2 shrink-0">
-                            <Button size="sm" variant="outline" onClick={() => setPreviewNote(n)} className="h-7 text-xs rounded-md" title="Önizle"><Eye className="h-3 w-3" /></Button>
+                            <Button size="sm" variant="outline" onClick={() => { setPreviewOpenRevision(false); setPreviewNote(n); }} className="h-7 text-xs rounded-md" title="Önizle"><Eye className="h-3 w-3" /></Button>
                             {n.status === 'rejected' && <Button size="sm" variant="outline" className="h-7 text-emerald-500" onClick={() => approveNote(n.id)} title="Onayla"><Check className="h-3 w-3" /></Button>}
                             <Button size="sm" variant="outline" className="h-7 text-xs text-amber-500" onClick={() => archiveNote(n.id)} title="Arşive Taşı"><Archive className="h-3 w-3" /></Button>
                             <AlertDialog>
@@ -1816,7 +1828,10 @@ const AdminPanel = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => setPreviewNote(n)}
+                                onClick={() => {
+                                  setPreviewOpenRevision(false);
+                                  setPreviewNote(n);
+                                }}
                                 className="h-8 rounded-lg text-xs gap-1"
                                 title="İçeriği İncele"
                               >
@@ -2475,11 +2490,17 @@ const AdminPanel = () => {
         note={previewNote}
         open={Boolean(previewNote)}
         onOpenChange={(open) => {
-          if (!open) setPreviewNote(null);
+          if (!open) {
+            setPreviewNote(null);
+            setPreviewOpenRevision(false);
+          }
         }}
         onApprove={approveNote}
         onRequestRevision={requestNoteRevision}
         onReject={rejectNote}
+        onArchive={archiveNote}
+        onRestore={restoreArchivedNote}
+        initialOpenRevision={previewOpenRevision}
         notePassword={previewNote ? notePasswords[previewNote.id] : undefined}
         onRevealPassword={revealNotePassword}
         engagement={previewNote ? noteEngagement[previewNote.id] : undefined}

@@ -182,19 +182,35 @@ const Notes = () => {
     'Yönetici ekibi uygunsuz notları silme hakkına sahiptir.',
   ];
 
+  const inferUploadMimeType = (file: File): string => {
+    if (file.type && file.type !== 'application/octet-stream') return file.type;
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (ext === 'pdf') return 'application/pdf';
+    if (ext === 'pptx') return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    if (ext === 'ppt') return 'application/vnd.ms-powerpoint';
+    if (ext === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (ext === 'doc') return 'application/msword';
+    if (ext === 'png') return 'image/png';
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+    if (ext === 'webp') return 'image/webp';
+    if (ext === 'gif') return 'image/gif';
+    return file.type || 'application/octet-stream';
+  };
+
   const uploadFileWithProgress = async (path: string, file: File) => {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
     if (!accessToken) {
       throw new Error('Dosya yükleme oturumu bulunamadı.');
     }
+    const contentType = inferUploadMimeType(file);
 
     await new Promise<void>((resolve, reject) => {
       const request = new XMLHttpRequest();
       request.open('POST', `${SUPABASE_URL}/storage/v1/object/notes/${path}`);
       request.setRequestHeader('Authorization', `Bearer ${accessToken}`);
       request.setRequestHeader('apikey', SUPABASE_PUBLISHABLE_KEY);
-      request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      request.setRequestHeader('Content-Type', contentType);
       request.setRequestHeader('x-upsert', 'false');
       request.upload.onprogress = (event) => {
         if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
@@ -522,7 +538,7 @@ const Notes = () => {
         await uploadFileWithProgress(path, form.file);
         fileUrl = path;
         fileName = form.file.name;
-        fileType = form.file.type;
+        fileType = inferUploadMimeType(form.file);
       }
 
       const noteData: any = {
