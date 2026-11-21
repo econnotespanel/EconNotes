@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sparkles, TrendingUp, CalendarDays } from 'lucide-react';
+import { Sparkles, TrendingUp, CalendarDays, Trophy } from 'lucide-react';
+import { usePoints } from '@/hooks/usePoints';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 interface EventRow { id: string; amount: number; reason: string; created_at: string }
@@ -43,6 +44,7 @@ const TONES = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--warning)
 
 const Points = () => {
   const { user } = useAuth();
+  const { points: pointsState } = usePoints(10);
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<'7' | '30' | '90'>('30');
@@ -61,6 +63,11 @@ const Points = () => {
       setLoading(false);
     };
     void run();
+    const handlePointsUpdated = () => { void run(); };
+    window.addEventListener('econnotes:points-updated', handlePointsUpdated);
+    return () => {
+      window.removeEventListener('econnotes:points-updated', handlePointsUpdated);
+    };
   }, [user]);
 
   const reasons = useMemo(() => {
@@ -141,10 +148,11 @@ const Points = () => {
           </Select>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Toplam kazanç</p><p className="flex items-center gap-1.5 text-2xl font-bold"><Sparkles className="h-5 w-5 text-primary" />{total}</p></CardContent></Card>
-          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">En yüksek {granularity === 'daily' ? 'gün' : 'hafta'}</p><p className="flex items-center gap-1.5 text-2xl font-bold"><TrendingUp className="h-5 w-5 text-success" />{best}</p></CardContent></Card>
-          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Ortalama</p><p className="flex items-center gap-1.5 text-2xl font-bold"><CalendarDays className="h-5 w-5 text-warning" />{avg}</p></CardContent></Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="glass-card border-primary/25"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Toplam puanım</p><p className="flex items-center gap-1.5 text-2xl font-bold"><Trophy className="h-5 w-5 text-primary" />{(pointsState?.points ?? total).toLocaleString('tr-TR')}</p></CardContent></Card>
+          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Dönem kazancı ({range} gün)</p><p className="flex items-center gap-1.5 text-2xl font-bold"><Sparkles className="h-5 w-5 text-primary" />{total.toLocaleString('tr-TR')}</p></CardContent></Card>
+          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">En yüksek {granularity === 'daily' ? 'gün' : 'hafta'}</p><p className="flex items-center gap-1.5 text-2xl font-bold"><TrendingUp className="h-5 w-5 text-success" />{best.toLocaleString('tr-TR')}</p></CardContent></Card>
+          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Ortalama</p><p className="flex items-center gap-1.5 text-2xl font-bold"><CalendarDays className="h-5 w-5 text-warning" />{avg.toLocaleString('tr-TR')}</p></CardContent></Card>
         </div>
 
         {loading ? (

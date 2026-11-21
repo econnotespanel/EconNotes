@@ -261,10 +261,158 @@ export function getMondayWheelState(
   };
 }
 
+async function getSessionAccessToken(forceRefresh = false): Promise<string | null> {
+  if (forceRefresh) {
+    const { data } = await supabase.auth.refreshSession().catch(() => ({ data: { session: null } }));
+    return data.session?.access_token ?? null;
+  }
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
+/**
+ * Çarktan kazanılan XP puanını (100 - 500 XP) kullanıcının toplam puan sistemine
+ * (`user_points` & `point_events`) güvenli ve idempotent biçimde işler.
+ * 1) Öncelikli: `claim_monday_wheel_xp` SQL RPC
+ * 2) Yedek (migration beklenirken anında çalışır): `claim-wheel-xp` Edge Function
+ * 3) Son yedek: `award_points` RPC
+ */
+export async function awardMondayWheelXp(
+  amount: number,
+  todayStr: string,
+): Promise<{ ok: boolean; newPointsTotal: number | null; alreadyClaimed?: boolean; error?: string }> {
+  // 1) Dedicated SECURITY DEFINER RPC
+  try {
+    const { data, error } = await (supabase as any).rpc('claim_monday_wheel_xp', {
+      _amount: amount,
+      _spin_date: todayStr,
+    });
+    if (!error && data) {
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row && typeof row.points === 'number') {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+        }
+        return {
+          ok: true,
+          newPointsTotal: row.points,
+          alreadyClaimed: Boolean(row.already_claimed),
+        };
+      }
+    }
+  } catch {
+    // Fall through to Edge Function
+  }
+
+  // 2) Live Edge Function fallback (works immediately with service_role)
+  try {
+    let token = await getSessionAccessToken(false);
+    if (!token) token = await getSessionAccessToken(true);
+    if (token) {
+      let res = await supabase.functions.invoke('claim-wheel-xp', {
+        body: { amount, spinDate: todayStr },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const status = (res.error as { context?: { status?: number } } | null)?.context?.status;
+      if (res.error && status === 401) {
+        const freshToken = await getSessionAccessToken(true);
+        if (freshToken && freshToken !== token) {
+          res = await supabase.functions.invoke('claim-wheel-xp', {
+            body: { amount, spinDate: todayStr },
+            headers: { Authorization: `Bearer ${freshToken}` },
+          });
+        }
+      }
+
+      if (!res.error && res.data && (res.data as { ok?: boolean }).ok) {
+        const payload = res.data as { points?: number; already_claimed?: boolean };
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+        }
+        return {
+          ok: true,
+          newPointsTotal: typeof payload.points === 'number' ? payload.points : null,
+          alreadyClaimed: Boolean(payload.already_claimed),
+        };
+      }
+    }
+  } catch {
+    // Fall through to legacy awardPoints RPC
+  }
+
+  // 3) Updated award_points RPC fallback
+  const directTotal = await awardPoints(`monday_wheel:${todayStr}`, amount);
+  if (directTotal !== null) {
+    return { ok: true, newPointsTotal: directTotal };
+  }
+
+  return {
+    ok: false,
+    newPointsTotal: null,
+    error: 'XP puanı toplam puan sistemine kaydedilemedi. Lütfen internet bağlantını kontrol edip tekrar dene.',
+  };
+}
+
+/**
+ * Kullanıcı bugün çarkı daha önce çevirip XP kazandıysa fakat eski sistem hatası nedeniyle
+ * `point_events` tablosuna yansımadıysa tek seferlik olarak eksik XP'yi hesaba senkronize eder.
+ */
+export async function syncPendingWheelXp(
+  user: User | null | undefined,
+  options?: MondayWheelOptions,
+): Promise<number | null> {
+  if (!user) return null;
+  const state = getMondayWheelState(user, new Date(), options);
+  if (!state.hasSpunToday || !state.todayRewardId) return null;
+
+  const seg = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === state.todayRewardId);
+  if (!seg || seg.type !== 'xp') return null;
+
+  const todayStr = getTodayDateString(new Date());
+  const syncedKey = `econnotes_wheel_xp_synced_${user.id}_${todayStr}`;
+  try {
+    if (localStorage.getItem(syncedKey) === '1') return null;
+  } catch {
+    // ignore
+  }
+
+  try {
+    const { data: existingEvents } = await supabase
+      .from('point_events')
+      .select('id')
+      .eq('user_id', user.id)
+      .like('reason', `monday_wheel:${todayStr}%`)
+      .limit(1);
+
+    if (Array.isArray(existingEvents) && existingEvents.length > 0) {
+      try {
+        localStorage.setItem(syncedKey, '1');
+      } catch {
+        // ignore
+      }
+      return null;
+    }
+
+    const res = await awardMondayWheelXp(seg.amount, todayStr);
+    if (res.ok) {
+      try {
+        localStorage.setItem(syncedKey, '1');
+      } catch {
+        // ignore
+      }
+      return res.alreadyClaimed ? null : seg.amount;
+    }
+  } catch {
+    // Non-fatal background sync
+  }
+  return null;
+}
+
 /**
  * Normal kullanıcılar için Pazartesi günleri, yöneticiler için her gün günde 1 kez çalışır.
  * Kazanan dilimi kullanıcının hesabına anında yükler:
- * - XP ise: awardPoints ile puan tablosuna ve liderlik sıralamasına yazar.
+ * - XP ise: claim_monday_wheel_xp / claim-wheel-xp ile user_points + point_events ve liderlik sıralamasına yazar.
  * - +2 Not Hakkı ise: kullanıcının indirme/görüntüleme kotasını kalıcı olarak +2 artırır.
  * - 1 Gün Sınırsız ise: 24 saatlik sınırsız not görüntüleme, indirme ve yükleme geçişini başlatır.
  */
@@ -293,6 +441,24 @@ export async function claimMondayWheelReward(
 
   const todayStr = getTodayDateString(now);
 
+  let newPointsTotal: number | null = null;
+
+  if (segment.type === 'xp') {
+    const xpRes = await awardMondayWheelXp(segment.amount, todayStr);
+    if (!xpRes.ok) {
+      return {
+        ok: false,
+        error: xpRes.error || 'XP puanı puan sistemine eklenemedi. Lütfen tekrar dene.',
+      };
+    }
+    newPointsTotal = xpRes.newPointsTotal;
+    try {
+      localStorage.setItem(`econnotes_wheel_xp_synced_${user.id}_${todayStr}`, '1');
+    } catch {
+      // ignore
+    }
+  }
+
   try {
     localStorage.setItem(
       `${STORAGE_SPIN_PREFIX}${user.id}_${todayStr}`,
@@ -307,12 +473,7 @@ export async function claimMondayWheelReward(
     monday_wheel_last_reward: segment.id,
   };
 
-  let newPointsTotal: number | null = null;
-
-  if (segment.type === 'xp') {
-    newPointsTotal = await awardPoints(`monday_wheel:${todayStr}`, segment.amount);
-    window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
-  } else if (segment.type === 'extra_quota') {
+  if (segment.type === 'extra_quota') {
     const nextBonus = getWheelBonusQuota(user) + segment.amount;
     nextMeta.wheel_bonus_quota = nextBonus;
     try {
@@ -332,6 +493,7 @@ export async function claimMondayWheelReward(
 
   await supabase.auth.updateUser({ data: nextMeta }).catch(() => {});
   window.dispatchEvent(new CustomEvent('econnotes:wheel-updated'));
+  window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
   window.dispatchEvent(new CustomEvent('econnotes:birthdate-updated'));
 
   return { ok: true, newPointsTotal };

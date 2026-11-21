@@ -1161,6 +1161,14 @@ export type Database = {
         Args: { _amount: number; _reason: string }
         Returns: number
       }
+      claim_monday_wheel_xp: {
+        Args: { _amount: number; _spin_date?: string | null }
+        Returns: {
+          already_claimed: boolean
+          awarded: number
+          points: number
+        }[]
+      }
       get_download_quota: {
         Args: { _user_id: string }
         Returns: {

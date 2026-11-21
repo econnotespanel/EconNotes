@@ -29,12 +29,15 @@ import {
   getMondayWheelState,
   getTodayDateString,
   MONDAY_WHEEL_SEGMENTS,
+  syncPendingWheelXp,
   type WheelSegment,
 } from '@/lib/mondayWheel';
 import {
-  evaluateWheelEase,
+  computeWheelPegEvents,
   playWheelTick,
   playWheelWinSound,
+  startWheelSpinAudio,
+  stopWheelSpinAudio,
   unlockWheelAudio,
 } from '@/lib/wheelSoundEngine';
 import { cn } from '@/lib/utils';
@@ -139,9 +142,11 @@ const MondayWheelPopup = () => {
       } catch {
         // ignore
       }
-      if (!next) {
+      if (next) {
+        stopWheelSpinAudio();
+      } else {
         unlockWheelAudio();
-        playWheelTick(0.75);
+        playWheelTick(0.8);
       }
       return next;
     });
@@ -149,6 +154,7 @@ const MondayWheelPopup = () => {
 
   useEffect(() => {
     return () => {
+      stopWheelSpinAudio();
       if (tickRafRef.current !== null) cancelAnimationFrame(tickRafRef.current);
       if (spinTimerRef.current !== null) window.clearTimeout(spinTimerRef.current);
       if (pointerTimerRef.current !== null) window.clearTimeout(pointerTimerRef.current);
@@ -183,8 +189,15 @@ const MondayWheelPopup = () => {
 
     syncState();
 
-    // Pazartesi günü (veya yöneticiler için günlük hak hazır olduğunda) ilk girişte otomatik aç
     if (!loading && user) {
+      // Bugün kazanılıp puan tablosuna yansımamış çark XP'si varsa tek seferlik senkronize et
+      void syncPendingWheelXp(user, { isAdmin }).then((recoveredXp) => {
+        if (recoveredXp && recoveredXp > 0) {
+          toast.success(`Bugünkü çark ödülün (+${recoveredXp} XP) toplam puanına yansıtıldı!`);
+        }
+      });
+
+      // Pazartesi günü (veya yöneticiler için günlük hak hazır olduğunda) ilk girişte otomatik aç
       const current = getMondayWheelState(user, new Date(), { isAdmin });
       const todayKey = getTodayDateString();
       const sessionPromptKey = `econnotes_monday_wheel_prompted_${user.id}_${todayKey}`;
@@ -221,11 +234,6 @@ const MondayWheelPopup = () => {
   const handleSpin = () => {
     if (spinning || !wheelState.canSpinNow) return;
 
-    // Unlock Web Audio inside the click gesture for iOS/Android & desktop browsers
-    if (!soundMutedRef.current) {
-      unlockWheelAudio();
-    }
-
     const weights = [18, 22, 20, 10, 14, 10, 6];
     const roll = Math.random() * 100;
     let acc = 0;
@@ -247,42 +255,43 @@ const MondayWheelPopup = () => {
       startRotation + extraSpins + (360 - targetSliceCenter) - (startRotation % 360) + jitter;
     const totalDelta = nextRotation - startRotation;
 
+    // Precompute exact peg-hit schedule matching CSS cubic-bezier(0.15, 0.88, 0.22, 1)
+    const pegEvents = computeWheelPegEvents(startRotation, totalDelta, SPIN_DURATION_MS, 14);
+
+    // Start the full synthesized wheel-spin WAV audio synchronously inside the click gesture
+    if (!soundMutedRef.current) {
+      startWheelSpinAudio(pegEvents, SPIN_DURATION_MS);
+    }
+
     setSpinning(true);
     setRotationDeg(nextRotation);
 
-    // Synchronize physical peg-click audio & pointer deflection to the CSS bezier rotation
+    // Synchronize visual pointer deflection with the exact same peg timestamps
     if (tickRafRef.current !== null) cancelAnimationFrame(tickRafRef.current);
-    const pegAngle = 360 / 14;
-    let lastPegIdx = Math.floor(startRotation / pegAngle);
-    let lastTickMs = 0;
+    let nextEventIdx = 0;
     const spinStartedAt = performance.now();
 
-    const stepAudio = (now: number) => {
+    const stepPointer = (now: number) => {
       const elapsed = now - spinStartedAt;
-      const t = Math.min(1, elapsed / SPIN_DURATION_MS);
-      const eased = evaluateWheelEase(t);
-      const currentDeg = startRotation + totalDelta * eased;
-      const pegIdx = Math.floor(currentDeg / pegAngle);
+      let triggered = false;
+      while (nextEventIdx < pegEvents.length && elapsed >= pegEvents[nextEventIdx].timeMs) {
+        nextEventIdx++;
+        triggered = true;
+      }
 
-      if (pegIdx !== lastPegIdx && now - lastTickMs >= 32) {
-        lastPegIdx = pegIdx;
-        lastTickMs = now;
-        const speedRatio = Math.max(0.05, Math.min(1, (1 - t) * 1.15));
-        if (!soundMutedRef.current) {
-          playWheelTick(speedRatio);
-        }
+      if (triggered) {
         setPointerKick(true);
         if (pointerTimerRef.current !== null) window.clearTimeout(pointerTimerRef.current);
         pointerTimerRef.current = window.setTimeout(() => setPointerKick(false), 55);
       }
 
-      if (t < 1) {
-        tickRafRef.current = requestAnimationFrame(stepAudio);
+      if (elapsed < SPIN_DURATION_MS) {
+        tickRafRef.current = requestAnimationFrame(stepPointer);
       } else {
         tickRafRef.current = null;
       }
     };
-    tickRafRef.current = requestAnimationFrame(stepAudio);
+    tickRafRef.current = requestAnimationFrame(stepPointer);
 
     if (spinTimerRef.current !== null) window.clearTimeout(spinTimerRef.current);
     spinTimerRef.current = window.setTimeout(async () => {
@@ -292,6 +301,12 @@ const MondayWheelPopup = () => {
       }
       setPointerKick(false);
 
+      // Play prize fanfare right on landing using the gesture-authorized audio element
+      if (!soundMutedRef.current) {
+        const isGrandPrize = chosen.id === 'xp_500' || chosen.type === 'unlimited_day';
+        playWheelWinSound(isGrandPrize);
+      }
+
       const res = await claimMondayWheelReward(user, chosen, new Date(), { isAdmin });
       setSpinning(false);
       if (!res.ok) {
@@ -300,14 +315,15 @@ const MondayWheelPopup = () => {
         return;
       }
 
-      if (!soundMutedRef.current) {
-        const isGrandPrize = chosen.id === 'xp_500' || chosen.type === 'unlimited_day';
-        playWheelWinSound(isGrandPrize);
-      }
-
       setWonSegment(chosen);
       setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
-      toast.success(`Tebrikler! ${chosen.fullTitle} hesabına tanımlandı!`);
+      if (chosen.type === 'xp' && typeof res.newPointsTotal === 'number') {
+        toast.success(
+          `Tebrikler! ${chosen.fullTitle} hesabına eklendi! (Yeni toplam: ${res.newPointsTotal.toLocaleString('tr-TR')} puan)`,
+        );
+      } else {
+        toast.success(`Tebrikler! ${chosen.fullTitle} hesabına tanımlandı!`);
+      }
     }, SPIN_DURATION_MS);
   };
 
