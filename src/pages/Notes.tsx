@@ -2,7 +2,14 @@ import Layout from '@/components/Layout';
 import SignedImage from '@/components/SignedImage';
 import EconLogo from '@/components/EconLogo';
 import NotePreviewViewer from '@/components/NotePreviewViewer';
-import ScreenshotProtection from '@/components/ScreenshotProtection';
+import DynamicWatermarkOverlay from '@/components/DynamicWatermarkOverlay';
+import ScreenshotProtection, { markAuthorizedDownloadActive } from '@/components/ScreenshotProtection';
+import {
+  buildLocalWatermarkIdentity,
+  formatWatermarkTimestamp,
+  resolveServerVerifiedWatermarkIdentity,
+  type WatermarkIdentity,
+} from '@/lib/watermarkIdentity';
 import { signedNoteUrl } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -137,6 +144,9 @@ const Notes = () => {
   const [previewNote, setPreviewNote] = useState<any | null>(null);
   const [previewSlides, setPreviewSlides] = useState<string[]>([]);
   const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
+  const [downloadingNoteId, setDownloadingNoteId] = useState<string | null>(null);
+  const [verifiedWatermarkIdentity, setVerifiedWatermarkIdentity] = useState<WatermarkIdentity | null>(null);
+  const [previewWatermarkIdentity, setPreviewWatermarkIdentity] = useState<WatermarkIdentity | null>(null);
   const [uploadRestricted, setUploadRestricted] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [departmentInputs, setDepartmentInputs] = useState<string[]>(['']);
@@ -273,16 +283,29 @@ const Notes = () => {
     if (isPreviewable(note.file_type, note.file_url, note.file_name)) {
       setPreviewLoadingId(note.id);
       try {
-        const signed = await signedNoteUrl(note.file_url);
+        const [signed, serverIdentity] = await Promise.all([
+          signedNoteUrl(note.file_url),
+          resolveServerVerifiedWatermarkIdentity(profile),
+        ]);
         if (!signed) { toast.error('Dosya bağlantısı oluşturulamadı.'); return; }
 
-        const viewerName = profile?.full_name?.trim()
-          || String(user.user_metadata?.full_name || '').trim()
-          || user.email?.split('@')[0]
-          || 'EconNotes kullanıcısı';
+        const activeIdentity: WatermarkIdentity = serverIdentity
+          ? { ...serverIdentity, timestampLabel: formatWatermarkTimestamp(new Date()) }
+          : buildLocalWatermarkIdentity(user, profile, new Date());
 
-        // Önizleme için EconNotes filigranını dosyaya ekle
-        const displayUrl = await prepareWatermarkedPreview(signed, note.file_name, note.file_type, viewerName);
+        if (serverIdentity) {
+          setVerifiedWatermarkIdentity(serverIdentity);
+        }
+
+        // Orijinal dosyayı değiştirmeden yalnızca önizleme kopyasına kullanıcıya özel dinamik filigran ekle
+        const displayUrl = await prepareWatermarkedPreview(
+          signed,
+          note.file_name,
+          note.file_type,
+          activeIdentity.displayLabel,
+          activeIdentity.timestampLabel,
+        );
+        setPreviewWatermarkIdentity(activeIdentity);
         setPreviewNote(note);
         setPreviewUrl(displayUrl);
         setPreviewType(note.file_type);
@@ -321,6 +344,22 @@ const Notes = () => {
   };
 
   useEffect(() => { fetchNotes(); fetchSettings(); }, [sortOrder]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setVerifiedWatermarkIdentity(null);
+      return;
+    }
+    let active = true;
+    void resolveServerVerifiedWatermarkIdentity(profile).then((resolved) => {
+      if (active && resolved) {
+        setVerifiedWatermarkIdentity(resolved);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [user?.id, profile?.full_name]);
 
   const canUploadNow = () => {
     if (isAdmin) return true;
@@ -363,31 +402,66 @@ const Notes = () => {
     refreshQuota();
   };
 
-  // Quota-aware download handler. Blocks when user has not uploaded enough notes (unless 1-day birthday/wheel pass is active).
+  // Quota-aware download handler. Blocks when user has not uploaded enough notes (unless unlimited pass is active).
+  // Updates download count strictly AFTER a verified successful watermarked download.
   const handleDownloadClick = async (note: any) => {
-    if (!user) return;
-    const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
-    const wheelUnlimited = isWheelUnlimitedActive(user);
-    const triviaUnlimited = isTriviaUnlimitedActive(user, profile as any);
-    const wheelBonus = getWheelBonusQuota(user);
-    if (!isAdmin && !birthdayUnlimited && !wheelUnlimited && !triviaUnlimited) {
-      // Re-fetch quota fresh to avoid race conditions
-      const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
-      const q = (data && data[0]) as typeof quota;
-      const canAccess = q ? q.can_download || q.total_downloads < q.allowed_downloads + wheelBonus : true;
-      if (!canAccess) {
-        setQuotaBlockOpen(true);
+    if (!user || !note?.file_url || downloadingNoteId === note.id) return;
+    setDownloadingNoteId(note.id);
+    try {
+      const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
+      const wheelUnlimited = isWheelUnlimitedActive(user);
+      const triviaUnlimited = isTriviaUnlimitedActive(user, profile as any);
+      const wheelBonus = getWheelBonusQuota(user);
+
+      if (!isAdmin && !birthdayUnlimited && !wheelUnlimited && !triviaUnlimited) {
+        // Re-fetch quota fresh from server to avoid stale authorization or race conditions
+        const { data, error } = await supabase.rpc('get_download_quota', { _user_id: user.id });
+        const q = (data && data[0]) as typeof quota;
+        const canAccess = !error && q
+          ? q.can_download || q.total_downloads < q.allowed_downloads + wheelBonus
+          : Boolean(quota?.can_download);
+        if (!canAccess) {
+          setQuotaBlockOpen(true);
+          return;
+        }
+      }
+
+      // Suppress only OS save-dialog window.blur during authorized download (keeps SS shortcuts 100% active)
+      markAuthorizedDownloadActive(6000);
+
+      const [signed, serverIdentity] = await Promise.all([
+        signedNoteUrl(note.file_url),
+        resolveServerVerifiedWatermarkIdentity(profile),
+      ]);
+      if (!signed) {
+        toast.error('Dosya bağlantısı oluşturulamadı.');
         return;
       }
+
+      const activeIdentity = serverIdentity
+        ? { ...serverIdentity, timestampLabel: formatWatermarkTimestamp(new Date()) }
+        : buildLocalWatermarkIdentity(user, profile, new Date());
+
+      if (serverIdentity) {
+        setVerifiedWatermarkIdentity(serverIdentity);
+      }
+
+      markAuthorizedDownloadActive(6000);
+      const downloaded = await downloadWithWatermark(
+        signed,
+        note.file_name,
+        note.file_type,
+        activeIdentity.displayLabel,
+        activeIdentity.timestampLabel,
+      );
+
+      // İndirme sayacı yalnızca başarılı indirme sonrasında güncellenir
+      if (downloaded) {
+        await trackDownload(note.id);
+      }
+    } finally {
+      setDownloadingNoteId(null);
     }
-    trackDownload(note.id);
-    const signed = await signedNoteUrl(note.file_url);
-    if (!signed) { toast.error('Dosya bağlantısı oluşturulamadı.'); return; }
-    const fullName = profile?.full_name?.trim()
-      || String(user.user_metadata?.full_name || '').trim()
-      || user.email?.split('@')[0]
-      || 'EconNotes kullanıcısı';
-    await downloadWithWatermark(signed, note.file_name, note.file_type, fullName);
   };
 
   const openNewNoteDialog = () => {
@@ -717,11 +791,21 @@ const Notes = () => {
     return `${d.toLocaleDateString('tr-TR')} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
   };
 
-  const viewerDisplayName =
-    profile?.full_name?.trim() ||
-    String(user?.user_metadata?.full_name || '').trim() ||
-    user?.email?.split('@')[0] ||
-    'Öğrenci';
+  const fallbackWatermarkIdentity = useMemo(
+    () => buildLocalWatermarkIdentity(user, profile),
+    [user, profile],
+  );
+  const activeWatermarkIdentity = previewWatermarkIdentity || verifiedWatermarkIdentity || fallbackWatermarkIdentity;
+  const viewerDisplayName = (verifiedWatermarkIdentity || fallbackWatermarkIdentity).displayLabel;
+  const canDownloadPreviewNote = Boolean(
+    previewNote?.file_url &&
+      user &&
+      (isAdmin ||
+        isBirthdayUnlimitedActive(user, profile) ||
+        isWheelUnlimitedActive(user) ||
+        isTriviaUnlimitedActive(user, profile as any) ||
+        Boolean(quota?.can_download)),
+  );
 
   return (
     <Layout>
@@ -1449,8 +1533,17 @@ const Notes = () => {
                           <div className="flex flex-wrap gap-2 border-t border-border/50 pt-3">
                             {note.file_url && (
                               <>
-                                <Button size="sm" onClick={() => handleDownloadClick(note)} className="bg-gradient-to-r from-primary to-secondary text-white shadow-sm shadow-primary/20 transition-all hover:brightness-105 hover:shadow-md">
-                                  <Download className="h-3 w-3 mr-1" /> İndir
+                                <Button
+                                  size="sm"
+                                  disabled={downloadingNoteId === note.id}
+                                  onClick={() => handleDownloadClick(note)}
+                                  className="bg-gradient-to-r from-primary to-secondary text-white shadow-sm shadow-primary/20 transition-all hover:brightness-105 hover:shadow-md"
+                                >
+                                  {downloadingNoteId === note.id ? (
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                  ) : (
+                                    <Download className="h-3 w-3 mr-1" />
+                                  )} İndir
                                 </Button>
                                 {isPreviewable(note.file_type, note.file_url, note.file_name) && (
                                   <Button
@@ -1571,35 +1664,65 @@ const Notes = () => {
               setPreviewType(null);
               setPreviewNote(null);
               setPreviewSlides([]);
+              setPreviewWatermarkIdentity(null);
             }}
           >
             <DialogContent className="flex h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
-              <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between gap-3 border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-4 py-3 pr-16 text-left sm:px-6 sm:pr-20">
-                <DialogClose className="absolute right-3 top-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60" aria-label="Önizlemeyi kapat">
-                  <X className="h-5 w-5" aria-hidden="true" />
-                </DialogClose>
-                <div className="flex min-w-0 items-center gap-3">
-                  <EconLogo allWhite className="h-8 w-28 shrink-0 sm:h-9 sm:w-36" />
-                  <span className="h-8 w-px shrink-0 bg-white/15" />
-                  <div className="min-w-0">
+              <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between gap-2.5 border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-3 py-2.5 text-left sm:gap-4 sm:px-6 sm:py-3">
+                <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
+                  <EconLogo allWhite className="hidden h-8 w-28 shrink-0 sm:block sm:h-9 sm:w-36" />
+                  <span className="hidden h-8 w-px shrink-0 bg-white/15 sm:block" />
+                  <div className="min-w-0 flex-1">
                     <DialogTitle className="truncate text-sm font-semibold text-white sm:text-base">
                       {previewNote?.title || 'Önizleme'}
                     </DialogTitle>
                     {previewNote && (
-                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-white/75">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5">
-                          <Eye className="h-3 w-3 text-sky-300" />
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] text-white/75">
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2 py-0.5"
+                          title={`Toplam ${formatEngagementNumber(viewCounts[previewNote.id] || 0)} görüntülenme`}
+                        >
+                          <Eye className="h-3 w-3 shrink-0 text-sky-300" />
                           <strong className="font-semibold text-white tabular-nums">{formatEngagementNumber(viewCounts[previewNote.id] || 0)}</strong>
-                          <span>görüntülenme</span>
+                          <span className="hidden sm:inline">görüntülenme</span>
                         </span>
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5">
-                          <Download className="h-3 w-3 text-emerald-300" />
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2 py-0.5"
+                          title={`Toplam ${formatEngagementNumber(downloadCounts[previewNote.id] || 0)} indirme`}
+                        >
+                          <Download className="h-3 w-3 shrink-0 text-emerald-300" />
                           <strong className="font-semibold text-white tabular-nums">{formatEngagementNumber(downloadCounts[previewNote.id] || 0)}</strong>
-                          <span>indirme</span>
+                          <span className="hidden sm:inline">indirme</span>
                         </span>
                       </div>
                     )}
                   </div>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-2">
+                  {previewNote && canDownloadPreviewNote && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={downloadingNoteId === previewNote.id}
+                      onClick={() => void handleDownloadClick(previewNote)}
+                      className="h-9 sm:h-10 gap-1.5 rounded-xl bg-gradient-to-r from-[#0055b8] via-[#0070d1] to-[#0ea5e9] px-3 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-lg shadow-primary/30 border border-cyan-300/30 transition-all hover:brightness-110 active:scale-95"
+                    >
+                      {downloadingNoteId === previewNote.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      <span>{downloadingNoteId === previewNote.id ? 'İndiriliyor...' : 'İndir'}</span>
+                    </Button>
+                  )}
+
+                  <DialogClose
+                    className="inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60"
+                    aria-label="Önizlemeyi kapat"
+                  >
+                    <X className="h-5 w-5" aria-hidden="true" />
+                  </DialogClose>
                 </div>
               </DialogHeader>
               <div
@@ -1607,17 +1730,18 @@ const Notes = () => {
                 className="econnotes-ss-protected relative min-h-0 flex-1 w-full overflow-hidden bg-slate-900 p-1.5 sm:p-3 select-none [-webkit-touch-callout:none]"
               >
                 {previewType?.startsWith('image/') || previewType === 'application/pdf' ? (
-                  <NotePreviewViewer previewUrl={previewUrl} previewType={previewType} />
+                  <NotePreviewViewer
+                    previewUrl={previewUrl}
+                    previewType={previewType}
+                    watermarkIdentity={activeWatermarkIdentity}
+                  />
                 ) : isPowerPoint(previewType, null) ? (
-                  <div className="h-full w-full space-y-4 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-4 shadow-inner sm:p-6">
+                  <div className="relative h-full w-full space-y-4 overflow-auto rounded-xl border border-white/10 bg-slate-950/70 p-4 shadow-inner sm:p-6">
                     {previewSlides.length > 0 ? previewSlides.map((slide, index) => (
                       <article key={index} className="relative min-h-48 overflow-hidden rounded-xl border border-slate-200/20 bg-white p-5 text-left text-slate-900 shadow-lg sm:min-h-64 sm:p-8">
-                        <div className="pointer-events-none absolute right-4 top-4 select-none opacity-40 flex items-center gap-1.5">
-                          <span className="font-bold text-xs text-blue-700">EconNotes</span>
-                          <span className="text-[10px] text-slate-600">• {profile?.full_name?.trim() || String(user?.user_metadata?.full_name || '').trim() || user?.email?.split('@')[0] || 'Öğrenci'}</span>
-                        </div>
-                        <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Slayt {index + 1}</p>
-                        <p className="whitespace-pre-wrap text-sm leading-7 sm:text-base">{slide}</p>
+                        <p className="relative z-10 mb-3 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Slayt {index + 1}</p>
+                        <p className="relative z-10 whitespace-pre-wrap text-sm leading-7 sm:text-base">{slide}</p>
+                        <DynamicWatermarkOverlay identity={activeWatermarkIdentity} tone="on-light" />
                       </article>
                     )) : (
                       <div className="flex h-full items-center justify-center text-sm text-slate-300">
@@ -1626,8 +1750,9 @@ const Notes = () => {
                     )}
                   </div>
                 ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl border border-white/10 bg-slate-950/70">
-                    <p className="text-sm text-slate-300">Bu dosya türü önizlenemez. Lütfen indirin.</p>
+                  <div className="relative flex h-full items-center justify-center rounded-xl border border-white/10 bg-slate-950/70">
+                    <p className="relative z-10 text-sm text-slate-300">Bu dosya türü önizlenemez. Lütfen indirin.</p>
+                    <DynamicWatermarkOverlay identity={activeWatermarkIdentity} tone="on-dark" />
                   </div>
                 )}
               </div>

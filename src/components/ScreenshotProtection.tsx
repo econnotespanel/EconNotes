@@ -1,23 +1,35 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ShieldAlert, Lock, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import EconLogo from '@/components/EconLogo';
+import { sanitizeWatermarkDisplayName } from '@/lib/watermarkIdentity';
 
 interface ScreenshotProtectionProps {
   /** Whether the note preview modal is currently open */
   isPreviewOpen?: boolean;
-  /** Viewer's display name for the security notice */
+  /** Viewer's sanitized display name for the security notice */
   viewerName?: string;
   children: React.ReactNode;
 }
 
 const SHIELD_BODY_CLASS = 'econnotes-ss-shield-active';
 
+// Authorized download grace window: suppresses ONLY `window.blur` caused by OS save dialogs
+// while keeping PrintScreen, shortcuts, tab-hide, and touchcancel 100% active.
+let authorizedDownloadUntilMs = 0;
+
+export const markAuthorizedDownloadActive = (durationMs = 4000): void => {
+  authorizedDownloadUntilMs = Math.max(authorizedDownloadUntilMs, Date.now() + durationMs);
+};
+
+export const isAuthorizedDownloadActive = (): boolean => Date.now() < authorizedDownloadUntilMs;
+
 /**
  * Panodaki (Clipboard) ekran görüntüsünü (image/png + text/plain) EconNotes güvenlik görseli ile ezer.
  */
-export const overwriteClipboardWithSecurityImage = async (viewerName?: string) => {
+export const overwriteClipboardWithSecurityImage = async (_viewerName?: string) => {
   const securityText =
     'EconNotes Güvenlik Koruması: Notlar bölümünde ekran görüntüsü (SS) alınmasına izin verilmemektedir.';
   try {
@@ -73,17 +85,24 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
   viewerName,
   children,
 }) => {
-  const [shieldReason, setShieldReason] = useState<'screenshot' | 'focus_lost' | null>(null);
+  const [shieldReason, setShieldReason] = useState<'screenshot' | 'focus_lost' | 'background' | null>(null);
+  const [viewportStyle, setViewportStyle] = useState<{ width: string; height: string }>({
+    width: '100vw',
+    height: '100dvh',
+  });
   const wipeTimersRef = useRef<number[]>([]);
+  const safeViewerLabel = viewerName ? sanitizeWatermarkDisplayName(viewerName) : '';
 
   const activateSyncDomShield = useCallback(() => {
     if (typeof document !== 'undefined') {
+      document.documentElement.classList.add(SHIELD_BODY_CLASS);
       document.body.classList.add(SHIELD_BODY_CLASS);
     }
   }, []);
 
   const deactivateSyncDomShield = useCallback(() => {
     if (typeof document !== 'undefined') {
+      document.documentElement.classList.remove(SHIELD_BODY_CLASS);
       document.body.classList.remove(SHIELD_BODY_CLASS);
     }
   }, []);
@@ -91,14 +110,14 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
   const scheduleClipboardWipes = useCallback(() => {
     wipeTimersRef.current.forEach((id) => window.clearTimeout(id));
     wipeTimersRef.current = [];
-    void overwriteClipboardWithSecurityImage(viewerName);
+    void overwriteClipboardWithSecurityImage(safeViewerLabel);
     for (const delay of [25, 80, 180, 350, 650]) {
       const id = window.setTimeout(() => {
-        void overwriteClipboardWithSecurityImage(viewerName);
+        void overwriteClipboardWithSecurityImage(safeViewerLabel);
       }, delay);
       wipeTimersRef.current.push(id);
     }
-  }, [viewerName]);
+  }, [safeViewerLabel]);
 
   const triggerScreenshotBlock = useCallback(
     (sourceLabel?: string) => {
@@ -116,9 +135,41 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
   );
 
   const dismissShield = useCallback(() => {
+    // Sayfaya geri dönüldüğünde sekme hâlâ gizliyse kalkanı açma
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return;
+    }
     deactivateSyncDomShield();
     setShieldReason(null);
   }, [deactivateSyncDomShield]);
+
+  // Keep viewport dimensions locked across resize, orientation change, and mobile visualViewport shifts
+  useEffect(() => {
+    if (!shieldReason || typeof window === 'undefined') return;
+
+    const syncViewport = () => {
+      const vv = window.visualViewport;
+      const w = Math.max(window.innerWidth, vv ? Math.ceil(vv.width) : 0);
+      const h = Math.max(window.innerHeight, vv ? Math.ceil(vv.height) : 0);
+      setViewportStyle({
+        width: w > 0 ? `${w}px` : '100vw',
+        height: h > 0 ? `${h}px` : '100dvh',
+      });
+    };
+
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+    window.addEventListener('orientationchange', syncViewport);
+    window.visualViewport?.addEventListener('resize', syncViewport);
+    window.visualViewport?.addEventListener('scroll', syncViewport);
+
+    return () => {
+      window.removeEventListener('resize', syncViewport);
+      window.removeEventListener('orientationchange', syncViewport);
+      window.visualViewport?.removeEventListener('resize', syncViewport);
+      window.visualViewport?.removeEventListener('scroll', syncViewport);
+    };
+  }, [shieldReason]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -135,7 +186,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
       }
 
       // 2. Önizleme açıkken herhangi bir SS başlangıç tuşuna (Shift, Ctrl, Alt, Win/Cmd) basıldığı anda
-      // Win+Shift+S, Cmd+Shift+3/4/5, Alt+PrtScn, Ctrl+PrtScn daha tamamlanmadan 0ms'de ekranı karart!
+      // Win+Shift+S, Cmd+Shift+3/4/5, Alt+PrtScn, Ctrl+PrtScn daha tamamlanmadan 0ms'de tüm ekranı karart!
       if (
         isPreviewOpen &&
         (key === 'Meta' ||
@@ -148,7 +199,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
           e.altKey)
       ) {
         activateSyncDomShield();
-        setShieldReason('focus_lost');
+        setShieldReason((prev) => prev || 'focus_lost');
       }
 
       // 3. Windows Snipping Tool (Win + Shift + S) veya macOS Screenshot (Cmd + Shift + 3/4/5/6/S)
@@ -179,7 +230,6 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     const handleKeyUp = (e: KeyboardEvent) => {
       const key = e.key || '';
       const code = e.code || '';
-      // Windows PrintScreen tuşu yalnızca keyup gönderir: panodaki görüntüyü anında güvenlik görseliyle ez!
       if (key === 'PrintScreen' || code === 'PrintScreen' || e.keyCode === 44) {
         activateSyncDomShield();
         e.preventDefault();
@@ -189,24 +239,38 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
       }
     };
 
-    // Pencere odağı kaybolduğunda (Snipping Tool, Lightshot, iOS Kontrol Merkezi / App Switcher açıldığında)
+    // Pencere odağı kaybolduğunda (Snipping Tool, Lightshot, iOS Kontrol Merkezi / App Switcher / Android Recents)
     const handleWindowBlur = () => {
+      if (isAuthorizedDownloadActive()) return;
       activateSyncDomShield();
       setShieldReason((prev) => prev || 'focus_lost');
       scheduleClipboardWipes();
     };
 
+    // Mobil ve masaüstünde sekme değiştirme / arka plana alma / başka uygulamaya geçme
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         activateSyncDomShield();
-        setShieldReason((prev) => prev || 'focus_lost');
+        setShieldReason((prev) => prev || 'background');
         scheduleClipboardWipes();
       }
     };
 
+    const handlePageHideOrFreeze = () => {
+      activateSyncDomShield();
+      setShieldReason((prev) => prev || 'background');
+      scheduleClipboardWipes();
+    };
+
+    // Desteklenen tarayıcılarda Picture-in-Picture / ekran yakalama denemesi tespiti
+    const handleEnterPip = () => {
+      activateSyncDomShield();
+      setShieldReason('screenshot');
+    };
+
     // Fare tarayıcı penceresinden çıktığında (görev çubuğundaki Ekran Alıntısı Aracına tıklamak için) önizlemeyi anında gizle
     const handleMouseLeaveDocument = (e: MouseEvent) => {
-      if (!isPreviewOpen) return;
+      if (!isPreviewOpen || isAuthorizedDownloadActive()) return;
       if (
         e.clientY <= 0 ||
         e.clientX <= 0 ||
@@ -218,7 +282,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
       }
     };
 
-    // Mobilde çoklu dokunma veya touchcancel (iOS/Android donanım SS tuşlarına basıldığında tetiklenir)
+    // Mobilde çoklu dokunma (3+ parmak SS hareketi) veya touchcancel (iOS/Android donanım SS tuşlarına basıldığında tetiklenir)
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches && e.touches.length >= 3) {
         activateSyncDomShield();
@@ -230,7 +294,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     };
 
     const handleTouchCancel = () => {
-      // iOS ve Android, fiziksel Güç + Ses tuşlarıyla SS alındığı anda aktif dokunmayı 'touchcancel' ile keser!
+      if (isAuthorizedDownloadActive()) return;
       activateSyncDomShield();
       setShieldReason('screenshot');
       scheduleClipboardWipes();
@@ -256,10 +320,22 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
       }
     };
 
+    // Desteklenen tarayıcılarda ekran yakalama (Screen Capture / DisplayMedia) izleme
+    const checkActiveCapture = () => {
+      if (typeof document !== 'undefined' && document.pictureInPictureElement) {
+        activateSyncDomShield();
+        setShieldReason('screenshot');
+      }
+    };
+    const captureInterval = window.setInterval(checkActiveCapture, 2000);
+
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     window.addEventListener('keyup', handleKeyUp, { capture: true });
     window.addEventListener('blur', handleWindowBlur);
+    window.addEventListener('pagehide', handlePageHideOrFreeze);
+    document.addEventListener('freeze', handlePageHideOrFreeze);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('enterpictureinpicture', handleEnterPip, { capture: true });
     document.documentElement.addEventListener('mouseleave', handleMouseLeaveDocument);
     document.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
     document.addEventListener('touchcancel', handleTouchCancel, { capture: true });
@@ -267,10 +343,14 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     document.addEventListener('copy', handleCopy, { capture: true });
 
     return () => {
+      window.clearInterval(captureInterval);
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
       window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('pagehide', handlePageHideOrFreeze);
+      document.removeEventListener('freeze', handlePageHideOrFreeze);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('enterpictureinpicture', handleEnterPip, { capture: true });
       document.documentElement.removeEventListener('mouseleave', handleMouseLeaveDocument);
       document.removeEventListener('touchstart', handleTouchStart, { capture: true });
       document.removeEventListener('touchcancel', handleTouchCancel, { capture: true });
@@ -287,20 +367,126 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
     scheduleClipboardWipes,
   ]);
 
+  // Render full-screen protection shield directly into document.body via Portal so it escapes
+  // Layout <main>'s z-10 stacking context and covers Sidebar, Header, Footer, MobileBottomNav,
+  // Radix Preview Dialogs, and every pixel of the browser viewport across desktop & mobile!
+  const shieldPortal =
+    shieldReason && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            data-econnotes-ss-shield="true"
+            role="alertdialog"
+            aria-modal="true"
+            aria-live="assertive"
+            aria-label="Ekran Görüntüsü Koruması Aktif"
+            onClick={dismissShield}
+            onWheel={(e) => e.preventDefault()}
+            onTouchMove={(e) => e.preventDefault()}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: viewportStyle.width,
+              height: viewportStyle.height,
+              minWidth: '100vw',
+              minHeight: '100dvh',
+              zIndex: 2147483647,
+              backgroundColor: '#000000',
+              pointerEvents: 'auto',
+              paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))',
+              paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))',
+              paddingLeft: 'max(1.25rem, env(safe-area-inset-left, 0px))',
+              paddingRight: 'max(1.25rem, env(safe-area-inset-right, 0px))',
+            }}
+            className="flex flex-col items-center justify-center overflow-hidden bg-black text-center text-white select-none touch-none"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md space-y-4 rounded-[28px] border border-white/10 bg-[#0a0a0a] p-6 sm:p-7 shadow-2xl"
+            >
+              <div className="flex justify-center">
+                <EconLogo allWhite className="h-6 w-auto" />
+              </div>
+
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-300/35 bg-cyan-400/15 text-cyan-300 shadow-[0_0_28px_rgba(56,189,248,0.35)]">
+                <ShieldAlert className="h-8 w-8" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">
+                  Ekran Görüntüsü Koruması Aktif
+                </h2>
+                <p className="text-xs sm:text-sm leading-relaxed text-blue-100/85">
+                  {shieldReason === 'screenshot'
+                    ? 'EconNotes içerik güvenliği politikası gereği Notlar bölümünde ve not önizlemelerinde ekran görüntüsü (SS) alınmasına izin verilmemektedir.'
+                    : shieldReason === 'background'
+                    ? 'Uygulama arka plana alındığı veya sekme değiştirildiği için güvenlik politikası gereği tüm ekran ve not içeriği otomatik olarak gizlenmiştir.'
+                    : 'Ekran yakalama ve ekran görüntüsü araçlarına karşı koruma nedeniyle tüm ekran ve not içeriği otomatik olarak gizlenmiştir.'}
+                </p>
+              </div>
+
+              {safeViewerLabel && (
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/25 bg-white/[0.06] px-3 py-1 text-[11px] font-medium text-cyan-200">
+                  <Lock className="h-3 w-3 text-cyan-300" />
+                  <span>Oturum: {safeViewerLabel}</span>
+                </div>
+              )}
+
+              <div className="pt-1">
+                <Button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissShield();
+                  }}
+                  className="w-full h-11 rounded-xl bg-gradient-to-r from-[#0055b8] via-[#0070d1] to-[#0ea5e9] text-white font-bold text-xs gap-2 border border-cyan-300/30 shadow-lg"
+                >
+                  <Eye className="h-4 w-4" />
+                  <span>Anladım, Notlara Dön</span>
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div
       onContextMenu={(e) => e.preventDefault()}
       onDragStart={(e) => e.preventDefault()}
       className="relative select-none [-webkit-touch-callout:none] [-webkit-user-select:none]"
     >
-      {/* Senkron 0ms Simsiyah Ekran Karartma & Yazdırma Engelleyici CSS */}
+      {/* Senkron 0ms Tam Ekran Simsiyah Karartma (Sidebar, Header, Footer, Modallar dahil) & Yazdırma Engeli */}
       <style>{`
+        html.${SHIELD_BODY_CLASS},
         body.${SHIELD_BODY_CLASS} {
           background-color: #000000 !important;
+          overflow: hidden !important;
+          overscroll-behavior: none !important;
+          height: 100% !important;
+          width: 100% !important;
+        }
+        body.${SHIELD_BODY_CLASS} > *:not([data-econnotes-ss-shield="true"]) {
+          opacity: 0 !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+          user-select: none !important;
+          filter: brightness(0) contrast(0) !important;
+          transition: none !important;
+        }
+        body.${SHIELD_BODY_CLASS} [data-econnotes-ss-shield="true"] {
+          opacity: 1 !important;
+          visibility: visible !important;
+          pointer-events: auto !important;
         }
         body.${SHIELD_BODY_CLASS} .econnotes-ss-protected {
           opacity: 0 !important;
           visibility: hidden !important;
+          pointer-events: none !important;
           filter: brightness(0) contrast(0) !important;
           background-color: #000000 !important;
           transition: none !important;
@@ -328,57 +514,7 @@ export const ScreenshotProtection: React.FC<ScreenshotProtectionProps> = ({
 
       <div className="econnotes-ss-protected">{children}</div>
 
-      {/* Tam Ekran %100 Simsiyah (#000000) Ekran Görüntüsü Engelleyici Güvenlik Kalkanı */}
-      {shieldReason && (
-        <div
-          role="alertdialog"
-          aria-live="assertive"
-          onClick={dismissShield}
-          className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-black p-6 text-center text-white select-none"
-        >
-          <div className="max-w-md space-y-4 rounded-[28px] border border-white/10 bg-[#0a0a0a] p-6 sm:p-7 shadow-2xl">
-            <div className="flex justify-center">
-              <EconLogo allWhite className="h-6 w-auto" />
-            </div>
-
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-300/35 bg-cyan-400/15 text-cyan-300 shadow-[0_0_28px_rgba(56,189,248,0.35)]">
-              <ShieldAlert className="h-8 w-8" />
-            </div>
-
-            <div className="space-y-1.5">
-              <h2 className="text-lg sm:text-xl font-extrabold tracking-tight text-white">
-                Ekran Görüntüsü Koruması Aktif
-              </h2>
-              <p className="text-xs sm:text-sm leading-relaxed text-blue-100/85">
-                {shieldReason === 'screenshot'
-                  ? 'EconNotes içerik güvenliği politikası gereği Notlar bölümünde ve not önizlemelerinde ekran görüntüsü (SS) alınmasına izin verilmemektedir.'
-                  : 'Ekran yakalama ve ekran görüntüsü araçlarına karşı koruma nedeniyle not içeriği otomatik olarak gizlenmiştir.'}
-              </p>
-            </div>
-
-            {viewerName && (
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/25 bg-white/[0.06] px-3 py-1 text-[11px] font-medium text-cyan-200">
-                <Lock className="h-3 w-3 text-cyan-300" />
-                <span>Oturum: {viewerName}</span>
-              </div>
-            )}
-
-            <div className="pt-1">
-              <Button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  dismissShield();
-                }}
-                className="w-full h-11 rounded-xl bg-gradient-to-r from-[#0055b8] via-[#0070d1] to-[#0ea5e9] text-white font-bold text-xs gap-2 border border-cyan-300/30 shadow-lg"
-              >
-                <Eye className="h-4 w-4" />
-                <span>Anladım, Notlara Dön</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {shieldPortal}
     </div>
   );
 };

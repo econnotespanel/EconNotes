@@ -15,7 +15,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import EconLogo from '@/components/EconLogo';
-import { overwriteClipboardWithSecurityImage } from '@/components/ScreenshotProtection';
+import DynamicWatermarkOverlay from '@/components/DynamicWatermarkOverlay';
+import {
+  isAuthorizedDownloadActive,
+  overwriteClipboardWithSecurityImage,
+} from '@/components/ScreenshotProtection';
+import type { WatermarkIdentity } from '@/lib/watermarkIdentity';
 
 if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
@@ -24,6 +29,7 @@ if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
 interface NotePreviewViewerProps {
   previewUrl: string;
   previewType: string | null;
+  watermarkIdentity?: WatermarkIdentity | null;
 }
 
 interface LoupeState {
@@ -41,7 +47,11 @@ interface LoupeState {
 const LOUPE_SIZE = 164;
 const LOUPE_ZOOM = 2.4;
 
-const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previewType }) => {
+const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({
+  previewUrl,
+  previewType,
+  watermarkIdentity,
+}) => {
   const [pages, setPages] = useState<string[]>([]);
   const [totalPages, setTotalPages] = useState<number>(0);
   const [loadingPdf, setLoadingPdf] = useState<boolean>(false);
@@ -168,17 +178,32 @@ const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previ
       }
     };
 
-    window.addEventListener('blur', lockShieldImmediately);
+    const handleBlur = () => {
+      if (isAuthorizedDownloadActive()) return;
+      lockShieldImmediately();
+    };
+
+    const handleVisibilityOrBackground = () => {
+      if (document.visibilityState === 'hidden') {
+        lockShieldImmediately();
+      }
+    };
+
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('pagehide', lockShieldImmediately);
+    document.addEventListener('freeze', lockShieldImmediately);
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     window.addEventListener('keyup', handleKeyUp, { capture: true });
-    document.addEventListener('visibilitychange', lockShieldImmediately);
+    document.addEventListener('visibilitychange', handleVisibilityOrBackground);
     document.addEventListener('touchcancel', lockShieldImmediately, { capture: true });
 
     return () => {
-      window.removeEventListener('blur', lockShieldImmediately);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('pagehide', lockShieldImmediately);
+      document.removeEventListener('freeze', lockShieldImmediately);
       window.removeEventListener('keydown', handleKeyDown, { capture: true });
       window.removeEventListener('keyup', handleKeyUp, { capture: true });
-      document.removeEventListener('visibilitychange', lockShieldImmediately);
+      document.removeEventListener('visibilitychange', handleVisibilityOrBackground);
       document.removeEventListener('touchcancel', lockShieldImmediately, { capture: true });
     };
   }, []);
@@ -370,7 +395,7 @@ const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previ
           ) : pdfFailed && isPdf ? (
             <div
               className={cn(
-                'h-full w-full overflow-hidden rounded-xl bg-white transition-none',
+                'relative h-full w-full overflow-hidden rounded-xl bg-white transition-none',
                 !isHoldingToView && 'opacity-0 invisible blur-3xl',
               )}
             >
@@ -379,6 +404,7 @@ const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previ
                 title="EconNotes belge önizlemesi"
                 className="h-full w-full border-0"
               />
+              <DynamicWatermarkOverlay identity={watermarkIdentity} tone="on-light" />
             </div>
           ) : (
             <div
@@ -435,6 +461,7 @@ const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previ
                         magnifierEnabled ? 'cursor-crosshair' : 'cursor-pointer',
                       )}
                     />
+                    <DynamicWatermarkOverlay identity={watermarkIdentity} tone="on-light" />
                   </div>
                 </div>
               ))}
@@ -500,6 +527,7 @@ const NotePreviewViewer: React.FC<NotePreviewViewerProps> = ({ previewUrl, previ
           className="pointer-events-none fixed z-[80] rounded-full border-[3px] border-cyan-400 bg-white shadow-[0_18px_50px_rgba(0,24,69,0.75),0_0_0_4px_rgba(0,112,209,0.35),inset_0_2px_10px_rgba(0,55,145,0.25)]"
         >
           <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-transparent via-transparent to-white/20" />
+          <DynamicWatermarkOverlay identity={watermarkIdentity} tone="on-light" className="rounded-full" />
           <div className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-500/50 bg-cyan-400/15" />
         </div>
       )}
