@@ -1,6 +1,10 @@
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { getAuthenticatedUser } from '../_shared/request-security.ts';
+import {
+  getAuthenticatedUser,
+  isTrustedOrigin,
+  jsonResponse,
+  preflightResponse,
+} from '../_shared/request-security.ts';
 import { createChatCompletion } from '../_shared/openai-gateway.ts';
 import {
   CURATED_TRIVIA_BANK,
@@ -504,13 +508,10 @@ function getCancelMessage(reason: string | null | undefined): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return preflightResponse(req);
+  if (!isTrustedOrigin(req)) return jsonResponse(req, { error: 'Geçersiz kaynak.' }, 403);
 
-  const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
-    });
+  const json = (body: unknown, status = 200) => jsonResponse(req, body, status);
 
   try {
     const authHeader = req.headers.get('Authorization') ?? '';
@@ -573,8 +574,20 @@ Deno.serve(async (req) => {
     }
 
     let attempt = attemptRes.data as Record<string, any> | null;
-    const rawUnlimitedUntil = (profileRes.data as { trivia_unlimited_until?: string | null } | null)
+    let rawUnlimitedUntil = (profileRes.data as { trivia_unlimited_until?: string | null } | null)
       ?.trivia_unlimited_until;
+    if (!rawUnlimitedUntil) {
+      try {
+        const { data: authUserLookup } = await admin.auth.admin.getUserById(authUserId);
+        const metaUntil = (authUserLookup?.user?.user_metadata as Record<string, unknown> | undefined)
+          ?.trivia_unlimited_until;
+        if (typeof metaUntil === 'string' && metaUntil.trim()) {
+          rawUnlimitedUntil = metaUntil;
+        }
+      } catch {
+        // ignore metadata lookup errors
+      }
+    }
     const activeUnlimitedUntil =
       rawUnlimitedUntil && Date.parse(rawUnlimitedUntil) > Date.now()
         ? rawUnlimitedUntil

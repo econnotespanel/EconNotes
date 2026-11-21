@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Crown, Sparkles, Trophy, X } from 'lucide-react';
+import { Crown, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import {
-  getTriviaUnlimitedRemainingLabel,
-  isTriviaUnlimitedActive,
-} from '@/lib/dailyTrivia';
+import { isTriviaUnlimitedActive } from '@/lib/dailyTrivia';
 import { cn } from '@/lib/utils';
 
 /**
@@ -47,10 +44,6 @@ const DailyTriviaLauncher = () => {
 
   if (!user || dismissed || location.pathname !== '/') return null;
 
-  const remainingLabel = unlimitedActive
-    ? getTriviaUnlimitedRemainingLabel(user, profile as any)
-    : '';
-
   return (
     <div
       className={cn(
@@ -90,14 +83,6 @@ const DailyTriviaLauncher = () => {
             <span className="block whitespace-nowrap text-[13px] font-extrabold tracking-tight text-white">
               Günlük Bilgi Yarışması
             </span>
-            <p className="mt-0.5 flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-blue-100/90">
-              <Sparkles className="h-3 w-3 shrink-0 text-amber-300" />
-              <span>
-                {unlimitedActive
-                  ? `2 Saat Sınırsız: ${remainingLabel}`
-                  : '15 Soru · 375 XP & 2 Saat Sınırsız'}
-              </span>
-            </p>
           </div>
         </button>
 

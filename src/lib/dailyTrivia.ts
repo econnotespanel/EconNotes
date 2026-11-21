@@ -1,5 +1,9 @@
 import type { User } from '@supabase/supabase-js';
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/integrations/supabase/client';
+import {
+  recordFallbackLeaveLocally,
+  runDailyTriviaSupabaseEngine,
+} from '@/lib/dailyTriviaFallbackEngine';
 
 export type TriviaCategory =
   | 'Tarih'
@@ -228,9 +232,22 @@ async function getAccessToken(forceRefresh = false): Promise<string | null> {
   return data.session?.access_token ?? null;
 }
 
+const EDGE_TIMEOUT_MS = 12_000;
+let edgeUnavailableInSession = false;
+
+export function resetDailyTriviaTransportState(): void {
+  edgeUnavailableInSession = false;
+}
+
 export async function invokeDailyTrivia<T>(
   body: Record<string, unknown>,
 ): Promise<{ data: T | null; error: string | null; status?: number; raw?: Record<string, unknown> }> {
+  // If we already confirmed during this session that the dedicated Edge Function is not deployed yet,
+  // route directly to the live Supabase Auth + PostgreSQL engine without triggering redundant 404s.
+  if (edgeUnavailableInSession) {
+    return runDailyTriviaSupabaseEngine<T>(body);
+  }
+
   let token = await getAccessToken(false);
   if (!token) token = await getAccessToken(true);
   if (!token) {
@@ -238,17 +255,29 @@ export async function invokeDailyTrivia<T>(
   }
 
   const callWithToken = async (jwt: string) => {
-    const resp = await fetch(`${SUPABASE_URL}/functions/v1/daily-trivia`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${jwt}`,
-      },
-      body: JSON.stringify(body),
-    });
-    const parsed = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
-    return { resp, parsed };
+    const controller = new AbortController();
+    const timer =
+      typeof window !== 'undefined'
+        ? window.setTimeout(() => controller.abort(), EDGE_TIMEOUT_MS)
+        : null;
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/daily-trivia`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${jwt}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const parsed = (await resp.json().catch(() => ({}))) as Record<string, unknown>;
+      return { resp, parsed };
+    } finally {
+      if (timer !== null && typeof window !== 'undefined') {
+        window.clearTimeout(timer);
+      }
+    }
   };
 
   try {
@@ -258,6 +287,17 @@ export async function invokeDailyTrivia<T>(
       if (fresh && fresh !== token) {
         ({ resp, parsed } = await callWithToken(fresh));
       }
+    }
+
+    // Edge Function not deployed (404 NOT_FOUND) or DB migration pending (503) ->
+    // seamlessly engage the live Supabase Auth + PostgreSQL backend engine.
+    if (
+      resp.status === 404 ||
+      parsed.code === 'NOT_FOUND' ||
+      (resp.status === 503 && parsed.migrationPending)
+    ) {
+      edgeUnavailableInSession = true;
+      return runDailyTriviaSupabaseEngine<T>(body);
     }
 
     if (!resp.ok) {
@@ -271,7 +311,14 @@ export async function invokeDailyTrivia<T>(
 
     return { data: parsed as unknown as T, error: null, status: resp.status, raw: parsed };
   } catch {
-    return { data: null, error: 'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.' };
+    // When a Supabase Edge Function is not deployed yet, browsers block the 404 OPTIONS preflight
+    // and reject fetch() with TypeError("Failed to fetch"). Verify real connectivity against live
+    // Supabase Auth & PostgreSQL before reporting an offline error!
+    const fallbackRes = await runDailyTriviaSupabaseEngine<T>(body);
+    if (!fallbackRes.error || fallbackRes.status === 401 || fallbackRes.status === 409) {
+      edgeUnavailableInSession = true;
+    }
+    return fallbackRes;
   }
 }
 
@@ -282,7 +329,15 @@ export async function invokeDailyTrivia<T>(
 export function sendDailyTriviaBeacon(
   accessToken: string | null,
   body: Record<string, unknown>,
+  userId?: string | null,
 ): void {
+  if (edgeUnavailableInSession) {
+    recordFallbackLeaveLocally(userId ?? null);
+    return;
+  }
+  if (userId) {
+    recordFallbackLeaveLocally(userId);
+  }
   if (!accessToken) return;
   try {
     void fetch(`${SUPABASE_URL}/functions/v1/daily-trivia`, {

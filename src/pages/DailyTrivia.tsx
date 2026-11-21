@@ -106,7 +106,9 @@ export default function DailyTrivia() {
   const leaveStartedAtRef = useRef<number | null>(null);
   const awayIntervalRef = useRef<number | null>(null);
   const cancellingRef = useRef(false);
+  const initialReloadCheckedRef = useRef(false);
 
+  const userId = user?.id ?? null;
   const isInProgress = attempt?.status === 'in_progress';
   isInProgressRef.current = isInProgress;
 
@@ -145,10 +147,10 @@ export default function DailyTrivia() {
 
   const triggerCancel = useCallback(
     async (reason: string) => {
-      if (cancellingRef.current || !user) return;
+      if (cancellingRef.current || !userId) return;
       cancellingRef.current = true;
       clearAwayTimers();
-      clearActiveTriviaRunInSession(user.id);
+      clearActiveTriviaRunInSession(userId);
 
       const { data } = await invokeDailyTrivia<{
         cancelled?: boolean;
@@ -186,19 +188,23 @@ export default function DailyTrivia() {
       toast.error('Yarışma güvenlik kuralı gereği iptal edildi. Bu yarışmaya ait ödüller verilmedi.');
       cancellingRef.current = false;
     },
-    [clearAwayTimers, user],
+    [clearAwayTimers, userId],
   );
 
-  // Initial status fetch (+ reload anti-cheat detection!)
+  // Initial status fetch (+ reload anti-cheat detection strictly once per page mount)
   const fetchStatus = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     setErrorMsg(null);
 
-    const activeRunMarker = readActiveTriviaRunInSession(user.id);
+    const activeRunMarker = !initialReloadCheckedRef.current
+      ? readActiveTriviaRunInSession(userId)
+      : null;
+    initialReloadCheckedRef.current = true;
+
     const { data, error } = await invokeDailyTrivia<TriviaStatusResponse>({
       action: 'status',
       clientReloaded: Boolean(activeRunMarker),
@@ -217,13 +223,13 @@ export default function DailyTrivia() {
     setAnswers(data.answers || []);
     setUserPoints(data.userPoints || 0);
     setUnlimitedExpiresAt(data.unlimitedExpiresAt || null);
-    syncTriviaUnlimitedUntil(user.id, data.unlimitedExpiresAt || null);
+    syncTriviaUnlimitedUntil(userId, data.unlimitedExpiresAt || null);
 
     if (data.attempt?.status === 'in_progress') {
       setCurrentIdx(Math.min(data.attempt.currentIndex, TRIVIA_TOTAL_QUESTIONS - 1));
-      markActiveTriviaRunInSession(user.id, data.quizDate, data.attempt.id);
+      markActiveTriviaRunInSession(userId, data.quizDate, data.attempt.id);
     } else {
-      clearActiveTriviaRunInSession(user.id);
+      clearActiveTriviaRunInSession(userId);
       if (data.attempt?.status === 'cancelled' && activeRunMarker) {
         window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
         toast.error(
@@ -234,7 +240,7 @@ export default function DailyTrivia() {
     }
 
     setLoading(false);
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -244,7 +250,7 @@ export default function DailyTrivia() {
 
   // Real-time 5-second leave detection (tab switch, window blur, page refresh/close)
   useEffect(() => {
-    if (!isInProgress || !user) {
+    if (!isInProgress || !userId) {
       clearAwayTimers();
       return;
     }
@@ -259,7 +265,7 @@ export default function DailyTrivia() {
       setAwayRemainingMs(TRIVIA_LEAVE_LIMIT_MS);
 
       // Immediately stamp departure on server with keepalive
-      sendDailyTriviaBeacon(accessTokenRef.current, { action: 'report_leave', reason });
+      sendDailyTriviaBeacon(accessTokenRef.current, { action: 'report_leave', reason }, userId);
 
       awayIntervalRef.current = window.setInterval(() => {
         if (leaveStartedAtRef.current === null) return;
@@ -290,7 +296,7 @@ export default function DailyTrivia() {
       });
 
       if (data?.cancelled) {
-        clearActiveTriviaRunInSession(user.id);
+        clearActiveTriviaRunInSession(userId);
         setAttempt((prev) =>
           prev
             ? {
@@ -341,20 +347,28 @@ export default function DailyTrivia() {
 
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!isInProgressRef.current) return;
-      sendDailyTriviaBeacon(accessTokenRef.current, {
-        action: 'report_leave',
-        reason: 'page_unload',
-      });
+      sendDailyTriviaBeacon(
+        accessTokenRef.current,
+        {
+          action: 'report_leave',
+          reason: 'page_unload',
+        },
+        userId,
+      );
       e.preventDefault();
       e.returnValue = '';
     };
 
     const onPageHide = () => {
       if (!isInProgressRef.current) return;
-      sendDailyTriviaBeacon(accessTokenRef.current, {
-        action: 'report_leave',
-        reason: 'page_hide',
-      });
+      sendDailyTriviaBeacon(
+        accessTokenRef.current,
+        {
+          action: 'report_leave',
+          reason: 'page_hide',
+        },
+        userId,
+      );
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -371,14 +385,18 @@ export default function DailyTrivia() {
       window.removeEventListener('pagehide', onPageHide);
       if (isInProgressRef.current) {
         // Navigating away via SPA router triggers server leave timestamp
-        sendDailyTriviaBeacon(accessTokenRef.current, {
-          action: 'report_leave',
-          reason: 'navigated_away',
-        });
+        sendDailyTriviaBeacon(
+          accessTokenRef.current,
+          {
+            action: 'report_leave',
+            reason: 'navigated_away',
+          },
+          userId,
+        );
       }
       clearAwayTimers();
     };
-  }, [isInProgress, user, clearAwayTimers, triggerCancel]);
+  }, [isInProgress, userId, clearAwayTimers, triggerCancel]);
 
   const handleStart = async () => {
     if (!user || starting) return;
