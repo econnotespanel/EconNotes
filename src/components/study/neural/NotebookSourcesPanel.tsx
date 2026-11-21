@@ -48,6 +48,20 @@ import type {
 } from '@/types/study';
 import { toast } from 'sonner';
 import NeuralLiveCapture from './NeuralLiveCapture';
+import {
+  STUDIO_BADGE_COURSE,
+  STUDIO_BADGE_WARN,
+  STUDIO_BTN_ICON,
+  STUDIO_BTN_PRIMARY,
+  STUDIO_BTN_SECONDARY,
+  STUDIO_CARD_ACTIVE,
+  STUDIO_CARD_SUBTLE,
+  STUDIO_PANEL_BODY,
+  STUDIO_PANEL_FOOTER,
+  STUDIO_PANEL_HEADER,
+  STUDIO_PANEL_HEADER_ICON,
+  STUDIO_PANEL_SHELL,
+} from './studioDesign';
 
 interface NotebookSourcesPanelProps {
   userId: string;
@@ -211,22 +225,21 @@ export function NotebookSourcesPanel({
         void handleFiles(e.dataTransfer.files);
       }}
       className={cn(
-        'flex h-full min-h-[520px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-card/95 shadow-xs transition-colors xl:h-[calc(100vh-11.5rem)] xl:min-h-[600px]',
-        dragging
-          ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/25'
-          : 'border-border/75',
+        STUDIO_PANEL_SHELL,
+        'transition-colors',
+        dragging && 'border-primary bg-primary/[0.04] ring-2 ring-primary/20',
       )}
     >
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3.5 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <FolderOpen className="h-4 w-4" />
+      {/* Unified Left Panel Header */}
+      <div className={STUDIO_PANEL_HEADER}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={STUDIO_PANEL_HEADER_ICON}>
+            <FolderOpen className="h-4 w-4" strokeWidth={1.85} />
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-bold tracking-tight text-foreground">Kaynaklar</h2>
+            <h2 className="truncate text-sm font-semibold tracking-tight text-foreground">Kaynaklar</h2>
             <p className="truncate text-[11px] text-muted-foreground">
-              {allCount > 0 ? `${activeCount} / ${allCount} aktif` : 'PDF, slayt veya ders notu ekle'}
+              {allCount > 0 ? `${activeCount} / ${allCount} seçili` : 'PDF, slayt veya ders notu'}
             </p>
           </div>
         </div>
@@ -234,16 +247,16 @@ export function NotebookSourcesPanel({
           type="button"
           size="sm"
           onClick={() => onAddDialogOpenChange(true)}
-          className="h-8 shrink-0 gap-1 rounded-xl px-2.5 text-xs font-semibold shadow-xs"
+          className={cn(STUDIO_BTN_PRIMARY, 'shrink-0 gap-1.5 px-3')}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4" strokeWidth={2} />
           Ekle
         </Button>
       </div>
 
-      {/* Master Select All Bar (NotebookLM style) */}
+      {/* Master Select All Bar */}
       {sources.length > 0 && (
-        <div className="flex shrink-0 items-center justify-between border-b border-border/50 bg-muted/20 px-3.5 py-2 text-xs">
+        <div className="flex shrink-0 items-center justify-between border-b border-border/70 bg-muted/25 px-4 py-2 text-xs">
           <label className="flex min-w-0 cursor-pointer items-center gap-2 text-muted-foreground hover:text-foreground">
             <Checkbox
               checked={allSourcesChecked}
@@ -252,41 +265,41 @@ export function NotebookSourcesPanel({
             />
             <span className="truncate font-medium">Tüm kaynakları seç</span>
           </label>
-          <span className="shrink-0 text-[10.5px] text-muted-foreground tabular-nums">
+          <span className="shrink-0 text-[11px] font-medium text-muted-foreground tabular-nums">
             {checkedSourceIds.length}/{sources.length}
           </span>
         </div>
       )}
 
-      {/* Sources Scroll List (native overflow-x-hidden avoids clipping) */}
-      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
+      {/* Sources Scroll List */}
+      <div className={STUDIO_PANEL_BODY}>
         {extracting && (
-          <div className="mb-2.5 flex items-center gap-2.5 rounded-xl border border-primary/25 bg-primary/[0.06] px-3 py-2.5 text-xs text-primary">
-            <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-            <span className="font-medium">Kaynak okunuyor, dersi analiz ediliyor...</span>
+          <div className="mb-3 flex items-center gap-2.5 rounded-xl border border-primary/25 bg-primary/[0.06] px-3 py-2.5 text-xs text-primary">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+            <span className="font-medium">Kaynak okunuyor, ders bilgisi doğrulanıyor...</span>
           </div>
         )}
 
         {sources.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-muted/15 px-4 py-8 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <FileUp className="h-5 w-5" />
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-8 text-center">
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+              <FileUp className="h-5 w-5" strokeWidth={1.75} />
             </div>
-            <p className="text-xs font-bold text-foreground">
-              Kayıtlı kaynakların burada görünür
+            <p className="text-xs font-semibold text-foreground">
+              Ders kaynakların burada listelenir
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              PDF, PPTX, DOCX, görsel sürükleyip bırak ya da EconNotes ders notlarından doğrudan seç.
+              PDF, PPTX, DOCX veya görsel sürükleyip bırak ya da EconNotes ders notlarından ekle.
             </p>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => onAddDialogOpenChange(true)}
-              className="mt-3.5 h-8 gap-1.5 rounded-xl text-xs"
+              className={cn(STUDIO_BTN_SECONDARY, 'mt-3.5 gap-1.5')}
             >
-              <Plus className="h-3.5 w-3.5 text-primary" />
-              İlk Kaynağını Ekle
+              <Plus className="h-4 w-4 text-primary" />
+              İlk Kaynağı Ekle
             </Button>
           </div>
         ) : (
@@ -299,16 +312,16 @@ export function NotebookSourcesPanel({
                 <div
                   key={src.id}
                   className={cn(
-                    'group relative flex min-w-0 w-full items-start gap-2 rounded-xl border p-2.5 transition-all',
+                    'group relative flex min-w-0 w-full items-start gap-2.5 p-3',
                     checked
-                      ? 'border-primary/30 bg-primary/[0.04] shadow-[0_2px_10px_hsl(var(--primary)/0.05)]'
-                      : 'border-border/60 bg-background/50 opacity-75 hover:opacity-100',
+                      ? STUDIO_CARD_ACTIVE
+                      : cn(STUDIO_CARD_SUBTLE, 'opacity-80 hover:border-border hover:opacity-100'),
                   )}
                 >
                   <Checkbox
                     checked={checked}
                     onCheckedChange={() => onToggleSource(src.id)}
-                    className="mt-1 shrink-0"
+                    className="mt-0.5 shrink-0"
                     aria-label={`${src.name} kaynağını seç`}
                   />
                   <div className="min-w-0 flex-1">
@@ -319,70 +332,79 @@ export function NotebookSourcesPanel({
                         className="flex min-w-0 items-center gap-1.5 text-left"
                         title="Kaynak başlıklarını, ders analizini ve metnini incele"
                       >
-                        <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        <Icon className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.85} />
                         <span className="truncate text-xs font-semibold text-foreground transition-colors group-hover:text-primary">
                           {src.name}
                         </span>
                       </button>
                     </div>
 
-                    {/* Independent Per-Source Course Badge / Confirmation Trigger */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    {/* Verified Independent Per-Source Course Badge */}
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       {profile.needsConfirmation ? (
                         <button
                           type="button"
                           onClick={() => onEditSourceCourse(profile.source)}
-                          className="inline-flex max-w-full items-center gap-1 rounded-full border border-amber-500/45 bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-300"
+                          className={cn(
+                            STUDIO_BADGE_WARN,
+                            'text-[10.5px] transition-colors hover:bg-amber-500/20',
+                          )}
                           title="Bu kaynağın dersi kesin belirlenemedi; doğru dersi seçmek için tıkla"
                         >
-                          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
                           <span className="truncate">Ders Seç</span>
                         </button>
                       ) : profile.resolvedCourse ? (
                         <button
                           type="button"
                           onClick={() => onEditSourceCourse(profile.source)}
-                          className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary/25 bg-primary/[0.08] px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/15"
-                          title={`Tespit edilen ders: ${profile.resolvedCourse} (değiştirmek için tıkla)`}
+                          className={cn(
+                            STUDIO_BADGE_COURSE,
+                            'text-[10.5px] transition-colors hover:bg-primary/15',
+                          )}
+                          title={`Ders: ${profile.resolvedCourse} (düzenlemek için tıkla)`}
                         >
-                          <span className="truncate max-w-[140px]">{profile.resolvedCourse}</span>
-                          <Pencil className="h-2.5 w-2.5 shrink-0 opacity-60" />
+                          <span className="max-w-[140px] truncate">{profile.resolvedCourse}</span>
+                          <Pencil className="h-3 w-3 shrink-0 opacity-65" />
                         </button>
                       ) : null}
 
                       {profile.unreadablePages.length > 0 && (
                         <span
-                          className="inline-flex items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9.5px] font-medium text-amber-700 dark:text-amber-300"
+                          className={cn(STUDIO_BADGE_WARN, 'text-[10px]')}
                           title={profile.warnings.join(' ')}
                         >
-                          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
                           {profile.unreadablePages.length} görsel syf
                         </span>
                       )}
                     </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                       <span>~{src.pagesOrSlides} syf</span>
                       <span>·</span>
                       <span>{src.wordCount.toLocaleString('tr-TR')} kelime</span>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-0.5 opacity-80 group-hover:opacity-100">
+                  <div className="flex shrink-0 items-center gap-0.5 opacity-75 transition-opacity group-hover:opacity-100">
                     <button
                       type="button"
                       onClick={() => setInspectSource(src)}
-                      className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className={cn(STUDIO_BTN_ICON, 'h-7 w-7')}
                       title="İçeriği incele"
                     >
-                      <Eye className="h-3.5 w-3.5" />
+                      <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
                     </button>
                     <button
                       type="button"
                       onClick={() => onRemoveSource(src.id)}
-                      className="rounded-lg p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      className={cn(
+                        STUDIO_BTN_ICON,
+                        'h-7 w-7 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive',
+                      )}
                       title="Kaynağı kaldır"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
                     </button>
                   </div>
                 </div>
@@ -391,19 +413,21 @@ export function NotebookSourcesPanel({
           </div>
         )}
 
-        {/* Optional: Include existing saved Study Materials as RAG context */}
+        {/* Saved Study Materials as Optional Context */}
         {materials.length > 0 && (
-          <div className="mt-4 border-t border-border/60 pt-3">
+          <div className="mt-4 border-t border-border/70 pt-3">
             <button
               type="button"
               onClick={() => setShowSavedMaterials((s) => !s)}
-              className="flex w-full items-center justify-between rounded-lg px-1.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+              className="flex h-8 w-full items-center justify-between rounded-xl px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
             >
               <span className="flex items-center gap-1.5">
-                <Sparkles className="h-3 w-3 text-violet-500" />
-                Kayıtlı Stüdyo Materyalleri ({materials.length})
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                Kayıtlı Materyaller ({materials.length})
               </span>
-              <span>{showSavedMaterials ? 'Gizle' : 'Bağla'}</span>
+              <span className="text-[11px] font-semibold text-primary">
+                {showSavedMaterials ? 'Gizle' : 'Göster'}
+              </span>
             </button>
 
             {showSavedMaterials && (
@@ -414,10 +438,10 @@ export function NotebookSourcesPanel({
                     <label
                       key={mat.id}
                       className={cn(
-                        'flex cursor-pointer items-center gap-2 rounded-xl border px-2.5 py-2 text-xs transition-colors',
+                        'flex cursor-pointer items-center gap-2.5 p-2.5 text-xs',
                         checked
-                          ? 'border-violet-500/35 bg-violet-500/[0.06]'
-                          : 'border-border/50 bg-background/40 hover:bg-muted/40',
+                          ? STUDIO_CARD_ACTIVE
+                          : cn(STUDIO_CARD_SUBTLE, 'hover:bg-muted/40'),
                       )}
                     >
                       <Checkbox
@@ -425,10 +449,10 @@ export function NotebookSourcesPanel({
                         onCheckedChange={() => onToggleMaterialSource(mat.id)}
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11.5px] font-medium text-foreground">
+                        <p className="truncate text-xs font-medium text-foreground">
                           {mat.title}
                         </p>
-                        <p className="truncate text-[10px] text-muted-foreground">
+                        <p className="truncate text-[11px] text-muted-foreground">
                           {mat.course || 'Materyal'} ·{' '}
                           {mat.material_type === 'summary'
                             ? 'Özet'
@@ -448,9 +472,9 @@ export function NotebookSourcesPanel({
         )}
       </div>
 
-      {/* Bottom quick drag hint */}
-      <div className="shrink-0 border-t border-border/50 bg-muted/15 px-3.5 py-2 text-[10.5px] text-muted-foreground">
-        Her kaynak kendi gerçek dersiyle analiz edilir; seçili kaynaklar tüm <strong>Stüdyo</strong> araçlarında ortak kullanılır.
+      {/* Unified Footer */}
+      <div className={cn(STUDIO_PANEL_FOOTER, 'text-[11px] leading-snug text-muted-foreground')}>
+        Her kaynak kendi ders bilgisiyle eşleştirilir; seçili kaynaklar tüm araçlarda ortak kullanılır.
       </div>
 
       {/* Add Source Modal (NotebookLM style) */}
@@ -561,7 +585,7 @@ export function NotebookSourcesPanel({
                         className={cn(
                           'rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors',
                           noteOriginTab === id
-                            ? 'bg-background text-foreground shadow-xs'
+                            ? 'bg-background text-foreground shadow-sm'
                             : 'text-muted-foreground hover:text-foreground',
                         )}
                       >

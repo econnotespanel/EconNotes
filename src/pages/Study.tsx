@@ -26,6 +26,11 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Json } from '@/integrations/supabase/types';
 import { extractFile } from '@/lib/extractFile';
 import {
+  extractStoragePathCandidates,
+  NOTES_BUCKET,
+  signedNoteUrlWithDetail,
+} from '@/lib/storageUrl';
+import {
   extractSearchableTextFromMaterial,
   indexDocumentInVectorStore,
   routedGenerateMaterial,
@@ -167,7 +172,7 @@ export default function Study() {
           originNoteId: mat.source_note_id || undefined,
           originType: mat.source_type,
           course: mat.course,
-          courseConfirmedByUser: Boolean(mat.course),
+          courseConfirmedByUser: false,
           text: txt || mat.title,
           pagesOrSlides: Math.max(1, Math.ceil(txt.split(/\s+/).length / 300)),
           wordCount: Math.max(1, txt.split(/\s+/).filter(Boolean).length),
@@ -323,12 +328,35 @@ export default function Study() {
 
       try {
         let blob: Blob | null = null;
-        if (/^https?:\/\//i.test(note.file_url)) {
+        const pathCandidates = extractStoragePathCandidates(note.file_url, NOTES_BUCKET);
+
+        // 1. Try authenticated signed URL from private `notes` bucket first
+        for (const cand of pathCandidates) {
+          const signedRes = await signedNoteUrlWithDetail(cand, 900);
+          if (signedRes.signedUrl) {
+            const resp = await fetch(signedRes.signedUrl);
+            if (resp.ok) {
+              blob = await resp.blob();
+              break;
+            }
+          }
+        }
+
+        // 2. Direct authenticated Storage download fallback
+        if (!blob) {
+          for (const cand of pathCandidates) {
+            const { data } = await supabase.storage.from(NOTES_BUCKET).download(cand);
+            if (data) {
+              blob = data;
+              break;
+            }
+          }
+        }
+
+        // 3. Direct URL fallback (only for legacy external URLs)
+        if (!blob && /^https?:\/\//i.test(note.file_url)) {
           const resp = await fetch(note.file_url);
           if (resp.ok) blob = await resp.blob();
-        } else {
-          const { data } = await supabase.storage.from('notes').download(note.file_url);
-          if (data) blob = data;
         }
 
         if (!blob) return buildNoteSourceItem(note);
@@ -468,9 +496,8 @@ export default function Study() {
       const cleanCourse = newCourse.trim();
       if (!cleanCourse) return;
       let updatedSource: ExtractedSourceItem | null = null;
-      updateActiveNotebook((nb) => ({
-        ...nb,
-        sources: nb.sources.map((s) => {
+      updateActiveNotebook((nb) => {
+        const nextSources = nb.sources.map((s) => {
           if (s.id !== sourceId) return s;
           updatedSource = {
             ...s,
@@ -481,8 +508,16 @@ export default function Study() {
             courseConfidence: 'high',
           };
           return updatedSource;
-        }),
-      }));
+        });
+        const distinct = Array.from(
+          new Set(nextSources.map((s) => s.course).filter((c): c is string => Boolean(c))),
+        );
+        return {
+          ...nb,
+          course: distinct.length === 1 ? distinct[0] : nb.course,
+          sources: nextSources,
+        };
+      });
       if (updatedSource) {
         void indexSourceSilent(updatedSource);
       }
@@ -540,11 +575,23 @@ export default function Study() {
 
   const handleRemoveNotebookSource = (sourceId: string) => {
     void removeDocumentIndex(`direct-${sourceId}`).then(refreshIndexedDocsCount).catch(() => {});
-    updateActiveNotebook((nb) => ({
-      ...nb,
-      sources: nb.sources.filter((s) => s.id !== sourceId),
-      checkedSourceIds: nb.checkedSourceIds.filter((id) => id !== sourceId),
-    }));
+    updateActiveNotebook((nb) => {
+      const remainingSources = nb.sources.filter((s) => s.id !== sourceId);
+      const remainingChecked = nb.checkedSourceIds.filter((id) => id !== sourceId);
+      // Clear stale notebook-level course when all sources are removed so prior sessions never contaminate new sources
+      const nextCourse =
+        remainingSources.length === 0
+          ? ''
+          : remainingSources.length === 1 && remainingSources[0].course && !remainingSources[0].courseNeedsConfirmation
+          ? remainingSources[0].course
+          : '';
+      return {
+        ...nb,
+        course: nextCourse,
+        sources: remainingSources,
+        checkedSourceIds: remainingChecked,
+      };
+    });
   };
 
   const handleToggleNotebookSource = (sourceId: string) => {
@@ -815,7 +862,7 @@ export default function Study() {
           originNoteId: mat.source_note_id || undefined,
           originType: mat.source_type,
           course: mat.course,
-          courseConfirmedByUser: Boolean(mat.course),
+          courseConfirmedByUser: false,
           text: txt || mat.title,
           pagesOrSlides: Math.max(1, Math.ceil(txt.split(/\s+/).length / 300)),
           wordCount: Math.max(1, txt.split(/\s+/).filter(Boolean).length),

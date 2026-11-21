@@ -57,6 +57,10 @@ interface GenerateReq {
   priorityTopics?: string[];
   generationNonce?: string;
   sourceFingerprint?: string;
+  targetSectionRange?: string;
+  minWordsPerSection?: number;
+  maxWordsPerSection?: number;
+  disciplineGuidance?: string;
   sectionTargets?: SectionTarget[];
   globalOutline?: {
     overview?: string;
@@ -363,53 +367,57 @@ Yanıtını YALNIZCA geçerli bir JSON objesi olarak döndür:
   if (req.materialType === 'summary' && stage === 'blueprint') {
     const isLargeDoc = enrichedContext.length >= 16_000 || req.examMode === 'large_note';
     const targetSections =
-      req.summaryDepth === 'short'
+      req.targetSectionRange?.trim() ||
+      (req.summaryDepth === 'short'
         ? '5-6'
         : req.summaryDepth === 'standard'
         ? isLargeDoc
-          ? '8-12'
+          ? '9-13'
           : '6-9'
         : req.summaryDepth === 'textbook'
         ? isLargeDoc
-          ? '10-16'
+          ? '14-20'
           : '8-12'
         : isLargeDoc
-        ? '9-14'
-        : '7-10';
+        ? '12-18'
+        : '7-10');
+    const disciplineGuidanceBlock = req.disciplineGuidance?.trim()
+      ? `\nALANA ÖZGÜ PEDAGOJİK YÖNERGE (YAPAY ŞABLON ZORLAMA, DERSE DOĞAL UYARLA):\n${req.disciplineGuidance.trim()}`
+      : '';
     const facultyDirective = req.faculty
       ? `\nDERS / ALAN ODAĞI: ${req.faculty}. Yalnızca yüklenen belgenin gerçek dersine, terminolojisine ve içeriğine %100 sadık kal; başka derslerden veya alanlardan alakasız kavram ekleme.`
       : '\nBAĞIMSIZ DERS ANALİZİ: Yüklenen belgenin kendi gerçek dersini (örn. Para Teorisi, Borçlar Hukuku, İstatistik ve Olasılık, Mikro İktisat vb.) başlık ve içerikten birebir koru; asla başka bir dersin kapsamına kaydırma.';
     const outlineBlock =
       Array.isArray(req.fullOutlineHint) && req.fullOutlineHint.length > 0
         ? `\nDOKÜMANIN BAŞTAN SONA BAŞLIK HARİTASI (İLK SAYFADAN SON SAYFAYA HİÇBİR BÖLÜMÜ ATLAMA):\n${req.fullOutlineHint
-            .slice(0, 32)
+            .slice(0, 36)
             .map((h, i) => `${i + 1}. ${h}`)
             .join('\n')}\n`
         : '';
 
     const system = `Sen üst düzey bir üniversite kürsü profesörü ve akademik eğitim materyali mimarısın.
-Görevin, verilen ders materyalinin TAMAMINI (ilk sayfadan son sayfaya kadar tek bir önemli başlığı, kavramı, teoriyi, modeli veya formülü bile atlamadan) tarayıp eksiksiz bir Çalışma Stüdyosu Ders Mimarisi (Blueprint) ve "Hangi Konulara Bakmalıyım?" sınav öncelik haritası (studyPriorityMap) oluşturmaktır.
-${facultyDirective}${multiCourseDirective}
+Görevin, verilen ders materyalinin TAMAMINI (ilk sayfadan son sayfaya kadar tek bir önemli başlığı, kavramı, teoriyi, modeli veya formülü bile atlamadan) tarayıp eksiksiz bir 9 Bölümlü Çalışma Stüdyosu Ders Mimarisi (Blueprint), "Ezberlenecekler vs. Yorumlanacaklar" sınav ayrımı, bütüncül Konu Değerlendirmesi ve "Hangi Konulara Bakmalıyım?" sınav öncelik haritası (studyPriorityMap) oluşturmaktır.
+${facultyDirective}${multiCourseDirective}${disciplineGuidanceBlock}
 ${styleInstruction}
 ${researchInstruction}${verbalInstruction}
 ${customDirective}
 
 KRİTİK KURALLAR:
-1. YÜZEYSEL ÖZET YASAKTIR: Amaç metni kısaltmak değil, öğrencinin konuyu gerçekten öğrenip sınava eksiksiz hazırlanmasını sağlayacak yapısal ders mimarisini kurmaktır.
+1. YÜZEYSEL ÖZET YASAKTIR: Amaç metni kısaltmak değil, öğrencinin konuyu gerçekten öğrenip sınava eksiksiz hazırlanmasını sağlayacak yapısal ders mimarisini kurmaktır. Uzun belgelerde (ör. 100-190 sayfa) tüm üniteleri/haftaları kapsayan geniş bir bölüm haritası oluştur; orta ve son sayfaları asla kesme.
 2. KAYNAĞA %100 SADAKAT: Her bölüm başlığı, alt odak noktası, terim ve karşılaştırma tablosu doğrudan kaynak metindeki gerçek içerikten çıkmalıdır. Kaynakta bulunmayan teori, tanım veya formülleri ASLA uydurma.
-3. ${domainMode === 'verbal' ? 'Sözel/hukuk derslerinde ana ve alt başlıkları, kanun/ilke unsurlarını, istisnaları, neden-sonuç zincirini ve kavram ayrımlarını koru; uydurma matematiksel formül ekleme.' : 'Formül, denklem, tablo ve grafik içeren derslerde metindeki TÜM formülleri LaTeX ($...$ veya $$...$$) ile keyTerms ve focusPoints içinde koru; her değişkenin anlamını planla.'}
+3. ${domainMode === 'verbal' ? 'Sözel/hukuk derslerinde ana ve alt başlıkları, kanun/ilke unsurlarını, istisnaları, neden-sonuç zincirini ve kavram ayrımlarını koru; uydurma matematiksel formül ekleme.' : 'Formül, denklem, tablo ve grafik içeren derslerde metindeki TÜM formülleri LaTeX ($...$ veya $$...$$) ile keyTerms ve focusPoints içinde koru; her değişkenin anlamını ve formülün kullanım amacını planla.'}
 4. Belgede okunamayan veya eksik sayfa/slayt uyarısı varsa "extractionNotices" dizisinde dürüstçe bildir.
 5. YALNIZCA geçerli JSON döndür (ekstra düz metin yok):
 {
-  "overview": "Ders belgesinin bütününü, temel amacını, konu akışını ve sınav açısından kritik eksenlerini anlatan 2-3 paragraflık nitelikli giriş özeti.",
+  "overview": "1. Ders ve Konu Genel Çerçevesi: Belgenin bütününü, amacını, konu akışını ve sınav açısından kritik eksenlerini anlatan 2-3 paragraflık nitelikli giriş özeti.",
   "disciplineTag": "${courseName}",
   "extractionNotices": ["Varsa okunamayan/eksik sayfa veya görsel slayt bildirimi; yoksa []"],
-  "keyPoints": ["Madde 1 — kaynaktaki somut kavram, teori veya mekanizma", "... (8-14 güçlü madde)"],
+  "keyPoints": ["Madde 1 — kaynaktaki somut kavram, teori veya mekanizma", "... (10-16 güçlü madde)"],
   "sectionsPlan": [
     {
       "index": 0,
       "title": "Nottaki gerçek ana başlık (çoklu ders varsa [Ders Adı] etiketiyle)",
-      "pageRange": "Sayfa 1-4 veya Slayt 1-6",
+      "pageRange": "Sayfa 1-8 veya Slayt 1-10",
       "focusPoints": ["Alt başlık A", "Alt başlık B", "Önemli tanım/teori/formül/örnek C"],
       "keyConcepts": ["Terim 1", "Terim 2", "Formül/Model 3"]
     }
@@ -432,6 +440,10 @@ KRİTİK KURALLAR:
       "examProbability": "Yüksek" | "Orta"
     }
   ],
+  "memorizeVsInterpret": {
+    "memorize": ["Kesin olarak ezberlenmesi gereken tanım/formül/madde/süre 1", "... (4-6 madde)"],
+    "interpret": ["Sınavda yorumlanması ve ilişki kurulması gereken neden-sonuç/mekanizma 1", "... (4-6 madde)"]
+  },
   "comparativeMatrix": {
     "title": "Kaynaktaki Kavram / Teori / Yaklaşım Karşılaştırma Tablosu",
     "columns": ["Boyut", "Yaklaşım / Kavram A", "Yaklaşım / Kavram B"],
@@ -447,6 +459,7 @@ KRİTİK KURALLAR:
   "keyTerms": [
     { "term": "Kaynaktaki Akademik Terim", "definition": "Anlaşılır, eksiksiz ve ayırt edici tanım", "formula": "Varsa kaynaktaki LaTeX formül" }
   ],
+  "summarySynthesis": "9. Konu Değerlendirmesi: Tüm belgedeki başlıkların birbiriyle nasıl bütünleştiğini ve öğrencinin sınava nasıl stratejik çalışması gerektiğini anlatan 1-2 paragraflık kapsayıcı kapanış değerlendirmesi.",
   "studyChecklist": [
     "Bu bölümü bitirdiğimde ... kavramını/teorisini ve farklarını açıklayabilirim."
   ]
@@ -464,18 +477,22 @@ sectionsPlan dizisi tam ${targetSections} bölüm içermeli ve belgenin BAŞINDA
   // --- STAGE 2: SUMMARY EXPAND BATCH ---
   if (req.materialType === 'summary' && stage === 'expand_batch') {
     const targets = req.sectionTargets || [];
+    const wordBudget = `${req.minWordsPerSection || 450}–${req.maxWordsPerSection || 760}`;
+    const disciplineGuidanceBlock = req.disciplineGuidance?.trim()
+      ? `\nALANA ÖZGÜ PEDAGOJİK YÖNERGE:\n${req.disciplineGuidance.trim()}`
+      : '';
     const system = `Sen üniversite öğrencilerine sınava tam hazırlık sağlayan, kapsamlı ve anlaşılır çalışma rehberleri yazan uzman bir akademisyensin.
 Sana verilen ders mimarisi ve kaynak kesitleri doğrultusunda, SADECE aşağıdaki hedef bölümlerin her birini derinlemesine, anlaşılır ve eksiksiz Türkçe Markdown olarak yazacaksın.
-${multiCourseDirective}
+${multiCourseDirective}${disciplineGuidanceBlock}
 ${styleInstruction}
 ${researchInstruction}${verbalInstruction}
 ${customDirective}
 
 HER BÖLÜM İÇİN ZORUNLU KALİTE STANDARDI:
-1. YÜZEYSEL VE KISA ÖZET YASAKTIR: Her bölüm 420–720 kelime arası DOLGUN, ÖĞRETİCİ ve SINAVA HAZIRLAYICI bir çalışma bölümü olmalıdır (ancak kaynakta olmayan bilgileri uydurarak uzatma — kaynak metindeki tüm detayları, tanımları, alt başlıkları, örnekleri, formülleri ve bağlantıları tam aç!).
+1. YÜZEYSEL VE KISA ÖZET YASAKTIR: Her bölüm ${wordBudget} kelime arası DOLGUN, ÖĞRETİCİ ve SINAVA HAZIRLAYICI bir çalışma bölümü olmalıdır (ancak kaynakta olmayan bilgileri uydurarak uzatma — kaynak metindeki tüm detayları, tanımları, alt başlıkları, örnekleri, formülleri ve bağlantıları tam aç!).
 2. ANA VE ALT BAŞLIKLARI KORU: Kaynaktaki alt başlıkları \`####\` olarak koru, akademik terminolojiyi ve konu sıralamasını bozma.
-3. KAVRAM, TANIM, TEORİ VE MODELLER: Geçen hiçbir önemli kavramı, teoriyi, yaklaşımı veya modeli atlama; öğrencinin zorlanabileceği noktaları sade bir dille açıkla.
-4. FORMÜL, GRAFİK, TABLO VE ÖRNEKLER: ${domainMode === 'verbal' ? 'Sözel/hukuk/sosyal bilimlerde karşılaştırma veya unsur ayrımı gerektiğinde mutlaka Markdown tablosu (`|...|`) kur; uydurma matematiksel formül ekleme.' : 'Kaynaktaki TÜM formülleri LaTeX (`$...$` ve `$$...$$`) ile yaz, her sembolün/değişkenin ne anlama geldiğini açıkla, kaynaktaki grafik/tablo ve sayısal örnekleri adım adım anlat.'}
+3. KAVRAM, TANIM, TEORİ VE MODELLER: Geçen hiçbir önemli kavramı, teoriyi, yaklaşımı veya modeli atlama; karmaşık akademik kavramları akademik terimleri kaybetmeden sade dille açıkla ve benzer yaklaşımların farklarını netleştir.
+4. FORMÜL, GRAFİK, TABLO VE ÖRNEKLER: ${domainMode === 'verbal' ? 'Sözel/hukuk/sosyal bilimlerde karşılaştırma veya unsur ayrımı gerektiğinde mutlaka Markdown tablosu (`|...|`) kur; uydurma matematiksel formül ekleme.' : 'Kaynaktaki TÜM formülleri LaTeX (`$...$` ve `$$...$$`) ile yaz, her sembolün/değişkenin ne anlama geldiğini ve formülün hangi amaçla kullanıldığını açıkla; grafik/tablo ve sayısal örnekleri adım adım anlat.'}
 5. KONULAR ARASI BAĞLANTI VE SINAV ODAĞI: Bu bölümün önceki/sonraki konularla bağlantısını kur ve sınavlarda sorulabilecek kritik ayrıntıları/tuzakları özel olarak vurgula.
 6. ŞEFFAF KAYNAK AYRIMI: Kaynak dışından kısa bir sadeleştirici açıklama eklemen gerekirse mutlaka **[Ek Açıklama]** etiketiyle kaynak bilgisinden ayır. Okunamayan/görsel sayfa uyarısı varsa açıkça belirt.
 7. KONTROL SORUSU: Her bölümün sonunda öğrencinin o bölümü kavrayıp kavramadığını ölçen 1 ayırt edici mini soru (\`checkpointQuestion\`) üret.
@@ -487,7 +504,7 @@ YALNIZCA geçerli JSON döndür:
       "index": 0,
       "heading": "Bölüm başlığı",
       "pageRange": "Sayfa / Slayt aralığı",
-      "content": "Alt başlıklar (####), detaylı kavram/teori açıklamaları, varsa formüller + değişken tanımları, tablo/örnek açıklaması, konular arası bağlantı ve sınav vurgusu içeren 420-720 kelimelik eksiksiz Türkçe Markdown metni...",
+      "content": "Alt başlıklar (####), detaylı kavram/teori açıklamaları, varsa formüller + değişken tanımları + kullanım amacı, tablo/örnek açıklaması, konular arası bağlantı ve sınav vurgusu içeren ${wordBudget} kelimelik eksiksiz Türkçe Markdown metni...",
       "takeaways": ["Bu bölümden akılda kalması gereken 3-4 net çıkarım"],
       "deepResearchNote": "Varsa konular arası kuramsal bağlantı veya [Ek Açıklama] notu",
       "commonPitfalls": ["Sınavda sık yapılan 1-2 kavram tuzağı veya karışıklık"],
@@ -525,22 +542,28 @@ YALNIZCA geçerli JSON döndür:
   // --- SINGLE-CALL SUMMARY (Deep, comprehensive, 100% source-faithful) ---
   if (req.materialType === 'summary') {
     const isShort = req.summaryDepth === 'short' || req.detailLevel === 'concise';
-    const secCount = isShort ? '5-6' : '7-11';
-    const system = `Sen üniversite öğrencilerine ders materyallerinden sınava tam hazırlık sağlayan, kapsamlı ve anlaşılır çalışma rehberleri oluşturan uzman bir akademisyensin.
-${multiCourseDirective}
+    const secCount = req.targetSectionRange?.trim() || (isShort ? '5-6' : '7-11');
+    const wordRange = isShort
+      ? '280-400'
+      : `${req.minWordsPerSection || 420}-${req.maxWordsPerSection || 680}`;
+    const disciplineGuidanceBlock = req.disciplineGuidance?.trim()
+      ? `\nALANA ÖZGÜ PEDAGOJİK YÖNERGE:\n${req.disciplineGuidance.trim()}`
+      : '';
+    const system = `Sen üniversite öğrencilerine ders materyallerinden sınava tam hazırlık sağlayan, kapsamlı ve anlaşılır 9 bölümlü çalışma rehberleri oluşturan uzman bir akademisyensin.
+${multiCourseDirective}${disciplineGuidanceBlock}
 ${styleInstruction}
 ${researchInstruction}${verbalInstruction}
 ${customDirective}
 
 KESİN KALİTE VE DOĞRULUK KURALLARI:
-1. YÜZEYSEL ÖZET YASAKTIR: Özet asla birkaç kısa paragraftan ibaret olmamalı. Belgedeki TÜM sayfaları/slaytları, ana ve alt başlıkları (\`####\`), tanımları, teorileri, yaklaşımları, modelleri, formülleri ($...$ / $$...$$ ve değişken açıklamalarıyla), tabloları, grafik/şekil açıklamalarını ve örnekleri eksiksiz analiz edip öğretici biçimde açıkla.
+1. YÜZEYSEL ÖZET YASAKTIR: Özet asla birkaç kısa paragraftan ibaret olmamalı. Belgedeki TÜM sayfaları/slaytları, ana ve alt başlıkları (\`####\`), tanımları, teorileri, yaklaşımları, modelleri, formülleri ($...$ / $$...$$ — her değişkenin anlamı ve kullanım amacıyla), tabloları, grafik/şekil açıklamalarını ve örnekleri eksiksiz analiz edip öğretici biçimde açıkla.
 2. %100 KAYNAK SADAKATİ: Yalnızca yüklenen belgenin gerçek içeriğine dayan. Kaynakta bulunmayan teorileri, tanımları veya başka bir dersin konularını sırf içeriği uzatmak için KESİNLİKLE ekleme.
 3. ŞEFFAF EK AÇIKLAMA: Zor bir kavramı sadeleştirmek için kaynaktaki metnin ötesinde kısa açıklama eklersen mutlaka **[Ek Açıklama]** etiketiyle işaretle.
 4. EKSİK / OKUNAMAYAN KISIMLAR: Belgede okunamayan, taranmış veya metin katmanı olmayan sayfalar/slaytlar varsa bunları uydurmadan "extractionNotices" listesinde açıkça belirt.
-5. KARŞILAŞTIRMALI TABLO, BAĞLANTILAR VE SINAV VURGUSU: Kavramlar/modeller arası bağlantıları kur, gerektiğinde Markdown karşılaştırma tablosu (\`|...|\`) ekle ve sınavlarda sorulabilecek kritik ayrıntıları + "studyPriorityMap" öncelik sırasını vurgula.
+5. SINAV HAZIRLIĞI VE BÜTÜNCÜL DEĞERLENDİRME: Kavramlar/modeller arası bağlantıları kur, Markdown karşılaştırma tablosu (\`|...|\`) ekle, "memorizeVsInterpret" ile ezberlenecek ve yorumlanacak bilgileri net biçimde ayır ve sonunda "summarySynthesis" ile 9. Konu Değerlendirmesini yaz.
 6. YALNIZCA geçerli JSON döndür:
 {
-  "overview": "Belgenin kapsamını, ana konusunu ve tüm bölümlerinin bütüncül bağlantısını anlatan 2-3 paragraflık nitelikli giriş özeti",
+  "overview": "1. Ders ve Konu Genel Çerçevesi: Belgenin kapsamını, ana konusunu ve tüm bölümlerinin bütüncül bağlantısını anlatan 2-3 paragraflık nitelikli giriş özeti",
   "disciplineTag": "${courseName}",
   "extractionNotices": ["Varsa okunamayan/eksik sayfa uyarısı; yoksa []"],
   "keyPoints": ["Nottan 8-12 net ve somut ana çıkarım"],
@@ -548,7 +571,7 @@ KESİN KALİTE VE DOĞRULUK KURALLARI:
     {
       "heading": "Nottaki gerçek ana konu başlığı",
       "pageRange": "Varsa sayfa/slayt aralığı",
-      "content": "${isShort ? '260-380' : '420-680'} kelimelik alt başlıklı (####), ayrıntılı, anlaşılır, formül/tablo/örnek/bağlantı ve sınav vurgusu içeren Türkçe Markdown anlatımı",
+      "content": "${wordRange} kelimelik alt başlıklı (####), ayrıntılı, anlaşılır, formül/değişken/tablo/örnek/bağlantı ve sınav vurgusu içeren Türkçe Markdown anlatımı",
       "takeaways": ["Bu bölümden 3-4 net çıkarım"],
       "commonPitfalls": ["Sınavda karıştırılabilecek 1-2 kritik nokta"],
       "checkpointQuestion": {
@@ -573,12 +596,17 @@ KESİN KALİTE VE DOĞRULUK KURALLARI:
   "teacherEmphasis": [
     { "point": "Nottaki kritik kavram/ayrıntı", "whyImportant": "Sınavda neden önemli olduğu", "examProbability": "Yüksek" }
   ],
+  "memorizeVsInterpret": {
+    "memorize": ["Kesin olarak ezberlenmesi gereken tanım/formül/ilke/süre 1", "... (4-6 madde)"],
+    "interpret": ["Sınavda yorumlanması ve ilişki kurulması gereken neden-sonuç/mekanizma 1", "... (4-6 madde)"]
+  },
   "comparativeMatrix": {
     "title": "Kaynaktaki Kavram / Teori Karşılaştırma Tablosu (metinde karşılaştırılabilir unsurlar varsa)",
     "columns": ["Ölçüt", "Kavram A", "Kavram B"],
     "rows": [["...", "...", "..."]]
   },
   "keyTerms": [{ "term": "Nottaki terim", "definition": "Ayrıntılı ve doğru tanım", "formula": "Varsa kaynaktaki formül" }],
+  "summarySynthesis": "9. Konu Değerlendirmesi: Tüm belgenin ana fikrini ve sınav stratejisini toparlayan 1-2 paragraflık kapsayıcı kapanış değerlendirmesi.",
   "studyChecklist": ["Bu notu bitirdiğimde ... konusunu ve ayrımlarını açıklayabilirim."]
 }
 Tam ${secCount} kapsamlı bölüm üret ve belgenin ilk sayfasından son sayfasına kadar tamamını kapsa.`;
@@ -822,6 +850,18 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
         : undefined,
       deepResearchTopics: Array.isArray(raw.deepResearchTopics) ? raw.deepResearchTopics : [],
       keyTerms: Array.isArray(raw.keyTerms) ? raw.keyTerms : [],
+      memorizeVsInterpret:
+        raw.memorizeVsInterpret?.memorize || raw.memorizeVsInterpret?.interpret
+          ? {
+              memorize: Array.isArray(raw.memorizeVsInterpret.memorize)
+                ? raw.memorizeVsInterpret.memorize.map(String).filter(Boolean)
+                : [],
+              interpret: Array.isArray(raw.memorizeVsInterpret.interpret)
+                ? raw.memorizeVsInterpret.interpret.map(String).filter(Boolean)
+                : [],
+            }
+          : undefined,
+      summarySynthesis: raw.summarySynthesis ? String(raw.summarySynthesis).trim() : undefined,
       studyPriorityMap: Array.isArray(raw.studyPriorityMap) ? raw.studyPriorityMap : [],
       studyChecklist: Array.isArray(raw.studyChecklist) ? raw.studyChecklist.map(String) : [],
     };
@@ -879,6 +919,18 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
         : undefined,
       deepResearchTopics: Array.isArray(raw.deepResearchTopics) ? raw.deepResearchTopics : [],
       keyTerms: Array.isArray(raw.keyTerms) ? raw.keyTerms : [],
+      memorizeVsInterpret:
+        raw.memorizeVsInterpret?.memorize || raw.memorizeVsInterpret?.interpret
+          ? {
+              memorize: Array.isArray(raw.memorizeVsInterpret.memorize)
+                ? raw.memorizeVsInterpret.memorize.map(String).filter(Boolean)
+                : [],
+              interpret: Array.isArray(raw.memorizeVsInterpret.interpret)
+                ? raw.memorizeVsInterpret.interpret.map(String).filter(Boolean)
+                : [],
+            }
+          : undefined,
+      summarySynthesis: raw.summarySynthesis ? String(raw.summarySynthesis).trim() : undefined,
       studyPriorityMap: Array.isArray(raw.studyPriorityMap) ? raw.studyPriorityMap : [],
       studyChecklist: Array.isArray(raw.studyChecklist) ? raw.studyChecklist.map(String) : [],
     };

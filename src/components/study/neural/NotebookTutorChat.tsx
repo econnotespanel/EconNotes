@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowUpRight,
   BookOpen,
   BookOpenCheck,
   BookmarkPlus,
   Camera,
   Check,
   Copy,
+  FileText,
   FileUp,
   HelpCircle,
   Layers,
@@ -23,28 +25,47 @@ import AcademicMarkdown from '@/components/AcademicMarkdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import type { CanonicalSourceAnalysis } from '@/lib/studySourceAnalysis';
+import { analyzeSingleSource, type CanonicalSourceAnalysis } from '@/lib/studySourceAnalysis';
+import { extractFullDocumentOutline } from '@/lib/studySourceProcessor';
 import { cn } from '@/lib/utils';
 import type {
   CoachMode,
   ExtractedSourceItem,
+  MaterialType,
   NotebookAttachmentImage,
   NotebookChatMessage,
   StudyMaterial,
 } from '@/types/study';
 import { toast } from 'sonner';
+import {
+  STUDIO_BADGE_COURSE,
+  STUDIO_BADGE_WARN,
+  STUDIO_BTN_GHOST,
+  STUDIO_BTN_PRIMARY,
+  STUDIO_BTN_SECONDARY,
+  STUDIO_CARD_ACTIVE,
+  STUDIO_CARD_SUBTLE,
+  STUDIO_PANEL_BODY,
+  STUDIO_PANEL_HEADER,
+  STUDIO_PANEL_SHELL,
+  STUDIO_SEGMENTED_ITEM_ACTIVE,
+  STUDIO_SEGMENTED_ITEM_IDLE,
+  STUDIO_SEGMENTED_WRAP,
+} from './studioDesign';
 
 interface NotebookTutorChatProps {
   notebookTitle: string;
   notebookEmoji: string;
   activeSources: ExtractedSourceItem[];
   activeMaterials: StudyMaterial[];
+  notebookMaterials?: StudyMaterial[];
   canonicalAnalysis: CanonicalSourceAnalysis;
   messages: NotebookChatMessage[];
   coachMode: CoachMode;
   onCoachModeChange: (mode: CoachMode) => void;
   busy: boolean;
   streamingText: string;
+  isGenerating?: boolean;
   onSendMessage: (params: {
     text: string;
     mode?: CoachMode;
@@ -53,6 +74,8 @@ interface NotebookTutorChatProps {
   onPinMessage: (msg: NotebookChatMessage) => void;
   onClearChat: () => void;
   onOpenAddSource: (tab: 'upload' | 'notes' | 'paste' | 'live') => void;
+  onOpenMaterial?: (mat: StudyMaterial) => void;
+  onGenerateType?: (type: MaterialType) => void;
   onRequestCourseConfirm?: () => void;
 }
 
@@ -94,18 +117,24 @@ export function NotebookTutorChat({
   notebookEmoji,
   activeSources,
   activeMaterials,
+  notebookMaterials = [],
   canonicalAnalysis,
   messages,
   coachMode,
   onCoachModeChange,
   busy,
   streamingText,
+  isGenerating = false,
   onSendMessage,
   onPinMessage,
   onClearChat,
   onOpenAddSource,
+  onOpenMaterial,
+  onGenerateType,
   onRequestCourseConfirm,
 }: NotebookTutorChatProps) {
+  const [centerTab, setCenterTab] = useState<'study' | 'document' | 'summaries'>('study');
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<NotebookAttachmentImage[]>([]);
   const [expandedCitationKey, setExpandedCitationKey] = useState<string | null>(null);
@@ -118,6 +147,26 @@ export function NotebookTutorChat({
   const recognitionRef = useRef<any>(null);
 
   const totalActiveCount = activeSources.length + activeMaterials.length;
+
+  const summaryMaterials = useMemo(
+    () => notebookMaterials.filter((m) => m.material_type === 'summary'),
+    [notebookMaterials],
+  );
+
+  const selectedDocument = useMemo(() => {
+    if (activeSources.length === 0) return null;
+    return activeSources.find((s) => s.id === selectedDocId) || activeSources[0];
+  }, [activeSources, selectedDocId]);
+
+  const selectedDocProfile = useMemo(
+    () => (selectedDocument ? analyzeSingleSource(selectedDocument) : null),
+    [selectedDocument],
+  );
+
+  const selectedDocOutline = useMemo(
+    () => (selectedDocument?.text ? extractFullDocumentOutline(selectedDocument.text, 24) : []),
+    [selectedDocument],
+  );
 
   const briefing = useMemo(() => {
     const topics: string[] = [];
@@ -265,103 +314,365 @@ export function NotebookTutorChat({
   const activeModeMeta = TUTOR_MODES.find((m) => m.id === coachMode) || TUTOR_MODES[0];
 
   return (
-    <div className="flex h-full min-h-[540px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border/75 bg-card/95 shadow-xs xl:h-[calc(100vh-11.5rem)] xl:min-h-[600px]">
-      {/* Center Panel Header */}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-gradient-to-r from-primary/[0.04] via-transparent to-violet-500/[0.04] px-3.5 py-3">
+    <div className={STUDIO_PANEL_SHELL}>
+      {/* Unified Center Panel Header */}
+      <div className={STUDIO_PANEL_HEADER}>
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-base">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-sm">
             {notebookEmoji}
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-bold text-foreground">{notebookTitle}</h2>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-              {totalActiveCount > 0 ? (
-                <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
-                  <BookOpenCheck className="h-3 w-3 shrink-0" />
-                  {totalActiveCount} kaynak bağlı · Kaynağa sadık
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 font-medium text-primary">
-                  <Sparkles className="h-3 w-3 shrink-0" />
-                  AI Öğretmen &amp; Snap-Solve Hazır
+            <div className="flex items-center gap-2">
+              <h2 className="truncate text-sm font-semibold tracking-tight text-foreground">
+                {notebookTitle}
+              </h2>
+              {briefing.courseLabel && (
+                <span
+                  className={cn(STUDIO_BADGE_COURSE, 'hidden max-w-[200px] sm:inline-flex')}
+                  title={briefing.courseLabel}
+                >
+                  <span className="truncate">{briefing.courseLabel}</span>
                 </span>
               )}
-              {briefing.courseLabel && (
-                <>
-                  <span>·</span>
-                  <span className="truncate max-w-[220px] font-medium text-foreground/80">
-                    {briefing.courseLabel}
-                  </span>
-                </>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+              {totalActiveCount > 0 ? (
+                <span className="inline-flex items-center gap-1 font-medium text-primary">
+                  <BookOpenCheck className="h-3.5 w-3.5 shrink-0" />
+                  {totalActiveCount} kaynak bağlı · Kaynağa sadık çalışma alanı
+                </span>
+              ) : (
+                <span>Kaynak ekleyerek çalışmaya başla veya doğrudan soru sor</span>
               )}
             </div>
           </div>
         </div>
 
-        {messages.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1.5">
+          {messages.length > 0 && centerTab === 'study' && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onClearChat}
+              className={cn(STUDIO_BTN_GHOST, 'h-8 gap-1 px-2.5 text-[11px]')}
+              title="Sohbeti temizle"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Temizle</span>
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Minimalist Center Workspace View Switcher: Çalışma Alanı · Kaynak İçeriği · Özetler */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-muted/20 px-4 py-2">
+        <div className={STUDIO_SEGMENTED_WRAP}>
+          <button
+            type="button"
+            onClick={() => setCenterTab('study')}
+            className={
+              centerTab === 'study' ? STUDIO_SEGMENTED_ITEM_ACTIVE : STUDIO_SEGMENTED_ITEM_IDLE
+            }
+          >
+            Çalışma Alanı
+          </button>
+          <button
+            type="button"
+            onClick={() => setCenterTab('document')}
+            className={
+              centerTab === 'document' ? STUDIO_SEGMENTED_ITEM_ACTIVE : STUDIO_SEGMENTED_ITEM_IDLE
+            }
+          >
+            Kaynak İçeriği{activeSources.length > 0 ? ` (${activeSources.length})` : ''}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCenterTab('summaries')}
+            className={
+              centerTab === 'summaries' ? STUDIO_SEGMENTED_ITEM_ACTIVE : STUDIO_SEGMENTED_ITEM_IDLE
+            }
+          >
+            Özetler{summaryMaterials.length > 0 ? ` (${summaryMaterials.length})` : ''}
+          </button>
+        </div>
+
+        {totalActiveCount > 0 && onGenerateType && (
           <Button
             type="button"
-            variant="ghost"
             size="sm"
-            onClick={onClearChat}
-            className="h-8 shrink-0 gap-1 rounded-xl px-2.5 text-[11px] text-muted-foreground hover:text-foreground"
-            title="Sohbeti temizle"
+            disabled={isGenerating}
+            onClick={() => onGenerateType('summary')}
+            className={cn(STUDIO_BTN_PRIMARY, 'h-8 gap-1.5 px-3 text-[11px]')}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Temizle</span>
+            {isGenerating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <FileText className="h-3.5 w-3.5" />
+            )}
+            <span>Ayrıntılı Özet Üret</span>
           </Button>
         )}
       </div>
 
-      {/* Chat & Briefing Body (native overflow-x-hidden keeps wide tables inside bubbles) */}
-      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3.5 py-4">
-        {messages.length === 0 ? (
+      {/* Center Panel Main Body */}
+      <div className={cn(STUDIO_PANEL_BODY, 'px-4 py-4')}>
+        {centerTab === 'document' ? (
+          <div className="mx-auto max-w-3xl space-y-4">
+            {activeSources.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 px-5 py-10 text-center">
+                <FileText className="mb-2.5 h-6 w-6 text-primary" />
+                <p className="text-sm font-semibold text-foreground">Seçili kaynak bulunmuyor</p>
+                <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                  Sol panelden PDF, PowerPoint, Word belgesi veya EconNotes ders notu eklediğinde belge içeriğini burada okuyabilirsin.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => onOpenAddSource('upload')}
+                  className={cn(STUDIO_BTN_PRIMARY, 'mt-4 gap-1.5')}
+                >
+                  <FileUp className="h-4 w-4" />
+                  Kaynak Ekle
+                </Button>
+              </div>
+            ) : (
+              <>
+                {activeSources.length > 1 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeSources.map((src) => {
+                      const active = selectedDocument?.id === src.id;
+                      return (
+                        <button
+                          key={src.id}
+                          type="button"
+                          onClick={() => setSelectedDocId(src.id)}
+                          className={cn(
+                            'inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors',
+                            active
+                              ? 'border-primary/40 bg-primary/10 text-primary'
+                              : 'border-border/80 bg-background text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          <FileText className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{src.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedDocument && (
+                  <div className="space-y-4">
+                    <div className={cn(STUDIO_CARD_ACTIVE, 'p-4')}>
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {selectedDocProfile?.resolvedCourse ? (
+                              <span className={STUDIO_BADGE_COURSE}>
+                                {selectedDocProfile.resolvedCourse}
+                              </span>
+                            ) : (
+                              <span className={STUDIO_BADGE_WARN}>Ders Doğrulaması Bekleniyor</span>
+                            )}
+                            <span className="text-xs text-muted-foreground">
+                              ~{selectedDocument.pagesOrSlides} sayfa ·{' '}
+                              {selectedDocument.wordCount.toLocaleString('tr-TR')} kelime
+                            </span>
+                          </div>
+                          <h3 className="break-words text-sm font-semibold text-foreground sm:text-base">
+                            {selectedDocument.name}
+                          </h3>
+                        </div>
+                      </div>
+
+                      {selectedDocOutline.length > 0 && (
+                        <div className="mt-3 border-t border-border/70 pt-3">
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Belgedeki Ana Başlıklar ({selectedDocOutline.length})
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedDocOutline.slice(0, 14).map((item, idx) => (
+                              <button
+                                key={`${item.heading}-${idx}`}
+                                type="button"
+                                onClick={() => {
+                                  setCenterTab('study');
+                                  void handleSubmit(
+                                    `"${item.heading}" başlığını yalnızca "${selectedDocument.name}" belgeme dayanarak ayrıntılı ve anlaşılır şekilde açıkla.`,
+                                    'reinforce',
+                                  );
+                                }}
+                                className="inline-flex max-w-[260px] items-center gap-1 rounded-lg border border-border/80 bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:border-primary/45 hover:text-primary"
+                              >
+                                <span className="truncate">{item.heading}</span>
+                                {item.pageHint && (
+                                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                                    ({item.pageHint})
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={cn(STUDIO_CARD_SUBTLE, 'p-4')}>
+                      <div className="mb-2.5 flex items-center justify-between border-b border-border/60 pb-2">
+                        <span className="text-xs font-semibold text-foreground">
+                          Çıkarılan Belge Metni
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          İlk {Math.min(selectedDocument.text.length, 32000).toLocaleString('tr-TR')} karakter
+                        </span>
+                      </div>
+                      <pre className="max-h-[460px] overflow-y-auto whitespace-pre-wrap break-words font-sans text-xs leading-relaxed text-foreground/90">
+                        {selectedDocument.text.slice(0, 32000)}
+                        {selectedDocument.text.length > 32000
+                          ? '\n\n... (Belgenin tamamı ayrıntılı özet üretiminde parçalara bölünerek işlenir.)'
+                          : ''}
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : centerTab === 'summaries' ? (
+          <div className="mx-auto max-w-3xl space-y-3.5">
+            {summaryMaterials.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-muted/20 px-5 py-10 text-center">
+                <FileText className="mb-2.5 h-6 w-6 text-primary" />
+                <p className="text-sm font-semibold text-foreground">
+                  Bu çalışma defterinde henüz ayrıntılı özet oluşturulmadı
+                </p>
+                <p className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
+                  Seçili kaynaklarından tüm sayfaları, kavramları, teorileri, formülleri ve sınav ayrımlarını kapsayan 9 bölümlü çalışma rehberi oluşturabilirsin.
+                </p>
+                {onGenerateType && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isGenerating || totalActiveCount === 0}
+                    onClick={() => onGenerateType('summary')}
+                    className={cn(STUDIO_BTN_PRIMARY, 'mt-4 gap-1.5')}
+                  >
+                    {isGenerating ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    Ayrıntılı Özet Oluştur
+                  </Button>
+                )}
+              </div>
+            ) : (
+              summaryMaterials.map((mat) => {
+                const secCount = Array.isArray(mat.content?.sections)
+                  ? mat.content.sections.length
+                  : 0;
+                const overview = String(mat.content?.overview || '');
+                return (
+                  <div
+                    key={mat.id}
+                    className={cn(STUDIO_CARD_SUBTLE, 'space-y-3 p-4 hover:border-primary/40')}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={STUDIO_BADGE_COURSE}>
+                            {mat.course || mat.content?.disciplineTag || 'Ders Özeti'}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {secCount} bölüm · {new Date(mat.created_at).toLocaleDateString('tr-TR')}
+                          </span>
+                        </div>
+                        <h3 className="break-words text-sm font-semibold text-foreground">
+                          {mat.title}
+                        </h3>
+                      </div>
+                      {onOpenMaterial && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => onOpenMaterial(mat)}
+                          className={cn(STUDIO_BTN_PRIMARY, 'h-8 shrink-0 gap-1.5 px-3')}
+                        >
+                          <span>Tam Özeti Aç</span>
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                    {overview && (
+                      <p className="line-clamp-4 text-xs leading-relaxed text-muted-foreground">
+                        {overview.replace(/[*#_`]/g, '')}
+                      </p>
+                    )}
+                    {Array.isArray(mat.content?.sections) && mat.content.sections.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 border-t border-border/60 pt-2.5">
+                        {mat.content.sections.slice(0, 6).map((s: any, si: number) => (
+                          <span
+                            key={si}
+                            className="rounded-lg border border-border/70 bg-muted/30 px-2 py-0.5 text-[11px] text-muted-foreground"
+                          >
+                            {si + 1}. {String(s?.heading || `Bölüm ${si + 1}`).slice(0, 42)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : messages.length === 0 ? (
           <div className="mx-auto max-w-2xl space-y-4 py-1">
             {totalActiveCount > 0 ? (
-              /* NotebookLM-style Auto Briefing Card when sources are selected */
+              /* Clean Academic Briefing Card */
               <div className="space-y-4">
-                <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-card to-violet-500/[0.05] p-4 shadow-xs sm:p-5">
+                <div className={cn(STUDIO_CARD_ACTIVE, 'p-4 sm:p-5')}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-1.5">
+                    <div className="min-w-0 space-y-2">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-[10.5px] font-semibold text-primary">
-                          <Sparkles className="h-3 w-3" />
+                        <span className={STUDIO_BADGE_COURSE}>
+                          <BookOpenCheck className="h-3.5 w-3.5" />
                           Ortak Kaynak Analizi Hazır
-                        </div>
+                        </span>
                         {briefing.distinctCourses.map((c) => (
-                          <Badge key={c} variant="secondary" className="text-[10.5px] font-semibold">
+                          <Badge key={c} variant="secondary" className="rounded-lg text-[11px] font-medium">
                             {c}
                           </Badge>
                         ))}
                       </div>
-                      <h3 className="break-words text-base font-bold text-foreground sm:text-lg">
+                      <h3 className="break-words text-base font-semibold text-foreground sm:text-lg">
                         {notebookTitle}
                       </h3>
                       <p className="text-xs leading-relaxed text-muted-foreground">
-                        <strong>{totalActiveCount} aktif kaynak</strong>
+                        <strong className="text-foreground">{totalActiveCount} aktif kaynak</strong>
                         {briefing.words > 0
                           ? ` (~${briefing.pages} sayfa · ${briefing.words.toLocaleString('tr-TR')} kelime)`
                           : ''}{' '}
                         bağlandı.{' '}
                         {briefing.isMultiCourse
                           ? 'Birden fazla farklı ders seçili; her dersin içeriği kendi kaynağı altında ayrı korunur.'
-                          : 'Tüm yanıtlar ve Stüdyo araçları seçili kaynaklarının gerçek içeriğine dayanır.'}
+                          : 'Özet, sınav, çalışma kartı ve AI yanıtları yalnızca seçili kaynakların gerçek içeriğine dayanır.'}
                       </p>
                     </div>
                   </div>
 
                   {briefing.hasUnconfirmed && onRequestCourseConfirm && (
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200">
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
                       <span className="flex items-center gap-1.5">
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                        Bazı kaynakların dersi kesin tespit edilemedi; otomatik tahminde bulunulmadı.
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        Bazı kaynakların dersi kesin belirlenemedi; otomatik tahminde bulunulmadı.
                       </span>
                       <Button
                         type="button"
                         size="sm"
                         variant="outline"
                         onClick={onRequestCourseConfirm}
-                        className="h-7 rounded-lg border-amber-500/45 bg-background/80 px-2.5 text-[11px] font-semibold"
+                        className="h-8 rounded-xl border-amber-500/45 bg-background px-3 text-xs font-semibold"
                       >
                         Doğru Dersi Seç
                       </Button>
@@ -369,16 +680,16 @@ export function NotebookTutorChat({
                   )}
 
                   {briefing.warnings.length > 0 && (
-                    <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200">
+                    <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
                       <p className="font-semibold">Belge Okuma Notu:</p>
                       <p className="mt-0.5 text-muted-foreground">{briefing.warnings[0]}</p>
                     </div>
                   )}
 
                   {briefing.topics.length > 0 && (
-                    <div className="mt-4 space-y-2 border-t border-border/60 pt-3.5">
+                    <div className="mt-4 space-y-2 border-t border-border/70 pt-3.5">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        Kaynaklarda Tespit Edilen Ana Başlıklar (Tıkla &amp; Öğren)
+                        Tespit Edilen Ana Başlıklar (Tıkla &amp; Çalış)
                       </p>
                       <div className="flex flex-wrap gap-1.5">
                         {briefing.topics.map((topic) => (
@@ -391,10 +702,10 @@ export function NotebookTutorChat({
                                 'reinforce',
                               )
                             }
-                            className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-background/85 px-3 py-1.5 text-xs font-medium text-foreground transition-all hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-border/80 bg-background px-3 text-xs font-medium text-foreground transition-colors hover:border-primary/45 hover:bg-primary/[0.04] hover:text-primary"
                           >
-                            <BookOpen className="h-3 w-3 text-primary" />
-                            <span className="truncate max-w-[230px]">{topic}</span>
+                            <BookOpen className="h-3.5 w-3.5 text-primary" />
+                            <span className="max-w-[230px] truncate">{topic}</span>
                           </button>
                         ))}
                       </div>
@@ -434,9 +745,12 @@ export function NotebookTutorChat({
                       key={card.title}
                       type="button"
                       onClick={() => void handleSubmit(card.prompt, card.mode)}
-                      className="group rounded-xl border border-border/75 bg-background/60 p-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card hover:shadow-sm"
+                      className={cn(
+                        STUDIO_CARD_SUBTLE,
+                        'group p-3.5 text-left hover:border-primary/45 hover:bg-primary/[0.03]',
+                      )}
                     >
-                      <p className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                      <p className="text-xs font-semibold text-foreground transition-colors group-hover:text-primary">
                         {card.title}
                       </p>
                       <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
@@ -447,30 +761,32 @@ export function NotebookTutorChat({
                 </div>
               </div>
             ) : (
-              /* NotebookLM × Astra AI Empty Welcome Hero */
+              /* Clean Minimalist Empty Welcome Hero */
               <div className="flex flex-col items-center justify-center py-6 text-center">
-                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 via-blue-500/15 to-violet-500/20 text-primary shadow-sm ring-1 ring-primary/20">
-                  <Sparkles className="h-7 w-7" />
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#003791] text-white shadow-sm">
+                  <BookOpen className="h-6 w-6" strokeWidth={1.85} />
                 </div>
-                <h3 className="text-lg font-extrabold tracking-tight text-foreground sm:text-xl">
-                  Kişisel AI Çalışma Defterin Hazır
+                <h3 className="text-base font-bold tracking-tight text-foreground sm:text-lg">
+                  Çalışma Alanın Hazır
                 </h3>
                 <p className="mt-1.5 max-w-md text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                  Notlarını yükleyip kaynaklarına sadık özet, video ders, test ve zihin haritası üret — ya da{' '}
-                  <strong className="text-foreground">soru fotoğrafı çekip adım adım çözüm</strong> iste.
+                  Ders notlarını yükleyip ayrıntılı özet, deneme sınavı ve çalışma kartları oluştur — ya da soru fotoğrafı yükleyip adım adım çözüm iste.
                 </p>
 
                 <div className="mt-5 grid w-full max-w-xl gap-2.5 sm:grid-cols-3">
                   <button
                     type="button"
                     onClick={() => onOpenAddSource('upload')}
-                    className="group flex flex-col items-center rounded-2xl border border-border/75 bg-background/70 p-4 text-center transition-all hover:-translate-y-0.5 hover:border-primary/45 hover:bg-primary/[0.04] hover:shadow-sm"
+                    className={cn(
+                      STUDIO_CARD_SUBTLE,
+                      'group flex flex-col items-center p-4 text-center hover:border-primary/45 hover:bg-primary/[0.04]',
+                    )}
                   >
-                    <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/12 text-blue-600 dark:text-blue-400">
-                      <FileUp className="h-5 w-5" />
+                    <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+                      <FileUp className="h-5 w-5" strokeWidth={1.75} />
                     </span>
-                    <span className="text-xs font-bold text-foreground">PDF / Slayt Yükle</span>
-                    <span className="mt-0.5 text-[10.5px] text-muted-foreground">
+                    <span className="text-xs font-semibold text-foreground">PDF / Slayt Yükle</span>
+                    <span className="mt-0.5 text-[11px] text-muted-foreground">
                       PDF, PPTX, DOCX, TXT
                     </span>
                   </button>
@@ -478,28 +794,34 @@ export function NotebookTutorChat({
                   <button
                     type="button"
                     onClick={() => onOpenAddSource('notes')}
-                    className="group flex flex-col items-center rounded-2xl border border-border/75 bg-background/70 p-4 text-center transition-all hover:-translate-y-0.5 hover:border-violet-500/45 hover:bg-violet-500/[0.04] hover:shadow-sm"
+                    className={cn(
+                      STUDIO_CARD_SUBTLE,
+                      'group flex flex-col items-center p-4 text-center hover:border-primary/45 hover:bg-primary/[0.04]',
+                    )}
                   >
-                    <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/12 text-violet-600 dark:text-violet-400">
-                      <Layers className="h-5 w-5" />
+                    <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+                      <Layers className="h-5 w-5" strokeWidth={1.75} />
                     </span>
-                    <span className="text-xs font-bold text-foreground">EconNotes Notu Seç</span>
-                    <span className="mt-0.5 text-[10.5px] text-muted-foreground">
-                      Paylaşılan tüm ders notları
+                    <span className="text-xs font-semibold text-foreground">EconNotes Notu Seç</span>
+                    <span className="mt-0.5 text-[11px] text-muted-foreground">
+                      Paylaşılan ders notları
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => imageInputRef.current?.click()}
-                    className="group flex flex-col items-center rounded-2xl border border-border/75 bg-background/70 p-4 text-center transition-all hover:-translate-y-0.5 hover:border-emerald-500/45 hover:bg-emerald-500/[0.04] hover:shadow-sm"
+                    className={cn(
+                      STUDIO_CARD_SUBTLE,
+                      'group flex flex-col items-center p-4 text-center hover:border-primary/45 hover:bg-primary/[0.04]',
+                    )}
                   >
-                    <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/12 text-emerald-600 dark:text-emerald-400">
-                      <Camera className="h-5 w-5" />
+                    <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+                      <Camera className="h-5 w-5" strokeWidth={1.75} />
                     </span>
-                    <span className="text-xs font-bold text-foreground">Soru Fotoğrafı Çöz</span>
-                    <span className="mt-0.5 text-[10.5px] text-muted-foreground">
-                      Snap &amp; Solve adım adım
+                    <span className="text-xs font-semibold text-foreground">Soru Fotoğrafı Çöz</span>
+                    <span className="mt-0.5 text-[11px] text-muted-foreground">
+                      Adım adım çözüm
                     </span>
                   </button>
                 </div>
@@ -514,7 +836,7 @@ export function NotebookTutorChat({
                       key={q}
                       type="button"
                       onClick={() => void handleSubmit(q, 'step_by_step')}
-                      className="rounded-full border border-border/70 bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+                      className="rounded-xl border border-border/80 bg-background px-3 py-1.5 text-[11px] text-muted-foreground transition-colors hover:border-primary/45 hover:text-primary"
                     >
                       {q}
                     </button>
@@ -534,10 +856,10 @@ export function NotebookTutorChat({
                 >
                   <div
                     className={cn(
-                      'max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-xs sm:max-w-[88%]',
+                      'max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm sm:max-w-[88%]',
                       isUser
-                        ? 'bg-primary text-primary-foreground'
-                        : 'border border-border/75 bg-background/90 text-foreground',
+                        ? 'bg-[#003791] text-white'
+                        : 'border border-border/80 bg-background text-foreground',
                     )}
                   >
                     {/* User image attachments (Snap & Solve) */}
@@ -636,7 +958,7 @@ export function NotebookTutorChat({
                             className={cn(
                               'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium transition-colors',
                               pinnedIds[msg.id]
-                                ? 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                             )}
                           >
@@ -727,8 +1049,8 @@ export function NotebookTutorChat({
         )}
       </div>
 
-      {/* Bottom Astra AI Mode Selector + Multimodal Composer */}
-      <div className="shrink-0 border-t border-border/60 bg-background/80 p-3 backdrop-blur-md">
+      {/* Bottom Mode Selector + Multimodal Composer */}
+      <div className="shrink-0 border-t border-border/70 bg-muted/20 p-3">
         {/* Learning Mode Pills */}
         <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TUTOR_MODES.map((m) => {
@@ -740,10 +1062,10 @@ export function NotebookTutorChat({
                 title={m.shortDesc}
                 onClick={() => onCoachModeChange(m.id)}
                 className={cn(
-                  'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all',
+                  'h-7 shrink-0 rounded-lg border px-2.5 text-[11px] font-medium transition-colors',
                   active
-                    ? 'border-primary/40 bg-primary/12 text-primary font-semibold shadow-2xs'
-                    : 'border-border/70 bg-card/70 text-muted-foreground hover:border-primary/30 hover:text-foreground',
+                    ? 'border-primary/35 bg-primary/10 font-semibold text-primary'
+                    : 'border-border/80 bg-background text-muted-foreground hover:border-primary/35 hover:text-foreground',
                 )}
               >
                 {m.label}
@@ -767,7 +1089,7 @@ export function NotebookTutorChat({
                 />
                 <div className="max-w-[130px]">
                   <p className="truncate text-[11px] font-semibold text-foreground">{att.name}</p>
-                  <p className="text-[10px] text-primary">Snap &amp; Solve hazır</p>
+                  <p className="text-[10px] text-primary">Çözüm için hazır</p>
                 </div>
                 <button
                   type="button"
@@ -791,7 +1113,7 @@ export function NotebookTutorChat({
           className="hidden"
           onChange={(e) => void handleAttachImages(e.target.files)}
         />
-        <div className="flex items-end gap-2 rounded-2xl border border-border/80 bg-card p-2 shadow-xs focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
+        <div className="flex items-end gap-2 rounded-xl border border-border/80 bg-card p-1.5 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
           <Button
             type="button"
             variant="ghost"
@@ -799,7 +1121,7 @@ export function NotebookTutorChat({
             disabled={busy}
             onClick={() => imageInputRef.current?.click()}
             className="h-9 w-9 shrink-0 rounded-xl text-muted-foreground hover:bg-primary/10 hover:text-primary"
-            title="Soru fotoğrafı çek / yükle (Snap & Solve)"
+            title="Soru fotoğrafı çek / yükle"
           >
             <Camera className="h-4 w-4" />
           </Button>
@@ -827,6 +1149,7 @@ export function NotebookTutorChat({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                setCenterTab('study');
                 void handleSubmit();
               }
             }}
@@ -835,25 +1158,28 @@ export function NotebookTutorChat({
                 ? 'Görselle ilgili notun varsa yaz veya direkt Gönder’e bas...'
                 : totalActiveCount > 0
                 ? `${activeModeMeta.label}: Seçili ${totalActiveCount} kaynak hakkında sor...`
-                : `${activeModeMeta.label}: Ders sorusu sor veya kamera ile soru fotoğrafı yükle...`
+                : `${activeModeMeta.label}: Ders sorusu sor veya soru fotoğrafı yükle...`
             }
             rows={1}
-            className="max-h-28 min-h-[38px] flex-1 resize-none border-0 bg-transparent px-1 py-2 text-xs shadow-none focus-visible:ring-0 sm:text-sm"
+            className="max-h-28 min-h-[36px] flex-1 resize-none border-0 bg-transparent px-1 py-2 text-xs shadow-none focus-visible:ring-0 sm:text-sm"
           />
 
           <Button
             type="button"
             size="icon"
             disabled={busy || (!input.trim() && attachments.length === 0)}
-            onClick={() => void handleSubmit()}
-            className="h-9 w-9 shrink-0 rounded-xl shadow-sm"
+            onClick={() => {
+              setCenterTab('study');
+              void handleSubmit();
+            }}
+            className={cn(STUDIO_BTN_PRIMARY, 'h-9 w-9 shrink-0 px-0')}
             aria-label="Mesaj gönder"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </div>
 
-        <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
+        <p className="mt-1.5 text-center text-[10.5px] text-muted-foreground">
           {activeModeMeta.shortDesc}
         </p>
       </div>

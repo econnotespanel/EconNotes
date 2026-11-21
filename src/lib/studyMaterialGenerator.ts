@@ -10,6 +10,11 @@ import {
   type AcademicDomainMode,
 } from './studySourceProcessor';
 import {
+  computeDynamicSummaryPlan,
+  getDisciplineSummaryGuidance,
+  type DisciplineSummaryGuidance,
+} from './studySummaryArchitecture';
+import {
   computeDifficultyQuota,
   hashCompact,
   normalizeForComparison,
@@ -21,13 +26,15 @@ import {
   type FlashcardHistoryEntry,
   type QuestionHistoryEntry,
 } from './studyQualityEngine';
-import type { FlashcardItem, QuizQuestion, SummarySection } from '@/types/study';
+import type { ExamStudyMode, FlashcardItem, QuizQuestion, SummarySection } from '@/types/study';
 
 export interface GeneratePayload {
   materialType: 'flashcards' | 'quiz' | 'summary' | 'video';
   noteTitle?: string;
   course?: string;
   noteContext?: string;
+  totalPagesOrSlides?: number;
+  examMode?: ExamStudyMode;
   customPrompt?: string;
   extractionWarnings?: string[];
   detailLevel?: 'concise' | 'standard' | 'deep' | 'textbook';
@@ -121,11 +128,17 @@ function splitIntoSentences(text: string): string[] {
   return unique;
 }
 
-function extractKeyTerms(text: string, sentences: string[], course?: string): Array<{
+function extractKeyTerms(
+  text: string,
+  sentences: string[],
+  course?: string,
+  maxTerms = 14,
+): Array<{
   term: string;
   definition: string;
   formula?: string;
 }> {
+  const cap = Math.max(8, Math.min(48, maxTerms));
   const terms: Array<{ term: string; definition: string; formula?: string }> = [];
   const seen = new Set<string>();
   const usedDefKeys = new Set<string>();
@@ -164,7 +177,7 @@ function extractKeyTerms(text: string, sentences: string[], course?: string): Ar
 
   // 1. Explicit colon / definition patterns (e.g. "Marjinal Fayda: ..." or "Anayasa Hukuku — ...")
   for (const s of sentences) {
-    if (terms.length >= 10) break;
+    if (terms.length >= cap) break;
     const match = s.match(/^([A-ZÇĞİÖŞÜ][^\n:–—-]{2,44})\s*[:–—]\s*(.{18,240})$/);
     if (match) {
       pushTerm(match[1], match[2]);
@@ -173,7 +186,7 @@ function extractKeyTerms(text: string, sentences: string[], course?: string): Ar
 
   // 2. Turkish academic copula / verbal definition patterns ("X ... anlamına gelir / denir / ifade eder")
   for (const s of sentences) {
-    if (terms.length >= 10) break;
+    if (terms.length >= cap) break;
     const copula = s.match(
       /^([A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü\s-]{2,38}?)(?:\s+(?:kavramı|ilkesi|kuramı|teorisi|yaklaşımı))?(?:,\s*|\s+)(?:denir|denmektedir|anlamına\s+gelir|ifade\s+eder|olarak\s+tanımlanır|olarak\s+adlandırılır|demektir)(?![\p{L}\p{N}])/iu,
     );
@@ -188,7 +201,7 @@ function extractKeyTerms(text: string, sentences: string[], course?: string): Ar
   }
 
   // 3. Multi-word capitalized concepts frequent in Turkish texts (Unicode-safe boundaries so -ı/-ü suffixes are preserved)
-  if (terms.length < 8) {
+  if (terms.length < cap) {
     const phraseFreq = new Map<string, number>();
     const phraseMatches =
       text.match(
@@ -202,7 +215,7 @@ function extractKeyTerms(text: string, sentences: string[], course?: string): Ar
     }
     const rankedPhrases = Array.from(phraseFreq.entries()).sort((a, b) => b[1] - a[1]);
     for (const [phrase] of rankedPhrases) {
-      if (terms.length >= 9) break;
+      if (terms.length >= cap) break;
       const lowerPh = phrase.toLocaleLowerCase('tr-TR');
       if (seen.has(lowerPh)) continue;
       const host = findBestHostSentence(lowerPh);
@@ -211,7 +224,7 @@ function extractKeyTerms(text: string, sentences: string[], course?: string): Ar
   }
 
   // 4. Frequency-scored domain words not already part of an extracted multi-word concept
-  if (terms.length < 7) {
+  if (terms.length < Math.min(cap, 12)) {
     const freq = new Map<string, number>();
     const words = text
       .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
@@ -228,10 +241,10 @@ function extractKeyTerms(text: string, sentences: string[], course?: string): Ar
     const sortedWords = Array.from(freq.entries())
       .filter(([w]) => !seen.has(w) && !existingTermsLower.some((et) => et.includes(w)))
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 12);
+      .slice(0, Math.min(cap, 16));
 
     for (const [word] of sortedWords) {
-      if (terms.length >= 8) break;
+      if (terms.length >= cap) break;
       if (seen.has(word)) continue;
       const hostSentence = findBestHostSentence(word);
       if (hostSentence) {
@@ -888,13 +901,28 @@ function buildRichSummarySection(params: {
   allSentences: string[];
   keyTerms: Array<{ term: string; definition: string; formula?: string }>;
   domainMode: AcademicDomainMode;
+  disciplineFamily?: DisciplineSummaryGuidance['disciplineFamily'];
   deepResearch?: boolean;
   course?: string;
   extraTakeaways?: string[];
 }): SummarySection {
-  const { index, heading, pageRange, unit, allSentences, keyTerms, domainMode, deepResearch, course, extraTakeaways } =
-    params;
-  const isVerbal = domainMode === 'verbal';
+  const {
+    index,
+    heading,
+    pageRange,
+    unit,
+    allSentences,
+    keyTerms,
+    domainMode,
+    disciplineFamily,
+    deepResearch,
+    course,
+    extraTakeaways,
+  } = params;
+  const isVerbal = domainMode === 'verbal' || disciplineFamily === 'law';
+  const isLaw = disciplineFamily === 'law';
+  const isStatistics = disciplineFamily === 'statistics';
+  const isEconomics = disciplineFamily === 'economics';
   const bodyBlocks: string[] = [];
 
   const unitJoinedLower = unit.paragraphs.join(' ').toLocaleLowerCase('tr-TR');
@@ -906,14 +934,22 @@ function buildRichSummarySection(params: {
   const sectionTerms = (matchedTerms.length >= 2 ? matchedTerms : keyTerms.slice(index, index + 4)).slice(0, 4);
   const termNames = sectionTerms.map((t) => t.term);
 
-  // 1. Kavramsal Öz / Analitik Çerçeve
+  // 1. Kavramsal Öz / Analitik Çerçeve (disipline doğal uyarlama)
   if (unit.paragraphs.length > 0) {
-    const leadTitle = isVerbal ? '#### Kavramsal Öz ve Ana Tez' : '#### Analitik Çerçeve';
+    const leadTitle = isLaw
+      ? '#### Hukuki Çerçeve, Unsurlar ve Kapsam'
+      : isEconomics
+      ? '#### Kuramsal Çerçeve ve İktisadi Mekanizma'
+      : isStatistics
+      ? '#### İstatistiksel Yapı, Varsayımlar ve Yöntem'
+      : isVerbal
+      ? '#### Kavramsal Öz ve Ana Tez'
+      : '#### Analitik Çerçeve';
     const enrichedParagraphs = unit.paragraphs.map((p) => highlightKeyTermsInProse(p, termNames));
     bodyBlocks.push(`${leadTitle}\n\n${enrichedParagraphs.join('\n\n')}`);
   }
 
-  // 2. Neden–Sonuç Zinciri / Ayırt Edici İlkeler (Sözelde özellikle güçlü)
+  // 2. Neden–Sonuç Zinciri / Ayırt Edici İlkeler
   const causalCandidates = unit.sentences.filter((s) => CAUSAL_CONTRAST_RE.test(s));
   const combinedBullets = [
     ...unit.bullets.map((b) => `- **Ana Nokta:** ${highlightKeyTermsInProse(b, termNames)}`),
@@ -930,7 +966,13 @@ function buildRichSummarySection(params: {
     );
   }
   if (uniqueBullets.length > 0) {
-    const bulletTitle = isVerbal
+    const bulletTitle = isLaw
+      ? '#### Kurucu Unsurlar, İstisnalar ve Hukuki Sonuçlar'
+      : isEconomics
+      ? '#### Aktarım Mekanizmaları, Denge Koşulları ve Etkiler'
+      : isStatistics
+      ? '#### Test Adımları, Varsayımlar ve Karar Kuralları'
+      : isVerbal
       ? '#### Neden–Sonuç Zinciri ve Ayırt Edici İlkeler'
       : '#### Öne Çıkan Mekanizmalar ve Adımlar';
     bodyBlocks.push(`${bulletTitle}\n${uniqueBullets.join('\n')}`);
@@ -938,7 +980,13 @@ function buildRichSummarySection(params: {
 
   // 3. Karşılaştırma ve Kavram Tablosu
   if (sectionTerms.length >= 2) {
-    const tableHeader = isVerbal
+    const tableHeader = isLaw
+      ? '| Hukuki Kavram / Kurum | Tanım, Şart ve Kapsam | Sınavda Ayırt Edici Yön |'
+      : isEconomics
+      ? '| Kavram / Teori / Model | İktisadi İşlev ve Kapsam | Kritik Mekanizma / Ayrım |'
+      : isStatistics
+      ? '| Ölçüt / Test / Dağılım | Kullanım Amacı ve Varsayım | Yorumlama Odağı |'
+      : isVerbal
       ? '| Kavram / Ekol / Unsur | Kapsam ve Ana Fikir | Sınavda Ayırt Edici Yön |'
       : '| Kavram / Unsur | Analitik İşlev ve Kapsam | Kritik Koşul / Ayrım |';
     const tableRows = sectionTerms
@@ -949,13 +997,19 @@ function buildRichSummarySection(params: {
         return `| **${cleanTerm}** | ${cleanDef} | ${angle} |`;
       })
       .join('\n');
-    const tableTitle = isVerbal ? '#### Kavram ve Ayrım Tablosu' : '#### Kavramsal Yapı Tablosu';
+    const tableTitle = isLaw
+      ? '#### Hukuki Kavram ve Ayrım Tablosu'
+      : isVerbal
+      ? '#### Kavram ve Ayrım Tablosu'
+      : '#### Kavramsal Yapı ve Karşılaştırma Tablosu';
     bodyBlocks.push(`${tableTitle}\n${tableHeader}\n| --- | --- | --- |\n${tableRows}`);
   }
 
-  // 4. Formüller yalnız gerçek sayısal/mantıksal ifade varsa gösterilir (sözelde uydurma formül yok)
+  // 4. Formüller yalnız gerçek sayısal/mantıksal ifade varsa gösterilir (hukuk/sözelde uydurma formül yok!)
   if (!isVerbal && unit.formulas.length > 0) {
-    bodyBlocks.push(`#### Kaynak İfade ve İlişki\n${unit.formulas.map((f) => `> ${f}`).join('\n')}`);
+    bodyBlocks.push(
+      `#### Kaynak Formül, Denklem ve Kullanım İlişkisi\n${unit.formulas.map((f) => `> ${f}`).join('\n')}`,
+    );
   }
 
   // 5. Sınav Odağı & Klasik Yorum İpucu
@@ -1413,22 +1467,30 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
   }
 
   // ---------------- SUMMARY ----------------
-  const isLargeLocalDoc = cleanText.length >= 16_000;
-  const targetSections =
-    effectiveDepth === 'short'
-      ? 5
-      : effectiveDepth === 'standard'
-      ? isLargeLocalDoc
-        ? 10
-        : 6
-      : effectiveDepth === 'textbook'
-      ? isLargeLocalDoc
-        ? 16
-        : 10
-      : isLargeLocalDoc
-      ? 14
-      : 8;
-  const units = splitDocumentIntoUnits(cleanText, title, targetSections);
+  const displayCourseTag =
+    req.course && req.course.trim().length > 1 && req.course.trim() !== 'Akademik Ders'
+      ? req.course.trim()
+      : domain.detectedCourse || domain.discipline;
+
+  const detectedPageMarkers = (cleanText.match(/---\s*(?:Sayfa|Slayt)\s+\d+\s*---/gi) || []).length;
+  const totalWords = cleanText.split(/\s+/).filter(Boolean).length;
+  const estimatedPages = Math.max(
+    req.totalPagesOrSlides || 0,
+    detectedPageMarkers,
+    Math.max(1, Math.ceil(totalWords / 260)),
+  );
+  const summaryPlan = computeDynamicSummaryPlan({
+    totalWords,
+    totalPagesOrSlides: estimatedPages,
+    summaryDepth: effectiveDepth,
+    examMode: req.examMode,
+  });
+  const disciplineGuidance = getDisciplineSummaryGuidance(displayCourseTag, domain.mode);
+  const scaledKeyTerms = extractKeyTerms(cleanText, sentences, course, summaryPlan.targetKeyTerms);
+  const effectiveKeyTerms = scaledKeyTerms.length >= keyTerms.length ? scaledKeyTerms : keyTerms;
+
+  const isLargeLocalDoc = summaryPlan.tier === 'large' || summaryPlan.tier === 'massive' || cleanText.length >= 16_000;
+  const units = splitDocumentIntoUnits(cleanText, title, summaryPlan.targetSectionCount);
 
   const sections = units.map((u, idx) =>
     buildRichSummarySection({
@@ -1437,36 +1499,56 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
       pageRange: u.pageRange,
       unit: u,
       allSentences: sentences,
-      keyTerms,
+      keyTerms: effectiveKeyTerms,
       domainMode: domain.mode,
+      disciplineFamily: disciplineGuidance.disciplineFamily,
       deepResearch: req.deepResearch,
-      course,
+      course: displayCourseTag,
     }),
   );
 
-  const isVerbal = domain.mode === 'verbal';
+  const isVerbal = domain.mode === 'verbal' || disciplineGuidance.disciplineFamily === 'law';
   const comparativeMatrix =
-    keyTerms.length >= 2
+    effectiveKeyTerms.length >= 2
       ? {
-          title: `${title} — ${isVerbal ? 'Kavram, Yaklaşım ve Ayrım Matrisi' : 'Kavram & Analiz Matrisi'}`,
+          title: `${title} — ${
+            disciplineGuidance.disciplineFamily === 'law'
+              ? 'Hukuki Kurumlar, Şartlar ve Ayrımlar Matrisi'
+              : disciplineGuidance.disciplineFamily === 'economics'
+              ? 'İktisadi Kavram, Teori ve Mekanizma Karşılaştırma Matrisi'
+              : disciplineGuidance.disciplineFamily === 'statistics'
+              ? 'İstatistiksel Ölçüt, Test ve Dağılım Karşılaştırma Matrisi'
+              : isVerbal
+              ? 'Kavram, Yaklaşım ve Ayrım Matrisi'
+              : 'Kavram & Analiz Matrisi'
+          }`,
           columns: isVerbal
             ? ['Kavram / İlke', 'Temel Tanım & Kapsam', 'Sınavda Ayırt Edici Nokta']
             : ['Kavram / Başlık', 'Kaynak Notlardaki Tanım & İşlev', 'Analitik Odak'],
-          rows: keyTerms
-            .slice(0, 6)
+          rows: effectiveKeyTerms
+            .slice(0, Math.min(10, Math.max(6, Math.ceil(sections.length * 0.6))))
             .map((kt) => [kt.term, kt.definition.slice(0, 150), classifyClauseBadge(kt.definition)]),
         }
       : undefined;
 
-  const focusModeLabel = isVerbal ? 'Sözel & Kuramsal Derin Sentez' : 'Analitik Akademik Sentez';
-  const synthLead = `**${title}** (${domain.discipline} · ${focusModeLabel}) dokümanı **${sections.length} ana bölümde** sistemleştirilmiştir; temel tezi, neden–sonuç zincirini ve sınavlarda öne çıkan kavram ayrımlarını kapsar.`;
+  const focusModeLabel =
+    disciplineGuidance.disciplineFamily === 'law'
+      ? 'Hukuk & Mevzuat Analitik Sentezi'
+      : disciplineGuidance.disciplineFamily === 'economics'
+      ? 'İktisat & Kuramsal Analiz Sentezi'
+      : disciplineGuidance.disciplineFamily === 'statistics'
+      ? 'İstatistik & Sayısal Yöntem Sentezi'
+      : isVerbal
+      ? 'Sözel & Kuramsal Derin Sentez'
+      : 'Analitik Akademik Sentez';
+  const synthLead = `**${title}** (${displayCourseTag} · ${focusModeLabel}) dokümanı yaklaşık **${estimatedPages} sayfa/slayt** kapsamıyla **${sections.length} ana bölümde** sistemleştirilmiştir; temel kavramları, konu akışını ve sınavlarda öne çıkan ayrımları kapsar.`;
   const coreThesis =
     sentences.length > 0 ? sentences.slice(0, 3).join(' ') : cleanText.slice(0, 480);
   const overviewText = `${synthLead}\n\n${coreThesis}`.trim();
 
   const deepResearchTopics =
-    req.deepResearch && keyTerms.length >= 2
-      ? keyTerms.slice(0, 3).map((kt) => ({
+    req.deepResearch && effectiveKeyTerms.length >= 2
+      ? effectiveKeyTerms.slice(0, 4).map((kt) => ({
           topic: `${kt.term} — Kuramsal ve Sınav Bağlamı`,
           literatureContext: `${kt.term}, "${title}" metninde ${kt.definition.slice(0, 140)} ekseninde konumlanır.`,
           realWorldApplication: isVerbal
@@ -1475,22 +1557,69 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
         }))
       : [];
 
-  const teacherEmphasis = keyTerms.slice(0, 5).map((kt, idx) => ({
-    point: kt.term,
-    whyImportant: isVerbal
-      ? `Kavramsal sınır ve karşıt yaklaşımlarla farkı üzerinden klasik/test sorusu potansiyeli taşır: "${kt.definition.slice(0, 140)}"`
-      : kt.definition.slice(0, 160),
-    examProbability: idx < 2 ? 'Yüksek' : 'Orta',
-  }));
+  const teacherEmphasis = effectiveKeyTerms.slice(0, Math.min(8, Math.max(5, Math.ceil(sections.length * 0.5)))).map(
+    (kt, idx) => ({
+      point: kt.term,
+      whyImportant: isVerbal
+        ? `Kavramsal sınır ve karşıt yaklaşımlarla farkı üzerinden klasik/test sorusu potansiyeli taşır: "${kt.definition.slice(0, 140)}"`
+        : kt.definition.slice(0, 160),
+      examProbability: idx < 3 ? 'Yüksek' : 'Orta',
+    }),
+  );
 
-  const displayCourseTag =
-    req.course && req.course.trim().length > 1 && req.course.trim() !== 'Akademik Ders'
-      ? req.course.trim()
-      : domain.detectedCourse || domain.discipline;
+  // 8. Ezberlenecek Bilgiler vs. Yorumlanacak Bilgiler (disipline uyarlı)
+  const memorizeItems = [
+    ...effectiveKeyTerms
+      .slice(0, 5)
+      .map((kt) => `**${kt.term}:** ${kt.definition.slice(0, 140)}`),
+    ...(!isVerbal
+      ? units
+          .flatMap((u) => u.formulas)
+          .slice(0, 2)
+          .map((f) => `**Kaynak Formül / İlişki:** ${f.slice(0, 120)}`)
+      : []),
+  ].slice(0, 6);
+
+  const interpretSentences = sentences.filter((s) => CAUSAL_CONTRAST_RE.test(s));
+  const interpretItems = (
+    interpretSentences.length >= 3
+      ? interpretSentences.slice(0, 5)
+      : sections.slice(0, 5).map(
+          (s) =>
+            `"${s.heading}" bölümündeki temel kavramların neden–sonuç ilişkilerini ve diğer bölümlerle bağlantısını yorumlayabilme.`,
+        )
+  ).map((item) => item.slice(0, 190));
+
+  const memorizeVsInterpret =
+    memorizeItems.length > 0 || interpretItems.length > 0
+      ? {
+          memorize: memorizeItems,
+          interpret: interpretItems,
+        }
+      : undefined;
+
+  // 9. Konu Değerlendirmesi (bütüncül kapanış)
+  const headingTrail = sections
+    .slice(0, 6)
+    .map((s) => s.heading)
+    .join(' → ');
+  const summarySynthesis = `**${title}** (${displayCourseTag}) belgesi ${
+    sections.length
+  } bütünleşik bölümde (${headingTrail}${
+    sections.length > 6 ? ' ve devamı' : ''
+  }) ele alınmıştır. Sınava hazırlanırken önce **Ezberlenecek Bilgiler** kısmındaki temel tanım, ${
+    disciplineGuidance.disciplineFamily === 'law'
+      ? 'kurucu unsur, kanun şartı ve süreleri'
+      : disciplineGuidance.disciplineFamily === 'statistics'
+      ? 'formül, dağılım varsayımı ve karar kurallarını'
+      : 'teori, denklem sembolü ve sınıflandırmaları'
+  } netleştirin; ardından **Yorumlanacak Bilgiler** ve karşılaştırma matrisi üzerinden neden–sonuç ilişkileri ile kavram ayrımlarını pekiştirin.`;
+
   const disciplineTag = isVerbal ? `${displayCourseTag} · Sözel Özet` : displayCourseTag;
+  const finalKeyTerms = effectiveKeyTerms.slice(0, summaryPlan.targetKeyTerms);
   const studyPriorityMap = buildTopicPriorityGuide({
     sections,
-    keyTerms: keyTerms.slice(0, 14),
+    keyTerms: finalKeyTerms,
     teacherEmphasis,
     overview: overviewText,
     disciplineTag,
@@ -1501,13 +1630,20 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
     disciplineTag,
     extractionNotices: req.extractionWarnings?.length ? req.extractionWarnings : undefined,
     keyPoints: (sentences.length > 0 ? sentences : [title])
-      .slice(0, 10)
-      .map((s) => highlightKeyTermsInProse(s.slice(0, 210), keyTerms.slice(0, 4).map((k) => k.term))),
+      .slice(0, summaryPlan.targetKeyPoints)
+      .map((s) =>
+        highlightKeyTermsInProse(
+          s.slice(0, 210),
+          finalKeyTerms.slice(0, 4).map((k) => k.term),
+        ),
+      ),
     sections,
     teacherEmphasis,
     comparativeMatrix,
     deepResearchTopics,
-    keyTerms: keyTerms.slice(0, 14),
+    keyTerms: finalKeyTerms,
+    memorizeVsInterpret,
+    summarySynthesis,
     studyPriorityMap,
     studyChecklist: sections.map((s) =>
       isVerbal
@@ -1518,7 +1654,14 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
       sourceMode: 'local',
       deepResearch: Boolean(req.deepResearch),
       summaryDepth: effectiveDepth,
+      examMode: req.examMode,
       isLargeBundle: isLargeLocalDoc,
+      sourceStats: {
+        sourceCount: 1,
+        wordCount: totalWords,
+        pagesOrSlides: estimatedPages,
+        sectionCount: sections.length,
+      },
     },
   };
 }

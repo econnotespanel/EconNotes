@@ -786,8 +786,7 @@ export function buildNoteSourceItem(
 ): ExtractedSourceItem {
   const baseParts = [
     note.title ? `Başlık: ${note.title}` : '',
-    note.course ? `Ders: ${note.course}` : '',
-    note.description || '',
+    !extraExtractedText && note.description ? note.description : '',
     note.content || '',
     extraExtractedText || '',
   ]

@@ -26,6 +26,12 @@ import {
   validateQuizBatch,
   type DifficultyQuota,
 } from '@/lib/studyQualityEngine';
+import {
+  computeDynamicSummaryPlan,
+  deduplicateSummarySections,
+  getDisciplineSummaryGuidance,
+  splitDocumentIntoLogicalChunks,
+} from '@/lib/studySummaryArchitecture';
 import type {
   CoachMode,
   FlashcardItem,
@@ -321,17 +327,18 @@ function buildChatGptStyleSummaryPrompt(
   settings: StudioGenerationSettings,
   courseOrDisciplineLabel: string,
   outlineList: string[],
+  domainMode: AcademicDomainMode = 'hybrid',
 ): string {
-  const isLarge = isLargeStudyBundle(bundle) || settings.examMode === 'large_note';
-  const sectionRange =
-    settings.summaryDepth === 'short'
-      ? '5-6'
-      : settings.summaryDepth === 'textbook' || isLarge
-      ? '9-14'
-      : '7-10';
+  const plan = computeDynamicSummaryPlan({
+    totalWords: bundle.totalWords,
+    totalPagesOrSlides: bundle.totalPagesOrSlides,
+    summaryDepth: settings.summaryDepth,
+    examMode: settings.examMode,
+  });
+  const guidance = getDisciplineSummaryGuidance(courseOrDisciplineLabel, domainMode);
   const outlineHint =
     outlineList.length > 0
-      ? `\nNottaki baştan sona tespit edilen başlıklar (hiçbirini atlama): ${outlineList.slice(0, 28).join(' | ')}`
+      ? `\nNottaki baştan sona tespit edilen başlıklar (hiçbirini atlama): ${outlineList.slice(0, 32).join(' | ')}`
       : '';
   const multiCourseHint =
     bundle.isMultiCourse && bundle.sourceCourses && bundle.sourceCourses.length > 1
@@ -349,29 +356,46 @@ function buildChatGptStyleSummaryPrompt(
       ? '\nOdak: Sınava son 24 saat — en yüksek sınav olasılıklı kavramları, kritik ayrımları ve formülleri özellikle öne çıkar.'
       : '';
 
-  return `Görev: Aşağıdaki ders materyalini ilk sayfadan son sayfaya kadar eksiksiz analiz edip, öğrencinin konuyu gerçekten öğrenmesini ve sınava tam hazırlanmasını sağlayacak kapsamlı, nitelikli bir Türkçe çalışma özeti hazırla.
-KESİN KURALLAR:
-1. YÜZEYSEL VE KISA ÖZET YASAKTIR: Birkaç kısa paragraf yazıp geçme. Belgedeki TÜM ana ve alt başlıkları (####), kavramları, tanımları, teorileri, yaklaşımları, modelleri, formülleri (LaTeX $...$ / $$...$$ ile ve her değişkeni açıklayarak), grafikleri, tabloları ve örnekleri ayrıntılı biçimde açıkla.
-2. %100 KAYNAK SADAKATİ: Yalnızca yüklenen belgede bulunan gerçek bilgilere dayan. Kaynakta olmayan teorileri, tanımları veya başka bir dersin konularını içeriği uzatmak için KESİNLİKLE ekleme. Kaynaktaki akademik terminoloji ve konu sıralamasını koru.
-3. ŞEFFAF EK AÇIKLAMA: Öğrencinin zorlanabileceği bir noktayı sadeleştirmek için kaynaktaki metnin ötesinde kısa açıklama ekliyorsan, bunu mutlaka **[Ek Açıklama]** etiketiyle kaynak bilgisinden ayır.
-4. KONULAR ARASI BAĞLANTI, TABLO VE SINAV VURGUSU: Kavramlar arası ilişkileri kur, gerektiğinde karşılaştırmalı Markdown tabloları (|...|) ekle, sınavda sorulabilecek ayrıntıları ve sık karıştırılan tuzakları özellikle vurgula.
-5. Belgedeki ilk sayfadan son sayfaya kadar önemli hiçbir bölümü atlama (${sectionRange} kapsamlı bölüm oluştur, her bölüm 380-620 kelime arası doyurucu olsun). Okunamayan/eksik sayfa varsa "extractionNotices" dizisinde açıkça belirt.${outlineHint}${multiCourseHint}${warningsHint}${examRule}${customRule}
+  return `Görev: Aşağıdaki ders materyalini ilk sayfadan son sayfaya kadar eksiksiz analiz edip, öğrencinin konuyu gerçekten öğrenmesini ve sınava tam hazırlanmasını sağlayacak ders kitabı niteliğinde, kapsamlı bir Türkçe çalışma özeti hazırla.
+
+DERSİN NİTELİĞİNE ÖZGÜ ODAK (${courseOrDisciplineLabel}):
+- ${guidance.structureFocus}
+- ${guidance.formulaRule}
+- ${guidance.comparisonHint}
+- ${guidance.examFocusHint}
+
+9 AŞAMALI ÖĞRETİCİ ÖZET YAPISI (DERSİN DOĞASINA UYARLA):
+1. Konuya giriş ("overview"): Kapsam, temel amaç ve konu akışı (2-3 nitelikli paragraf).
+2. Ana başlıklar ("keyPoints" + "sections"): Kaynaktaki tüm önemli konu başlıkları eksiksiz.
+3. Ayrıntılı konu anlatımı ("sections[].content"): Her bölüm ${plan.minWordsPerSection}-${plan.maxWordsPerSection} kelime arası, alt başlıklı (\`####\`), akademik terimleri koruyup zor noktaları sade dille açıklayan, konular arası geçişleri kuran derin anlatım.
+4. Önemli tanımlar ("keyTerms"): Sınavda bilinmesi gereken en az ${Math.min(28, plan.targetKeyTerms)} eksiksiz kavram tanımı.
+5. Formüller / modeller (veya Hukuk/Sözelde kurallar ve unsurlar): Kullanım amacı, değişken/sembol açıklamaları ve hesaplama/uygulama mantığı.
+6. Karşılaştırmalar ("comparativeMatrix" + bölüm içi Markdown tabloları): Yaklaşım, teori veya kavram farkları.
+7. Örnekler ve uygulamalar: Anlaşılmayı kolaylaştıran somut örnekler ve pratik uygulamalar.
+8. Sınav açısından önemli noktalar ("teacherEmphasis", "commonPitfalls" ve "memorizeVsInterpret"): Ezberlenmesi gereken bilgiler ile yorumlanması gereken bilgileri açıkça ayır.
+9. Konu değerlendirmesi ("summarySynthesis" + "studyChecklist"): Öğrencinin öğrendiklerini pekiştirecek bütüncül toparlayıcı anlatım.
+
+KESİN KAYNAK SADAKATİ VE ŞEFFAFLIK:
+- YÜZEYSEL VE KISA ÖZET YASAKTIR: Kısa tutmak yerine öğrencinin konuyu baştan sona öğrenebilmesini esas al (${plan.targetSectionsLabel} kapsamlı bölüm).
+- YALNIZCA yüklenen belgedeki gerçek bilgilere dayan. Kaynakta bulunmayan bilgileri kaynakta varmış gibi ASLA gösterme.
+- Konuyu anlaşılır kılmak için kaynak metnin ötesinde kısa ek açıklama gerekiyorsa mutlaka **[Ek Açıklama]** etiketiyle kaynaktan açıkça ayır.
+- İşlenemeyen veya yalnızca görsel/eksik sayfalar varsa "extractionNotices" dizisinde dürüstçe bildir.${outlineHint}${multiCourseHint}${warningsHint}${examRule}${customRule}
 
 YANITINI YALNIZCA AŞAĞIDAKİ GEÇERLİ JSON FORMATINDA DÖNDÜR (başka sohbet metni yazma):
 {
-  "overview": "Ders materyalinin bütününü, kapsamını ve temel konu akışını anlatan 2-3 paragraf nitelikli giriş özeti",
+  "overview": "Konuya giriş: kapsam, temel amaç ve konu akışını anlatan 2-3 paragraflık nitelikli giriş",
   "disciplineTag": "${courseOrDisciplineLabel}",
-  "extractionNotices": ["Varsa okunamayan veya eksik kalan sayfa/slayt uyarısı; yoksa []"],
-  "keyPoints": ["Nottaki 8-12 en önemli somut kavram/çıkarım"],
+  "extractionNotices": ["Varsa okunamayan veya eksik sayfa/slayt bildirimi; yoksa []"],
+  "keyPoints": ["Nottan ${plan.targetKeyPoints} somut ana başlık ve çıkarım"],
   "sections": [
     {
       "index": 0,
       "heading": "Nottaki gerçek ana konu başlığı",
       "pageRange": "Varsa sayfa/slayt aralığı",
-      "content": "Alt başlıklar (####), detaylı kavram/teori/formül/tablo/örnek açıklaması, konular arası bağlantı ve sınav vurgusu içeren 380-620 kelimelik Türkçe Markdown anlatım...",
+      "content": "Alt başlıklar (####), detaylı kavram/teori/formül veya kanun unsuru açıklaması, karşılaştırma tablosu, somut örnek, konular arası bağlantı ve sınav vurgusu içeren ${plan.minWordsPerSection}-${plan.maxWordsPerSection} kelimelik Türkçe Markdown anlatım...",
       "takeaways": ["Net çıkarım 1", "Net çıkarım 2", "Net çıkarım 3"],
-      "commonPitfalls": ["Sınavda karıştırılabilecek 1-2 kritik nokta"],
-      "checkpointQuestion": { "question": "Bölüme özel kontrol sorusu?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Kaynağa dayalı açıklama." }
+      "commonPitfalls": ["Sınavda sık karıştırılan 1-2 kritik nokta"],
+      "checkpointQuestion": { "question": "Bölüme özel ayırt edici kontrol sorusu?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Kaynağa dayalı net açıklama." }
     }
   ],
   "studyPriorityMap": [
@@ -386,12 +410,17 @@ YANITINI YALNIZCA AŞAĞIDAKİ GEÇERLİ JSON FORMATINDA DÖNDÜR (başka sohbet
     }
   ],
   "comparativeMatrix": {
-    "title": "Kaynaktaki Kavram / Teori Karşılaştırma Tablosu (karşılaştırma varsa)",
-    "columns": ["Ölçüt", "Kavram A", "Kavram B"],
+    "title": "Kaynaktaki Yaklaşım / Kavram Karşılaştırma Tablosu",
+    "columns": ["Ölçüt", "Kavram / Yaklaşım A", "Kavram / Yaklaşım B"],
     "rows": [["...", "...", "..."]]
   },
-  "teacherEmphasis": [{ "point": "Nottaki kritik sınav ayrıntısı", "whyImportant": "Neden önemli", "examProbability": "Yüksek" }],
-  "keyTerms": [{ "term": "Nottaki terim", "definition": "Ayrıntılı ve doğru tanım", "formula": "Varsa kaynaktaki formül" }],
+  "teacherEmphasis": [{ "point": "Sınavda çıkabilecek kritik ayrıntı", "whyImportant": "Neden önemli ve hangi ayrım sorulur", "examProbability": "Yüksek" }],
+  "memorizeVsInterpret": {
+    "memorize": ["Doğrudan bilinmesi/ezberlenmesi gereken tanım, formül, kural veya süreler (4-6 madde)"],
+    "interpret": ["Sınavda yorumlanması ve ilişkilendirilmesi gereken neden-sonuç veya uygulama noktaları (4-6 madde)"]
+  },
+  "keyTerms": [{ "term": "Nottaki terim", "definition": "Eksiksiz ve ayırt edici tanım", "formula": "Varsa kaynaktaki formül (sözelde boş)" }],
+  "summarySynthesis": "Konu değerlendirmesi: Tüm bölümleri birleştiren, konular arasındaki büyük resmi ve sınava çalışma stratejisini toparlayan 2 paragraflık pekiştirici kapanış anlatımı.",
   "studyChecklist": ["Bu notu bitirdiğimde ... konusunu ve ayrımlarını açıklayabilirim."]
 }`;
 }
@@ -701,14 +730,23 @@ async function buildSummaryFromLiveAi(
     pagesOrSlides: s.pagesOrSlides,
   }));
 
-  // Case A: Short/medium notes (<= 22k chars, ~1-12 pages) -> ONE cohesive deep multi-section pass
+  const summaryPlan = computeDynamicSummaryPlan({
+    totalWords: bundle.totalWords,
+    totalPagesOrSlides: bundle.totalPagesOrSlides,
+    summaryDepth: settings.summaryDepth,
+    examMode: settings.examMode,
+  });
+  const guidance = getDisciplineSummaryGuidance(courseLabel, domain.mode);
+
+  // Case A: Compact notes (<= 22k chars, ~1-12 pages) -> ONE cohesive deep multi-section pass
   if (bundle.combinedText.length <= 22_000) {
-    onProgress?.(45, 'Ders notu baştan sona incelenip kapsamlı özet yazılıyor...');
+    onProgress?.(45, 'Ders notu baştan sona incelenip kapsamlı 9 aşamalı özet yazılıyor...');
     const taskPrompt = buildChatGptStyleSummaryPrompt(
       bundle,
       settings,
       courseLabel,
       fullOutlineHint,
+      domain.mode,
     );
     const liveRes = await invokeLiveServerAiText({
       materialType: 'summary',
@@ -746,6 +784,25 @@ async function buildSummaryFromLiveAi(
         ]),
       );
 
+      const rawMvi = parsed.memorizeVsInterpret as
+        | { memorize?: unknown[]; interpret?: unknown[] }
+        | undefined;
+      const memorizeVsInterpret =
+        rawMvi && (Array.isArray(rawMvi.memorize) || Array.isArray(rawMvi.interpret))
+          ? {
+              memorize: Array.isArray(rawMvi.memorize)
+                ? rawMvi.memorize.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 8)
+                : [],
+              interpret: Array.isArray(rawMvi.interpret)
+                ? rawMvi.interpret.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 8)
+                : [],
+            }
+          : undefined;
+      const summarySynthesis =
+        typeof parsed.summarySynthesis === 'string' && parsed.summarySynthesis.trim().length > 20
+          ? parsed.summarySynthesis.trim()
+          : undefined;
+
       onProgress?.(94, 'Özet ve sınav öncelik rehberi düzenleniyor...');
       const summary: SummaryContent = {
         overview,
@@ -755,6 +812,8 @@ async function buildSummaryFromLiveAi(
         teacherEmphasis,
         comparativeMatrix: parsed.comparativeMatrix as SummaryContent['comparativeMatrix'],
         keyTerms,
+        summarySynthesis,
+        memorizeVsInterpret,
         extractionNotices: extractionNotices.length > 0 ? extractionNotices : undefined,
         sourceCourseBreakdown,
         studyChecklist: Array.isArray(parsed.studyChecklist)
@@ -824,54 +883,94 @@ async function buildSummaryFromLiveAi(
     return null;
   }
 
-  // Case B: Long multi-page PDF / PowerPoint (> 22k chars) -> up to 8 sequential contiguous passes covering 100% of pages!
-  const chunks = splitNoteIntoSequentialChunks(bundle.combinedText, 24_000, 8);
+  // Case B: Long multi-page PDF / PowerPoint (> 22k chars, including 100-350 page books!)
+  // Uses page- & heading-aware sequential chunking up to 16 chunks with rolling topic continuity & cross-chunk deduplication.
+  const logicalChunks = splitDocumentIntoLogicalChunks(
+    bundle.combinedText,
+    summaryPlan.chunkCharBudget,
+    summaryPlan.maxChunks,
+  );
   const allSections: SummarySection[] = [];
   const allKeyPoints: string[] = [];
   const allKeyTerms: NonNullable<SummaryContent['keyTerms']> = [];
   const allEmphasis: NonNullable<SummaryContent['teacherEmphasis']> = [];
   const allChecklists: string[] = [];
+  const allMemorize: string[] = [];
+  const allInterpret: string[] = [];
   const overviewParts: string[] = [];
+  const synthesisParts: string[] = [];
+  let bestComparativeMatrix: SummaryContent['comparativeMatrix'] | undefined;
   let usedModel = 'EconNotes Akademik AI';
+  const coveredHeadings: string[] = [];
 
-  for (let c = 0; c < chunks.length; c++) {
-    const pct = Math.min(90, Math.round(28 + ((c + 1) / chunks.length) * 60));
-    onProgress?.(pct, `Kapsamlı ders notu baştan sona özetleniyor (${c + 1}/${chunks.length}. kısım)...`);
+  for (let c = 0; c < logicalChunks.length; c++) {
+    const chunkObj = logicalChunks[c];
+    const pct = Math.min(90, Math.round(24 + ((c + 1) / logicalChunks.length) * 64));
+    const pageHintStr = chunkObj.pageRangeLabel ? ` · ${chunkObj.pageRangeLabel}` : '';
+    onProgress?.(
+      pct,
+      `Kapsamlı ders notu baştan sona özetleniyor (${c + 1}/${logicalChunks.length}. parça${pageHintStr})...`,
+    );
 
-    const chunkPrompt = `Görev: Aşağıda kapsamlı bir ders materyalinin ${c + 1}/${chunks.length}. kısmı yer alıyor. Bu kısımdaki TÜM sayfaları/slaytları, ana ve alt başlıkları (####), tanımları, teorileri, modelleri, formülleri ($...$ / $$...$$ ve değişken açıklamalarıyla), grafikleri, tabloları ve örnekleri ATLAMADAN ayrıntılı ve anlaşılır Türkçe Markdown ile özetle.
+    const sectionsPerChunk = logicalChunks.length >= 10 ? '2-3' : '3-4';
+    const continuityRule =
+      coveredHeadings.length > 0
+        ? `\nÖNCEKİ PARÇALARDA İŞLENEN BAŞLIKLAR (BUNLARI TEKRARLAMA; YALNIZCA BU PARÇADAKİ YENİ KONULARI İŞLE VE BAĞLANTI KUR): ${coveredHeadings
+            .slice(-14)
+            .join(' | ')}`
+        : '';
+
+    const chunkPrompt = `Görev: Aşağıda kapsamlı bir ders materyalinin ${c + 1}/${logicalChunks.length}. parçası${pageHintStr} yer alıyor. Bu parçadaki TÜM sayfaları/slaytları, ana ve alt başlıkları (####), eksiksiz kavram tanımlarını, teorileri, modelleri, grafikleri, tabloları ve somut örnekleri ATLAMADAN ayrıntılı ve öğretici Türkçe Markdown ile özetle.
+
+DERS ODAĞI (${courseLabel}):
+- ${guidance.structureFocus}
+- ${guidance.formulaRule}
+- ${guidance.examFocusHint}${continuityRule}
+
 KESİN KURALLAR:
-1. YALNIZCA bu kısımdaki gerçek dersin konularını, kavramlarını ve örneklerini anlat. Başka bir dersin bilgilerini veya kaynakta olmayan teorileri ASLA ekleme. Ek pedagojik açıklama gerekirse **[Ek Açıklama]** etiketiyle ayır.${
+1. YALNIZCA bu parçadaki gerçek dersin konularını, kavramlarını ve örneklerini anlat. Başka bir dersin bilgilerini veya kaynakta olmayan teorileri ASLA ekleme. Ek pedagojik açıklama gerekirse **[Ek Açıklama]** etiketiyle kaynaktan ayır.${
       bundle.isMultiCourse && bundle.sourceCourses?.length
         ? `\n2. ÇOKLU DERS: Farklı dersler (${bundle.sourceCourses.join(', ')}) varsa bölüm başlıklarında [Ders Adı] etiketini koru ve dersleri birbirine karıştırma.`
         : ''
     }
-3. Bu kısım için 3-4 kapsamlı, sınava hazırlayıcı bölüm (her biri 350-580 kelime) yaz.${
+3. Bu parça için ${sectionsPerChunk} kapsamlı, sınava hazırlayıcı bölüm (her biri ${summaryPlan.minWordsPerSection}-${summaryPlan.maxWordsPerSection} kelime) yaz.${
       settings.customPrompt?.trim() ? `\nÖğrencinin özel isteği: ${settings.customPrompt.trim()}` : ''
     }
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 {
-  "overview": "Bu kısmın 2-3 cümlelik net özeti",
-  "keyPoints": ["Bu kısımdan 3-4 ana nokta"],
+  "overview": "Bu parçanın 2-3 cümlelik net özeti",
+  "keyPoints": ["Bu parçadan 3-4 somut ana nokta"],
   "sections": [
     {
       "index": 0,
       "heading": "Nottaki gerçek konu başlığı",
-      "pageRange": "Varsa sayfa/slayt",
-      "content": "Alt başlıklı (####), ayrıntılı, formül/tablo/örnek/bağlantı içeren 350-580 kelimelik Markdown özet...",
+      "pageRange": "${chunkObj.pageRangeLabel || 'Varsa sayfa/slayt'}",
+      "content": "Alt başlıklı (####), ayrıntılı, formül/kanun unsuru/tablo/örnek/bağlantı içeren ${summaryPlan.minWordsPerSection}-${summaryPlan.maxWordsPerSection} kelimelik Markdown özet...",
       "takeaways": ["Net çıkarım 1", "Net çıkarım 2", "Net çıkarım 3"],
-      "commonPitfalls": ["Varsa sınavda karıştırılabilecek nokta"]
+      "commonPitfalls": ["Varsa sınavda karıştırılabilecek nokta"],
+      "checkpointQuestion": { "question": "Bölüme özel kontrol sorusu?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Kaynağa dayalı açıklama." }
     }
   ],
+  "comparativeMatrix": {
+    "title": "Bu parçada karşılaştırılabilir kavram/teori varsa tablo başlığı",
+    "columns": ["Ölçüt", "Yaklaşım A", "Yaklaşım B"],
+    "rows": [["...", "...", "..."]]
+  },
+  "memorizeVsInterpret": {
+    "memorize": ["Bu parçadan ezberlenecek 2-3 net bilgi"],
+    "interpret": ["Bu parçadan yorumlanacak 2-3 ilişki/uygulama"]
+  },
   "teacherEmphasis": [{ "point": "Önemli sınav ayrıntısı", "whyImportant": "Neden önemli", "examProbability": "Yüksek" }],
   "keyTerms": [{ "term": "Nottaki terim", "definition": "Net ve ayrıntılı tanım", "formula": "" }],
+  "summarySynthesis": "Bu parçadaki konuların bütün içindeki yeri (2-3 cümle)",
   "studyChecklist": ["Öğrenme hedefi"]
 }`;
 
     const liveRes = await invokeLiveServerAiText({
       materialType: 'summary',
-      title: `${bundle.title} (${c + 1}/${chunks.length})`,
+      title: `${bundle.title} (${c + 1}/${logicalChunks.length})`,
       course: courseLabel,
-      noteContext: chunks[c],
+      noteContext: chunkObj.text,
       taskPrompt: chunkPrompt,
       preferPro: true,
       images: c === 0 ? bundle.images : undefined,
@@ -885,8 +984,39 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
       if (typeof parsed.overview === 'string' && parsed.overview.trim()) {
         overviewParts.push(parsed.overview.trim());
       }
+      if (typeof parsed.summarySynthesis === 'string' && parsed.summarySynthesis.trim()) {
+        synthesisParts.push(parsed.summarySynthesis.trim());
+      }
+      if (
+        !bestComparativeMatrix &&
+        parsed.comparativeMatrix &&
+        typeof parsed.comparativeMatrix === 'object' &&
+        Array.isArray((parsed.comparativeMatrix as Record<string, unknown>).columns) &&
+        Array.isArray((parsed.comparativeMatrix as Record<string, unknown>).rows) &&
+        ((parsed.comparativeMatrix as { rows: unknown[] }).rows.length >= 2)
+      ) {
+        bestComparativeMatrix = parsed.comparativeMatrix as SummaryContent['comparativeMatrix'];
+      }
+      const chunkMvi = parsed.memorizeVsInterpret as
+        | { memorize?: unknown[]; interpret?: unknown[] }
+        | undefined;
+      if (chunkMvi) {
+        for (const m of Array.isArray(chunkMvi.memorize) ? chunkMvi.memorize : []) {
+          const s = String(m || '').trim();
+          if (s && !allMemorize.includes(s)) allMemorize.push(s);
+        }
+        for (const ip of Array.isArray(chunkMvi.interpret) ? chunkMvi.interpret : []) {
+          const s = String(ip || '').trim();
+          if (s && !allInterpret.includes(s)) allInterpret.push(s);
+        }
+      }
       for (const sec of chunkSections) {
-        allSections.push({ ...sec, index: allSections.length });
+        allSections.push({
+          ...sec,
+          pageRange: sec.pageRange || chunkObj.pageRangeLabel,
+          index: allSections.length,
+        });
+        coveredHeadings.push(sec.heading);
       }
       if (Array.isArray(parsed.keyPoints)) {
         for (const kp of parsed.keyPoints) {
@@ -915,7 +1045,7 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
           if (te && typeof te === 'object') {
             const rec = te as Record<string, unknown>;
             const point = String(rec.point || '').trim();
-            if (point) {
+            if (point && !allEmphasis.some((e) => e.point.toLowerCase() === point.toLowerCase())) {
               allEmphasis.push({
                 point,
                 whyImportant: String(rec.whyImportant || '').trim(),
@@ -928,44 +1058,60 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
       if (Array.isArray(parsed.studyChecklist)) {
         for (const cl of parsed.studyChecklist) {
           const s = String(cl || '').trim();
-          if (s) allChecklists.push(s);
+          if (s && !allChecklists.includes(s)) allChecklists.push(s);
         }
       }
     } else {
-      const mdPart = parseMarkdownSummaryToSections(liveRes.text, bundle.title, domain.discipline);
+      const mdPart = parseMarkdownSummaryToSections(liveRes.text, bundle.title, courseLabel);
       if (mdPart && mdPart.sections.length > 0) {
         if (mdPart.overview) overviewParts.push(mdPart.overview);
         for (const sec of mdPart.sections) {
-          allSections.push({ ...sec, index: allSections.length });
+          allSections.push({
+            ...sec,
+            pageRange: sec.pageRange || chunkObj.pageRangeLabel,
+            index: allSections.length,
+          });
+          coveredHeadings.push(sec.heading);
         }
       }
     }
   }
 
-  if (allSections.length === 0) return null;
+  const dedupedSections = deduplicateSummarySections(allSections);
+  if (dedupedSections.length === 0) return null;
 
-  onProgress?.(95, 'Tüm bölümler ve sınav öncelik haritası birleştiriliyor...');
+  onProgress?.(95, 'Tüm parçalar tekerrürsüz birleştiriliyor ve sınav öncelik haritası oluşturuluyor...');
   const finalOverview =
-    overviewParts.slice(0, 2).join('\n\n') ||
-    `${bundle.title} ders notu ${allSections.length} ana başlık altında baştan sona eksiksiz özetlenmiştir.`;
+    overviewParts.slice(0, 3).join('\n\n') ||
+    `${bundle.title} ders materyali (${bundle.totalPagesOrSlides} sayfa/slayt) ${dedupedSections.length} kapsamlı bölümde baştan sona eksiksiz özetlenmiştir.`;
   const finalKeyPoints =
     allKeyPoints.length > 0
-      ? allKeyPoints.slice(0, 10)
-      : allSections.map((s) => `**${s.heading}**`).slice(0, 8);
+      ? allKeyPoints.slice(0, summaryPlan.targetKeyPoints)
+      : dedupedSections.map((s) => `**${s.heading}**`).slice(0, 12);
+  const finalSynthesis =
+    synthesisParts.length > 0
+      ? synthesisParts.slice(0, 4).join(' ')
+      : `${bundle.title} (${courseLabel}) kapsamında ilk sayfadan son sayfaya kadar toplam ${dedupedSections.length} ana konu bütünlüklü biçimde işlenmiştir. Sınav hazırlığında önce temel kavram tanımlarını ve ayrımları, ardından bölüm sonu kontrol sorularını ve karşılaştırmalı ilişkileri tekrar etmeniz önerilir.`;
 
   const summary: SummaryContent = {
     overview: finalOverview,
     disciplineTag: courseLabel,
     keyPoints: finalKeyPoints,
-    sections: allSections,
-    teacherEmphasis: allEmphasis.slice(0, 10),
-    keyTerms: allKeyTerms.slice(0, 28),
+    sections: dedupedSections,
+    teacherEmphasis: allEmphasis.slice(0, 14),
+    comparativeMatrix: bestComparativeMatrix,
+    keyTerms: allKeyTerms.slice(0, summaryPlan.targetKeyTerms),
+    summarySynthesis: finalSynthesis,
+    memorizeVsInterpret:
+      allMemorize.length > 0 || allInterpret.length > 0
+        ? { memorize: allMemorize.slice(0, 8), interpret: allInterpret.slice(0, 8) }
+        : undefined,
     extractionNotices: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
     sourceCourseBreakdown,
-    studyChecklist: allChecklists.slice(0, 10),
+    studyChecklist: allChecklists.slice(0, 14),
     studyPriorityMap: normalizePriorityMap(
       undefined,
-      allSections,
+      dedupedSections,
       allKeyTerms,
       allEmphasis,
       finalOverview,
@@ -985,7 +1131,7 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
         sourceCount: bundle.sourceCount,
         wordCount: bundle.totalWords,
         pagesOrSlides: bundle.totalPagesOrSlides,
-        sectionCount: allSections.length,
+        sectionCount: dedupedSections.length,
       },
     },
   };
@@ -1529,6 +1675,14 @@ async function generateSummaryMapReduce(
     domain.detectedCourse ||
     bundle.title;
 
+  const summaryPlan = computeDynamicSummaryPlan({
+    totalWords: bundle.totalWords,
+    totalPagesOrSlides: bundle.totalPagesOrSlides,
+    summaryDepth: settings.summaryDepth,
+    examMode: settings.examMode,
+  });
+  const disciplineGuidance = getDisciplineSummaryGuidance(resolvedCourse, domain.mode);
+
   const sourceCourseBreakdown = bundle.sources.map((s) => ({
     sourceName: s.name,
     course: s.course || s.detectedCourse || resolvedCourse,
@@ -1550,10 +1704,15 @@ async function generateSummaryMapReduce(
     pedagogicalStyle: settings.pedagogicalStyle,
     customPrompt: settings.customPrompt || undefined,
     examFocus: settings.examFocus || undefined,
+    targetSectionRange: summaryPlan.targetSectionsLabel,
+    minWordsPerSection: summaryPlan.minWordsPerSection,
+    maxWordsPerSection: summaryPlan.maxWordsPerSection,
+    disciplineGuidance: `${disciplineGuidance.structureFocus}\n${disciplineGuidance.formulaRule}\n${disciplineGuidance.comparisonHint}\n${disciplineGuidance.examFocusHint}`,
   };
 
   // Tier-1A: Single cohesive deep pass on `generate-study-material` ONLY for compact notes <= 18k chars
-  let needsMapReduceFallback = largeBundle || bundle.combinedText.length > 18_000;
+  let needsMapReduceFallback =
+    largeBundle || summaryPlan.needsChunkedPipeline || bundle.combinedText.length > 18_000;
   if (!needsMapReduceFallback) {
     onProgress?.(32, '1/2 • Ders notu baştan sona incelenip kapsamlı özet oluşturuluyor...');
     const singleEdge = await invokeEdgeGenerate({
@@ -1565,14 +1724,14 @@ async function generateSummaryMapReduce(
       audio: bundle.audio,
     });
     if (singleEdge && singleEdge.sourceMode === 'ai') {
-      const secs = sanitizeAiSummarySections(singleEdge.content?.sections);
+      const secs = deduplicateSummarySections(sanitizeAiSummarySections(singleEdge.content?.sections));
       // Quality gate: reject superficial few-paragraph summaries on substantial notes
       const isSubstantialNote = bundle.totalWords >= 800 || bundle.totalPagesOrSlides >= 4;
       const avgWords = averageSectionWords(secs);
       const isSuperficial =
         isSubstantialNote &&
         settings.summaryDepth !== 'short' &&
-        (secs.length < 3 || avgWords < 165);
+        (secs.length < Math.min(3, summaryPlan.minSections) || avgWords < 175);
 
       if (secs.length > 0 && !isSuperficial) {
         const mergedNotices = Array.from(
@@ -1590,6 +1749,21 @@ async function generateSummaryMapReduce(
             disciplineTag: singleEdge.content?.disciplineTag || resolvedCourse,
             extractionNotices: mergedNotices.length > 0 ? mergedNotices : undefined,
             sourceCourseBreakdown,
+            memorizeVsInterpret:
+              singleEdge.content?.memorizeVsInterpret?.memorize ||
+              singleEdge.content?.memorizeVsInterpret?.interpret
+                ? {
+                    memorize: Array.isArray(singleEdge.content.memorizeVsInterpret.memorize)
+                      ? singleEdge.content.memorizeVsInterpret.memorize.map(String).filter(Boolean)
+                      : [],
+                    interpret: Array.isArray(singleEdge.content.memorizeVsInterpret.interpret)
+                      ? singleEdge.content.memorizeVsInterpret.interpret.map(String).filter(Boolean)
+                      : [],
+                  }
+                : undefined,
+            summarySynthesis: singleEdge.content?.summarySynthesis
+              ? String(singleEdge.content.summarySynthesis).trim()
+              : undefined,
             studyPriorityMap: normalizePriorityMap(
               singleEdge.content?.studyPriorityMap,
               secs,
@@ -1749,17 +1923,30 @@ async function generateSummaryMapReduce(
     }
 
     expandedSections.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    const dedupedExpanded = deduplicateSummarySections(expandedSections);
 
-    onProgress?.(96, '3/3 • Sınav öncelik haritası, karşılaştırma matrisi ve kontrol listesi birleştiriliyor...');
+    onProgress?.(96, '3/3 • Sınav öncelik haritası, karşılaştırma matrisi ve konu değerlendirmesi birleştiriliyor...');
     const finalSummary: SummaryContent = {
       overview: blueprint.overview,
       disciplineTag: blueprint.disciplineTag || resolvedCourse,
       keyPoints: blueprint.keyPoints || [],
-      sections: expandedSections,
+      sections: dedupedExpanded,
       teacherEmphasis: blueprint.teacherEmphasis || [],
       comparativeMatrix: blueprint.comparativeMatrix,
       deepResearchTopics: blueprint.deepResearchTopics || [],
       keyTerms: blueprint.keyTerms || [],
+      memorizeVsInterpret:
+        blueprint.memorizeVsInterpret?.memorize || blueprint.memorizeVsInterpret?.interpret
+          ? {
+              memorize: Array.isArray(blueprint.memorizeVsInterpret.memorize)
+                ? blueprint.memorizeVsInterpret.memorize.map(String).filter(Boolean)
+                : [],
+              interpret: Array.isArray(blueprint.memorizeVsInterpret.interpret)
+                ? blueprint.memorizeVsInterpret.interpret.map(String).filter(Boolean)
+                : [],
+            }
+          : undefined,
+      summarySynthesis: blueprint.summarySynthesis ? String(blueprint.summarySynthesis).trim() : undefined,
       extractionNotices: Array.from(
         new Set([
           ...(bundle.extractionWarnings || []),
@@ -1772,7 +1959,7 @@ async function generateSummaryMapReduce(
       studyChecklist: blueprint.studyChecklist || [],
       studyPriorityMap: normalizePriorityMap(
         blueprint.studyPriorityMap,
-        expandedSections,
+        dedupedExpanded,
         blueprint.keyTerms,
         blueprint.teacherEmphasis,
         blueprint.overview,
@@ -1792,7 +1979,7 @@ async function generateSummaryMapReduce(
           sourceCount: bundle.sourceCount,
           wordCount: bundle.totalWords,
           pagesOrSlides: bundle.totalPagesOrSlides,
-          sectionCount: expandedSections.length,
+          sectionCount: dedupedExpanded.length,
         },
       },
     };
@@ -1890,7 +2077,9 @@ async function generateSummaryMapReduce(
     noteTitle: bundle.title,
     course: resolvedCourse,
     noteContext: bundle.combinedText,
+    totalPagesOrSlides: bundle.totalPagesOrSlides,
     summaryDepth: settings.summaryDepth,
+    examMode: settings.examMode,
     deepResearch: settings.deepResearch,
     pedagogicalStyle: settings.pedagogicalStyle,
     customPrompt: settings.customPrompt,

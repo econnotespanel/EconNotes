@@ -1,13 +1,18 @@
 import { useState } from 'react';
 import { ArrowLeft, Bot, Flag, PanelRightClose, PanelRightOpen } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { cn } from '@/lib/utils';
 import type { CoachMode, MaterialType, StudyMaterial } from '@/types/study';
 import { NeuralCoachPanel } from './NeuralCoachPanel';
 import { NeuralFlashcardWorkspace } from './NeuralFlashcardWorkspace';
 import { NeuralQuizWorkspace } from './NeuralQuizWorkspace';
 import { NeuralSummaryWorkspace } from './NeuralSummaryWorkspace';
+import {
+  STUDIO_BADGE_COURSE,
+  STUDIO_BTN_GHOST,
+  STUDIO_BTN_SECONDARY,
+} from './studioDesign';
 
 interface NeuralWorkspaceFrameProps {
   material: StudyMaterial;
@@ -44,18 +49,27 @@ export function NeuralWorkspaceFrame({
 
   return (
     <div className="neural-shell min-w-0 space-y-5 p-3 sm:p-5 lg:p-6">
-      {/* Workspace Header */}
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
+      {/* Unified Minimalist Workspace Header */}
+      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card px-4 py-3 shadow-sm">
         <div className="flex min-w-0 items-center gap-3">
-          <Button type="button" variant="outline" size="sm" onClick={onBack} className="gap-1.5 text-xs">
-            <ArrowLeft className="h-3.5 w-3.5" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onBack}
+            className={cn(STUDIO_BTN_SECONDARY, 'shrink-0 gap-1.5')}
+          >
+            <ArrowLeft className="h-4 w-4" />
             Stüdyoya Dön
           </Button>
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-bold sm:text-base">{material.title}</h1>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-              <span>{material.course || 'Genel Ders Notu'}</span>
-              <span>·</span>
+            <h1 className="truncate text-sm font-semibold text-foreground sm:text-base">
+              {material.title}
+            </h1>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+              <span className={STUDIO_BADGE_COURSE}>
+                {material.course || 'Ders Notu'}
+              </span>
               <span>{new Date(material.created_at).toLocaleDateString('tr-TR')}</span>
             </div>
           </div>
@@ -64,8 +78,13 @@ export function NeuralWorkspaceFrame({
         <div className="flex items-center gap-2">
           <Sheet>
             <SheetTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs lg:hidden">
-                <Bot className="h-3.5 w-3.5 text-primary" />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5 lg:hidden')}
+              >
+                <Bot className="h-4 w-4 text-primary" />
                 Sor &amp; Pekiştir
               </Button>
             </SheetTrigger>
@@ -79,18 +98,24 @@ export function NeuralWorkspaceFrame({
             variant="outline"
             size="sm"
             onClick={() => setCoachOpen((o) => !o)}
-            className="hidden gap-1.5 text-xs lg:inline-flex"
+            className={cn(STUDIO_BTN_SECONDARY, 'hidden gap-1.5 lg:inline-flex')}
           >
             {coachOpen ? (
-              <PanelRightClose className="h-3.5 w-3.5" />
+              <PanelRightClose className="h-4 w-4 text-primary" />
             ) : (
-              <PanelRightOpen className="h-3.5 w-3.5" />
+              <PanelRightOpen className="h-4 w-4 text-primary" />
             )}
             {coachOpen ? 'Asistanı Gizle' : 'Notu Sor & Pekiştir'}
           </Button>
 
-          <Button type="button" variant="ghost" size="sm" onClick={onReportIssue} className="gap-1.5 text-xs">
-            <Flag className="h-3.5 w-3.5" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onReportIssue}
+            className={cn(STUDIO_BTN_GHOST, 'gap-1.5')}
+          >
+            <Flag className="h-4 w-4" />
             <span className="hidden sm:inline">Bildir</span>
           </Button>
         </div>

@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { NeuralEngineState } from '@/lib/neural/neuralEngine';
+import { STUDIO_BTN_GHOST } from './studioDesign';
 
 export type NeuralTabId =
   | 'workspace'
@@ -76,23 +77,18 @@ export function NeuralCommandShell({
 
   return (
     <div className="min-w-0 space-y-3.5">
-      {/* Unified Compact Top Studio Header (NotebookLM × Astra AI Aesthetic) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/90 px-4 py-3 shadow-2xs backdrop-blur-xl">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-blue-500/15 to-violet-500/20 text-primary ring-1 ring-primary/25">
-            <GraduationCap className="h-5 w-5" />
+      {/* Unified Minimalist EconNotes Study Studio Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#003791] text-white shadow-sm">
+            <GraduationCap className="h-5 w-5" strokeWidth={2} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
-                Çalışma Stüdyosu
-              </h1>
-              <span className="hidden rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary sm:inline-flex">
-                AI Notebook &amp; Tutor
-              </span>
-            </div>
-            <p className="hidden text-[11px] text-muted-foreground md:block">
-              Kaynaklarınla konuş, soru fotoğrafı çöz, tek tıkla özet · video · sınav · kavram haritası üret
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold tracking-tight text-foreground sm:text-base">
+              Çalışma Stüdyosu
+            </h1>
+            <p className="hidden text-xs text-muted-foreground md:block">
+              Ders kaynaklarını analiz et, ayrıntılı özet, deneme sınavı ve çalışma kartları oluştur
             </p>
           </div>
         </div>
@@ -110,17 +106,17 @@ export function NeuralCommandShell({
                 type="button"
                 onClick={() => onTabChange(item.id)}
                 className={cn(
-                  'group relative flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs transition-all duration-150',
+                  'group relative flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs transition-colors',
                   active
-                    ? 'bg-primary/12 font-semibold text-primary ring-1 ring-primary/25 shadow-2xs'
-                    : 'font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground',
+                    ? 'border-primary/25 bg-primary/10 font-semibold text-primary'
+                    : 'border-transparent font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                 )}
               >
-                <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={active ? 2.15 : 1.85} />
+                <Icon className="h-4 w-4 shrink-0" strokeWidth={active ? 2 : 1.75} />
                 <span className="hidden sm:inline">{item.label}</span>
                 <span className="sm:hidden">{item.shortLabel}</span>
                 {item.badge !== undefined && (
-                  <span className="inline-flex h-[17px] min-w-[18px] items-center justify-center rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary">
+                  <span className="inline-flex h-4 min-w-[18px] items-center justify-center rounded-md bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">
                     {item.badge}
                   </span>
                 )}
@@ -129,16 +125,20 @@ export function NeuralCommandShell({
           })}
         </nav>
 
-        <div className="order-2 flex items-center gap-1 xl:order-3">
+        <div className="order-2 flex items-center gap-1.5 xl:order-3">
           <Button
             type="button"
-            variant={normalizedTab === 'engine' ? 'secondary' : 'ghost'}
+            variant="ghost"
             size="sm"
             onClick={() => onTabChange(normalizedTab === 'engine' ? 'workspace' : 'engine')}
             title="AI Motor Tercihleri"
-            className="h-8 gap-1.5 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            className={cn(
+              STUDIO_BTN_GHOST,
+              'gap-1.5',
+              normalizedTab === 'engine' && 'border-primary/25 bg-primary/10 text-primary',
+            )}
           >
-            <Settings2 className="h-3.5 w-3.5" />
+            <Settings2 className="h-4 w-4" strokeWidth={1.75} />
             <span className="hidden sm:inline">Tercihler</span>
           </Button>
           <Button
@@ -146,10 +146,10 @@ export function NeuralCommandShell({
             variant="ghost"
             size="sm"
             onClick={onReportIssue}
-            className="h-8 gap-1.5 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            className={cn(STUDIO_BTN_GHOST, 'gap-1.5')}
             title="Sorun veya öneri bildir"
           >
-            <Flag className="h-3.5 w-3.5" />
+            <Flag className="h-4 w-4" strokeWidth={1.75} />
             <span className="hidden sm:inline">Bildir</span>
           </Button>
         </div>

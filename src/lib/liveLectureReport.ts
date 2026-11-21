@@ -26,6 +26,11 @@ export interface LectureSummaryReport {
     realWorldApplication?: string;
   }>;
   keyTerms?: Array<{ term: string; definition: string; formula?: string }>;
+  memorizeVsInterpret?: {
+    memorize: string[];
+    interpret: string[];
+  };
+  summarySynthesis?: string;
   studyChecklist?: string[];
   transcriptExcerpt?: string;
   metadata?: {
@@ -303,6 +308,36 @@ export function buildLectureSummaryHtml(report: LectureSummaryReport): string {
       )
       .join('')}
   </div>`
+      : ''
+  }
+
+  ${
+    report.memorizeVsInterpret &&
+    (report.memorizeVsInterpret.memorize?.length || report.memorizeVsInterpret.interpret?.length)
+      ? `<h2>Ezberlenecek Bilgiler vs. Yorumlanacak Bilgiler</h2>
+  <div class="term-grid">
+    ${
+      report.memorizeVsInterpret.memorize?.length
+        ? `<div class="term-card"><div class="term-name">Doğrudan Bilinmesi / Ezberlenmesi Gerekenler</div><ul>${report.memorizeVsInterpret.memorize
+            .map((m) => `<li>${formatInlineMarkdownHtml(m)}</li>`)
+            .join('')}</ul></div>`
+        : ''
+    }
+    ${
+      report.memorizeVsInterpret.interpret?.length
+        ? `<div class="term-card"><div class="term-name">Yorumlanması ve İlişkilendirilmesi Gerekenler</div><ul>${report.memorizeVsInterpret.interpret
+            .map((it) => `<li>${formatInlineMarkdownHtml(it)}</li>`)
+            .join('')}</ul></div>`
+        : ''
+    }
+  </div>`
+      : ''
+  }
+
+  ${
+    report.summarySynthesis
+      ? `<h2>Konu Değerlendirmesi</h2>
+  <div class="card">${renderMarkdownBlockToHtml(report.summarySynthesis)}</div>`
       : ''
   }
 

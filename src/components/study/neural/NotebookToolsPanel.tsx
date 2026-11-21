@@ -57,6 +57,23 @@ import type {
   StudyMaterial,
   StudyProgressRow,
 } from '@/types/study';
+import {
+  STUDIO_BADGE_WARN,
+  STUDIO_BTN_GHOST,
+  STUDIO_BTN_ICON,
+  STUDIO_BTN_SECONDARY,
+  STUDIO_CARD_SUBTLE,
+  STUDIO_PANEL_BODY,
+  STUDIO_PANEL_FOOTER,
+  STUDIO_PANEL_HEADER,
+  STUDIO_PANEL_HEADER_ICON,
+  STUDIO_PANEL_SHELL,
+  STUDIO_SEGMENTED_ITEM_ACTIVE,
+  STUDIO_SEGMENTED_ITEM_IDLE,
+  STUDIO_SEGMENTED_WRAP,
+  STUDIO_TOOL_TILE,
+  STUDIO_TOOL_TILE_PRIMARY,
+} from './studioDesign';
 
 interface NotebookToolsPanelProps {
   activeSourceCount: number;
@@ -88,28 +105,28 @@ const MATERIAL_META: Record<
   { label: string; icon: typeof FileText; color: string; bg: string }
 > = {
   summary: {
-    label: 'Ders Özeti',
+    label: 'Ayrıntılı Özet',
     icon: FileText,
-    color: 'text-blue-600 dark:text-blue-400',
-    bg: 'bg-blue-500/10 border-blue-500/20',
+    color: 'text-primary',
+    bg: 'bg-primary/10 border-primary/20',
   },
   video: {
     label: 'Videolu Ders',
     icon: Video,
-    color: 'text-violet-600 dark:text-violet-400',
-    bg: 'bg-violet-500/10 border-violet-500/20',
+    color: 'text-primary',
+    bg: 'bg-primary/[0.07] border-border/80',
   },
   quiz: {
     label: 'Deneme Sınavı',
     icon: Sparkles,
-    color: 'text-amber-600 dark:text-amber-400',
-    bg: 'bg-amber-500/10 border-amber-500/20',
+    color: 'text-primary',
+    bg: 'bg-primary/[0.07] border-border/80',
   },
   flashcards: {
-    label: 'Çalışma Kartı',
+    label: 'Çalışma Kartları',
     icon: Layers,
-    color: 'text-emerald-600 dark:text-emerald-400',
-    bg: 'bg-emerald-500/10 border-emerald-500/20',
+    color: 'text-primary',
+    bg: 'bg-primary/[0.07] border-border/80',
   },
 };
 
@@ -193,19 +210,17 @@ export function NotebookToolsPanel({
     {
       id: 'summary',
       title: 'Ayrıntılı Özet',
-      subtitle: 'Rehber & öncelik haritası',
+      subtitle: '9 bölümlü kapsamlı rehber',
       icon: FileText,
-      tone: 'border-blue-500/25 bg-blue-500/[0.06] hover:border-blue-500/50 hover:bg-blue-500/[0.11]',
-      iconTone: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+      primary: true,
       onClick: () => onGenerateType('summary'),
     },
     {
       id: 'video',
       title: 'Videolu Ders',
-      subtitle: 'Sesli & slaytlı anlatım',
+      subtitle: 'Slaytlı & sesli anlatım',
       icon: Video,
-      tone: 'border-violet-500/25 bg-violet-500/[0.06] hover:border-violet-500/50 hover:bg-violet-500/[0.11]',
-      iconTone: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+      primary: false,
       onClick: () => onGenerateType('video'),
     },
     {
@@ -213,26 +228,23 @@ export function NotebookToolsPanel({
       title: 'Deneme Sınavı',
       subtitle: `${settings.questionCount} soruluk test`,
       icon: Sparkles,
-      tone: 'border-amber-500/25 bg-amber-500/[0.06] hover:border-amber-500/50 hover:bg-amber-500/[0.11]',
-      iconTone: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+      primary: false,
       onClick: () => onGenerateType('quiz'),
     },
     {
       id: 'flashcards',
-      title: 'Çalışma Kartı',
-      subtitle: `${settings.cardCount} SM-2 kart`,
+      title: 'Çalışma Kartları',
+      subtitle: `${settings.cardCount} tekrar kartı`,
       icon: Layers,
-      tone: 'border-emerald-500/25 bg-emerald-500/[0.06] hover:border-emerald-500/50 hover:bg-emerald-500/[0.11]',
-      iconTone: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+      primary: false,
       onClick: () => onGenerateType('flashcards'),
     },
     {
       id: 'mindmap',
       title: 'Kavram Haritası',
-      subtitle: 'İnteraktif zihin ağı',
+      subtitle: 'İnteraktif kavram ağı',
       icon: Network,
-      tone: 'border-cyan-500/25 bg-cyan-500/[0.06] hover:border-cyan-500/50 hover:bg-cyan-500/[0.11]',
-      iconTone: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
+      primary: false,
       onClick: onOpenMindMap,
     },
     {
@@ -240,24 +252,25 @@ export function NotebookToolsPanel({
       title: 'Sınav Planı',
       subtitle: dueCardsCount > 0 ? `${dueCardsCount} tekrar kartı` : 'Günlük yol haritası',
       icon: CalendarClock,
-      tone: 'border-rose-500/25 bg-rose-500/[0.06] hover:border-rose-500/50 hover:bg-rose-500/[0.11]',
-      iconTone: 'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+      primary: false,
       onClick: onOpenPlanner,
     },
   ];
 
   return (
-    <div className="flex h-full min-h-[520px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border/75 bg-card/95 shadow-xs xl:h-[calc(100vh-11.5rem)] xl:min-h-[600px]">
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3.5 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/12 text-violet-600 dark:text-violet-400">
-            <Sparkles className="h-4 w-4" />
+    <div className={STUDIO_PANEL_SHELL}>
+      {/* Unified Right Panel Header */}
+      <div className={STUDIO_PANEL_HEADER}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className={STUDIO_PANEL_HEADER_ICON}>
+            <Sparkles className="h-4 w-4" strokeWidth={1.85} />
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-bold tracking-tight text-foreground">Stüdyo</h2>
+            <h2 className="truncate text-sm font-semibold tracking-tight text-foreground">
+              Yapay Zekâ Araçları
+            </h2>
             <p className="truncate text-[11px] text-muted-foreground">
-              Tek tıkla çalışma aracı üret
+              Tek tıkla çalışma materyali üret
             </p>
           </div>
         </div>
@@ -269,10 +282,10 @@ export function NotebookToolsPanel({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 shrink-0 gap-1 rounded-xl px-2.5 text-xs"
+              className={cn(STUDIO_BTN_SECONDARY, 'h-8 shrink-0 gap-1.5 px-2.5')}
               title="Üretim ve sınav ayarlarını özelleştir"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <SlidersHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
               <span>Ayarlar</span>
             </Button>
           </PopoverTrigger>
@@ -385,15 +398,15 @@ export function NotebookToolsPanel({
         </Popover>
       </div>
 
-      {/* Scrollable Studio Body (native overflow-x-hidden prevents right-edge clipping) */}
-      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
+      {/* Scrollable Studio Body */}
+      <div className={STUDIO_PANEL_BODY}>
         <div className="min-w-0 space-y-3.5">
-          {/* Shared Canonical Analysis Status Pill */}
+          {/* Shared Canonical Analysis Status Card */}
           {activeSourceCount > 0 && (
-            <div className="rounded-xl border border-border/70 bg-muted/25 px-2.5 py-2 text-[11px]">
-              <div className="flex items-center justify-between gap-1.5">
+            <div className={cn(STUDIO_CARD_SUBTLE, 'bg-muted/25 px-3 py-2.5 text-xs')}>
+              <div className="flex items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-1.5 font-semibold text-foreground">
-                  <BookOpenCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                  <BookOpenCheck className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.85} />
                   <span className="truncate">
                     {canonicalAnalysis.primaryCourseLabel
                       ? canonicalAnalysis.isMultiCourse
@@ -403,23 +416,26 @@ export function NotebookToolsPanel({
                   </span>
                 </span>
                 {canonicalAnalysis.syncedSummaryMaterial && (
-                  <span className="shrink-0 rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[9.5px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span className="shrink-0 rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                     Ortak Analiz
                   </span>
                 )}
               </div>
               {canonicalAnalysis.isMultiCourse && (
-                <p className="mt-1 break-words text-[10px] leading-snug text-muted-foreground">
-                  {canonicalAnalysis.distinctCourses.join(' · ')} — tüm araçlar her dersi ayrı korur.
+                <p className="mt-1 break-words text-[11px] leading-snug text-muted-foreground">
+                  {canonicalAnalysis.distinctCourses.join(' · ')} — her ders kendi kaynağında ayrı korunur.
                 </p>
               )}
               {canonicalAnalysis.hasUnconfirmedCourses && onRequestCourseConfirm && (
                 <button
                   type="button"
                   onClick={onRequestCourseConfirm}
-                  className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10.5px] font-semibold text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-300"
+                  className={cn(
+                    STUDIO_BADGE_WARN,
+                    'mt-2 flex w-full justify-center py-1.5 text-[11px] transition-colors hover:bg-amber-500/20',
+                  )}
                 >
-                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">
                     {canonicalAnalysis.unconfirmedSources.length} kaynağın dersini seç
                   </span>
@@ -428,8 +444,8 @@ export function NotebookToolsPanel({
             </div>
           )}
 
-          {/* Responsive Studio Production Tiles — never overflows or clips horizontally */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
+          {/* Unified Minimalist AI Tool Tiles — consistent EconNotes blue/slate hierarchy */}
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-2">
             {studioTiles.map((tile) => {
               const Icon = tile.icon;
               const disabled =
@@ -441,27 +457,26 @@ export function NotebookToolsPanel({
                   type="button"
                   disabled={disabled}
                   onClick={tile.onClick}
-                  className={cn(
-                    'group flex min-w-0 w-full flex-col justify-between overflow-hidden rounded-xl border p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs disabled:pointer-events-none disabled:opacity-55',
-                    tile.tone,
-                  )}
+                  className={tile.primary ? STUDIO_TOOL_TILE_PRIMARY : STUDIO_TOOL_TILE}
                 >
-                  <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center justify-between gap-1.5">
                     <span
                       className={cn(
-                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
-                        tile.iconTone,
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors',
+                        tile.primary
+                          ? 'border-transparent bg-[#003791] text-white'
+                          : 'border-border/80 bg-muted/40 text-primary group-hover:border-primary/30 group-hover:bg-primary/10',
                       )}
                     >
-                      <Icon className="h-3.5 w-3.5" />
+                      <Icon className="h-4 w-4" strokeWidth={1.85} />
                     </span>
                     <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                   </div>
-                  <div className="mt-2 min-w-0">
-                    <p className="break-words text-[11.5px] font-bold leading-snug text-foreground">
+                  <div className="mt-2.5 min-w-0">
+                    <p className="break-words text-xs font-semibold leading-snug text-foreground">
                       {tile.title}
                     </p>
-                    <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight text-muted-foreground">
+                    <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">
                       {tile.subtitle}
                     </p>
                   </div>
@@ -471,8 +486,8 @@ export function NotebookToolsPanel({
           </div>
 
           {activeSourceCount === 0 && (
-            <p className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
-              Materyal üretmek için sol panelden en az <strong>1 kaynak</strong> ekleyip işaretle.
+            <p className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
+              Materyal üretmek için sol panelden en az <strong className="text-foreground">1 kaynak</strong> ekleyip seç.
             </p>
           )}
 
@@ -481,10 +496,10 @@ export function NotebookToolsPanel({
             <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/[0.06] p-3">
               <div className="flex items-center justify-between gap-2 text-xs">
                 <span className="flex min-w-0 items-center gap-1.5 font-semibold text-primary">
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                  <span className="truncate">Üretiliyor...</span>
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                  <span className="truncate">Materyal oluşturuluyor...</span>
                 </span>
-                <span className="shrink-0 font-mono text-[11px] font-bold text-primary tabular-nums">
+                <span className="shrink-0 font-mono text-[11px] font-semibold text-primary tabular-nums">
                   {generationPct}%
                 </span>
               </div>
@@ -496,9 +511,9 @@ export function NotebookToolsPanel({
           )}
 
           {/* Generated Artifacts & Pinned Notes Section */}
-          <div className="min-w-0 space-y-2.5 border-t border-border/60 pt-3">
+          <div className="min-w-0 space-y-2.5 border-t border-border/70 pt-3.5">
             <div className="flex flex-wrap items-center justify-between gap-1.5">
-              <div className="flex flex-wrap items-center gap-0.5 rounded-lg bg-muted/40 p-0.5 text-[10.5px]">
+              <div className={cn(STUDIO_SEGMENTED_WRAP, 'text-[11px]')}>
                 {(
                   [
                     ['all', 'Tümü'],
@@ -511,10 +526,10 @@ export function NotebookToolsPanel({
                     type="button"
                     onClick={() => setFeedFilter(id)}
                     className={cn(
-                      'rounded-md px-2 py-1 font-medium transition-colors',
                       feedFilter === id
-                        ? 'bg-background text-foreground shadow-2xs'
-                        : 'text-muted-foreground hover:text-foreground',
+                        ? STUDIO_SEGMENTED_ITEM_ACTIVE
+                        : STUDIO_SEGMENTED_ITEM_IDLE,
+                      'px-2 py-1 text-[11px]',
                     )}
                   >
                     {label}
@@ -527,21 +542,24 @@ export function NotebookToolsPanel({
                 variant="ghost"
                 size="sm"
                 onClick={() => setManualNoteOpen(true)}
-                className="h-7 shrink-0 gap-1 rounded-lg px-2 text-[11px] text-primary hover:bg-primary/10"
+                className={cn(STUDIO_BTN_GHOST, 'h-8 shrink-0 gap-1 px-2 text-primary hover:bg-primary/10 hover:text-primary')}
                 title="Deftere hızlı not yaz"
               >
-                <Plus className="h-3 w-3" />
+                <Plus className="h-3.5 w-3.5" />
                 Not Al
               </Button>
             </div>
 
             {/* Pinned Notes */}
             {(feedFilter === 'all' || feedFilter === 'notes') && pinnedNotes.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {pinnedNotes.map((pn) => (
                   <div
                     key={pn.id}
-                    className="group rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-2.5 transition-colors hover:border-amber-500/50"
+                    className={cn(
+                      STUDIO_CARD_SUBTLE,
+                      'group p-2.5 hover:border-primary/40 hover:bg-card',
+                    )}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <button
@@ -550,7 +568,7 @@ export function NotebookToolsPanel({
                         className="min-w-0 flex-1 text-left"
                       >
                         <div className="flex items-center gap-1.5">
-                          <StickyNote className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                          <StickyNote className="h-3.5 w-3.5 shrink-0 text-primary" />
                           <p className="truncate text-xs font-semibold text-foreground">
                             {pn.title}
                           </p>
@@ -562,10 +580,13 @@ export function NotebookToolsPanel({
                       <button
                         type="button"
                         onClick={() => onDeletePinnedNote(pn.id)}
-                        className="rounded-md p-1 text-muted-foreground opacity-60 hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
+                        className={cn(
+                          STUDIO_BTN_ICON,
+                          'h-7 w-7 opacity-65 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100',
+                        )}
                         title="Notu sil"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
@@ -575,16 +596,16 @@ export function NotebookToolsPanel({
 
             {/* Generated Materials */}
             {(feedFilter === 'all' || feedFilter === 'materials') && (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {notebookMaterials.length > 0 && allMaterials.length > notebookMaterials.length && (
-                  <div className="flex items-center justify-between px-0.5 text-[10.5px] text-muted-foreground">
+                  <div className="flex items-center justify-between px-0.5 text-[11px] text-muted-foreground">
                     <span>
                       {showAllLibrary ? 'Tüm Kitaplık' : 'Bu Defterin Çıktıları'}
                     </span>
                     <button
                       type="button"
                       onClick={() => setShowAllLibrary((s) => !s)}
-                      className="text-primary hover:underline font-medium"
+                      className="font-medium text-primary hover:underline"
                     >
                       {showAllLibrary ? 'Sadece bu defter' : `Tümünü gör (${allMaterials.length})`}
                     </button>
@@ -592,13 +613,13 @@ export function NotebookToolsPanel({
                 )}
 
                 {visibleMaterials.length === 0 && pinnedNotes.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border/70 bg-muted/15 px-3 py-6 text-center">
+                  <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-6 text-center">
                     <Bookmark className="mx-auto h-5 w-5 text-muted-foreground/70" />
                     <p className="mt-1.5 text-xs font-semibold text-foreground">
-                      Stüdyo çıktıların burada toplanır
+                      Oluşturulan materyaller burada toplanır
                     </p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Yukarıdaki araçlarla özet, video, test üret ya da AI yanıtlarını notlara sabitle.
+                      Yukarıdaki araçlarla özet, sınav veya çalışma kartı üretebilirsin.
                     </p>
                   </div>
                 ) : (
@@ -608,7 +629,10 @@ export function NotebookToolsPanel({
                     return (
                       <div
                         key={mat.id}
-                        className="group flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-background/70 p-2.5 transition-all hover:border-primary/40 hover:bg-card"
+                        className={cn(
+                          STUDIO_CARD_SUBTLE,
+                          'group flex items-center justify-between gap-2 p-2.5 hover:border-primary/40 hover:bg-card',
+                        )}
                       >
                         <button
                           type="button"
@@ -622,13 +646,13 @@ export function NotebookToolsPanel({
                               meta.color,
                             )}
                           >
-                            <Icon className="h-3.5 w-3.5" />
+                            <Icon className="h-4 w-4" strokeWidth={1.85} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                            <p className="truncate text-xs font-semibold text-foreground transition-colors group-hover:text-primary">
                               {mat.title}
                             </p>
-                            <p className="truncate text-[10.5px] text-muted-foreground">
+                            <p className="truncate text-[11px] text-muted-foreground">
                               {meta.label}
                               {mat.course ? ` · ${mat.course}` : ''} ·{' '}
                               {new Date(mat.created_at).toLocaleDateString('tr-TR')}
@@ -638,7 +662,10 @@ export function NotebookToolsPanel({
                         <button
                           type="button"
                           onClick={() => onDeleteMaterial(mat.id)}
-                          className="shrink-0 rounded-lg p-1.5 text-muted-foreground opacity-65 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                          className={cn(
+                            STUDIO_BTN_ICON,
+                            'h-7 w-7 opacity-65 hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100',
+                          )}
                           title="Materyali sil"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -653,26 +680,26 @@ export function NotebookToolsPanel({
         </div>
       </div>
 
-      {/* Bottom Astra AI Mastery & Exam Sim Quick Bar */}
-      <div className="shrink-0 border-t border-border/60 bg-gradient-to-r from-primary/[0.04] via-card to-emerald-500/[0.04] p-3">
-        <div className="mb-2 flex items-center justify-between gap-2 text-[11px]">
+      {/* Unified Footer: Sınav Hazırlık Quick Bar */}
+      <div className={STUDIO_PANEL_FOOTER}>
+        <div className="mb-2 flex items-center justify-between gap-2 text-xs">
           <span className="flex min-w-0 items-center gap-1.5 font-semibold text-foreground">
-            <Target className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <Target className="h-4 w-4 shrink-0 text-primary" />
             <span className="truncate">Sınav Hazırlık</span>
           </span>
-          <span className="shrink-0 font-mono text-[11px] font-bold text-primary">
+          <span className="shrink-0 font-mono text-[11px] font-semibold text-primary">
             {avgScore !== null ? `%${avgScore} başarı` : 'Hazır'}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onOpenPlanner}
-            className="h-8 min-w-0 gap-1 rounded-xl px-2 text-[11px]"
+            className={cn(STUDIO_BTN_SECONDARY, 'h-8 min-w-0 gap-1.5 px-2.5 text-[11px]')}
           >
-            <Flame className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <Flame className="h-3.5 w-3.5 shrink-0 text-primary" />
             <span className="truncate">SM-2 ({dueCardsCount})</span>
           </Button>
           <Button
@@ -680,9 +707,9 @@ export function NotebookToolsPanel({
             variant="outline"
             size="sm"
             onClick={onOpenExamSim}
-            className="h-8 min-w-0 gap-1 rounded-xl px-2 text-[11px]"
+            className={cn(STUDIO_BTN_SECONDARY, 'h-8 min-w-0 gap-1.5 px-2.5 text-[11px]')}
           >
-            <Timer className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+            <Timer className="h-3.5 w-3.5 shrink-0 text-primary" />
             <span className="truncate">Sınav Modu</span>
           </Button>
         </div>

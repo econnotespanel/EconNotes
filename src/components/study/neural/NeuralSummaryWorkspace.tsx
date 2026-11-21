@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BookOpen,
+  Brain,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -41,6 +42,11 @@ import type {
   TopicPriorityLevel,
 } from '@/types/study';
 import { toast } from 'sonner';
+import {
+  STUDIO_BADGE_COURSE,
+  STUDIO_BTN_PRIMARY,
+  STUDIO_BTN_SECONDARY,
+} from './studioDesign';
 
 interface NeuralSummaryWorkspaceProps {
   material: StudyMaterial;
@@ -77,6 +83,22 @@ export function NeuralSummaryWorkspace({
         ? material.content.deepResearchTopics
         : [],
       keyTerms: Array.isArray(material.content?.keyTerms) ? material.content.keyTerms : [],
+      memorizeVsInterpret:
+        material.content?.memorizeVsInterpret &&
+        (Array.isArray(material.content.memorizeVsInterpret.memorize) ||
+          Array.isArray(material.content.memorizeVsInterpret.interpret))
+          ? {
+              memorize: Array.isArray(material.content.memorizeVsInterpret.memorize)
+                ? material.content.memorizeVsInterpret.memorize
+                : [],
+              interpret: Array.isArray(material.content.memorizeVsInterpret.interpret)
+                ? material.content.memorizeVsInterpret.interpret
+                : [],
+            }
+          : undefined,
+      summarySynthesis: material.content?.summarySynthesis
+        ? String(material.content.summarySynthesis)
+        : undefined,
       studyChecklist: Array.isArray(material.content?.studyChecklist)
         ? material.content.studyChecklist
         : [],
@@ -205,13 +227,15 @@ export function NeuralSummaryWorkspace({
     comparativeMatrix: c.comparativeMatrix,
     deepResearchTopics: c.deepResearchTopics,
     keyTerms: c.keyTerms,
+    memorizeVsInterpret: c.memorizeVsInterpret,
+    summarySynthesis: c.summarySynthesis,
     studyChecklist: c.studyChecklist,
     metadata: { model: material.model || undefined },
   });
 
   return (
     <div className="space-y-5">
-      {/* Action Toolbar */}
+      {/* Unified Action Toolbar */}
       <div className="neural-card flex flex-wrap items-center justify-between gap-2 p-3.5">
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -220,14 +244,21 @@ export function NeuralSummaryWorkspace({
             size="sm"
             onClick={() => setShowPriorityGuide((v) => !v)}
             className={cn(
-              'gap-1.5 text-xs font-semibold',
-              !showPriorityGuide && 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10',
+              showPriorityGuide ? STUDIO_BTN_PRIMARY : STUDIO_BTN_SECONDARY,
+              'gap-1.5',
             )}
           >
-            <Compass className="h-3.5 w-3.5" />
+            <Compass className="h-4 w-4" />
             Hangi Konulara Bakmalıyım?
             {criticalPriorityCount > 0 && (
-              <span className="ml-0.5 rounded-full bg-rose-500/20 px-1.5 py-0.2 text-[10px] font-bold text-rose-600 dark:text-rose-300">
+              <span
+                className={cn(
+                  'ml-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold',
+                  showPriorityGuide
+                    ? 'bg-white/20 text-white'
+                    : 'bg-primary/10 text-primary',
+                )}
+              >
                 {criticalPriorityCount} Kritik
               </span>
             )}
@@ -238,11 +269,11 @@ export function NeuralSummaryWorkspace({
             size="sm"
             onClick={() => setExamFocusMode((v) => !v)}
             className={cn(
-              'gap-1.5 text-xs',
-              examFocusMode && 'bg-amber-500 text-slate-950 hover:bg-amber-400 font-semibold',
+              examFocusMode ? STUDIO_BTN_PRIMARY : STUDIO_BTN_SECONDARY,
+              'gap-1.5',
             )}
           >
-            <Zap className="h-3.5 w-3.5" />
+            <Zap className="h-4 w-4" />
             {examFocusMode ? 'Sınav Odak Modu: Açık' : 'Sınav Odak Modu'}
           </Button>
           <Button
@@ -251,9 +282,13 @@ export function NeuralSummaryWorkspace({
             size="sm"
             disabled={Boolean(convertingTo)}
             onClick={() => onConvertTo('quiz')}
-            className="gap-1.5 text-xs"
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
           >
-            {convertingTo === 'quiz' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-amber-500" />}
+            {convertingTo === 'quiz' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 text-primary" />
+            )}
             Sınava Dönüştür
           </Button>
           <Button
@@ -262,9 +297,13 @@ export function NeuralSummaryWorkspace({
             size="sm"
             disabled={Boolean(convertingTo)}
             onClick={() => onConvertTo('flashcards')}
-            className="gap-1.5 text-xs"
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
           >
-            {convertingTo === 'flashcards' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Layers className="h-3.5 w-3.5 text-emerald-500" />}
+            {convertingTo === 'flashcards' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Layers className="h-4 w-4 text-primary" />
+            )}
             Kart Üret
           </Button>
           <Button
@@ -273,9 +312,13 @@ export function NeuralSummaryWorkspace({
             size="sm"
             disabled={Boolean(convertingTo)}
             onClick={() => onConvertTo('video')}
-            className="gap-1.5 text-xs"
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
           >
-            {convertingTo === 'video' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Video className="h-3.5 w-3.5 text-violet-500" />}
+            {convertingTo === 'video' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Video className="h-4 w-4 text-primary" />
+            )}
             Video Ders Yap
           </Button>
         </div>
@@ -286,9 +329,9 @@ export function NeuralSummaryWorkspace({
             variant="outline"
             size="sm"
             onClick={() => setShowConceptMap(true)}
-            className="gap-1.5 text-xs"
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
           >
-            <Network className="h-3.5 w-3.5 text-cyan-500" />
+            <Network className="h-4 w-4 text-primary" />
             Kavram Haritası
           </Button>
           <Button
@@ -297,9 +340,13 @@ export function NeuralSummaryWorkspace({
             size="sm"
             disabled={isRegenerating}
             onClick={() => void onRegenerateDeep()}
-            className="gap-1.5 text-xs"
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
           >
-            {isRegenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            {isRegenerating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
             Derin Yenile
           </Button>
           <Button
@@ -310,9 +357,9 @@ export function NeuralSummaryWorkspace({
               downloadLectureSummary(buildExportReport());
               toast.success('HTML çalışma raporu indirildi.');
             }}
-            className="gap-1.5 text-xs"
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
           >
-            <FileDown className="h-3.5 w-3.5" />
+            <FileDown className="h-4 w-4" />
             HTML
           </Button>
           <Button
@@ -320,9 +367,9 @@ export function NeuralSummaryWorkspace({
             variant="outline"
             size="sm"
             onClick={() => downloadLectureSummaryPdf(buildExportReport())}
-            className="gap-1.5 text-xs"
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
           >
-            <Printer className="h-3.5 w-3.5" />
+            <Printer className="h-4 w-4" />
             PDF
           </Button>
         </div>
@@ -891,6 +938,65 @@ export function NeuralSummaryWorkspace({
             </div>
           )}
 
+          {/* 8. Ezberlenecek Bilgiler vs. Yorumlanacak Bilgiler */}
+          {c.memorizeVsInterpret &&
+            (c.memorizeVsInterpret.memorize.length > 0 ||
+              c.memorizeVsInterpret.interpret.length > 0) && (
+              <div className="neural-card space-y-3.5 p-5">
+                <div className="flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">
+                    Ezberlenecek Bilgiler vs. Yorumlanacak Bilgiler
+                  </h3>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {c.memorizeVsInterpret.memorize.length > 0 && (
+                    <div className="space-y-2 rounded-xl border border-primary/25 bg-primary/[0.04] p-3.5">
+                      <p className="text-xs font-semibold text-primary">
+                        Doğrudan Bilinmesi / Ezberlenmesi Gerekenler
+                      </p>
+                      <ul className="space-y-1.5 text-xs leading-relaxed text-foreground/90">
+                        {c.memorizeVsInterpret.memorize.map((item, mi) => (
+                          <li key={mi} className="flex items-start gap-2">
+                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                            <AcademicMarkdown content={item} className="text-xs" />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {c.memorizeVsInterpret.interpret.length > 0 && (
+                    <div className="space-y-2 rounded-xl border border-border/80 bg-muted/30 p-3.5">
+                      <p className="text-xs font-semibold text-foreground">
+                        Yorumlanması ve İlişkilendirilmesi Gerekenler
+                      </p>
+                      <ul className="space-y-1.5 text-xs leading-relaxed text-foreground/90">
+                        {c.memorizeVsInterpret.interpret.map((item, ii) => (
+                          <li key={ii} className="flex items-start gap-2">
+                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground" />
+                            <AcademicMarkdown content={item} className="text-xs" />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+          {/* 9. Konu Değerlendirmesi (Bütüncül Kapanış) */}
+          {c.summarySynthesis && (
+            <div className="neural-card space-y-2.5 border-primary/30 bg-primary/[0.04] p-5">
+              <div className="flex items-center gap-2">
+                <span className={STUDIO_BADGE_COURSE}>Konu Değerlendirmesi</span>
+              </div>
+              <AcademicMarkdown
+                content={c.summarySynthesis}
+                className="text-sm leading-relaxed text-foreground"
+              />
+            </div>
+          )}
+
           {/* Self Mastery Checklist */}
           {c.studyChecklist && c.studyChecklist.length > 0 && (
             <div className="neural-card space-y-2.5 p-5">
@@ -913,20 +1019,18 @@ export function NeuralSummaryWorkspace({
             </div>
           )}
           {/* Exam Period Next-Step Flow */}
-          <div className="neural-card border-primary/25 bg-gradient-to-r from-primary/5 via-card to-violet-500/5 p-5 space-y-3">
+          <div className="neural-card space-y-3 border-primary/25 bg-card p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-sm font-bold flex items-center gap-1.5">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  Sınav Dönemi Sonraki Adımın (Bilimsel Pekiştirme Akışı)
+                  Sınav Dönemi Sonraki Adımın (Pekiştirme Akışı)
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Özeti okuduktan sonra aktif hatırlama kartları ve süreli testle bilgini kalıcı hale getir.
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Özeti tamamladıktan sonra aktif hatırlama kartları ve deneme sınavıyla bilgini kalıcı hale getir.
                 </p>
               </div>
-              <Badge variant="outline" className="text-[11px]">
-                İlerleme: %{completionPct}
-              </Badge>
+              <span className={STUDIO_BADGE_COURSE}>İlerleme: %{completionPct}</span>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -934,9 +1038,9 @@ export function NeuralSummaryWorkspace({
                 size="sm"
                 variant="outline"
                 onClick={() => setShowPriorityGuide(true)}
-                className="gap-1.5 text-xs"
+                className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
               >
-                <Compass className="h-3.5 w-3.5 text-primary" />
+                <Compass className="h-4 w-4 text-primary" />
                 1. Kritik Konuları Kontrol Et
               </Button>
               <Button
@@ -945,10 +1049,10 @@ export function NeuralSummaryWorkspace({
                 variant="outline"
                 disabled={Boolean(convertingTo)}
                 onClick={() => onConvertTo('flashcards')}
-                className="gap-1.5 text-xs"
+                className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
               >
-                <Layers className="h-3.5 w-3.5 text-emerald-500" />
-                2. Aktif Tekrar Kartları Üret
+                <Layers className="h-4 w-4 text-primary" />
+                2. Çalışma Kartları Üret
               </Button>
               <Button
                 type="button"
@@ -956,10 +1060,10 @@ export function NeuralSummaryWorkspace({
                 variant="outline"
                 disabled={Boolean(convertingTo)}
                 onClick={() => onConvertTo('quiz')}
-                className="gap-1.5 text-xs"
+                className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
               >
-                <Target className="h-3.5 w-3.5 text-amber-500" />
-                3. Sınav Provası Çöz
+                <Target className="h-4 w-4 text-primary" />
+                3. Deneme Sınavı Çöz
               </Button>
               <Button
                 type="button"
@@ -967,10 +1071,10 @@ export function NeuralSummaryWorkspace({
                 variant="outline"
                 disabled={Boolean(convertingTo)}
                 onClick={() => onConvertTo('video')}
-                className="gap-1.5 text-xs"
+                className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
               >
-                <Video className="h-3.5 w-3.5 text-violet-500" />
-                4. Videolu Özet İzle
+                <Video className="h-4 w-4 text-primary" />
+                4. Videolu Ders İzle
               </Button>
             </div>
           </div>

@@ -118,14 +118,17 @@ export function extractFormulasFromText(text: string, maxFormulas = 24): string[
 }
 
 export function analyzeSingleSource(src: ExtractedSourceItem): AnalyzedSourceProfile {
+  // Strictly avoid recycling unconfirmed/cached `src.course` from older sessions onto uploaded files or pasted notes.
+  // Only treat `src.course` as an explicit signal when explicitly confirmed by user OR originating from a catalog note
+  // (where `detectCourseIdentity` still cross-checks it against the document's real title and content!).
+  const shouldUseExplicit =
+    Boolean(src.courseConfirmedByUser) ||
+    (src.kind === 'note' && !isGenericCoursePlaceholder(src.course));
+
   const detection = detectCourseIdentity({
     text: src.text || '',
     fileNameOrTitle: src.name,
-    explicitCourse: src.courseConfirmedByUser
-      ? src.course
-      : !isGenericCoursePlaceholder(src.course)
-      ? src.course
-      : undefined,
+    explicitCourse: shouldUseExplicit && !isGenericCoursePlaceholder(src.course) ? src.course : undefined,
     confirmedByUser: Boolean(src.courseConfirmedByUser),
   });
 

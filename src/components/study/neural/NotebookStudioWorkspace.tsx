@@ -50,6 +50,12 @@ import { NotebookMindMapDialog } from './NotebookMindMapDialog';
 import { NotebookSourcesPanel } from './NotebookSourcesPanel';
 import { NotebookToolsPanel } from './NotebookToolsPanel';
 import { NotebookTutorChat } from './NotebookTutorChat';
+import {
+  STUDIO_BADGE_COURSE,
+  STUDIO_BADGE_WARN,
+  STUDIO_BTN_ICON,
+  STUDIO_BTN_SECONDARY,
+} from './studioDesign';
 
 const EMOJI_CHOICES = ['📘', '🧠', '🎯', '📐', '⚖️', '🧬', '💻', '📊', '📚', '✨'];
 
@@ -283,8 +289,8 @@ export function NotebookStudioWorkspace({
 
   return (
     <div className="space-y-3">
-      {/* Notebook Switcher & Mobile Panel Switcher Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-border/70 bg-card/90 px-3.5 py-2.5 shadow-2xs">
+      {/* Unified Notebook Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-border/80 bg-card px-3.5 py-2.5 shadow-sm">
         <div className="flex min-w-0 items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -292,11 +298,14 @@ export function NotebookStudioWorkspace({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 max-w-[260px] gap-2 rounded-xl border-border/80 bg-background/80 px-3 text-xs font-bold sm:max-w-[340px]"
+                className={cn(
+                  STUDIO_BTN_SECONDARY,
+                  'max-w-[260px] gap-2 font-semibold sm:max-w-[340px]',
+                )}
               >
-                <span className="text-base leading-none">{activeNotebook.emoji}</span>
+                <span className="text-sm leading-none">{activeNotebook.emoji}</span>
                 <span className="truncate">{activeNotebook.title}</span>
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-72 rounded-2xl p-1.5">
@@ -309,82 +318,77 @@ export function NotebookStudioWorkspace({
                   <DropdownMenuItem
                     key={nb.id}
                     onClick={() => onSelectNotebook(nb.id)}
-                    className="flex items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-xs cursor-pointer"
+                    className="flex cursor-pointer items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-xs"
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="text-sm">{nb.emoji}</span>
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-foreground">{nb.title}</p>
-                        <p className="truncate text-[10px] text-muted-foreground">
-                          {nb.sources.length} kaynak · {nb.course || 'Genel'}
+                        <p className="truncate text-[10.5px] text-muted-foreground">
+                          {nb.sources.length} kaynak{nb.course ? ` · ${nb.course}` : ''}
                         </p>
                       </div>
                     </div>
-                    {isActive && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                    {isActive && <Check className="h-4 w-4 shrink-0 text-primary" />}
                   </DropdownMenuItem>
                 );
               })}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => setNewNbOpen(true)}
-                className="gap-2 rounded-xl px-2.5 py-2 text-xs font-semibold text-primary cursor-pointer"
+                className="cursor-pointer gap-2 rounded-xl px-2.5 py-2 text-xs font-semibold text-primary"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4" />
                 Yeni Çalışma Defteri Oluştur
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
           {canonicalAnalysis.primaryCourseLabel ? (
-            <Badge
-              variant="outline"
-              className="hidden max-w-[260px] items-center gap-1 rounded-full border-primary/20 bg-primary/[0.06] text-[11px] font-medium text-primary sm:inline-flex"
-              title={canonicalAnalysis.primaryCourseLabel}
+            <span
+              className={cn(STUDIO_BADGE_COURSE, 'hidden max-w-[260px] sm:inline-flex')}
+              title={`Aktif kaynak dersi: ${canonicalAnalysis.primaryCourseLabel}`}
             >
-              <BookOpen className="h-3 w-3 shrink-0" />
+              <BookOpen className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{canonicalAnalysis.primaryCourseLabel}</span>
-            </Badge>
+            </span>
           ) : canonicalAnalysis.hasUnconfirmedCourses ? (
             <button
               type="button"
               onClick={openConfirmForUnconfirmed}
-              className="hidden items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/12 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-300 sm:inline-flex"
+              className={cn(
+                STUDIO_BADGE_WARN,
+                'hidden transition-colors hover:bg-amber-500/20 sm:inline-flex',
+              )}
             >
-              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               Ders Seç ({canonicalAnalysis.unconfirmedSources.length})
             </button>
-          ) : activeNotebook.course ? (
-            <Badge
-              variant="outline"
-              className="hidden max-w-[240px] items-center gap-1 rounded-full border-primary/20 bg-primary/[0.06] text-[11px] font-medium text-primary sm:inline-flex"
-            >
-              <BookOpen className="h-3 w-3 shrink-0" />
+          ) : activeSourceCount === 0 && activeNotebook.course ? (
+            <span className={cn(STUDIO_BADGE_COURSE, 'hidden max-w-[240px] sm:inline-flex')}>
+              <BookOpen className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">{activeNotebook.course}</span>
-            </Badge>
+            </span>
           ) : null}
 
-          <Button
+          <button
             type="button"
-            variant="ghost"
-            size="icon"
             onClick={openRenameDialog}
-            className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
+            className={STUDIO_BTN_ICON}
             title="Defter adını ve dersini düzenle"
           >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
+            <Pencil className="h-4 w-4" strokeWidth={1.75} />
+          </button>
 
           {notebooks.length > 1 && (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
               onClick={() => onDeleteNotebook(activeNotebook.id)}
-              className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              className={cn(STUDIO_BTN_ICON, 'hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive')}
               title="Bu defteri sil"
             >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+              <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+            </button>
           )}
         </div>
 
@@ -394,22 +398,22 @@ export function NotebookStudioWorkspace({
             variant="outline"
             size="sm"
             onClick={() => setNewNbOpen(true)}
-            className="h-8 gap-1.5 rounded-xl text-xs"
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
           >
-            <Plus className="h-3.5 w-3.5 text-primary" />
+            <Plus className="h-4 w-4 text-primary" />
             <span className="hidden sm:inline">Yeni Defter</span>
             <span className="sm:hidden">Yeni</span>
           </Button>
         </div>
       </div>
 
-      {/* Mobile / Tablet / Compact Laptop (< 1280px) 3-Panel Segmented Switcher — zero horizontal overflow */}
-      <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border/70 bg-muted/40 p-1 xl:hidden">
+      {/* Mobile / Tablet / Compact Laptop (< 1280px) 3-Panel Segmented Switcher */}
+      <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border/80 bg-muted/40 p-1 xl:hidden">
         {(
           [
             ['sources', 'Kaynaklar', FolderOpen, activeNotebook.sources.length],
-            ['chat', 'AI Öğretmen', MessageSquareText, activeNotebook.messages.length],
-            ['studio', 'Stüdyo', Sparkles, notebookMaterials.length + activeNotebook.pinnedNotes.length],
+            ['chat', 'Çalışma Alanı', MessageSquareText, activeNotebook.messages.length],
+            ['studio', 'YZ Araçları', Sparkles, notebookMaterials.length + activeNotebook.pinnedNotes.length],
           ] as const
         ).map(([id, label, Icon, count]) => (
           <button
@@ -417,16 +421,16 @@ export function NotebookStudioWorkspace({
             type="button"
             onClick={() => setMobilePanel(id)}
             className={cn(
-              'flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold transition-all',
+              'flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-semibold transition-colors',
               mobilePanel === id
-                ? 'bg-card text-primary shadow-xs ring-1 ring-primary/20'
+                ? 'bg-card text-primary shadow-sm ring-1 ring-border/70'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <Icon className="h-4 w-4 shrink-0" />
             <span className="truncate">{label}</span>
             {count > 0 && (
-              <span className="shrink-0 rounded-full bg-primary/12 px-1.5 py-0.2 text-[10px] font-bold text-primary">
+              <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
                 {count}
               </span>
             )}
@@ -434,9 +438,9 @@ export function NotebookStudioWorkspace({
         ))}
       </div>
 
-      {/* Synchronized 3-Panel Responsive Desktop Grid (>= 1280px) with explicit balanced tracks & min-w-0 */}
-      <div className="grid min-w-0 w-full grid-cols-1 gap-3 xl:grid-cols-[minmax(240px,268px)_minmax(0,1fr)_minmax(272px,312px)] 2xl:grid-cols-[minmax(260px,296px)_minmax(0,1fr)_minmax(300px,336px)]">
-        {/* LEFT PANEL: Sources */}
+      {/* Synchronized 3-Panel Responsive Desktop Grid (>= 1280px) */}
+      <div className="grid min-w-0 w-full grid-cols-1 items-stretch gap-3.5 xl:grid-cols-[276px_minmax(0,1fr)_316px] 2xl:grid-cols-[296px_minmax(0,1fr)_336px]">
+        {/* LEFT PANEL: Kaynaklar */}
         <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'sources' && 'hidden xl:block')}>
           <NotebookSourcesPanel
             userId={userId}
@@ -460,28 +464,32 @@ export function NotebookStudioWorkspace({
           />
         </div>
 
-        {/* CENTER PANEL: AI Tutor & Grounded Chat */}
+        {/* CENTER PANEL: Çalışma Alanı (AI Öğretmen · Kaynak İçeriği · Özetler) */}
         <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'chat' && 'hidden xl:block')}>
           <NotebookTutorChat
             notebookTitle={activeNotebook.title}
             notebookEmoji={activeNotebook.emoji}
             activeSources={activeSources}
             activeMaterials={activeMaterials}
+            notebookMaterials={notebookMaterials}
             canonicalAnalysis={canonicalAnalysis}
             messages={activeNotebook.messages}
             coachMode={coachMode}
             onCoachModeChange={onCoachModeChange}
             busy={chatBusy}
             streamingText={streamingText}
+            isGenerating={isGenerating}
             onSendMessage={onSendMessage}
             onPinMessage={onPinMessage}
             onClearChat={onClearChat}
             onOpenAddSource={openAddSource}
+            onOpenMaterial={onOpenMaterial}
+            onGenerateType={onGenerateType}
             onRequestCourseConfirm={openConfirmForUnconfirmed}
           />
         </div>
 
-        {/* RIGHT PANEL: Studio Production & Artifacts */}
+        {/* RIGHT PANEL: Yapay Zekâ Araçları */}
         <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'studio' && 'hidden xl:block')}>
           <NotebookToolsPanel
             activeSourceCount={activeSourceCount}

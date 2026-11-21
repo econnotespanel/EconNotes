@@ -228,7 +228,7 @@ export async function extractFile(
   }
 
   if (name.endsWith('.txt') || name.endsWith('.md')) {
-    const text = (await file.text()).slice(0, 600_000);
+    const text = (await file.text()).slice(0, 900_000);
     if (!text.trim()) throw new Error('Dosya boş.');
     onProgress?.(95, 'Metin dosyası hazır.');
     return { kind: 'text', text };
@@ -239,7 +239,7 @@ export async function extractFile(
     const buf = await readFileAsArrayBuffer(file);
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     const total = pdf.numPages;
-    const maxPages = Math.min(total, 250);
+    const maxPages = Math.min(total, 350);
     const parts: string[] = new Array(maxPages).fill('');
     const unreadablePages: number[] = [];
     const warnings: string[] = [];
@@ -278,7 +278,7 @@ export async function extractFile(
     }
 
     unreadablePages.sort((a, b) => a - b);
-    const extractedText = parts.filter(Boolean).join('\n\n').slice(0, 600_000);
+    const extractedText = parts.filter(Boolean).join('\n\n').slice(0, 900_000);
     const avgCharsPerPage = meaningfulChars / Math.max(1, maxPages);
 
     if (total > maxPages) {

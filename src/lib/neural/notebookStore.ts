@@ -108,7 +108,7 @@ export function loadUserNotebooks(userId: string): StudioNotebook[] {
 
 export function saveUserNotebooks(userId: string, notebooks: StudioNotebook[]): void {
   const key = `${STORAGE_KEY_PREFIX}${userId}`;
-  const budgets = [120_000, 48_000, 14_000];
+  const budgets = [320_000, 140_000, 48_000, 14_000];
   for (const budget of budgets) {
     try {
       const clean = sanitizeNotebooksForStorage(notebooks, budget);

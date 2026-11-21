@@ -94,6 +94,13 @@ export interface SummaryContent {
   keyTerms?: KeyTermItem[];
   studyChecklist?: string[];
   studyPriorityMap?: StudyTopicPriorityItem[];
+  /** 9. Bölüm: Öğrencinin öğrendiklerini pekiştirecek bütüncül konu değerlendirmesi */
+  summarySynthesis?: string;
+  /** Ezberlenecek bilgiler ile yorumlanması gereken kavram/ilişkilerin ayrımı */
+  memorizeVsInterpret?: {
+    memorize: string[];
+    interpret: string[];
+  };
   extractionNotices?: string[];
   sourceCourseBreakdown?: SourceCourseBreakdownItem[];
   metadata?: {

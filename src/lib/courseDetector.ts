@@ -2001,6 +2001,40 @@ export const COURSE_PROFILES: CourseProfile[] = [
       'peyzaj',
     ],
   },
+  {
+    id: 'turizm_ekonomisi',
+    courseName: 'Turizm Ekonomisi',
+    disciplineLabel: 'Turizm Ekonomisi',
+    domainMode: 'hybrid',
+    examStyleHint:
+      'Turizm talebi esnekliği, turizm arzı, ödemeler bilançosu etkileri, turizm çarpanı ve destinasyon yönetimi ilişkilerini netleştir.',
+    titleAliases: ['turizm ekonomisi', 'turizm isletmeciligi', 'tourism economics'],
+    strongPhrases: [
+      'turizm ekonomisi',
+      'turizm talebi',
+      'turizm arzi',
+      'turizm carpani',
+      'turist harcamalari',
+      'konaklama sektoru',
+      'destinasyon yonetimi',
+      'otel doluluk',
+      'mevsimsellik',
+      'turizm gelirleri',
+      'seyahat acentesi',
+    ],
+    terms: [
+      'turizm',
+      'turist',
+      'konaklama',
+      'destinasyon',
+      'otel',
+      'rezervasyon',
+      'geceleme',
+      'ekoturizm',
+      'kultur turizmi',
+      'seyahat',
+    ],
+  },
 ];
 
 export const COMMON_UNIVERSITY_COURSES: string[] = COURSE_PROFILES.map((p) => p.courseName);
@@ -2180,6 +2214,7 @@ export function detectCourseIdentity(params: {
   interface ScoredProfile {
     profile: CourseProfile;
     score: number;
+    contentScore: number;
     titleHit: boolean;
     explicitHit: boolean;
     evidence: string[];
@@ -2187,11 +2222,12 @@ export function detectCourseIdentity(params: {
 
   const scored: ScoredProfile[] = COURSE_PROFILES.map((profile) => {
     let score = 0;
+    let contentScore = 0;
     let titleHit = false;
     let explicitHit = false;
     const evidence: string[] = [];
 
-    // A) Explicit metadata / document header match (highest authority; multi-word specific aliases score higher)
+    // A) Explicit metadata / document header match
     let bestExplicitBoost = 0;
     let bestExplicitAlias = '';
     for (const alias of profile.titleAliases) {
@@ -2209,6 +2245,17 @@ export function detectCourseIdentity(params: {
       evidence.push(`Ders bilgisi: "${bestExplicitAlias}"`);
     }
 
+    // Also score explicit document header (from inside the document itself) as content evidence
+    if (headerCourse) {
+      const foldedHeader = foldTurkishToAscii(headerCourse);
+      for (const alias of profile.titleAliases) {
+        if (countFoldedMatches(foldedHeader, alias) > 0) {
+          contentScore += alias.includes(' ') ? 14 : 10;
+          break;
+        }
+      }
+    }
+
     // B) Filename / document title match (multi-word exact course titles beat single-word general aliases)
     let bestTitleBoost = 0;
     let bestTitleAlias = '';
@@ -2223,6 +2270,7 @@ export function detectCourseIdentity(params: {
     }
     if (bestTitleBoost > 0) {
       score += bestTitleBoost;
+      contentScore += bestTitleBoost;
       titleHit = true;
       evidence.push(`Dosya/Başlık: "${bestTitleAlias}"`);
     }
@@ -2230,6 +2278,7 @@ export function detectCourseIdentity(params: {
       for (const phrase of profile.strongPhrases) {
         if (countFoldedMatches(foldedTitle, phrase) > 0) {
           score += 8.5;
+          contentScore += 8.5;
           titleHit = true;
           evidence.push(`Başlık kavramı: "${phrase}"`);
           break;
@@ -2243,7 +2292,9 @@ export function detectCourseIdentity(params: {
       if (headingMatches >= 5) break;
       const cnt = countFoldedMatches(foldedHeadings, phrase);
       if (cnt > 0) {
-        score += Math.min(2, cnt) * 4.2;
+        const delta = Math.min(2, cnt) * 4.2;
+        score += delta;
+        contentScore += delta;
         headingMatches += 1;
         if (evidence.length < 4) evidence.push(`Bölüm başlığı: "${phrase}"`);
       }
@@ -2255,7 +2306,9 @@ export function detectCourseIdentity(params: {
       const cnt = countFoldedMatches(foldedBody, phrase);
       if (cnt > 0) {
         distinctStrongHits += 1;
-        score += 3.2 + Math.min(3, cnt - 1) * 0.9;
+        const delta = 3.2 + Math.min(3, cnt - 1) * 0.9;
+        score += delta;
+        contentScore += delta;
         if (evidence.length < 5) evidence.push(`Kavram: "${phrase}"`);
       }
     }
@@ -2266,17 +2319,26 @@ export function detectCourseIdentity(params: {
       const cnt = countFoldedMatches(foldedBody, term);
       if (cnt > 0) {
         distinctTermHits += 1;
-        score += 1.2 + Math.min(2, cnt - 1) * 0.35;
+        const delta = 1.2 + Math.min(2, cnt - 1) * 0.35;
+        score += delta;
+        contentScore += delta;
       }
     }
 
     // Breadth bonus for rich multi-concept coverage of the exact course
-    if (distinctStrongHits >= 3) score += 3.5;
-    if (distinctTermHits >= 5) score += 2.5;
+    if (distinctStrongHits >= 3) {
+      score += 3.5;
+      contentScore += 3.5;
+    }
+    if (distinctTermHits >= 5) {
+      score += 2.5;
+      contentScore += 2.5;
+    }
 
     return {
       profile,
       score: Number(score.toFixed(2)),
+      contentScore: Number(contentScore.toFixed(2)),
       titleHit,
       explicitHit,
       evidence: Array.from(new Set(evidence)).slice(0, 5),
@@ -2284,20 +2346,60 @@ export function detectCourseIdentity(params: {
   });
 
   scored.sort((a, b) => b.score - a.score);
+  const scoredByContent = [...scored].sort((a, b) => b.contentScore - a.contentScore);
   const top = scored[0];
   const second = scored[1];
+  const contentTop = scoredByContent[0];
 
-  // If user passed an explicit platform note.course (e.g. "Sigorta Hukuku" or custom elective not in catalog)
-  // and catalog didn't find a conflicting strong match, preserve that real course name directly!
+  // If unconfirmed metadata course (e.g. from DB note.course) was provided,
+  // cross-check it against the document's OWN filename/title and body content!
+  // Never allow a stale or wrong metadata tag (e.g. "Turizm Ekonomisi") to override
+  // a document whose own title and content clearly belong to another course (e.g. "Para Teorisi – 6. Hafta").
   if (!isGenericCoursePlaceholder(explicitCourseClean)) {
-    const matched = findCourseProfileByName(explicitCourseClean);
-    if (matched) {
-      const mode = estimateDomainModeFromText(rawText, matched.domainMode);
+    const matchedExplicit = findCourseProfileByName(explicitCourseClean);
+    const explicitContentScore = matchedExplicit
+      ? scored.find((s) => s.profile.id === matchedExplicit.id)?.contentScore ?? 0
+      : countFoldedMatches(foldedTitle, foldTurkishToAscii(explicitCourseClean)) * 12 +
+        countFoldedMatches(foldedBody, foldTurkishToAscii(explicitCourseClean)) * 3;
+
+    const hasStrongContentConflict = Boolean(
+      contentTop &&
+        (!matchedExplicit || contentTop.profile.id !== matchedExplicit.id) &&
+        foldTurkishToAscii(contentTop.profile.courseName) !== foldTurkishToAscii(explicitCourseClean) &&
+        ((contentTop.titleHit && contentTop.contentScore >= 10) || contentTop.contentScore >= 14) &&
+        explicitContentScore < contentTop.contentScore * 0.45,
+    );
+
+    if (hasStrongContentConflict && contentTop) {
+      return {
+        course: contentTop.profile.courseName,
+        discipline: contentTop.profile.disciplineLabel,
+        domainMode: estimateDomainModeFromText(rawText, contentTop.profile.domainMode),
+        examStyleHint: contentTop.profile.examStyleHint,
+        confidence: contentTop.titleHit || contentTop.contentScore >= 18 ? 'high' : 'medium',
+        needsConfirmation: false,
+        candidates: Array.from(
+          new Set([
+            contentTop.profile.courseName,
+            explicitCourseClean,
+            ...scoredByContent.filter((s) => s.contentScore >= 5).slice(0, 2).map((s) => s.profile.courseName),
+          ]),
+        ).slice(0, 4),
+        evidence: [
+          ...contentTop.evidence.slice(0, 3),
+          `Belge içeriği kayıtlı etiketle ("${explicitCourseClean}") çeliştiği için gerçek ders içeriğe göre düzeltildi`,
+        ],
+        score: contentTop.contentScore,
+      };
+    }
+
+    if (matchedExplicit) {
+      const mode = estimateDomainModeFromText(rawText, matchedExplicit.domainMode);
       return {
         course: explicitCourseClean,
-        discipline: matched.disciplineLabel,
+        discipline: matchedExplicit.disciplineLabel,
         domainMode: mode,
-        examStyleHint: matched.examStyleHint,
+        examStyleHint: matchedExplicit.examStyleHint,
         confidence: 'high',
         needsConfirmation: false,
         candidates: Array.from(
