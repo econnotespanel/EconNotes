@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { TRIVIA_CATEGORIES } from '@/lib/dailyTriviaQuestionBank';
 import {
-  CURATED_TRIVIA_BANK,
-  TRIVIA_CATEGORIES,
-} from '@/lib/dailyTriviaQuestionBank';
-import {
+  ALL_CURATED_TRIVIA_BANK,
+  areTriviaQuestionsSemanticallySimilar,
   flushPendingTriviaWrites,
   getIstanbulDateParts,
   recordFallbackLeaveLocally,
@@ -13,6 +12,7 @@ import {
 } from '@/lib/dailyTriviaFallbackEngine';
 import {
   formatTriviaClock,
+  getDailyRenewalInfo,
   invokeDailyTrivia,
   resetDailyTriviaTransportState,
   TRIVIA_TIME_LIMIT_MS,
@@ -116,6 +116,7 @@ vi.mock('@/integrations/supabase/client', () => ({
 
 describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Changes, XP & Anti-Cheat)', () => {
   beforeEach(() => {
+    mockState.userId = 'user-trivia-test-1';
     mockState.userMeta = {};
     mockState.points = 100;
     mockState.claimedReasons.clear();
@@ -135,11 +136,102 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     expect(formatTriviaClock(-1000)).toBe('00:00');
   });
 
+  it('computes canonical Istanbul midnight daily renewal countdown and rolls over automatically', () => {
+    const evening = getDailyRenewalInfo(new Date('2026-11-21T19:25:00+03:00'));
+    expect(evening.dateStr).toBe('2026-11-21');
+    expect(evening.compactTime).toBe('4 saat 35 dk');
+    expect(evening.label).toBe('Yarınki 15 yeni soruya: 4 saat 35 dk kaldı');
+
+    const beforeMidnight = getDailyRenewalInfo(new Date('2026-11-21T23:59:59+03:00'));
+    expect(beforeMidnight.dateStr).toBe('2026-11-21');
+    expect(beforeMidnight.remainingMs).toBe(1000);
+
+    const afterMidnight = getDailyRenewalInfo(new Date('2026-11-22T00:00:01+03:00'));
+    expect(afterMidnight.dateStr).toBe('2026-11-22');
+    expect(afterMidnight.remainingMs).toBeGreaterThan(23 * 60 * 60 * 1000);
+    expect(afterMidnight.label).toContain('Yarınki 15 yeni soruya:');
+    expect(afterMidnight.label).toContain('kaldı');
+  });
+
+  it('maintains a verified 360-question pool evenly balanced across all 8 domains', () => {
+    expect(ALL_CURATED_TRIVIA_BANK).toHaveLength(360);
+    const idSet = new Set<string>();
+    const counts = new Map<string, number>();
+
+    for (const q of ALL_CURATED_TRIVIA_BANK) {
+      expect(idSet.has(q.id)).toBe(false);
+      idSet.add(q.id);
+      expect(q.options).toHaveLength(4);
+      expect(new Set(q.options.map((o) => o.trim().toLowerCase())).size).toBe(4);
+      expect(q.correctIndex).toBeGreaterThanOrEqual(0);
+      expect(q.correctIndex).toBeLessThanOrEqual(3);
+      counts.set(q.category, (counts.get(q.category) || 0) + 1);
+    }
+
+    for (const cat of TRIVIA_CATEGORIES) {
+      expect(counts.get(cat)).toBe(45);
+    }
+  });
+
+  it('assigns genuinely different, non-overlapping 15-question tests to different users on the same day', () => {
+    const sameDay = '2026-11-21';
+    const assignedToday = new Set<string>();
+    const perUserSets: Array<{ userId: string; ids: Set<string> }> = [];
+
+    for (let u = 1; u <= 15; u++) {
+      const uid = `econ-user-${u}`;
+      const qs = selectDailyQuestionsForDate(sameDay, [], uid, assignedToday);
+      expect(qs).toHaveLength(TRIVIA_TOTAL_QUESTIONS);
+
+      const cats = new Set(qs.map((q) => q.category));
+      expect(cats.size).toBe(TRIVIA_CATEGORIES.length);
+
+      const ids = new Set(qs.map((q) => q.id));
+      expect(ids.size).toBe(TRIVIA_TOTAL_QUESTIONS);
+
+      // Zero overlap with ANY previously assigned user on the same day!
+      for (const prev of perUserSets) {
+        const overlap = [...ids].filter((id) => prev.ids.has(id));
+        expect(overlap).toHaveLength(0);
+      }
+
+      for (const id of ids) assignedToday.add(id);
+      perUserSets.push({ userId: uid, ids });
+    }
+
+    // 15 users * 15 distinct questions = 225 completely unique questions on the same day
+    expect(assignedToday.size).toBe(15 * TRIVIA_TOTAL_QUESTIONS);
+  });
+
+  it('filters out semantically duplicate or paraphrased questions measuring the same fact', () => {
+    const q1 = {
+      category: 'Bilim' as const,
+      question: 'Periyodik tabloda atom numarası 79 olan ve sembolü Au ile gösterilen element hangisidir?',
+      options: ['Altın', 'Gümüş', 'Bakır', 'Platin'] as [string, string, string, string],
+      correctIndex: 0,
+    };
+    const qParaphrase = {
+      category: 'Bilim' as const,
+      question: 'Sembolü Au ve atom numarası 79 olan element periyodik tabloda hangisidir?',
+      options: ['Demir', 'Altın', 'Cıva', 'Çinko'] as [string, string, string, string],
+      correctIndex: 1,
+    };
+    const qDistinct = {
+      category: 'Bilim' as const,
+      question: 'Güneş Sistemi içinde halkalarıyla tanınan en büyük ikinci gezegen hangisidir?',
+      options: ['Satürn', 'Mars', 'Venüs', 'Merkür'] as [string, string, string, string],
+      correctIndex: 0,
+    };
+
+    expect(areTriviaQuestionsSemanticallySimilar(q1, qParaphrase)).toBe(true);
+    expect(areTriviaQuestionsSemanticallySimilar(q1, qDistinct)).toBe(false);
+  });
+
   it('selects 15 balanced unique questions across all 8 domains with zero repeats across consecutive days', () => {
     const used = new Set<string>();
-    for (let day = 1; day <= 7; day++) {
+    for (let day = 1; day <= 14; day++) {
       const dateStr = `2026-11-${String(day).padStart(2, '0')}`;
-      const qs = selectDailyQuestionsForDate(dateStr, used);
+      const qs = selectDailyQuestionsForDate(dateStr, used, 'repeat-check-user');
       expect(qs).toHaveLength(TRIVIA_TOTAL_QUESTIONS);
 
       const cats = new Set(qs.map((q) => q.category));
@@ -151,7 +243,7 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
         used.add(q.id);
       }
     }
-    expect(used.size).toBe(7 * 15);
+    expect(used.size).toBe(14 * 15);
   });
 
   it('recovers automatically when Edge Function returns 404/CORS error and starts a 15-minute server-timed run', async () => {
@@ -194,7 +286,7 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
   it('supports free non-linear navigation, changing previous answers, blank questions, and idempotent finish', async () => {
     await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
     const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
-    const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
+    const bankMap = new Map(ALL_CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
 
     // Answer Q5 first (wrong), Q0 second (wrong), Q14 third (correct)
     const q5 = bankMap.get(stored.questionIds[5])!;
@@ -270,7 +362,7 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
 
     const { dateStr } = getIstanbulDateParts(new Date());
     const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
-    const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
+    const bankMap = new Map(ALL_CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
 
     for (let i = 0; i < 15; i++) {
       const q = bankMap.get(stored.questionIds[i])!;
@@ -302,7 +394,7 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
   it('awards 375 XP + 2-hour unlimited note access grand prize on 15/15 perfect score', async () => {
     await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
     const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
-    const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
+    const bankMap = new Map(ALL_CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
 
     for (let i = 0; i < 15; i++) {
       const q = bankMap.get(stored.questionIds[i])!;
@@ -338,7 +430,7 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
       questionIds: string[];
       startedAt: string;
     };
-    const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
+    const bankMap = new Map(ALL_CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
 
     // Save 3 correct answers before timeout
     for (let i = 0; i < 3; i++) {
@@ -378,10 +470,70 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     expect(mockState.points).toBe(175);
   });
 
-  it('cancels active run on page reload or >5s away and grants ZERO XP or rewards', async () => {
+  it('gives two different authenticated users completely non-overlapping 15-question tests on the same day', async () => {
+    mockState.userId = 'econ-student-A';
+    mockState.userMeta = {};
+    const startA = await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
+    expect(startA.error).toBeNull();
+    const qsA = new Set((startA.data?.questions || []).map((q) => q.question));
+    expect(qsA.size).toBe(TRIVIA_TOTAL_QUESTIONS);
+
+    mockState.userId = 'econ-student-B';
+    mockState.userMeta = {};
+    const startB = await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
+    expect(startB.error).toBeNull();
+    const qsB = new Set((startB.data?.questions || []).map((q) => q.question));
+    expect(qsB.size).toBe(TRIVIA_TOTAL_QUESTIONS);
+
+    const overlap = [...qsB].filter((q) => qsA.has(q));
+    expect(overlap).toHaveLength(0);
+  });
+
+  it('preserves existing daily question set, answers, and timer on quick reload (<= 5s)', async () => {
+    const started = await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
+    const stored = mockState.userMeta.daily_trivia_state as {
+      questionIds: string[];
+      startedAt: string;
+    };
+    const bankMap = new Map(ALL_CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
+
+    const q0 = bankMap.get(stored.questionIds[0])!;
+    const q5 = bankMap.get(stored.questionIds[5])!;
+    await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 0,
+      selectedOption: q0.correctIndex,
+    });
+    await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 5,
+      selectedOption: (q5.correctIndex + 1) % 4,
+    });
+    await flushPendingTriviaWrites(mockState.userId);
+
+    // Quick reload within <5s -> must NOT create a new test, cancel, or reset the 15-min timer
+    recordFallbackLeaveLocally(mockState.userId);
+    resetFallbackEngineMemory();
+
+    const reloaded = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({
+      action: 'status',
+      clientReloaded: true,
+    });
+    expect(reloaded.error).toBeNull();
+    expect(reloaded.data?.attempt?.status).toBe('in_progress');
+    expect(reloaded.data?.attempt?.startedAt).toBe(stored.startedAt);
+    expect(reloaded.data?.questions?.map((q) => q.question)).toEqual(
+      started.data?.questions.map((q) => q.question),
+    );
+    expect(reloaded.data?.answers).toHaveLength(2);
+    expect(reloaded.data?.answers?.find((a) => a.questionIndex === 0)?.selectedOption).toBe(q0.correctIndex);
+    expect(reloaded.data?.answers?.find((a) => a.questionIndex === 5)?.selectedOption).toBe((q5.correctIndex + 1) % 4);
+  });
+
+  it('cancels active run when away > 5 seconds and grants ZERO XP or rewards', async () => {
     await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
     const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
-    const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
+    const bankMap = new Map(ALL_CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
 
     // Answer first 2 questions correctly
     for (let i = 0; i < 2; i++) {
@@ -394,19 +546,23 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     }
     await flushPendingTriviaWrites(mockState.userId);
 
-    // Simulate reload -> status with clientReloaded: true
-    const reloaded = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({
+    // Simulate user leaving EconNotes for > 5 seconds (6.5s ago)
+    const { dateStr } = getIstanbulDateParts(new Date());
+    const expiredLeaveTs = Date.now() - 6500;
+    const curState = mockState.userMeta.daily_trivia_state as Record<string, unknown>;
+    mockState.userMeta.daily_trivia_state = { ...curState, leaveStartedAt: expiredLeaveTs };
+    localStorage.setItem(`econnotes_trivia_leave_ts_${mockState.userId}_${dateStr}`, String(expiredLeaveTs));
+    resetFallbackEngineMemory();
+
+    const returned = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({
       action: 'status',
       clientReloaded: true,
     });
-    expect(reloaded.data?.attempt?.status).toBe('cancelled');
-    expect(reloaded.data?.attempt?.xpEarned).toBe(0);
-    expect(reloaded.data?.attempt?.grandPrizeAwarded).toBe(false);
+    expect(returned.data?.attempt?.status).toBe('cancelled');
+    expect(returned.data?.attempt?.xpEarned).toBe(0);
+    expect(returned.data?.attempt?.grandPrizeAwarded).toBe(false);
+    expect(returned.data?.attempt?.cancelMessage).toContain('5 saniye içerisinde geri dönülmediği');
     expect(mockState.rpcCalls).toHaveLength(0);
-    expect(mockState.points).toBe(100);
-
-    // Also verify leave timestamp helper works cleanly
-    recordFallbackLeaveLocally(mockState.userId);
     expect(mockState.points).toBe(100);
   });
 });

@@ -133,6 +133,63 @@ export function formatTriviaClock(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+export interface DailyRenewalInfo {
+  dateStr: string;
+  resetsAtIso: string;
+  remainingMs: number;
+  label: string;
+  compactTime: string;
+}
+
+/**
+ * Computes the canonical daily renewal countdown (00:00 Europe/Istanbul, identical for all users).
+ * Never resets on page refresh and automatically rolls over to the next day's 24h cycle at midnight.
+ */
+export function getDailyRenewalInfo(now = new Date()): DailyRenewalInfo {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+
+  const y = Number(parts.find((p) => p.type === 'year')?.value ?? now.getUTCFullYear());
+  const m = Number(parts.find((p) => p.type === 'month')?.value ?? now.getUTCMonth() + 1);
+  const d = Number(parts.find((p) => p.type === 'day')?.value ?? now.getUTCDate());
+
+  const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  // Next midnight in Europe/Istanbul (permanent UTC+03:00)
+  let targetMs = Date.UTC(y, m - 1, d + 1, 0, 0, 0) - 3 * 60 * 60 * 1000;
+  if (targetMs <= now.getTime()) {
+    targetMs = Date.UTC(y, m - 1, d + 2, 0, 0, 0) - 3 * 60 * 60 * 1000;
+  }
+
+  const remainingMs = Math.max(1000, targetMs - now.getTime());
+  const totalSec = Math.floor(remainingMs / 1000);
+  const hours = Math.floor(totalSec / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+
+  let compactTime: string;
+  if (hours > 0 && minutes > 0) {
+    compactTime = `${hours} saat ${minutes} dk`;
+  } else if (hours > 0) {
+    compactTime = `${hours} saat`;
+  } else if (minutes > 0) {
+    compactTime = `${minutes} dk ${seconds} sn`;
+  } else {
+    compactTime = `${seconds} sn`;
+  }
+
+  return {
+    dateStr,
+    resetsAtIso: new Date(targetMs).toISOString(),
+    remainingMs,
+    compactTime,
+    label: `Yarınki 15 yeni soruya: ${compactTime} kaldı`,
+  };
+}
+
 export const TRIVIA_XP_LADDER = Array.from({ length: TRIVIA_TOTAL_QUESTIONS }, (_, i) => ({
   correct: i + 1,
   xp: (i + 1) * TRIVIA_XP_PER_CORRECT,

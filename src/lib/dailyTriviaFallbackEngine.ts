@@ -6,6 +6,7 @@ import {
   type TriviaDifficulty,
   type TriviaQuestionRecord,
 } from '@/lib/dailyTriviaQuestionBank';
+import { EXTRA_TRIVIA_BANK } from '@/lib/dailyTriviaQuestionBankExtra';
 import type {
   TriviaAnswerRecord,
   TriviaAnswerResponse,
@@ -17,6 +18,11 @@ import type {
   TriviaStatusResponse,
 } from '@/lib/dailyTrivia';
 
+export const ALL_CURATED_TRIVIA_BANK: TriviaQuestionRecord[] = [
+  ...CURATED_TRIVIA_BANK,
+  ...EXTRA_TRIVIA_BANK,
+];
+
 const TOTAL_QUESTIONS = 15;
 const XP_PER_CORRECT = 25;
 const MAX_AWAY_MS = 5500; // 5s strict client window + 0.5s grace
@@ -25,6 +31,8 @@ const TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes total for all 15 questions
 const TIME_GRACE_MS = 4000; // network latency tolerance for the final answer / auto-finish
 const LEAVE_STORAGE_PREFIX = 'econnotes_trivia_leave_ts_';
 const RUN_MIRROR_PREFIX = 'econnotes_trivia_run_mirror_';
+const DAILY_ASSIGNED_PREFIX = 'econnotes_trivia_day_assigned_';
+const DISJOINT_BUCKET_COUNT = 22; // 45 per category / 2 per category = 22 completely disjoint daily buckets
 
 interface CompactStoredAnswer {
   i: number;
@@ -61,8 +69,106 @@ interface PendingXpEntry {
 }
 
 const QUESTION_BY_ID = new Map<string, TriviaQuestionRecord>(
-  CURATED_TRIVIA_BANK.map((q) => [q.id, q]),
+  ALL_CURATED_TRIVIA_BANK.map((q) => [q.id, q]),
 );
+
+const TRIVIA_STOPWORDS = new Set([
+  've', 'veya', 'ile', 'icin', 'olan', 'olarak', 'bir', 'bu', 'su', 'o', 'da', 'de',
+  'hangi', 'hangisi', 'hangisidir', 'hangileridir', 'kimdir', 'nedir', 'kac', 'nerede',
+  'asagidakilerden', 'asagidaki', 'yilda', 'yilinda', 'tarihte', 'dunyanin', 'turkiyenin',
+  'ad', 'verilir', 'tarafindan', 'olarak', 'bilinen', 'en', 'ilk', 'yer', 'alir', 'bulunur',
+]);
+
+function foldTr(text: string): string {
+  return String(text || '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ç/g, 'c')
+    .replace(/ğ/g, 'g')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ş/g, 's')
+    .replace(/ü/g, 'u')
+    .replace(/â/g, 'a')
+    .replace(/î/g, 'i')
+    .replace(/û/g, 'u')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function triviaTokenSet(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of foldTr(text).split(' ')) {
+    if (w.length < 3 || TRIVIA_STOPWORDS.has(w)) continue;
+    out.add(w);
+    if (w.length >= 6) out.add(w.slice(0, 6));
+  }
+  return out;
+}
+
+/**
+ * Checks whether two general-knowledge questions test the same underlying fact or are paraphrases.
+ */
+export function areTriviaQuestionsSemanticallySimilar(
+  a: Pick<TriviaQuestionRecord, 'category' | 'question' | 'options' | 'correctIndex'>,
+  b: Pick<TriviaQuestionRecord, 'category' | 'question' | 'options' | 'correctIndex'>,
+): boolean {
+  const normA = foldTr(a.question);
+  const normB = foldTr(b.question);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+
+  const ansA = foldTr(a.options[a.correctIndex] || '');
+  const ansB = foldTr(b.options[b.correctIndex] || '');
+  const setA = triviaTokenSet(a.question);
+  const setB = triviaTokenSet(b.question);
+
+  let inter = 0;
+  for (const t of setA) {
+    if (setB.has(t)) inter++;
+  }
+  const union = setA.size + setB.size - inter;
+  const jaccard = union > 0 ? inter / union : 0;
+
+  const ansOverlap =
+    ansA.length >= 4 &&
+    ansB.length >= 4 &&
+    (ansA === ansB || ansA.includes(ansB) || ansB.includes(ansA));
+
+  // Same/overlapping canonical answer + stem overlap -> testing the same underlying fact
+  if (a.category === b.category && ansOverlap && jaccard >= 0.25) {
+    return true;
+  }
+  if (ansOverlap && jaccard >= 0.35) {
+    return true;
+  }
+  // Near-identical paraphrased wording regardless of answer formatting
+  if (jaccard >= 0.72) return true;
+  return false;
+}
+
+function readDailyAssignedIds(quizDate: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(`${DAILY_ASSIGNED_PREFIX}${quizDate}`);
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set<string>(parsed.filter((x): x is string => typeof x === 'string')) : new Set<string>();
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function recordDailyAssignedIds(quizDate: string, ids: string[]): void {
+  try {
+    const existing = readDailyAssignedIds(quizDate);
+    for (const id of ids) existing.add(id);
+    // Keep bounded to today's bank size
+    const arr = Array.from(existing).slice(-ALL_CURATED_TRIVIA_BANK.length);
+    localStorage.setItem(`${DAILY_ASSIGNED_PREFIX}${quizDate}`, JSON.stringify(arr));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 // In-memory cache of active run + base points to avoid unnecessary Auth/DB churn on Q1..Q14
 const activeRunCache = new Map<string, StoredAttemptMeta>();
@@ -115,64 +221,147 @@ function orderProgressively(questions: TriviaQuestionRecord[]): TriviaQuestionRe
 
 /**
  * Selects 15 balanced, unique general-knowledge questions across all 8 domains
- * strictly excluding previously asked question IDs from earlier days.
+ * specifically personalized per user + date using 22 disjoint daily buckets across the 360-question pool,
+ * strictly excluding:
+ * - questions this user already encountered on prior days (`usedIds`),
+ * - questions already assigned to other users today (`excludeTodayIds`),
+ * - and semantically similar / same-fact duplicates.
  */
 export function selectDailyQuestionsForDate(
   dateStr: string,
   usedIds: Iterable<string>,
+  userId = 'default-user',
+  excludeTodayIds?: Iterable<string>,
 ): TriviaQuestionRecord[] {
-  const seed = dateSeed(dateStr);
+  const daySeed = dateSeed(dateStr);
+  const userSeed = dateSeed(`${dateStr}::user::${userId}`);
   const usedSet = new Set<string>(usedIds);
+  const todayExcludedSet = new Set<string>(excludeTodayIds || []);
   const picked: TriviaQuestionRecord[] = [];
   const pickedIds = new Set<string>();
 
-  const catCounts = new Map<TriviaCategory, number>();
-  for (const cat of TRIVIA_CATEGORIES) catCounts.set(cat, 0);
+  const pastRecords = Array.from(usedSet)
+    .map((id) => QUESTION_BY_ID.get(id))
+    .filter((q): q is TriviaQuestionRecord => Boolean(q));
 
-  const rotatedCategories = seededShuffle(TRIVIA_CATEGORIES, seed);
-  const shuffledBank = seededShuffle(CURATED_TRIVIA_BANK, seed ^ 0x9e3779b9);
+  const isSemanticallyBlocked = (cand: TriviaQuestionRecord, checkPast: boolean): boolean => {
+    if (picked.some((p) => areTriviaQuestionsSemanticallySimilar(p, cand))) return true;
+    if (checkPast && pastRecords.some((p) => areTriviaQuestionsSemanticallySimilar(p, cand))) return true;
+    return false;
+  };
 
-  // Pass 1: Strictly unused questions balanced evenly across all 8 domains
-  let safety = 0;
-  while (picked.length < TOTAL_QUESTIONS && safety < 60) {
-    safety++;
-    const sortedCats = [...rotatedCategories].sort(
-      (a, b) => (catCounts.get(a) || 0) - (catCounts.get(b) || 0),
-    );
-    let added = false;
-    for (const cat of sortedCats) {
-      if (picked.length >= TOTAL_QUESTIONS) break;
-      const cand = shuffledBank.find(
-        (q) => q.category === cat && !usedSet.has(q.id) && !pickedIds.has(q.id),
-      );
-      if (cand) {
+  // Partition each category's 45 questions into 22 completely disjoint 2-question buckets per day
+  const categoryPools = new Map<TriviaCategory, TriviaQuestionRecord[]>();
+  for (const cat of TRIVIA_CATEGORIES) {
+    const catItems = ALL_CURATED_TRIVIA_BANK.filter((q) => q.category === cat);
+    categoryPools.set(cat, seededShuffle(catItems, daySeed ^ dateSeed(cat)));
+  }
+
+  // Pick a user-specific disjoint bucket (stepping cleanly if any item in this bucket was assigned today on device)
+  let bucket = userSeed % DISJOINT_BUCKET_COUNT;
+  if (todayExcludedSet.size > 0) {
+    for (let step = 0; step < DISJOINT_BUCKET_COUNT; step++) {
+      const candBucket = (bucket + step) % DISJOINT_BUCKET_COUNT;
+      let collisions = 0;
+      for (const cat of TRIVIA_CATEGORIES) {
+        const pool = categoryPools.get(cat) || [];
+        const q1 = pool[candBucket * 2];
+        const q2 = pool[candBucket * 2 + 1];
+        if ((q1 && todayExcludedSet.has(q1.id)) || (q2 && todayExcludedSet.has(q2.id))) {
+          collisions++;
+        }
+      }
+      if (collisions === 0) {
+        bucket = candBucket;
+        break;
+      }
+    }
+  }
+
+  // Rotate category order uniquely per user so the 1-question category also varies across users
+  const rotatedCategories = seededShuffle(TRIVIA_CATEGORIES, userSeed ^ 0x517cc1b7);
+  const catTargets = new Map<TriviaCategory, number>();
+  rotatedCategories.forEach((cat, idx) => {
+    catTargets.set(cat, idx < 7 ? 2 : 1); // 7*2 + 1 = 15 across all 8 domains
+  });
+
+  // Pass 1: Draw directly from this user's disjoint daily bucket first (guarantees 0/15 overlap across different users!)
+  for (const cat of rotatedCategories) {
+    const target = catTargets.get(cat) || 1;
+    const pool = categoryPools.get(cat) || [];
+    let got = 0;
+    const bucketIndices = [bucket * 2, bucket * 2 + 1];
+    for (const bi of bucketIndices) {
+      if (got >= target || picked.length >= TOTAL_QUESTIONS) break;
+      const cand = pool[bi];
+      if (
+        cand &&
+        !usedSet.has(cand.id) &&
+        !todayExcludedSet.has(cand.id) &&
+        !pickedIds.has(cand.id) &&
+        !isSemanticallyBlocked(cand, true)
+      ) {
         pickedIds.add(cand.id);
         picked.push(cand);
-        catCounts.set(cat, (catCounts.get(cat) || 0) + 1);
-        added = true;
+        got++;
       }
     }
-    if (!added) break;
-  }
 
-  // Pass 2: Any remaining unused question from curated bank
-  if (picked.length < TOTAL_QUESTIONS) {
-    for (const q of shuffledBank) {
-      if (picked.length >= TOTAL_QUESTIONS) break;
-      if (!usedSet.has(q.id) && !pickedIds.has(q.id)) {
-        pickedIds.add(q.id);
-        picked.push(q);
+    // If bucket item was seen on a previous day or claimed today, draw next unused item in this category starting after bucket
+    if (got < target) {
+      const startOffset = (bucket * 2 + 2) % Math.max(1, pool.length);
+      for (let off = 0; off < pool.length && got < target && picked.length < TOTAL_QUESTIONS; off++) {
+        const cand = pool[(startOffset + off) % pool.length];
+        if (
+          cand &&
+          !usedSet.has(cand.id) &&
+          !todayExcludedSet.has(cand.id) &&
+          !pickedIds.has(cand.id) &&
+          !isSemanticallyBlocked(cand, true)
+        ) {
+          pickedIds.add(cand.id);
+          picked.push(cand);
+          got++;
+        }
       }
     }
   }
 
-  // Pass 3: Only after ALL 160 questions have been exhausted across >10 days, recycle oldest first
+  // Pass 2: Any remaining unused & unclaimed question from full 360-question bank (user-seeded order)
+  const userShuffledAll = seededShuffle(ALL_CURATED_TRIVIA_BANK, userSeed ^ 0x9e3779b9);
   if (picked.length < TOTAL_QUESTIONS) {
-    for (const q of shuffledBank) {
+    for (const cand of userShuffledAll) {
       if (picked.length >= TOTAL_QUESTIONS) break;
-      if (!pickedIds.has(q.id)) {
-        pickedIds.add(q.id);
-        picked.push(q);
+      if (
+        !usedSet.has(cand.id) &&
+        !todayExcludedSet.has(cand.id) &&
+        !pickedIds.has(cand.id) &&
+        !isSemanticallyBlocked(cand, false)
+      ) {
+        pickedIds.add(cand.id);
+        picked.push(cand);
+      }
+    }
+  }
+
+  // Pass 3: If today's 360-question pool was exhausted (>24 users offline), pick distinct user-salted subset avoiding past history
+  if (picked.length < TOTAL_QUESTIONS) {
+    for (const cand of userShuffledAll) {
+      if (picked.length >= TOTAL_QUESTIONS) break;
+      if (!usedSet.has(cand.id) && !pickedIds.has(cand.id) && !isSemanticallyBlocked(cand, false)) {
+        pickedIds.add(cand.id);
+        picked.push(cand);
+      }
+    }
+  }
+
+  // Pass 4: Only after a single user has seen all 360 questions across 24+ days, recycle cleanly
+  if (picked.length < TOTAL_QUESTIONS) {
+    for (const cand of userShuffledAll) {
+      if (picked.length >= TOTAL_QUESTIONS) break;
+      if (!pickedIds.has(cand.id)) {
+        pickedIds.add(cand.id);
+        picked.push(cand);
       }
     }
   }
@@ -193,14 +382,14 @@ function sanitizeQuestions(questions: TriviaQuestionRecord[]): TriviaQuestionCli
 function getCancelMessage(reason: string | null | undefined): string {
   switch (reason) {
     case 'page_reloaded':
-      return 'Yarışma devam ederken sayfa yenilendiği için güvenlik kuralları gereği yarışma otomatik olarak iptal edildi ve bu yarışmaya ait ödüller tanımlanmadı.';
+      return 'Yarışma devam ederken bağlantı/oturum kuralı ihlal edildiği için katılımınız iptal edildi.';
     case 'away_over_5s':
     case 'left_screen_over_5s':
-      return 'Yarışma ekranından ayrıldıktan sonra 5 saniye içinde geri dönülmediği için yarışma otomatik olarak iptal edildi ve bu yarışmaya ait ödüller tanımlanmadı.';
+      return 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
     case 'navigated_away':
-      return 'Yarışma ekranından çıkış yapıldığı için yarışma iptal edildi ve bu yarışmaya ait ödüller tanımlanmadı.';
+      return 'Yarışma ekranından çıkıldığı ve 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
     default:
-      return 'Güvenlik kuralları ihlal edildiği için yarışma iptal edildi ve bu yarışmaya ait ödüller verilmedi.';
+      return 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
   }
 }
 
@@ -389,6 +578,7 @@ function resolveQuestionSet(
   questionIds: string[],
   quizDate: string,
   usedIds: string[],
+  userId: string,
 ): TriviaQuestionRecord[] {
   if (questionIds.length === TOTAL_QUESTIONS) {
     const mapped = questionIds
@@ -396,7 +586,7 @@ function resolveQuestionSet(
       .filter((q): q is TriviaQuestionRecord => Boolean(q));
     if (mapped.length === TOTAL_QUESTIONS) return mapped;
   }
-  return selectDailyQuestionsForDate(quizDate, usedIds);
+  return selectDailyQuestionsForDate(quizDate, usedIds, userId);
 }
 
 /**
@@ -619,7 +809,7 @@ export async function runDailyTriviaSupabaseEngine<T>(
     if (!reveal) {
       return att.answers.map((a) => ({ questionIndex: a.i, selectedOption: a.s }));
     }
-    const fullSet = resolveQuestionSet(att.questionIds, quizDate, usedIds);
+    const fullSet = resolveQuestionSet(att.questionIds, quizDate, usedIds, userId);
     return att.answers.map((a) => {
       const qObj = fullSet[a.i];
       return {
@@ -654,7 +844,7 @@ export async function runDailyTriviaSupabaseEngine<T>(
    */
   const finalizeAttempt = async (timedOut: boolean): Promise<StoredAttemptMeta> => {
     const base = attempt as StoredAttemptMeta;
-    const fullSet = resolveQuestionSet(base.questionIds, quizDate, usedIds);
+    const fullSet = resolveQuestionSet(base.questionIds, quizDate, usedIds, userId);
     const graded: CompactStoredAnswer[] = base.answers
       .slice()
       .sort((a, b) => a.i - b.i)
@@ -733,15 +923,17 @@ export async function runDailyTriviaSupabaseEngine<T>(
   try {
     // ==================== ACTION: STATUS ====================
     if (action === 'status') {
-      const clientReloaded = Boolean(body.clientReloaded);
       if (attempt && attempt.status === 'in_progress') {
-        if (clientReloaded) {
-          await cancelAttempt('page_reloaded');
-        } else if (effectiveLeaveTs && Date.now() - effectiveLeaveTs > MAX_AWAY_MS) {
+        if (effectiveLeaveTs && Date.now() - effectiveLeaveTs > MAX_AWAY_MS) {
           await cancelAttempt('away_over_5s');
         } else if (isExpired(attempt)) {
           // Süre dolmuş: kayıtlı cevaplarla otomatik sonuçlandır
           await finalizeAttempt(true);
+        } else if (effectiveLeaveTs) {
+          // 5 saniye içinde geri dönüldü / sayfa yenilendi: mevcut soru seti, cevaplar ve kalan süre korunur
+          writeLocalLeaveTs(userId, quizDate, null);
+          attempt = { ...attempt, leaveStartedAt: null };
+          writeLocalRunMirror(userId, quizDate, attempt);
         }
       }
 
@@ -750,7 +942,7 @@ export async function runDailyTriviaSupabaseEngine<T>(
 
       if (attempt) {
         if (attempt.status === 'in_progress') {
-          questions = sanitizeQuestions(resolveQuestionSet(attempt.questionIds, quizDate, usedIds));
+          questions = sanitizeQuestions(resolveQuestionSet(attempt.questionIds, quizDate, usedIds, userId));
         }
         answers = buildAnswerRecords(attempt, attempt.status === 'completed');
       }
@@ -784,14 +976,17 @@ export async function runDailyTriviaSupabaseEngine<T>(
         return { data: null, error: msg, status: 409, raw: { error: msg, alreadyParticipated: true } };
       }
 
-      const selectedQuestions = selectDailyQuestionsForDate(quizDate, usedIds);
+      const todayAssignedIds = readDailyAssignedIds(quizDate);
+      const selectedQuestions = selectDailyQuestionsForDate(quizDate, usedIds, userId, todayAssignedIds);
       const selectedIds = selectedQuestions.map((q) => q.id);
       const nowIso = new Date().toISOString();
+
+      recordDailyAssignedIds(quizDate, selectedIds);
 
       const nextUsedSet = new Set<string>(usedIds);
       for (const id of selectedIds) nextUsedSet.add(id);
       const nextUsedIds =
-        nextUsedSet.size >= CURATED_TRIVIA_BANK.length ? selectedIds : Array.from(nextUsedSet);
+        nextUsedSet.size >= ALL_CURATED_TRIVIA_BANK.length ? selectedIds : Array.from(nextUsedSet);
 
       const created: StoredAttemptMeta = {
         id: `trivia-${quizDate}-${Date.now().toString(36)}`,

@@ -13,6 +13,12 @@ import {
   type TriviaDifficulty,
   type TriviaQuestionRecord,
 } from './question-bank.ts';
+import { EXTRA_TRIVIA_BANK } from './question-bank-extra.ts';
+
+const ALL_CURATED_TRIVIA_BANK: TriviaQuestionRecord[] = [
+  ...CURATED_TRIVIA_BANK,
+  ...EXTRA_TRIVIA_BANK,
+];
 
 const TOTAL_QUESTIONS = 15;
 const XP_PER_CORRECT = 25;
@@ -20,9 +26,79 @@ const MAX_AWAY_MS = 5500; // 5s strict client window + 0.5s network grace
 const GRAND_PRIZE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours real-time
 const TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes total for all 15 questions
 const TIME_GRACE_MS = 4000; // network latency tolerance for final answer / auto-finish
+const DISJOINT_BUCKET_COUNT = 22;
 
 interface StoredTriviaQuestion extends TriviaQuestionRecord {
   hash: string;
+  conceptKey?: string;
+}
+
+const TRIVIA_STOPWORDS = new Set([
+  've', 'veya', 'ile', 'icin', 'olan', 'olarak', 'bir', 'bu', 'su', 'o', 'da', 'de',
+  'hangi', 'hangisi', 'hangisidir', 'kimdir', 'nedir', 'kac', 'nerede', 'asagidakilerden',
+  'asagidaki', 'yilda', 'yilinda', 'tarihte', 'dunyanin', 'turkiyenin', 'ad', 'verilir',
+  'tarafindan', 'bilinen', 'en', 'ilk', 'yer', 'alir', 'bulunur',
+]);
+
+function foldTrServer(text: string): string {
+  return String(text || '')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ç/g, 'c')
+    .replace(/ğ/g, 'g')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ş/g, 's')
+    .replace(/ü/g, 'u')
+    .replace(/â/g, 'a')
+    .replace(/î/g, 'i')
+    .replace(/û/g, 'u')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function triviaTokensServer(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of foldTrServer(text).split(' ')) {
+    if (w.length < 3 || TRIVIA_STOPWORDS.has(w)) continue;
+    out.add(w);
+    if (w.length >= 6) out.add(w.slice(0, 6));
+  }
+  return out;
+}
+
+function buildTriviaConceptKey(q: Pick<TriviaQuestionRecord, 'category' | 'options' | 'correctIndex' | 'question'>): string {
+  const cat = foldTrServer(q.category).slice(0, 8);
+  const ans = foldTrServer(q.options[q.correctIndex] || '').slice(0, 32);
+  const stemKey = Array.from(triviaTokensServer(q.question)).slice(0, 3).sort().join('_');
+  return `${cat}:${ans || stemKey}`;
+}
+
+function areQuestionsSemanticallyDuplicate(
+  a: Pick<TriviaQuestionRecord, 'category' | 'question' | 'options' | 'correctIndex'>,
+  b: Pick<TriviaQuestionRecord, 'category' | 'question' | 'options' | 'correctIndex'>,
+): boolean {
+  const normA = foldTrServer(a.question);
+  const normB = foldTrServer(b.question);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+  const setA = triviaTokensServer(a.question);
+  const setB = triviaTokensServer(b.question);
+  let inter = 0;
+  for (const t of setA) {
+    if (setB.has(t)) inter++;
+  }
+  const union = setA.size + setB.size - inter;
+  const jaccard = union > 0 ? inter / union : 0;
+  const ansA = foldTrServer(a.options[a.correctIndex] || '');
+  const ansB = foldTrServer(b.options[b.correctIndex] || '');
+  const ansOverlap =
+    ansA.length >= 4 &&
+    ansB.length >= 4 &&
+    (ansA === ansB || ansA.includes(ansB) || ansB.includes(ansA));
+  if (a.category === b.category && ansOverlap && jaccard >= 0.25) return true;
+  if (ansOverlap && jaccard >= 0.35) return true;
+  return jaccard >= 0.72;
 }
 
 interface SanitizedTriviaQuestion {
@@ -111,7 +187,10 @@ function normalizeDifficulty(raw: unknown): TriviaDifficulty {
 
 async function generateDailyAiQuestions(
   dateStr: string,
+  userId: string,
   usedHashes: Set<string>,
+  usedConcepts: Set<string>,
+  neededCount = TOTAL_QUESTIONS,
 ): Promise<StoredTriviaQuestion[]> {
   const hasAnyKey = Boolean(
     Deno.env.get('OPENAI_API_KEY') ||
@@ -119,12 +198,13 @@ async function generateDailyAiQuestions(
       Deno.env.get('GEMINI_API_KEY') ||
       Deno.env.get('GOOGLE_API_KEY'),
   );
-  if (!hasAnyKey) return [];
+  if (!hasAnyKey || neededCount <= 0) return [];
+  const userTag = dateSeed(`${dateStr}::${userId}`).toString(36);
 
   try {
     const res = await createChatCompletion({
       model: 'gpt-4o-mini',
-      temperature: 0.7,
+      temperature: 0.78,
       max_tokens: 3400,
       timeoutMs: 18_000,
       responseFormat: 'json_object',
@@ -133,10 +213,10 @@ async function generateDailyAiQuestions(
         {
           role: 'system',
           content: `Sen üniversite öğrencilerine yönelik güvenilir Türkçe Günlük Genel Kültür Bilgi Yarışması soru editörüsün.
-Tarih tohumu: ${dateStr}.
-Tam olarak 15 adet, birbirinden tamamen farklı, %100 doğrulanmış ve tartışmasız tek doğru cevabı olan 4 seçenekli Türkçe genel kültür sorusu üret.
-Kategori dağılımı: Tarih (2), Coğrafya (2), Bilim (2), Sanat (2), Spor (2), Teknoloji (2), Edebiyat (2), Güncel Genel Kültür (1).
-Zorluk dağılımı: 5 "easy", 6 "medium", 4 "hard".
+Tarih tohumu: ${dateStr} | Kişisel oturum tohumu: ${userTag}.
+Tam olarak ${neededCount} adet, birbirinden ve önceki oturumlardan tamamen farklı, %100 doğrulanmış ve tartışmasız tek doğru cevabı olan 4 seçenekli Türkçe genel kültür sorusu üret.
+Kategori dağılımı 8 alana dengeli yayılsın (Tarih, Coğrafya, Bilim, Sanat, Spor, Teknoloji, Edebiyat, Güncel Genel Kültür).
+Zorluk dağılımı dengeli olsun ("easy", "medium", "hard").
 Yalnızca şu JSON formatında yanıt ver:
 {
   "questions": [
@@ -154,7 +234,7 @@ KESİN KURAL: Doğru cevap kesin olgulara dayanmalıdır; muğlak, tartışmalı
         },
         {
           role: 'user',
-          content: `${dateStr} tarihli Günlük Genel Kültür Bilgi Yarışması için 15 özgün ve dengeli soru üret.`,
+          content: `${dateStr} tarihli oturum (${userTag}) için ${neededCount} özgün, daha önce sorulmamış ve birbirinden farklı genel kültür sorusu üret.`,
         },
       ],
     });
@@ -164,8 +244,9 @@ KESİN KURAL: Doğru cevap kesin olgulara dayanmalıdır; muğlak, tartışmalı
 
     const valid: StoredTriviaQuestion[] = [];
     const localHashes = new Set<string>(usedHashes);
+    const localConcepts = new Set<string>(usedConcepts);
 
-    for (let i = 0; i < parsed.questions.length && valid.length < TOTAL_QUESTIONS; i++) {
+    for (let i = 0; i < parsed.questions.length && valid.length < neededCount; i++) {
       const q = parsed.questions[i] as Record<string, unknown>;
       if (!q || typeof q.question !== 'string') continue;
       const questionText = q.question.trim();
@@ -180,21 +261,37 @@ KESİN KURAL: Doğru cevap kesin olgulara dayanmalıdır; muğlak, tartışmalı
       if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) continue;
 
       const hash = await hashQuestionText(questionText);
-      if (localHashes.has(hash)) continue;
-      localHashes.add(hash);
+      const category = normalizeCategory(q.category);
+      const candBase = {
+        category,
+        question: questionText,
+        options: opts as [string, string, string, string],
+        correctIndex: correctIndex as 0 | 1 | 2 | 3,
+      };
+      const conceptKey = buildTriviaConceptKey(candBase);
+      if (
+        localHashes.has(hash) ||
+        localConcepts.has(conceptKey) ||
+        valid.some((v) => areQuestionsSemanticallyDuplicate(v, candBase))
+      ) {
+        continue;
+      }
 
+      localHashes.add(hash);
+      localConcepts.add(conceptKey);
       valid.push({
-        id: `ai-${dateStr}-${i + 1}`,
-        category: normalizeCategory(q.category),
+        id: `ai-${dateStr}-${userTag}-${valid.length + 1}`,
+        category,
         difficulty: normalizeDifficulty(q.difficulty),
         question: questionText,
         options: opts as [string, string, string, string],
         correctIndex: correctIndex as 0 | 1 | 2 | 3,
         explanation:
           typeof q.explanation === 'string' && q.explanation.trim().length > 5
-            ? q.explanation.trim()
+            ? q.explanation.trim().slice(0, 320)
             : `Doğru cevap: ${opts[correctIndex]}.`,
         hash,
+        conceptKey,
       });
     }
 
@@ -207,77 +304,108 @@ KESİN KURAL: Doğru cevap kesin olgulara dayanmalıdır; muğlak, tartışmalı
 
 async function selectBalancedCuratedQuestions(
   dateStr: string,
-  usedHashes: Set<string>,
+  userId: string,
+  excludedHashes: Set<string>,
+  excludedConcepts: Set<string>,
   neededCount: number,
   alreadySelected: StoredTriviaQuestion[],
+  allowPoolReuseFallback = false,
 ): Promise<StoredTriviaQuestion[]> {
   if (neededCount <= 0) return [];
-  const seed = dateSeed(dateStr);
+  const daySeed = dateSeed(dateStr);
+  const userSeed = dateSeed(`${dateStr}::user::${userId}`);
   const picked: StoredTriviaQuestion[] = [];
-  const takenHashes = new Set<string>([...usedHashes, ...alreadySelected.map((q) => q.hash)]);
+  const takenHashes = new Set<string>([...excludedHashes, ...alreadySelected.map((q) => q.hash)]);
+  const takenConcepts = new Set<string>([
+    ...excludedConcepts,
+    ...alreadySelected.map((q) => q.conceptKey || buildTriviaConceptKey(q)),
+  ]);
 
-  // Count categories already covered
   const catCounts = new Map<TriviaCategory, number>();
   for (const cat of TRIVIA_CATEGORIES) catCounts.set(cat, 0);
   for (const q of alreadySelected) {
     catCounts.set(q.category, (catCounts.get(q.category) || 0) + 1);
   }
 
-  // Precompute hashes for the curated bank
   const bankWithHash: StoredTriviaQuestion[] = await Promise.all(
-    CURATED_TRIVIA_BANK.map(async (q) => ({
+    ALL_CURATED_TRIVIA_BANK.map(async (q) => ({
       ...q,
       hash: await hashQuestionText(q.question),
+      conceptKey: buildTriviaConceptKey(q),
     })),
   );
 
-  // Round-robin across categories ordered by lowest current count so all 8 domains are represented
-  const rotatedCategories = seededShuffle(TRIVIA_CATEGORIES, seed);
-  const shuffledBank = seededShuffle(bankWithHash, seed ^ 0x9e3779b9);
+  // Partition each category's 45 questions into 22 disjoint daily buckets + user-specific offset
+  const categoryPools = new Map<TriviaCategory, StoredTriviaQuestion[]>();
+  for (const cat of TRIVIA_CATEGORIES) {
+    const items = bankWithHash.filter((q) => q.category === cat);
+    categoryPools.set(cat, seededShuffle(items, daySeed ^ dateSeed(cat)));
+  }
 
-  // Pass 1: Strictly unused questions across underrepresented categories
-  let safety = 0;
-  while (picked.length < neededCount && safety < 60) {
-    safety++;
+  const bucket = userSeed % DISJOINT_BUCKET_COUNT;
+  const rotatedCategories = seededShuffle(TRIVIA_CATEGORIES, userSeed ^ 0x517cc1b7);
+  const canTake = (q: StoredTriviaQuestion, checkConcepts: boolean): boolean => {
+    if (takenHashes.has(q.hash)) return false;
+    if (checkConcepts && q.conceptKey && takenConcepts.has(q.conceptKey)) return false;
+    if ([...alreadySelected, ...picked].some((p) => areQuestionsSemanticallyDuplicate(p, q))) return false;
+    return true;
+  };
+
+  // Pass 1: Draw from this user's disjoint daily bucket first across all 8 domains
+  for (let round = 0; round < 2 && picked.length < neededCount; round++) {
     const sortedCats = [...rotatedCategories].sort(
       (a, b) => (catCounts.get(a) || 0) - (catCounts.get(b) || 0),
     );
-    let addedInPass = false;
     for (const cat of sortedCats) {
       if (picked.length >= neededCount) break;
-      const candidate = shuffledBank.find(
-        (q) => q.category === cat && !takenHashes.has(q.hash),
-      );
+      const pool = categoryPools.get(cat) || [];
+      const primaryIdx = (bucket * 2 + round) % Math.max(1, pool.length);
+      let candidate = pool[primaryIdx];
+      if (!candidate || !canTake(candidate, true)) {
+        const startOffset = (bucket * 2 + 2) % Math.max(1, pool.length);
+        candidate = undefined as unknown as StoredTriviaQuestion;
+        for (let off = 0; off < pool.length; off++) {
+          const item = pool[(startOffset + off) % pool.length];
+          if (item && canTake(item, true)) {
+            candidate = item;
+            break;
+          }
+        }
+      }
       if (candidate) {
         takenHashes.add(candidate.hash);
+        if (candidate.conceptKey) takenConcepts.add(candidate.conceptKey);
         picked.push(candidate);
         catCounts.set(cat, (catCounts.get(cat) || 0) + 1);
-        addedInPass = true;
       }
     }
-    if (!addedInPass) break;
   }
 
-  // Pass 2: Any remaining unused curated question
+  // Pass 2: Any remaining unused & unclaimed question from full 360-question bank (user-seeded order)
+  const userShuffledBank = seededShuffle(bankWithHash, userSeed ^ 0x9e3779b9);
   if (picked.length < neededCount) {
-    for (const q of shuffledBank) {
+    for (const q of userShuffledBank) {
       if (picked.length >= neededCount) break;
-      if (!takenHashes.has(q.hash)) {
+      if (canTake(q, false)) {
         takenHashes.add(q.hash);
+        if (q.conceptKey) takenConcepts.add(q.conceptKey);
         picked.push(q);
       }
     }
   }
 
-  // Pass 3: Only if ALL 160 curated questions were exhausted and AI unavailable, pick oldest-unused cycle
-  if (picked.length < neededCount) {
+  // Pass 3 (optional overflow ONLY if AI was unavailable and 360 bank exhausted today)
+  if (allowPoolReuseFallback && picked.length < neededCount) {
     const pickedNow = new Set<string>([
       ...alreadySelected.map((q) => q.hash),
       ...picked.map((q) => q.hash),
     ]);
-    for (const q of shuffledBank) {
+    for (const q of userShuffledBank) {
       if (picked.length >= neededCount) break;
-      if (!pickedNow.has(q.hash)) {
+      if (
+        !pickedNow.has(q.hash) &&
+        ![...alreadySelected, ...picked].some((p) => areQuestionsSemanticallyDuplicate(p, q))
+      ) {
         pickedNow.add(q.hash);
         picked.push(q);
       }
@@ -292,66 +420,179 @@ function orderProgressively(questions: StoredTriviaQuestion[]): StoredTriviaQues
   return [...questions].sort((a, b) => rank[a.difficulty] - rank[b.difficulty]);
 }
 
-async function ensureTodayQuizSet(
+/**
+ * Per-user server-authoritative daily 15-question allocator:
+ * - Persists a dedicated immutable set per (user_id, quiz_date) in `daily_trivia_user_sets`
+ * - Uses atomic `daily_trivia_daily_assignments` primary-key claims so concurrent users never receive the same questions
+ * - Checks `daily_trivia_user_history` + semantic concept similarity so past questions aren't repeated
+ * - Generates verified AI questions automatically when daily curated capacity is exhausted
+ */
+async function ensureUserDailyQuizSet(
   admin: ReturnType<typeof createClient>,
+  userId: string,
   quizDate: string,
 ): Promise<{ questions: StoredTriviaQuestion[]; sourceMode: string }> {
-  const { data: existing, error: readErr } = await admin
-    .from('daily_trivia_sets')
+  // 1. Check if this user already has a locked daily 15-question set for today (preserved on reload/re-entry)
+  const { data: existingUserSet, error: readUserSetErr } = await admin
+    .from('daily_trivia_user_sets')
     .select('questions, source_mode')
+    .eq('user_id', userId)
     .eq('quiz_date', quizDate)
     .maybeSingle();
 
-  if (readErr) {
-    throw new Error(`daily_trivia_sets okunamadı: ${readErr.message}`);
-  }
+  const perUserTablesAvailable =
+    !readUserSetErr || !String(readUserSetErr.message || '').includes('daily_trivia_user_sets');
 
-  if (existing && Array.isArray((existing as { questions?: unknown[] }).questions)) {
-    const qs = (existing as { questions: StoredTriviaQuestion[]; source_mode?: string }).questions;
+  if (
+    perUserTablesAvailable &&
+    existingUserSet &&
+    Array.isArray((existingUserSet as { questions?: unknown[] }).questions)
+  ) {
+    const qs = (existingUserSet as { questions: StoredTriviaQuestion[]; source_mode?: string }).questions;
     if (qs.length === TOTAL_QUESTIONS) {
-      return { questions: qs, sourceMode: existing.source_mode || 'hybrid' };
+      return { questions: qs, sourceMode: existingUserSet.source_mode || 'curated_per_user' };
     }
   }
 
-  // Load ALL previously asked question hashes so past questions are never repeated
-  const { data: usedRows } = await admin
-    .from('daily_trivia_used_questions')
-    .select('question_hash')
-    .limit(10000);
+  // Fallback path if new per-user migration has not yet been applied on DB:
+  // Still generate deterministic per-user disjoint 15-question set from the 360-question bank!
+  if (!perUserTablesAvailable) {
+    const picked = await selectBalancedCuratedQuestions(
+      quizDate,
+      userId,
+      new Set<string>(),
+      new Set<string>(),
+      TOTAL_QUESTIONS,
+      [],
+      true,
+    );
+    return { questions: orderProgressively(picked).slice(0, TOTAL_QUESTIONS), sourceMode: 'curated_partitioned' };
+  }
 
-  const usedHashes = new Set<string>(
-    (usedRows || [])
-      .map((r) => (r as { question_hash?: string }).question_hash)
-      .filter((h): h is string => typeof h === 'string' && h.length > 0),
-  );
+  // 2. Load per-user historical questions/concepts + all questions already assigned to OTHER users today
+  const [userHistRes, todayAssignRes] = await Promise.all([
+    admin
+      .from('daily_trivia_user_history')
+      .select('question_hash, concept_key')
+      .eq('user_id', userId)
+      .limit(5000),
+    admin
+      .from('daily_trivia_daily_assignments')
+      .select('question_hash, concept_key')
+      .eq('quiz_date', quizDate)
+      .limit(10000),
+  ]);
 
-  // Try AI generation first, then top up with verified curated bank excluding usedHashes
-  const aiQuestions = await generateDailyAiQuestions(quizDate, usedHashes);
-  const needed = TOTAL_QUESTIONS - aiQuestions.length;
-  const curatedFill = await selectBalancedCuratedQuestions(quizDate, usedHashes, needed, aiQuestions);
-  const finalQuestions = orderProgressively([...aiQuestions, ...curatedFill]).slice(
-    0,
-    TOTAL_QUESTIONS,
-  );
+  const excludedHashes = new Set<string>();
+  const excludedConcepts = new Set<string>();
 
+  for (const row of userHistRes.data || []) {
+    const h = (row as { question_hash?: string }).question_hash;
+    const c = (row as { concept_key?: string }).concept_key;
+    if (typeof h === 'string' && h) excludedHashes.add(h);
+    if (typeof c === 'string' && c) excludedConcepts.add(c);
+  }
+  for (const row of todayAssignRes.data || []) {
+    const h = (row as { question_hash?: string }).question_hash;
+    const c = (row as { concept_key?: string }).concept_key;
+    if (typeof h === 'string' && h) excludedHashes.add(h);
+    if (typeof c === 'string' && c) excludedConcepts.add(c);
+  }
+
+  // 3. Draw unclaimed, unseen curated questions first, then claim atomically in daily_trivia_daily_assignments
+  const claimedQuestions: StoredTriviaQuestion[] = [];
+  let usedAiCount = 0;
+
+  const tryClaimCandidates = async (candidates: StoredTriviaQuestion[]) => {
+    for (const cand of candidates) {
+      if (claimedQuestions.length >= TOTAL_QUESTIONS) break;
+      const { error: claimErr } = await admin.from('daily_trivia_daily_assignments').insert({
+        quiz_date: quizDate,
+        question_hash: cand.hash,
+        assigned_user_id: userId,
+        category: cand.category,
+        concept_key: cand.conceptKey || buildTriviaConceptKey(cand),
+      });
+      if (!claimErr) {
+        claimedQuestions.push(cand);
+        excludedHashes.add(cand.hash);
+        if (cand.conceptKey) excludedConcepts.add(cand.conceptKey);
+      } else {
+        excludedHashes.add(cand.hash);
+      }
+    }
+  };
+
+  for (let round = 0; round < 2 && claimedQuestions.length < TOTAL_QUESTIONS; round++) {
+    const curatedBatch = await selectBalancedCuratedQuestions(
+      quizDate,
+      userId,
+      excludedHashes,
+      excludedConcepts,
+      TOTAL_QUESTIONS - claimedQuestions.length,
+      claimedQuestions,
+      false,
+    );
+    if (curatedBatch.length === 0) break;
+    await tryClaimCandidates(curatedBatch);
+  }
+
+  // 4. If daily curated capacity is exhausted, generate fresh verified AI questions for this user
+  if (claimedQuestions.length < TOTAL_QUESTIONS) {
+    const aiNeeded = TOTAL_QUESTIONS - claimedQuestions.length;
+    const aiBatch = await generateDailyAiQuestions(
+      quizDate,
+      userId,
+      excludedHashes,
+      excludedConcepts,
+      aiNeeded + 3,
+    );
+    const beforeAi = claimedQuestions.length;
+    await tryClaimCandidates(aiBatch);
+    usedAiCount = claimedQuestions.length - beforeAi;
+  }
+
+  // 5. Last-resort offline overflow ONLY if both 360 bank exhausted AND AI unavailable
+  if (claimedQuestions.length < TOTAL_QUESTIONS) {
+    const userOnlyHistory = new Set<string>(
+      (userHistRes.data || [])
+        .map((r) => (r as { question_hash?: string }).question_hash)
+        .filter((h): h is string => typeof h === 'string' && h.length > 0),
+    );
+    const overflow = await selectBalancedCuratedQuestions(
+      quizDate,
+      `${userId}-overflow`,
+      userOnlyHistory,
+      new Set<string>(),
+      TOTAL_QUESTIONS - claimedQuestions.length,
+      claimedQuestions,
+      true,
+    );
+    claimedQuestions.push(...overflow);
+  }
+
+  const finalQuestions = orderProgressively(claimedQuestions).slice(0, TOTAL_QUESTIONS);
   const sourceMode =
-    aiQuestions.length === TOTAL_QUESTIONS
-      ? 'ai'
-      : aiQuestions.length > 0
-      ? 'hybrid'
-      : 'curated';
+    usedAiCount === TOTAL_QUESTIONS
+      ? 'ai_per_user'
+      : usedAiCount > 0
+      ? 'hybrid_per_user'
+      : 'curated_per_user';
 
-  const { error: insErr } = await admin.from('daily_trivia_sets').insert({
+  // 6. Lock immutable set for (user_id, quiz_date)
+  const { error: insErr } = await admin.from('daily_trivia_user_sets').insert({
+    user_id: userId,
     quiz_date: quizDate,
     questions: finalQuestions,
+    question_hashes: finalQuestions.map((q) => q.hash),
     source_mode: sourceMode,
   });
 
   if (insErr) {
-    // Handle concurrent midnight creation gracefully by reading the winner row
     const { data: raceRow } = await admin
-      .from('daily_trivia_sets')
+      .from('daily_trivia_user_sets')
       .select('questions, source_mode')
+      .eq('user_id', userId)
       .eq('quiz_date', quizDate)
       .maybeSingle();
     if (raceRow && Array.isArray((raceRow as { questions?: unknown[] }).questions)) {
@@ -362,15 +603,17 @@ async function ensureTodayQuizSet(
     }
   }
 
-  // Record used question hashes so future days never reuse today's questions
-  const usedPayload = finalQuestions.map((q) => ({
+  // 7. Persist per-user history so future days never repeat these questions for this user
+  const histPayload = finalQuestions.map((q) => ({
+    user_id: userId,
     question_hash: q.hash,
     quiz_date: quizDate,
     category: q.category,
+    concept_key: q.conceptKey || buildTriviaConceptKey(q),
   }));
   await admin
-    .from('daily_trivia_used_questions')
-    .upsert(usedPayload, { onConflict: 'question_hash', ignoreDuplicates: true });
+    .from('daily_trivia_user_history')
+    .upsert(histPayload, { onConflict: 'user_id,question_hash', ignoreDuplicates: true });
 
   return { questions: finalQuestions, sourceMode };
 }
@@ -498,14 +741,14 @@ async function cancelAttemptAndRevokeRewards(
 function getCancelMessage(reason: string | null | undefined): string {
   switch (reason) {
     case 'page_reloaded':
-      return 'Yarışma devam ederken sayfa yenilendiği için güvenlik kuralları gereği yarışma otomatik olarak iptal edildi ve bu yarışmaya ait ödüller tanımlanmadı.';
+      return 'Yarışma devam ederken bağlantı/oturum kuralı ihlal edildiği için katılımınız iptal edildi.';
     case 'away_over_5s':
     case 'left_screen_over_5s':
-      return 'Yarışma ekranından ayrıldıktan sonra 5 saniye içinde geri dönülmediği için yarışma otomatik olarak iptal edildi ve bu yarışmaya ait ödüller tanımlanmadı.';
+      return 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
     case 'navigated_away':
-      return 'Yarışma ekranından çıkış yapıldığı için yarışma iptal edildi ve bu yarışmaya ait ödüller tanımlanmadı.';
+      return 'Yarışma ekranından çıkıldığı ve 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
     default:
-      return 'Güvenlik kuralları ihlal edildiği için yarışma iptal edildi ve bu yarışmaya ait ödüller verilmedi.';
+      return 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
   }
 }
 
@@ -676,7 +919,7 @@ Deno.serve(async (req) => {
     };
 
     const buildFinishPayload = async (a: Record<string, any>, pointsTotal: number) => {
-      const { questions: fullSet } = await ensureTodayQuizSet(admin, String(a.quiz_date));
+      const { questions: fullSet } = await ensureUserDailyQuizSet(admin, String(a.user_id), String(a.quiz_date));
       const { data: rows } = await admin
         .from('daily_trivia_answers')
         .select('question_index, selected_option, is_correct, xp_awarded')
@@ -704,7 +947,7 @@ Deno.serve(async (req) => {
      */
     const finalizeAttempt = async (timedOut: boolean) => {
       const att = attempt as Record<string, any>;
-      const { questions: fullSet } = await ensureTodayQuizSet(admin, String(att.quiz_date));
+      const { questions: fullSet } = await ensureUserDailyQuizSet(admin, String(att.user_id), String(att.quiz_date));
       const { data: rows } = await admin
         .from('daily_trivia_answers')
         .select('question_index, selected_option')
@@ -792,16 +1035,19 @@ Deno.serve(async (req) => {
 
     // ==================== ACTION: STATUS ====================
     if (action === 'status') {
-      const clientReloaded = Boolean(body.clientReloaded);
       if (attempt && attempt.status === 'in_progress') {
-        if (clientReloaded) {
-          const cancelled = await cancelAttemptAndRevokeRewards(admin, attempt, 'page_reloaded');
-          attempt = cancelled.attempt;
-        } else {
-          const away = await enforceServerAwayDeadline();
-          if (!away.cancelledNow && attempt && isAttemptExpired(attempt)) {
+        const away = await enforceServerAwayDeadline();
+        if (!away.cancelledNow && attempt) {
+          if (isAttemptExpired(attempt)) {
             // Süre dolmuş: kayıtlı cevaplarla otomatik sonuçlandır
             await finalizeAttempt(true);
+          } else if (attempt.leave_started_at) {
+            // 5 saniye içinde geri dönüldü / yenilendi: mevcut test, cevaplar ve kalan süre korunur
+            await admin
+              .from('daily_trivia_attempts')
+              .update({ leave_started_at: null })
+              .eq('id', attempt.id);
+            attempt.leave_started_at = null;
           }
         }
       }
@@ -818,7 +1064,7 @@ Deno.serve(async (req) => {
 
         let fullSet: StoredTriviaQuestion[] = [];
         if (attempt.status === 'in_progress' || attempt.status === 'completed') {
-          const setObj = await ensureTodayQuizSet(admin, quizDate);
+          const setObj = await ensureUserDailyQuizSet(admin, authUserId, quizDate);
           fullSet = setObj.questions;
           if (attempt.status === 'in_progress') {
             questions = sanitizeQuestions(fullSet);
@@ -867,7 +1113,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const { questions } = await ensureTodayQuizSet(admin, quizDate);
+      const { questions } = await ensureUserDailyQuizSet(admin, authUserId, quizDate);
 
       const { data: created, error: createErr } = await admin
         .from('daily_trivia_attempts')
@@ -1038,7 +1284,7 @@ Deno.serve(async (req) => {
         return json({ error: 'Geçersiz seçenek.' }, 400);
       }
 
-      const { questions } = await ensureTodayQuizSet(admin, quizDate);
+      const { questions } = await ensureUserDailyQuizSet(admin, authUserId, quizDate);
       const targetQuestion = questions[questionIndex];
       if (!targetQuestion) {
         return json({ error: 'Soru bulunamadı.' }, 404);

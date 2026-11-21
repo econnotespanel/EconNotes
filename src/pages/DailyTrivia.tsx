@@ -10,12 +10,15 @@ import {
   Crown,
   Flag,
   Flame,
+  Home,
   Loader2,
   LogIn,
+  MinusCircle,
   ShieldAlert,
   Sparkles,
   Timer,
   Trophy,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
@@ -39,6 +42,7 @@ import {
   clearActiveTriviaRunInSession,
   formatCountdownToIso,
   formatTriviaClock,
+  getDailyRenewalInfo,
   getTriviaUnlimitedRemainingLabel,
   invokeDailyTrivia,
   isTriviaUnlimitedActive,
@@ -121,7 +125,6 @@ export default function DailyTrivia() {
   const [finishing, setFinishing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [resetsAtIso, setResetsAtIso] = useState('');
   const [attempt, setAttempt] = useState<TriviaAttemptSummary | null>(null);
   const [questions, setQuestions] = useState<TriviaQuestionClient[]>([]);
   const [answers, setAnswers] = useState<TriviaAnswerRecord[]>([]);
@@ -210,7 +213,7 @@ export default function DailyTrivia() {
               cancelReason: reason,
               cancelMessage:
                 message ||
-                'Yarışma ekranından ayrıldıktan sonra 5 saniye içinde geri dönülmediği için yarışma otomatik olarak iptal edildi ve bu yarışmaya ait ödüller verilmedi.',
+                'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.',
               cancelledAt: new Date().toISOString(),
             }
           : prev,
@@ -303,7 +306,6 @@ export default function DailyTrivia() {
 
     syncClock(data.serverNowIso);
     setNowTick(Date.now());
-    setResetsAtIso(data.resetsAtIso);
     setAttempt(data.attempt);
     setQuestions(data.questions || []);
     setAnswers(data.answers || []);
@@ -322,7 +324,7 @@ export default function DailyTrivia() {
         window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
         toast.error(
           data.attempt.cancelMessage ||
-            'Sayfa yenilendiği için yarışma güvenlik kuralları gereği iptal edildi.',
+            'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.',
         );
       } else if (data.attempt?.status === 'completed' && data.attempt.timedOut && activeRunMarker) {
         window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
@@ -488,7 +490,6 @@ export default function DailyTrivia() {
 
     syncClock(data.serverNowIso);
     setNowTick(Date.now());
-    setResetsAtIso(data.resetsAtIso);
     setAttempt(data.attempt);
     setQuestions(data.questions || []);
     setAnswers([]);
@@ -684,9 +685,9 @@ export default function DailyTrivia() {
     return { active: true, remaining, expiresAtIso: untilIso };
   }, [unlimitedExpiresAt, attempt?.unlimitedExpiresAt, user, profile, nowTick]);
 
-  const midnightCountdown = useMemo(
-    () => formatCountdownToIso(resetsAtIso, new Date(nowTick)),
-    [resetsAtIso, nowTick],
+  const renewalInfo = useMemo(
+    () => getDailyRenewalInfo(new Date(nowTick + clockOffsetMs)),
+    [nowTick, clockOffsetMs],
   );
 
   const answeredCount = Object.keys(selected).length;
@@ -849,14 +850,14 @@ export default function DailyTrivia() {
         {/* ==================== 1. LOBBY (NOT STARTED YET) ==================== */}
         {!errorMsg && !attempt && (
           <Card className="overflow-hidden rounded-3xl border-border/75 bg-card/95 shadow-xl">
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0070d1] px-6 py-10 text-center text-white sm:px-10 sm:py-14">
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0070d1] px-6 py-8 text-center text-white sm:px-10 sm:py-11">
               <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-cyan-400/25 blur-3xl" />
               <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-amber-400/15 blur-3xl" />
-              <div className="relative z-10 space-y-4">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md">
-                  <Trophy className="h-8 w-8 text-amber-300" />
+              <div className="relative z-10 space-y-3.5">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-inner backdrop-blur-md">
+                  <Trophy className="h-7 w-7 text-amber-300" />
                 </div>
-                <h1 className="text-2xl font-extrabold tracking-tight sm:text-4xl">
+                <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
                   Günlük Genel Kültür Bilgi Yarışması
                 </h1>
                 <p className="mx-auto max-w-md text-sm leading-relaxed text-blue-100 sm:text-base">
@@ -865,7 +866,7 @@ export default function DailyTrivia() {
               </div>
             </div>
 
-            <CardContent className="space-y-6 p-6 sm:p-8">
+            <CardContent className="space-y-5 p-5 sm:p-7">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
                 <div className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/25 px-3 py-3.5 text-center sm:flex-col sm:gap-1 sm:py-4">
                   <span className="text-xl font-extrabold tabular-nums text-foreground sm:text-2xl">15 Soru</span>
@@ -1208,28 +1209,32 @@ export default function DailyTrivia() {
 
             {/* 5-Second Away Countdown Lock Overlay */}
             {awayActive && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md">
-                <div className="w-full max-w-md space-y-4 rounded-3xl border-2 border-rose-500/60 bg-card p-6 text-center shadow-2xl">
-                  <div className="mx-auto flex h-16 w-16 animate-pulse items-center justify-center rounded-2xl bg-rose-500/15 text-rose-500">
-                    <ShieldAlert className="h-8 w-8" />
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#001d52]/75 p-4 backdrop-blur-md">
+                <div className="w-full max-w-md overflow-hidden rounded-3xl border border-border/80 bg-card text-center shadow-2xl">
+                  <div className="bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0055b8] px-6 py-5 text-white">
+                    <div className="mx-auto mb-2.5 flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl border border-rose-300/35 bg-rose-500/20 text-rose-100">
+                      <ShieldAlert className="h-6 w-6" />
+                    </div>
+                    <h2 className="text-lg font-extrabold tracking-tight">
+                      Yarışma Ekranından Ayrıldınız
+                    </h2>
                   </div>
-                  <h2 className="text-xl font-extrabold text-foreground">
-                    Yarışma Ekranından Ayrıldınız!
-                  </h2>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    Güvenlik kuralları gereği 5 saniye içinde yarışma ekranına geri dönmezseniz
-                    yarışma otomatik olarak iptal edilecek ve ödüller verilmeyecektir.
-                  </p>
-                  <div className="font-mono text-4xl font-black tabular-nums text-rose-500">
-                    {(awayRemainingMs / 1000).toFixed(1)} sn
+                  <div className="space-y-4 p-6">
+                    <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                      5 saniye içerisinde yarışma ekranına geri dönmezseniz katılımınız iptal
+                      edilecek ve bu yarışma için XP veya ödül kazanılamayacaktır.
+                    </p>
+                    <div className="font-mono text-4xl font-black tabular-nums text-rose-600 dark:text-rose-400">
+                      {(awayRemainingMs / 1000).toFixed(1)} sn
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => window.focus()}
+                      className="h-11 w-full rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] font-extrabold text-white hover:opacity-95"
+                    >
+                      Yarışmaya Geri Dön
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    onClick={() => window.focus()}
-                    className="w-full rounded-xl bg-rose-600 text-white hover:bg-rose-700"
-                  >
-                    Yarışmaya Geri Dön
-                  </Button>
                 </div>
               </div>
             )}
@@ -1238,37 +1243,65 @@ export default function DailyTrivia() {
 
         {/* ==================== 3. CANCELLED SCREEN ==================== */}
         {!errorMsg && attempt?.status === 'cancelled' && (
-          <Card className="overflow-hidden rounded-3xl border-2 border-rose-500/40 bg-card shadow-xl">
-            <CardContent className="space-y-5 p-6 text-center sm:p-8">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-500">
-                <ShieldAlert className="h-8 w-8" />
+          <Card className="overflow-hidden rounded-3xl border-border/75 bg-card/95 shadow-xl">
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0055b8] px-5 py-7 text-center text-white sm:px-8 sm:py-8">
+              <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-rose-400/20 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
+              <div className="relative z-10 flex flex-col items-center space-y-3">
+                <div className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
+                  <EconLogo onDark className="h-4 w-auto" />
+                </div>
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-300/40 bg-rose-500/20 text-rose-100 shadow-inner backdrop-blur-md">
+                  <ShieldAlert className="h-7 w-7" />
+                </div>
+                <div className="space-y-1.5">
+                  <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+                    Yarışma İptal Edildi
+                  </h1>
+                  <p className="mx-auto max-w-md text-xs leading-relaxed text-blue-100/95 sm:text-sm">
+                    {attempt.cancelMessage ||
+                      'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.'}
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Badge variant="destructive" className="rounded-full px-3 py-0.5 text-xs">
-                  Yarışma İptal Edildi
-                </Badge>
-                <h1 className="text-xl font-extrabold text-foreground sm:text-2xl">
-                  Bugünkü Yarışma Güvenlik Kuralı Nedeniyle Sonlandırıldı
-                </h1>
-                <p className="mx-auto max-w-lg text-sm leading-relaxed text-muted-foreground">
-                  {attempt.cancelMessage ||
-                    'Yarışma ekranından ayrıldıktan sonra 5 saniye içinde geri dönülmediği veya sayfa yenilendiği için yarışma otomatik olarak iptal edildi ve bu yarışmaya ait ödüller verilmedi.'}
-                </p>
-              </div>
+            </div>
 
-              <div className="mx-auto flex max-w-sm items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-                <Clock className="h-4 w-4 text-primary" />
-                <span>
-                  Yeni 15 soruluk yarışmaya:{' '}
-                  <strong className="font-mono text-foreground">{midnightCountdown}</strong>
+            <CardContent className="space-y-4 p-5 sm:space-y-5 sm:p-7">
+              <div className="flex flex-col items-center justify-between gap-2 rounded-2xl border border-rose-500/25 bg-rose-500/[0.06] px-5 py-4 text-center sm:flex-row sm:text-left">
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-rose-600/85 dark:text-rose-400">
+                    Ödül Durumu
+                  </p>
+                  <p className="text-sm font-semibold text-foreground">
+                    Bu yarışma için XP ve ödül kazanılamadı.
+                  </p>
+                </div>
+                <span className="inline-flex shrink-0 items-center rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-1.5 text-lg font-black tabular-nums text-rose-600 dark:text-rose-400">
+                  0 XP
                 </span>
               </div>
 
-              <div className="flex flex-wrap justify-center gap-2.5 pt-1">
-                <Button variant="outline" onClick={() => navigate('/')} className="rounded-xl">
+              <div className="flex items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.05] px-4 py-3 text-xs font-semibold text-foreground sm:text-sm">
+                <Clock className="h-4 w-4 shrink-0 text-primary" />
+                <span className="tabular-nums">{renewalInfo.label}</span>
+              </div>
+
+              <div className="flex flex-col gap-2.5 pt-1 sm:flex-row sm:justify-center">
+                <Button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="h-11 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] px-6 font-extrabold text-white shadow-md shadow-primary/20 hover:opacity-95 sm:w-auto sm:min-w-[200px]"
+                >
+                  <Home className="h-4 w-4" />
                   Ana Sayfaya Dön
                 </Button>
-                <Button onClick={() => navigate('/notes')} className="rounded-xl">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/notes')}
+                  className="h-11 w-full gap-2 rounded-2xl px-5 font-semibold sm:w-auto"
+                >
+                  <BookOpen className="h-4 w-4 text-primary" />
                   Ders Notlarına Git
                 </Button>
               </div>
@@ -1280,93 +1313,168 @@ export default function DailyTrivia() {
         {!errorMsg && attempt?.status === 'completed' && (
           <Card
             className={cn(
-              'overflow-hidden rounded-3xl shadow-xl',
+              'overflow-hidden rounded-3xl bg-card/95 shadow-xl',
               attempt.grandPrizeAwarded
-                ? 'border-2 border-amber-500/50 bg-card'
-                : 'border-border/75 bg-card',
+                ? 'border-2 border-amber-400/55'
+                : 'border-border/75',
             )}
           >
             <div
               className={cn(
-                'p-6 text-center text-white sm:p-8',
+                'relative overflow-hidden px-5 py-6 text-center text-white sm:px-8 sm:py-8',
                 attempt.grandPrizeAwarded
-                  ? 'bg-gradient-to-br from-amber-500 via-orange-500 to-[#003791]'
+                  ? 'bg-gradient-to-br from-[#001d52] via-[#003791] to-amber-500'
                   : 'bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0070d1]',
               )}
             >
-              <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-md">
-                {attempt.grandPrizeAwarded ? (
-                  <Crown className="h-9 w-9 text-amber-200" />
-                ) : (
-                  <Trophy className="h-8 w-8 text-cyan-200" />
-                )}
+              <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/25 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-amber-400/20 blur-3xl" />
+              <div className="relative z-10 flex flex-col items-center space-y-3">
+                <div className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 backdrop-blur-md">
+                  <EconLogo onDark className="h-4 w-auto" />
+                </div>
+                <div
+                  className={cn(
+                    'flex h-14 w-14 items-center justify-center rounded-2xl border shadow-inner backdrop-blur-md',
+                    attempt.grandPrizeAwarded
+                      ? 'border-amber-200/45 bg-amber-400/25 text-amber-200'
+                      : 'border-white/25 bg-white/15 text-cyan-200',
+                  )}
+                >
+                  {attempt.grandPrizeAwarded ? (
+                    <Crown className="h-7 w-7" />
+                  ) : (
+                    <Trophy className="h-7 w-7" />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+                    {attempt.grandPrizeAwarded
+                      ? '15/15 Mükemmel Başarı!'
+                      : attempt.timedOut
+                      ? 'Süre Doldu'
+                      : 'Yarışma Tamamlandı'}
+                  </h1>
+                  <p className="mx-auto max-w-md text-xs leading-relaxed text-blue-100/95 sm:text-sm">
+                    {attempt.grandPrizeAwarded
+                      ? 'Tüm soruları doğru bildin! 375 XP ve 2 saatlik sınırsız not erişimi kazandın.'
+                      : attempt.timedOut
+                      ? 'Süre dolduğunda kaydedilmiş cevapların değerlendirildi.'
+                      : 'Bugünkü 15 soruluk genel kültür yarışmasını tamamladın.'}
+                  </p>
+                </div>
               </div>
-              <h1 className="text-2xl font-extrabold sm:text-3xl">
-                {attempt.grandPrizeAwarded
-                  ? 'Efsane! 15/15 Tam Puan!'
-                  : attempt.timedOut
-                  ? 'Süre Doldu'
-                  : 'Yarışma Tamamlandı'}
-              </h1>
-              <p className="mt-1.5 text-xs text-white/90 sm:text-sm">
-                {attempt.grandPrizeAwarded
-                  ? '375 XP ve 2 saatlik sınırsız not erişimi kazandın!'
-                  : attempt.timedOut
-                  ? 'Süre dolduğunda kaydedilmiş cevapların değerlendirildi.'
-                  : `${resultCorrect} doğru cevabınla ${attempt.xpEarned} XP kazandın.`}
-              </p>
             </div>
 
-            <CardContent className="space-y-5 p-6">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4 text-center">
-                  <p className="text-xs text-muted-foreground">Doğru</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
-                    {resultCorrect}
+            <CardContent className="space-y-4 p-5 sm:space-y-5 sm:p-7">
+              {/* Prominent Earned XP Showcase */}
+              <div
+                className={cn(
+                  'flex flex-col items-center justify-between gap-3 rounded-2xl border px-5 py-4 text-center sm:flex-row sm:px-6 sm:text-left',
+                  attempt.grandPrizeAwarded
+                    ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/[0.12] via-[#003791]/[0.06] to-amber-500/10'
+                    : 'border-primary/25 bg-gradient-to-r from-[#003791]/[0.08] via-[#0055b8]/[0.05] to-cyan-500/[0.08]',
+                )}
+              >
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-primary/80">
+                    Kazanılan XP
+                  </p>
+                  <p className="mt-0.5 text-3xl font-black tracking-tight tabular-nums text-primary sm:text-4xl">
+                    +{attempt.xpEarned} XP
                   </p>
                 </div>
-                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/[0.06] p-4 text-center">
-                  <p className="text-xs text-muted-foreground">Yanlış</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-rose-600 dark:text-rose-400">
-                    {resultWrong}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/70 bg-muted/25 p-4 text-center">
-                  <p className="text-xs text-muted-foreground">Boş</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{resultBlank}</p>
-                </div>
-                <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-4 text-center">
-                  <p className="text-xs text-muted-foreground">Kazanılan XP</p>
-                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-primary">+{attempt.xpEarned}</p>
+
+                <div className="flex flex-col items-center gap-1.5 sm:items-end">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-background/80 px-3 py-1 text-xs font-semibold tabular-nums text-foreground">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                    {resultCorrect} doğru × {TRIVIA_XP_PER_CORRECT} XP
+                  </span>
+                  {attempt.grandPrizeAwarded && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300">
+                      <Crown className="h-3.5 w-3.5" />
+                      2 Saatlik Sınırsız Not Erişimi Aktif
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {attempt.grandPrizeAwarded && (
-                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-center text-sm font-bold text-amber-700 dark:text-amber-300">
-                  Büyük ödül: 2 saatlik sınırsız not erişimi aktif
+              {/* Balanced Correct / Wrong / Blank Stat Cards */}
+              <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.07] px-3 py-3.5 text-center">
+                  <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <p className="text-2xl font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                    {resultCorrect}
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
+                    Doğru
+                  </p>
                 </div>
-              )}
 
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-muted-foreground">Soru Özeti</p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/[0.06] px-3 py-3.5 text-center">
+                  <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                    <XCircle className="h-4 w-4" />
+                  </div>
+                  <p className="text-2xl font-black tabular-nums text-rose-600 dark:text-rose-400">
+                    {resultWrong}
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
+                    Yanlış
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-border/75 bg-muted/30 px-3 py-3.5 text-center">
+                  <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <MinusCircle className="h-4 w-4" />
+                  </div>
+                  <p className="text-2xl font-black tabular-nums text-foreground">
+                    {resultBlank}
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
+                    Boş
+                  </p>
+                </div>
+              </div>
+
+              {/* 1-15 Question-by-Question Answer Summary */}
+              <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-extrabold text-foreground">Soru Bazında Cevap Özeti</p>
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Doğru
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-rose-500" /> Yanlış
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm border border-dashed border-muted-foreground" /> Boş
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-5 gap-2 sm:grid-cols-[repeat(15,minmax(0,1fr))] sm:gap-1.5">
                   {Array.from({ length: TRIVIA_TOTAL_QUESTIONS }).map((_, idx) => {
                     const rec = answers.find((a) => a.questionIndex === idx);
                     const state = !rec ? 'blank' : rec.isCorrect ? 'correct' : 'wrong';
+                    const stateLabel =
+                      state === 'correct' ? 'Doğru (+25 XP)' : state === 'wrong' ? 'Yanlış' : 'Boş';
                     return (
                       <span
                         key={idx}
+                        aria-label={`Soru ${idx + 1}: ${stateLabel}`}
+                        title={`Soru ${idx + 1}: ${stateLabel}`}
                         className={cn(
-                          'inline-flex h-8 w-8 items-center justify-center rounded-xl border text-xs font-bold',
+                          'flex h-9 items-center justify-center rounded-xl border text-xs font-extrabold tabular-nums sm:h-8',
                           state === 'correct' &&
-                            'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+                            'border-emerald-500/45 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
                           state === 'wrong' &&
-                            'border-rose-500/40 bg-rose-500/15 text-rose-600 dark:text-rose-400',
-                          state === 'blank' && 'border-dashed border-border bg-muted/30 text-muted-foreground',
+                            'border-rose-500/45 bg-rose-500/15 text-rose-700 dark:text-rose-300',
+                          state === 'blank' &&
+                            'border-dashed border-border bg-background/80 text-muted-foreground',
                         )}
-                        title={`Soru ${idx + 1}: ${
-                          state === 'correct' ? 'Doğru (+25 XP)' : state === 'wrong' ? 'Yanlış' : 'Boş'
-                        }`}
                       >
                         {idx + 1}
                       </span>
@@ -1375,22 +1483,39 @@ export default function DailyTrivia() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/25 px-4 py-3 text-xs text-muted-foreground">
-                <Clock className="h-4 w-4 text-primary" />
-                <span>
-                  Yarının 15 yeni sorusuna:{' '}
-                  <strong className="font-mono text-foreground">{midnightCountdown}</strong>
-                </span>
+              {/* Next Daily Quiz Renewal Countdown */}
+              <div className="flex items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.05] px-4 py-3 text-xs font-semibold text-foreground sm:text-sm">
+                <Clock className="h-4 w-4 shrink-0 text-primary" />
+                <span className="tabular-nums">{renewalInfo.label}</span>
               </div>
 
-              <div className="flex flex-wrap justify-center gap-2.5">
-                <Button variant="outline" onClick={() => navigate('/points')} className="gap-1.5 rounded-xl">
+              {/* Unified Action Row */}
+              <div className="flex flex-col gap-2.5 pt-1 sm:flex-row sm:justify-center">
+                <Button
+                  type="button"
+                  onClick={() => navigate('/notes')}
+                  className="h-11 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] px-5 font-extrabold text-white shadow-md shadow-primary/20 hover:opacity-95 sm:w-auto"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  {attempt.grandPrizeAwarded ? 'Sınırsız Notlara Git' : 'Ders Notlarına Git'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/points')}
+                  className="h-11 w-full gap-2 rounded-2xl px-5 font-semibold sm:w-auto"
+                >
                   <Sparkles className="h-4 w-4 text-primary" />
                   Puan Geçmişim
                 </Button>
-                <Button onClick={() => navigate('/notes')} className="gap-1.5 rounded-xl">
-                  <BookOpen className="h-4 w-4" />
-                  {attempt.grandPrizeAwarded ? 'Sınırsız Notlara Git' : 'Ders Notlarına Git'}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/')}
+                  className="h-11 w-full gap-2 rounded-2xl px-5 font-semibold sm:w-auto"
+                >
+                  <Home className="h-4 w-4" />
+                  Ana Sayfaya Dön
                 </Button>
               </div>
             </CardContent>

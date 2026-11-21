@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Crown, Trophy, X } from 'lucide-react';
+import { Clock, Crown, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { isTriviaUnlimitedActive } from '@/lib/dailyTrivia';
+import {
+  getDailyRenewalInfo,
+  getTriviaUnlimitedRemainingLabel,
+  isTriviaUnlimitedActive,
+} from '@/lib/dailyTrivia';
 import { cn } from '@/lib/utils';
 
 /**
- * Bağımsız Günlük Genel Kültür Bilgi Yarışması hızlı başlatıcı kutusu.
- * Herhangi bir mevcut menüye veya sekmeye bağlı olmadan yalnızca ana sayfada
- * (Pazartesi Şans Çarkı kutusunun hemen üzerinde, çakışmadan) görünür.
+ * Bağımsız Günlük Genel Kültür Bilgi Yarışması hızlı başlatıcı bildirimi.
+ * Pazartesi Şans Çarkı bildirimiyle aynı modern tasarım dilini ve gerçek zamanlı
+ * günlük yenilenme geri sayımını paylaşır; yalnızca ana sayfada görünür.
  */
 const DailyTriviaLauncher = () => {
   const { user, profile } = useAuth();
@@ -16,7 +20,7 @@ const DailyTriviaLauncher = () => {
   const location = useLocation();
   const [dismissed, setDismissed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [, setTick] = useState(0);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   useEffect(() => {
     const handleSidebarState = (e: Event) => {
@@ -25,7 +29,7 @@ const DailyTriviaLauncher = () => {
         setIsSidebarOpen(customEvent.detail.open);
       }
     };
-    const handleTriviaUpdated = () => setTick((t) => t + 1);
+    const handleTriviaUpdated = () => setNowTick(Date.now());
     window.addEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
     window.addEventListener('econnotes:trivia-updated', handleTriviaUpdated);
     return () => {
@@ -34,20 +38,25 @@ const DailyTriviaLauncher = () => {
     };
   }, []);
 
-  const unlimitedActive = isTriviaUnlimitedActive(user, profile as any);
-
+  // Real-time countdown aligned to canonical Europe/Istanbul midnight renewal (never resets on refresh)
   useEffect(() => {
-    if (!unlimitedActive) return;
-    const id = window.setInterval(() => setTick((t) => t + 1), 15_000);
+    const id = window.setInterval(() => setNowTick(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, [unlimitedActive]);
+  }, []);
 
   if (!user || dismissed || location.pathname !== '/') return null;
+
+  const nowDate = new Date(nowTick);
+  const unlimitedActive = isTriviaUnlimitedActive(user, profile as any, nowDate);
+  const unlimitedLabel = unlimitedActive
+    ? getTriviaUnlimitedRemainingLabel(user, profile as any, nowDate)
+    : '';
+  const renewal = getDailyRenewalInfo(nowDate);
 
   return (
     <div
       className={cn(
-        'fixed bottom-[calc(env(safe-area-inset-bottom,0px)+10.35rem)] right-3.5 z-30 md:bottom-[5.95rem] md:right-5 items-center',
+        'fixed bottom-[calc(env(safe-area-inset-bottom,0px)+10.35rem)] right-3.5 z-30 md:bottom-[5.95rem] md:right-5 items-center max-w-[calc(100vw-1.75rem)]',
         isSidebarOpen ? 'hidden md:flex' : 'flex',
       )}
     >
@@ -65,7 +74,7 @@ const DailyTriviaLauncher = () => {
         <button
           type="button"
           onClick={() => navigate('/gunluk-yarisma')}
-          className="relative z-10 flex items-center gap-3 text-left focus:outline-none"
+          className="relative z-10 flex min-w-0 items-center gap-3 text-left focus:outline-none"
         >
           <div
             className={cn(
@@ -80,9 +89,15 @@ const DailyTriviaLauncher = () => {
           </div>
 
           <div className="min-w-0 pr-0.5">
-            <span className="block whitespace-nowrap text-[13px] font-extrabold tracking-tight text-white">
+            <span className="block truncate whitespace-nowrap text-[13px] font-extrabold tracking-tight text-white">
               Günlük Bilgi Yarışması
             </span>
+            <p className="mt-0.5 flex items-center gap-1 whitespace-nowrap text-[11px] font-medium text-blue-100/90 tabular-nums">
+              <Clock className="h-3 w-3 shrink-0 text-cyan-300" />
+              <span className="truncate">
+                {unlimitedActive && unlimitedLabel ? `Sınırsız Not: ${unlimitedLabel}` : renewal.label}
+              </span>
+            </p>
           </div>
         </button>
 
