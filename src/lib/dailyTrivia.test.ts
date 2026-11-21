@@ -4,17 +4,22 @@ import {
   TRIVIA_CATEGORIES,
 } from '@/lib/dailyTriviaQuestionBank';
 import {
+  flushPendingTriviaWrites,
   getIstanbulDateParts,
+  recordFallbackLeaveLocally,
   resetFallbackEngineMemory,
   runDailyTriviaSupabaseEngine,
   selectDailyQuestionsForDate,
 } from '@/lib/dailyTriviaFallbackEngine';
 import {
+  formatTriviaClock,
   invokeDailyTrivia,
   resetDailyTriviaTransportState,
+  TRIVIA_TIME_LIMIT_MS,
   TRIVIA_TOTAL_QUESTIONS,
   TRIVIA_XP_PER_CORRECT,
   type TriviaAnswerResponse,
+  type TriviaFinishResponse,
   type TriviaStartResponse,
   type TriviaStatusResponse,
 } from '@/lib/dailyTrivia';
@@ -109,7 +114,7 @@ vi.mock('@/integrations/supabase/client', () => ({
   },
 }));
 
-describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
+describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Changes, XP & Anti-Cheat)', () => {
   beforeEach(() => {
     mockState.userMeta = {};
     mockState.points = 100;
@@ -120,6 +125,14 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
     resetDailyTriviaTransportState();
     localStorage.clear();
     sessionStorage.clear();
+  });
+
+  it('formats countdown clocks accurately from 15:00 down to 00:00', () => {
+    expect(formatTriviaClock(TRIVIA_TIME_LIMIT_MS)).toBe('15:00');
+    expect(formatTriviaClock(2 * 60 * 1000)).toBe('02:00');
+    expect(formatTriviaClock(5_000)).toBe('00:05');
+    expect(formatTriviaClock(0)).toBe('00:00');
+    expect(formatTriviaClock(-1000)).toBe('00:00');
   });
 
   it('selects 15 balanced unique questions across all 8 domains with zero repeats across consecutive days', () => {
@@ -141,7 +154,7 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
     expect(used.size).toBe(7 * 15);
   });
 
-  it('recovers automatically when Edge Function returns 404/CORS error and loads status + 15 questions', async () => {
+  it('recovers automatically when Edge Function returns 404/CORS error and starts a 15-minute server-timed run', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -161,6 +174,12 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
     expect(startRes.error).toBeNull();
     expect(startRes.data?.questions).toHaveLength(15);
     expect(startRes.data?.attempt.status).toBe('in_progress');
+    expect(startRes.data?.attempt.timeLimitSec).toBe(900);
+    expect(startRes.data?.attempt.deadlineAt).toBeTruthy();
+
+    const diffMs =
+      Date.parse(startRes.data!.attempt.deadlineAt!) - Date.parse(startRes.data!.attempt.startedAt);
+    expect(diffMs).toBe(TRIVIA_TIME_LIMIT_MS);
     // Ensure answer keys are never exposed in client questions
     expect((startRes.data?.questions[0] as unknown as Record<string, unknown>).correctIndex).toBeUndefined();
   });
@@ -172,7 +191,76 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
     expect(res.error).toContain('Sunucuya bağlanılamadı');
   });
 
-  it('awards 350 XP for 14/15 without grand prize, and prevents duplicate answers or second daily play', async () => {
+  it('supports free non-linear navigation, changing previous answers, blank questions, and idempotent finish', async () => {
+    await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
+    const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
+    const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
+
+    // Answer Q5 first (wrong), Q0 second (wrong), Q14 third (correct)
+    const q5 = bankMap.get(stored.questionIds[5])!;
+    const q0 = bankMap.get(stored.questionIds[0])!;
+    const q14 = bankMap.get(stored.questionIds[14])!;
+
+    const a5 = await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 5,
+      selectedOption: (q5.correctIndex + 1) % 4,
+    });
+    expect(a5.error).toBeNull();
+    expect(a5.data?.saved).toBe(true);
+    expect(a5.data?.answeredCount).toBe(1);
+    // Must NOT leak isCorrect while quiz is in progress
+    expect((a5.data as unknown as Record<string, unknown>).isCorrect).toBeUndefined();
+
+    await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 0,
+      selectedOption: (q0.correctIndex + 1) % 4,
+    });
+    await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 14,
+      selectedOption: q14.correctIndex,
+    });
+
+    // Return to Q0 and change answer to the correct option
+    const changedQ0 = await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 0,
+      selectedOption: q0.correctIndex,
+    });
+    expect(changedQ0.error).toBeNull();
+    expect(changedQ0.data?.selectedOption).toBe(q0.correctIndex);
+    // Answered count stays 3 (overwrote Q0 rather than duplicating)
+    expect(changedQ0.data?.answeredCount).toBe(3);
+
+    await flushPendingTriviaWrites(mockState.userId);
+
+    // Finish explicitly -> Q0 correct, Q14 correct, Q5 wrong, 12 blank
+    const fin = await runDailyTriviaSupabaseEngine<TriviaFinishResponse>({
+      action: 'finish',
+      timedOut: false,
+    });
+    expect(fin.error).toBeNull();
+    expect(fin.data?.attempt.status).toBe('completed');
+    expect(fin.data?.correctCount).toBe(2);
+    expect(fin.data?.wrongCount).toBe(1);
+    expect(fin.data?.blankCount).toBe(12);
+    expect(fin.data?.xpEarned).toBe(50);
+    expect(fin.data?.grandPrizeAwarded).toBe(false);
+    expect(mockState.points).toBe(150);
+
+    // Calling finish a second time must be idempotent and never double-credit XP
+    const fin2 = await runDailyTriviaSupabaseEngine<TriviaFinishResponse>({
+      action: 'finish',
+      timedOut: false,
+    });
+    expect(fin2.error).toBeNull();
+    expect(fin2.data?.xpEarned).toBe(50);
+    expect(mockState.points).toBe(150);
+  });
+
+  it('awards 350 XP for 14/15 without grand prize and blocks second daily play', async () => {
     const startRes = await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
     expect(startRes.data).not.toBeNull();
 
@@ -184,24 +272,28 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
     const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
     const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
 
-    let lastAns: TriviaAnswerResponse | null = null;
     for (let i = 0; i < 15; i++) {
       const q = bankMap.get(stored.questionIds[i])!;
-      const chosen = i === 14 ? ((q.correctIndex + 1) % 4) : q.correctIndex; // 14 correct, 1 wrong
+      const chosen = i === 14 ? (q.correctIndex + 1) % 4 : q.correctIndex; // 14 correct, 1 wrong
       const ansRes = await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
         action: 'answer',
         questionIndex: i,
         selectedOption: chosen,
       });
       expect(ansRes.error).toBeNull();
-      lastAns = ansRes.data;
     }
 
-    expect(lastAns?.completed).toBe(true);
-    expect(lastAns?.correctCount).toBe(14);
-    expect(lastAns?.totalXpEarned).toBe(14 * TRIVIA_XP_PER_CORRECT);
-    expect(lastAns?.grandPrizeAwarded).toBe(false);
-    expect(lastAns?.unlimitedExpiresAt).toBeNull();
+    const finRes = await runDailyTriviaSupabaseEngine<TriviaFinishResponse>({
+      action: 'finish',
+      timedOut: false,
+    });
+    expect(finRes.error).toBeNull();
+    expect(finRes.data?.correctCount).toBe(14);
+    expect(finRes.data?.wrongCount).toBe(1);
+    expect(finRes.data?.blankCount).toBe(0);
+    expect(finRes.data?.xpEarned).toBe(14 * TRIVIA_XP_PER_CORRECT);
+    expect(finRes.data?.grandPrizeAwarded).toBe(false);
+    expect(finRes.data?.unlimitedExpiresAt).toBeNull();
     expect(mockState.points).toBe(100 + 350);
     expect(mockState.rpcCalls).toHaveLength(14);
     expect(mockState.rpcCalls[0].reason).toBe(`mission_trivia_${dateStr.replace(/-/g, '')}_q01`);
@@ -212,7 +304,6 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
     const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
     const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
 
-    let lastAns: TriviaAnswerResponse | null = null;
     for (let i = 0; i < 15; i++) {
       const q = bankMap.get(stored.questionIds[i])!;
       const ansRes = await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
@@ -221,22 +312,73 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
         selectedOption: q.correctIndex,
       });
       expect(ansRes.error).toBeNull();
-      lastAns = ansRes.data;
     }
 
-    expect(lastAns?.completed).toBe(true);
-    expect(lastAns?.correctCount).toBe(15);
-    expect(lastAns?.totalXpEarned).toBe(375);
-    expect(lastAns?.grandPrizeAwarded).toBe(true);
-    expect(lastAns?.unlimitedExpiresAt).toBeTruthy();
-    const diffMs = Date.parse(lastAns!.unlimitedExpiresAt!) - Date.now();
+    const finRes = await runDailyTriviaSupabaseEngine<TriviaFinishResponse>({
+      action: 'finish',
+      timedOut: false,
+    });
+    expect(finRes.error).toBeNull();
+    expect(finRes.data?.correctCount).toBe(15);
+    expect(finRes.data?.wrongCount).toBe(0);
+    expect(finRes.data?.blankCount).toBe(0);
+    expect(finRes.data?.xpEarned).toBe(375);
+    expect(finRes.data?.grandPrizeAwarded).toBe(true);
+    expect(finRes.data?.unlimitedExpiresAt).toBeTruthy();
+    const diffMs = Date.parse(finRes.data!.unlimitedExpiresAt!) - Date.now();
     expect(diffMs).toBeGreaterThan(119 * 60 * 1000);
     expect(diffMs).toBeLessThanOrEqual(121 * 60 * 1000);
     expect(mockState.points).toBe(100 + 375);
     expect(mockState.userMeta.trivia_perfect_wins).toBe(1);
   });
 
-  it('cancels active run on page reload and grants ZERO XP or rewards', async () => {
+  it('auto-finalizes with saved answers when the 15-minute server timer expires (and never resets timer)', async () => {
+    await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
+    const stored = mockState.userMeta.daily_trivia_state as {
+      questionIds: string[];
+      startedAt: string;
+    };
+    const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
+
+    // Save 3 correct answers before timeout
+    for (let i = 0; i < 3; i++) {
+      const q = bankMap.get(stored.questionIds[i])!;
+      await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+        action: 'answer',
+        questionIndex: i,
+        selectedOption: q.correctIndex,
+      });
+    }
+    await flushPendingTriviaWrites(mockState.userId);
+
+    // Verify status does not reset startedAt / deadlineAt
+    const midStatus = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({ action: 'status' });
+    expect(midStatus.data?.attempt?.startedAt).toBe(stored.startedAt);
+    expect(midStatus.data?.attempt?.status).toBe('in_progress');
+
+    // Simulate 16 minutes elapsed on server timestamp
+    const expiredStartedAt = new Date(Date.now() - 16 * 60 * 1000).toISOString();
+    const curState = mockState.userMeta.daily_trivia_state as Record<string, unknown>;
+    mockState.userMeta.daily_trivia_state = { ...curState, startedAt: expiredStartedAt };
+    resetFallbackEngineMemory();
+    localStorage.clear();
+
+    const lateAns = await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 4,
+      selectedOption: 0,
+    });
+    expect(lateAns.error).toBeNull();
+    expect(lateAns.data?.saved).toBe(false);
+    expect(lateAns.data?.timedOut).toBe(true);
+    expect(lateAns.data?.final?.attempt.status).toBe('completed');
+    expect(lateAns.data?.final?.correctCount).toBe(3);
+    expect(lateAns.data?.final?.blankCount).toBe(12);
+    expect(lateAns.data?.final?.xpEarned).toBe(75);
+    expect(mockState.points).toBe(175);
+  });
+
+  it('cancels active run on page reload or >5s away and grants ZERO XP or rewards', async () => {
     await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
     const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
     const bankMap = new Map(CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
@@ -250,6 +392,7 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
         selectedOption: q.correctIndex,
       });
     }
+    await flushPendingTriviaWrites(mockState.userId);
 
     // Simulate reload -> status with clientReloaded: true
     const reloaded = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({
@@ -260,6 +403,10 @@ describe('Daily Trivia Backend Resilience, XP & Anti-Cheat Engine', () => {
     expect(reloaded.data?.attempt?.xpEarned).toBe(0);
     expect(reloaded.data?.attempt?.grandPrizeAwarded).toBe(false);
     expect(mockState.rpcCalls).toHaveLength(0);
+    expect(mockState.points).toBe(100);
+
+    // Also verify leave timestamp helper works cleanly
+    recordFallbackLeaveLocally(mockState.userId);
     expect(mockState.points).toBe(100);
   });
 });

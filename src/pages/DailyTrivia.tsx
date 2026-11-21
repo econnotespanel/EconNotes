@@ -4,25 +4,31 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  Award,
   BookOpen,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Clock,
   Crown,
+  Flag,
   Flame,
   Loader2,
-  Lock,
   LogIn,
   ShieldAlert,
-  ShieldCheck,
   Sparkles,
+  Timer,
   Trophy,
-  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -32,6 +38,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   clearActiveTriviaRunInSession,
   formatCountdownToIso,
+  formatTriviaClock,
   getTriviaUnlimitedRemainingLabel,
   invokeDailyTrivia,
   isTriviaUnlimitedActive,
@@ -40,14 +47,16 @@ import {
   sendDailyTriviaBeacon,
   syncTriviaUnlimitedUntil,
   TRIVIA_LEAVE_LIMIT_MS,
+  TRIVIA_TIME_LIMIT_MS,
   TRIVIA_TOTAL_QUESTIONS,
-  TRIVIA_XP_LADDER,
+  TRIVIA_WARNING_MS,
   TRIVIA_XP_PER_CORRECT,
   type TriviaAnswerRecord,
   type TriviaAnswerResponse,
   type TriviaAttemptSummary,
   type TriviaCategory,
   type TriviaDifficulty,
+  type TriviaFinishResponse,
   type TriviaQuestionClient,
   type TriviaReturnResponse,
   type TriviaStartResponse,
@@ -56,6 +65,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'] as const;
+const FLAGS_STORAGE_PREFIX = 'econnotes_trivia_flags_';
 
 const CATEGORY_STYLES: Record<TriviaCategory, string> = {
   Tarih: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300',
@@ -74,26 +84,56 @@ const DIFFICULTY_LABELS: Record<TriviaDifficulty, { label: string; cls: string }
   hard: { label: 'Zor', cls: 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400' },
 };
 
+function readFlags(attemptId: string): number[] {
+  try {
+    const raw = sessionStorage.getItem(`${FLAGS_STORAGE_PREFIX}${attemptId}`);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((n): n is number => Number.isInteger(n) && n >= 0 && n < TRIVIA_TOTAL_QUESTIONS)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeFlags(attemptId: string, flags: Set<number>): void {
+  try {
+    sessionStorage.setItem(`${FLAGS_STORAGE_PREFIX}${attemptId}`, JSON.stringify([...flags]));
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function answersToMap(list: TriviaAnswerRecord[] | undefined): Record<number, number> {
+  const map: Record<number, number> = {};
+  for (const a of list || []) {
+    map[a.questionIndex] = a.selectedOption;
+  }
+  return map;
+}
+
 export default function DailyTrivia() {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [quizDate, setQuizDate] = useState('');
   const [resetsAtIso, setResetsAtIso] = useState('');
   const [attempt, setAttempt] = useState<TriviaAttemptSummary | null>(null);
   const [questions, setQuestions] = useState<TriviaQuestionClient[]>([]);
   const [answers, setAnswers] = useState<TriviaAnswerRecord[]>([]);
+  const [selected, setSelected] = useState<Record<number, number>>({});
+  const [flagged, setFlagged] = useState<Set<number>>(new Set());
   const [userPoints, setUserPoints] = useState<number>(0);
   const [unlimitedExpiresAt, setUnlimitedExpiresAt] = useState<string | null>(null);
 
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [lastFeedback, setLastFeedback] = useState<TriviaAnswerResponse | null>(null);
-  const [showXpTable, setShowXpTable] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [confirmFinishOpen, setConfirmFinishOpen] = useState(false);
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
   // 5-second anti-cheat return guard state
@@ -107,6 +147,12 @@ export default function DailyTrivia() {
   const awayIntervalRef = useRef<number | null>(null);
   const cancellingRef = useRef(false);
   const initialReloadCheckedRef = useRef(false);
+  const finishingRef = useRef(false);
+  const warnedRef = useRef(false);
+  // Cevap kayıtları sırayla (kuyruk) gönderilir; başarısız olanlar bitişten önce tekrar denenir
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSavesRef = useRef(0);
+  const unsavedRef = useRef<Map<number, number>>(new Map());
 
   const userId = user?.id ?? null;
   const isInProgress = attempt?.status === 'in_progress';
@@ -129,10 +175,15 @@ export default function DailyTrivia() {
     };
   }, []);
 
-  // 1-second UI clock for real-time 2-hour unlimited countdown & midnight daily refresh countdown
+  // 1-second UI clock: quiz countdown, unlimited pass countdown and midnight refresh countdown
   useEffect(() => {
     const id = window.setInterval(() => setNowTick(Date.now()), 1000);
     return () => window.clearInterval(id);
+  }, []);
+
+  const syncClock = useCallback((serverNowIso?: string | null) => {
+    const serverMs = serverNowIso ? Date.parse(serverNowIso) : NaN;
+    if (Number.isFinite(serverMs)) setClockOffsetMs(serverMs - Date.now());
   }, []);
 
   const clearAwayTimers = useCallback(() => {
@@ -144,6 +195,34 @@ export default function DailyTrivia() {
     setAwayActive(false);
     setAwayRemainingMs(TRIVIA_LEAVE_LIMIT_MS);
   }, []);
+
+  const markCancelledLocally = useCallback(
+    (reason: string, message: string | null, points?: number | null) => {
+      if (userId) clearActiveTriviaRunInSession(userId);
+      setAttempt((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: 'cancelled',
+              xpEarned: 0,
+              grandPrizeAwarded: false,
+              unlimitedExpiresAt: null,
+              cancelReason: reason,
+              cancelMessage:
+                message ||
+                'Yarışma ekranından ayrıldıktan sonra 5 saniye içinde geri dönülmediği için yarışma otomatik olarak iptal edildi ve bu yarışmaya ait ödüller verilmedi.',
+              cancelledAt: new Date().toISOString(),
+            }
+          : prev,
+      );
+      if (typeof points === 'number') setUserPoints(points);
+      setFinishing(false);
+      finishingRef.current = false;
+      window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+      window.dispatchEvent(new CustomEvent('econnotes:trivia-updated'));
+    },
+    [userId],
+  );
 
   const triggerCancel = useCallback(
     async (reason: string) => {
@@ -163,32 +242,38 @@ export default function DailyTrivia() {
         reason,
       });
 
-      setAttempt((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'cancelled',
-              xpEarned: 0,
-              grandPrizeAwarded: false,
-              unlimitedExpiresAt: null,
-              cancelReason: data?.cancelReason || reason,
-              cancelMessage:
-                data?.cancelMessage ||
-                'Yarışma ekranından ayrıldıktan sonra 5 saniye içinde geri dönülmediği için yarışma otomatik olarak iptal edildi ve bu yarışmaya ait ödüller verilmedi.',
-              cancelledAt: new Date().toISOString(),
-            }
-          : prev,
-      );
-      setLastFeedback(null);
-      if (typeof data?.newUserPointsTotal === 'number') {
-        setUserPoints(data.newUserPointsTotal);
-      }
-      window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
-      window.dispatchEvent(new CustomEvent('econnotes:trivia-updated'));
+      markCancelledLocally(data?.cancelReason || reason, data?.cancelMessage || null, data?.newUserPointsTotal);
       toast.error('Yarışma güvenlik kuralı gereği iptal edildi. Bu yarışmaya ait ödüller verilmedi.');
       cancellingRef.current = false;
     },
-    [clearAwayTimers, userId],
+    [clearAwayTimers, markCancelledLocally, userId],
+  );
+
+  /** Sunucudan gelen sonucu (Yarışmayı Bitir veya süre doldu) ekrana uygular. */
+  const applyFinalResult = useCallback(
+    (final: TriviaFinishResponse) => {
+      if (!userId) return;
+      clearActiveTriviaRunInSession(userId);
+      clearAwayTimers();
+      setAttempt(final.attempt);
+      setAnswers(final.answers);
+      setSelected(answersToMap(final.answers));
+      setQuestions([]);
+      setUserPoints(final.newUserPointsTotal);
+      setConfirmFinishOpen(false);
+      setFinishing(false);
+      if (final.grandPrizeAwarded && final.unlimitedExpiresAt) {
+        setUnlimitedExpiresAt(final.unlimitedExpiresAt);
+        syncTriviaUnlimitedUntil(userId, final.unlimitedExpiresAt);
+        void refreshProfile?.();
+        toast.success('MÜKEMMEL! 15/15 ile 375 XP + 2 Saatlik Sınırsız Not Erişimi kazandın!');
+      } else if (final.timedOut) {
+        toast.info('Süre doldu. Kaydedilen cevapların değerlendirildi.');
+      }
+      window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+      window.dispatchEvent(new CustomEvent('econnotes:trivia-updated'));
+    },
+    [clearAwayTimers, refreshProfile, userId],
   );
 
   // Initial status fetch (+ reload anti-cheat detection strictly once per page mount)
@@ -216,17 +301,20 @@ export default function DailyTrivia() {
       return;
     }
 
-    setQuizDate(data.quizDate);
+    syncClock(data.serverNowIso);
+    setNowTick(Date.now());
     setResetsAtIso(data.resetsAtIso);
     setAttempt(data.attempt);
     setQuestions(data.questions || []);
     setAnswers(data.answers || []);
+    setSelected(answersToMap(data.answers));
     setUserPoints(data.userPoints || 0);
     setUnlimitedExpiresAt(data.unlimitedExpiresAt || null);
     syncTriviaUnlimitedUntil(userId, data.unlimitedExpiresAt || null);
 
     if (data.attempt?.status === 'in_progress') {
       setCurrentIdx(Math.min(data.attempt.currentIndex, TRIVIA_TOTAL_QUESTIONS - 1));
+      setFlagged(new Set(readFlags(data.attempt.id)));
       markActiveTriviaRunInSession(userId, data.quizDate, data.attempt.id);
     } else {
       clearActiveTriviaRunInSession(userId);
@@ -236,11 +324,13 @@ export default function DailyTrivia() {
           data.attempt.cancelMessage ||
             'Sayfa yenilendiği için yarışma güvenlik kuralları gereği iptal edildi.',
         );
+      } else if (data.attempt?.status === 'completed' && data.attempt.timedOut && activeRunMarker) {
+        window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
       }
     }
 
     setLoading(false);
-  }, [userId]);
+  }, [syncClock, userId]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -248,7 +338,8 @@ export default function DailyTrivia() {
     }
   }, [authLoading, fetchStatus]);
 
-  // Real-time 5-second leave detection (tab switch, window blur, page refresh/close)
+  // Real-time 5-second leave detection (tab switch, window blur, page refresh/close).
+  // Soru navigasyonu (Önceki/Sonraki/numara) sayfa içi durum değişimidir ve ekran terk sayılmaz.
   useEffect(() => {
     if (!isInProgress || !userId) {
       clearAwayTimers();
@@ -256,7 +347,7 @@ export default function DailyTrivia() {
     }
 
     const startAwayClock = (reason: string) => {
-      if (!isInProgressRef.current || cancellingRef.current) return;
+      if (!isInProgressRef.current || cancellingRef.current || finishingRef.current) return;
       if (leaveStartedAtRef.current !== null) return; // already counting
 
       const started = Date.now();
@@ -296,27 +387,11 @@ export default function DailyTrivia() {
       });
 
       if (data?.cancelled) {
-        clearActiveTriviaRunInSession(userId);
-        setAttempt((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: 'cancelled',
-                xpEarned: 0,
-                grandPrizeAwarded: false,
-                unlimitedExpiresAt: null,
-                cancelReason: data.cancelReason || 'away_over_5s',
-                cancelMessage:
-                  data.cancelMessage ||
-                  '5 saniyelik geri dönüş süresi aşıldığı için yarışma iptal edildi.',
-                cancelledAt: new Date().toISOString(),
-              }
-            : prev,
+        markCancelledLocally(
+          data.cancelReason || 'away_over_5s',
+          data.cancelMessage || '5 saniyelik geri dönüş süresi aşıldığı için yarışma iptal edildi.',
+          data.newUserPointsTotal,
         );
-        if (typeof data.newUserPointsTotal === 'number') {
-          setUserPoints(data.newUserPointsTotal);
-        }
-        window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
         toast.error(data.cancelMessage || '5 saniye içinde dönülmediği için yarışma iptal edildi.');
         return;
       }
@@ -383,7 +458,7 @@ export default function DailyTrivia() {
       window.removeEventListener('focus', onWindowFocus);
       window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('pagehide', onPageHide);
-      if (isInProgressRef.current) {
+      if (isInProgressRef.current && !finishingRef.current) {
         // Navigating away via SPA router triggers server leave timestamp
         sendDailyTriviaBeacon(
           accessTokenRef.current,
@@ -396,7 +471,7 @@ export default function DailyTrivia() {
       }
       clearAwayTimers();
     };
-  }, [isInProgress, userId, clearAwayTimers, triggerCancel]);
+  }, [isInProgress, userId, clearAwayTimers, triggerCancel, markCancelledLocally]);
 
   const handleStart = async () => {
     if (!user || starting) return;
@@ -411,115 +486,191 @@ export default function DailyTrivia() {
       return;
     }
 
-    setQuizDate(data.quizDate);
+    syncClock(data.serverNowIso);
+    setNowTick(Date.now());
     setResetsAtIso(data.resetsAtIso);
     setAttempt(data.attempt);
     setQuestions(data.questions || []);
     setAnswers([]);
+    setSelected({});
+    setFlagged(new Set());
+    unsavedRef.current.clear();
+    pendingSavesRef.current = 0;
+    saveChainRef.current = Promise.resolve();
+    finishingRef.current = false;
+    warnedRef.current = false;
+    setSaveState('idle');
     setCurrentIdx(0);
-    setLastFeedback(null);
     setReturnWarning(null);
     markActiveTriviaRunInSession(user.id, data.quizDate, data.attempt.id);
-    toast.success('Yarışma başladı! Ekrandan ayrılmadan 15 soruyu tamamla.');
+    toast.success('Yarışma başladı. 15 dakikan var, bol şans!');
   };
 
-  const handleSelectOption = async (optionIndex: number) => {
-    if (!user || !attempt || attempt.status !== 'in_progress' || submitting || lastFeedback) return;
-    setSubmitting(true);
+  /** Seçimi anında ekrana yansıtır, sunucuya sıralı kuyrukla kaydeder. Cevap istendiği kadar değiştirilebilir. */
+  const handleSelectOption = (optionIndex: number) => {
+    if (!user || !attempt || attempt.status !== 'in_progress' || finishing) return;
+    const qIdx = currentIdx;
+    if (selected[qIdx] === optionIndex) return;
 
-    const { data, error, raw } = await invokeDailyTrivia<TriviaAnswerResponse>({
-      action: 'answer',
-      questionIndex: currentIdx,
-      selectedOption: optionIndex,
-    });
-    setSubmitting(false);
+    setSelected((prev) => ({ ...prev, [qIdx]: optionIndex }));
+    setSaveState('saving');
+    pendingSavesRef.current += 1;
+    unsavedRef.current.set(qIdx, optionIndex);
 
-    if (raw?.cancelled) {
-      clearActiveTriviaRunInSession(user.id);
-      setAttempt((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'cancelled',
-              xpEarned: 0,
-              grandPrizeAwarded: false,
-              unlimitedExpiresAt: null,
-              cancelReason: String(raw.cancelReason || 'away_over_5s'),
-              cancelMessage: error || 'Yarışma güvenlik kuralı gereği iptal edildi.',
-            }
-          : prev,
-      );
-      window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
-      toast.error(error || 'Yarışma iptal edildi.');
-      return;
-    }
-
-    if (error || !data) {
-      toast.error(error || 'Cevap gönderilemedi.');
-      return;
-    }
-
-    setLastFeedback(data);
-    setAnswers((prev) => [
-      ...prev.filter((a) => a.questionIndex !== data.questionIndex),
-      {
-        questionIndex: data.questionIndex,
-        selectedOption: data.selectedOption,
-        isCorrect: data.isCorrect,
-        xpAwarded: data.xpAwarded,
-        correctIndex: data.correctIndex,
-        explanation: data.explanation,
-      },
-    ]);
-    setUserPoints(data.newUserPointsTotal);
-    setAttempt((prev) =>
-      prev
-        ? {
-            ...prev,
-            currentIndex: data.answeredCount,
-            answeredCount: data.answeredCount,
-            correctCount: data.correctCount,
-            xpEarned: data.totalXpEarned,
-            grandPrizeAwarded: data.grandPrizeAwarded,
-            unlimitedExpiresAt: data.unlimitedExpiresAt,
-          }
-        : prev,
-    );
-
-    if (data.isCorrect) {
-      window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
-      toast.success(`Doğru! +${TRIVIA_XP_PER_CORRECT} XP hesabına eklendi.`);
-    }
-
-    if (data.completed) {
-      clearActiveTriviaRunInSession(user.id);
-      if (data.grandPrizeAwarded && data.unlimitedExpiresAt) {
-        setUnlimitedExpiresAt(data.unlimitedExpiresAt);
-        syncTriviaUnlimitedUntil(user.id, data.unlimitedExpiresAt);
-        void refreshProfile?.();
-        toast.success('MÜKEMMEL! 15/15 ile 375 XP + 2 Saatlik Sınırsız Not Erişimi kazandın!');
+    saveChainRef.current = saveChainRef.current.then(async () => {
+      // Aynı soru için daha yeni bir seçim kuyruğa girdiyse eskisini göndermeye gerek yok
+      const latest = unsavedRef.current.get(qIdx);
+      if (latest !== undefined && latest !== optionIndex) {
+        pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
+        return;
       }
-    }
+      const { data, error, raw } = await invokeDailyTrivia<TriviaAnswerResponse>({
+        action: 'answer',
+        questionIndex: qIdx,
+        selectedOption: optionIndex,
+      });
+      pendingSavesRef.current = Math.max(0, pendingSavesRef.current - 1);
+
+      if (raw?.cancelled) {
+        markCancelledLocally(
+          String(raw.cancelReason || 'away_over_5s'),
+          error || 'Yarışma güvenlik kuralı gereği iptal edildi.',
+        );
+        toast.error(error || 'Yarışma iptal edildi.');
+        return;
+      }
+      if (raw?.completed) {
+        void fetchStatus();
+        return;
+      }
+      if (data?.timedOut && data.final) {
+        finishingRef.current = true;
+        applyFinalResult(data.final);
+        return;
+      }
+      if (error || !data) {
+        setSaveState('error');
+        toast.error('Cevap kaydedilemedi. Bağlantını kontrol et; bitirirken yeniden denenecek.');
+        return;
+      }
+
+      syncClock(data.serverNowIso);
+      if (unsavedRef.current.get(qIdx) === optionIndex) unsavedRef.current.delete(qIdx);
+      if (pendingSavesRef.current === 0) {
+        setSaveState(unsavedRef.current.size > 0 ? 'error' : 'saved');
+      }
+    });
   };
 
-  const handleNextQuestion = () => {
-    if (!lastFeedback) return;
-    if (lastFeedback.completed) {
-      setAttempt((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'completed',
-              completedAt: new Date().toISOString(),
-            }
-          : prev,
-      );
-      setLastFeedback(null);
-      return;
-    }
-    setCurrentIdx(lastFeedback.answeredCount);
-    setLastFeedback(null);
+  const handleToggleFlag = () => {
+    if (!attempt) return;
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      if (next.has(currentIdx)) next.delete(currentIdx);
+      else next.add(currentIdx);
+      writeFlags(attempt.id, next);
+      return next;
+    });
   };
+
+  const goToQuestion = (idx: number) => {
+    setCurrentIdx(Math.max(0, Math.min(TRIVIA_TOTAL_QUESTIONS - 1, idx)));
+  };
+
+  /** Yarışmayı sonuçlandırır (kullanıcı onayı sonrası veya süre dolunca otomatik). */
+  const finishQuiz = useCallback(
+    async (timedOut: boolean) => {
+      if (!userId || finishingRef.current) return;
+      finishingRef.current = true;
+      setFinishing(true);
+      setConfirmFinishOpen(false);
+      clearAwayTimers();
+
+      try {
+        await saveChainRef.current;
+
+        // Kaydedilemeyen cevaplar varsa bitirmeden önce yeniden gönder (süre dolduysa sunucu reddeder)
+        if (!timedOut && unsavedRef.current.size > 0) {
+          for (const [qIdx, opt] of Array.from(unsavedRef.current.entries())) {
+            const { error, raw } = await invokeDailyTrivia<TriviaAnswerResponse>({
+              action: 'answer',
+              questionIndex: qIdx,
+              selectedOption: opt,
+            });
+            if (raw?.cancelled) {
+              markCancelledLocally(String(raw.cancelReason || 'away_over_5s'), error);
+              toast.error(error || 'Yarışma iptal edildi.');
+              finishingRef.current = false;
+              setFinishing(false);
+              return;
+            }
+            if (!error) unsavedRef.current.delete(qIdx);
+          }
+        }
+
+        let lastError: string | null = null;
+        for (let attemptNo = 0; attemptNo < 3; attemptNo++) {
+          const { data, error, raw } = await invokeDailyTrivia<TriviaFinishResponse>({
+            action: 'finish',
+            timedOut,
+          });
+          if (raw?.cancelled) {
+            markCancelledLocally(
+              String(raw.cancelReason || 'away_over_5s'),
+              error || 'Yarışma güvenlik kuralı gereği iptal edildi.',
+            );
+            toast.error(error || 'Yarışma iptal edildi.');
+            return;
+          }
+          if (data) {
+            applyFinalResult(data);
+            return;
+          }
+          lastError = error || 'Yarışma sonuçlandırılamadı.';
+          await new Promise((r) => window.setTimeout(r, 1200));
+        }
+
+        toast.error(lastError || 'Yarışma sonuçlandırılamadı. Lütfen tekrar dene.');
+        finishingRef.current = false;
+        setFinishing(false);
+      } catch {
+        toast.error('Yarışma sonuçlandırılamadı. Lütfen tekrar dene.');
+        finishingRef.current = false;
+        setFinishing(false);
+      }
+    },
+    [applyFinalResult, clearAwayTimers, markCancelledLocally, userId],
+  );
+
+  // Quiz clock derived from the server-issued deadline (startedAt + 15 min), corrected by server clock offset
+  const deadlineMs = useMemo(() => {
+    if (!attempt) return 0;
+    const fromDeadline = attempt.deadlineAt ? Date.parse(attempt.deadlineAt) : NaN;
+    if (Number.isFinite(fromDeadline)) return fromDeadline;
+    const started = Date.parse(attempt.startedAt);
+    return (Number.isFinite(started) ? started : Date.now()) + TRIVIA_TIME_LIMIT_MS;
+  }, [attempt]);
+
+  const remainingMs = isInProgress
+    ? Math.min(TRIVIA_TIME_LIMIT_MS, Math.max(0, deadlineMs - (nowTick + clockOffsetMs)))
+    : 0;
+  const timeIsUp = isInProgress && remainingMs <= 0;
+  const warnTime = isInProgress && remainingMs > 0 && remainingMs <= TRIVIA_WARNING_MS;
+
+  // Süre sıfırlandığında yarışmayı otomatik sonlandır (başarısız olursa her saniye yeniden dener)
+  useEffect(() => {
+    if (timeIsUp && !finishingRef.current) {
+      void finishQuiz(true);
+    }
+  }, [timeIsUp, nowTick, finishQuiz]);
+
+  // 2 dakika altına düşünce tek seferlik görsel uyarı
+  useEffect(() => {
+    if (warnTime && !warnedRef.current) {
+      warnedRef.current = true;
+      toast.warning('Son 2 dakika! Süre dolduğunda yarışma otomatik sonlanır.');
+    }
+  }, [warnTime]);
 
   const activeUnlimitedPass = useMemo(() => {
     const untilIso = unlimitedExpiresAt || attempt?.unlimitedExpiresAt || null;
@@ -538,23 +689,19 @@ export default function DailyTrivia() {
     [resetsAtIso, nowTick],
   );
 
-  const formattedQuizDate = useMemo(() => {
-    if (!quizDate) return '';
-    const [y, m, d] = quizDate.split('-').map(Number);
-    if (!y || !m || !d) return quizDate;
-    return new Date(y, m - 1, d).toLocaleDateString('tr-TR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      weekday: 'long',
-    });
-  }, [quizDate]);
+  const answeredCount = Object.keys(selected).length;
+  const blankIndexes = useMemo(
+    () =>
+      Array.from({ length: TRIVIA_TOTAL_QUESTIONS }, (_, i) => i).filter((i) => selected[i] === undefined),
+    [selected],
+  );
+  const flaggedIndexes = useMemo(() => [...flagged].sort((a, b) => a - b), [flagged]);
 
   if (authLoading || loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6 text-muted-foreground">
         <Loader2 className="h-7 w-7 animate-spin text-primary" />
-        <p className="mt-3 text-sm font-medium">Günlük Genel Kültür Bilgi Yarışması hazırlanıyor...</p>
+        <p className="mt-3 text-sm font-medium">Yarışma hazırlanıyor...</p>
       </div>
     );
   }
@@ -571,8 +718,7 @@ export default function DailyTrivia() {
               Günlük Genel Kültür Bilgi Yarışması
             </h1>
             <p className="text-sm text-muted-foreground">
-              Her gün yenilenen 15 genel kültür sorusuyla 375 XP ve 2 saatlik sınırsız not erişimi
-              kazanmak için EconNotes hesabınla giriş yap.
+              Her gün yenilenen 15 genel kültür sorusuyla bilgini test etmek için giriş yap.
             </p>
             <Button onClick={() => navigate('/login')} className="w-full gap-2 rounded-xl">
               <LogIn className="h-4 w-4" />
@@ -585,13 +731,14 @@ export default function DailyTrivia() {
   }
 
   const currentQuestion = questions[currentIdx] || null;
-  const remainingQuestions = Math.max(
-    0,
-    TRIVIA_TOTAL_QUESTIONS - (attempt?.answeredCount ?? 0),
-  );
-  const progressPct = Math.round(
-    ((attempt?.answeredCount ?? 0) / TRIVIA_TOTAL_QUESTIONS) * 100,
-  );
+  const isLastQuestion = currentIdx === TRIVIA_TOTAL_QUESTIONS - 1;
+  const progressPct = Math.round((answeredCount / TRIVIA_TOTAL_QUESTIONS) * 100);
+
+  const resultCorrect = attempt?.correctCount ?? 0;
+  const resultBlank =
+    attempt?.blankCount ?? Math.max(0, TRIVIA_TOTAL_QUESTIONS - answers.length);
+  const resultWrong =
+    attempt?.wrongCount ?? Math.max(0, answers.length - resultCorrect);
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground selection:bg-primary/20">
@@ -604,7 +751,7 @@ export default function DailyTrivia() {
       {/* Independent Standalone Header (not coupled to any sidebar/menu) */}
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between gap-3 px-4">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex min-w-0 items-center gap-3">
             <EconLogo className="h-6 w-auto shrink-0" />
             <span className="h-5 w-px bg-border" />
             <span className="truncate text-xs font-bold tracking-tight text-foreground sm:text-sm">
@@ -613,40 +760,51 @@ export default function DailyTrivia() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-bold text-primary tabular-nums">
-              <Sparkles className="h-3.5 w-3.5" />
-              {userPoints.toLocaleString('tr-TR')} XP
-            </span>
-
-            {!isInProgress ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => navigate('/')}
-                className="h-8 gap-1.5 rounded-xl text-xs"
+            {isInProgress ? (
+              <div
+                role="timer"
+                aria-live="off"
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-2xl border px-3.5 py-1.5 font-mono text-lg font-black tabular-nums transition-colors sm:text-xl',
+                  warnTime
+                    ? 'animate-pulse border-rose-500/60 bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                    : 'border-primary/30 bg-primary/10 text-primary',
+                )}
               >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Ana Sayfa</span>
-              </Button>
+                <Timer className="h-4 w-4 sm:h-5 sm:w-5" />
+                {formatTriviaClock(remainingMs)}
+              </div>
             ) : (
-              <Badge
-                variant="outline"
-                className="gap-1 border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Güvenli Yarışma Modu</span>
-                <span className="sm:hidden">5 sn Kuralı</span>
-              </Badge>
+              <>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-bold text-primary tabular-nums">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {userPoints.toLocaleString('tr-TR')} XP
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/')}
+                  className="h-8 gap-1.5 rounded-xl text-xs"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Ana Sayfa</span>
+                </Button>
+              </>
             )}
           </div>
         </div>
+        {warnTime && (
+          <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-1.5 text-center text-xs font-bold text-rose-600 dark:text-rose-400">
+            Son 2 dakika! Süre dolduğunda yarışma otomatik olarak sonuçlanır.
+          </div>
+        )}
       </header>
 
       {/* Main Standalone Arena */}
-      <main className="relative z-10 mx-auto max-w-3xl px-4 py-6 sm:py-8 space-y-5">
+      <main className="relative z-10 mx-auto max-w-3xl space-y-5 px-4 py-6 sm:py-8">
         {/* Live 2-Hour Grand Prize Active Banner */}
-        {activeUnlimitedPass && (
+        {activeUnlimitedPass && !isInProgress && (
           <div className="flex flex-col gap-3 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-card to-orange-500/10 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md">
@@ -660,8 +818,7 @@ export default function DailyTrivia() {
                   Kalan süre:{' '}
                   <strong className="font-mono text-amber-600 dark:text-amber-400">
                     {activeUnlimitedPass.remaining}
-                  </strong>{' '}
-                  · Süre dolduğunda normal kotana otomatik dönülür.
+                  </strong>
                 </p>
               </div>
             </div>
@@ -691,146 +848,57 @@ export default function DailyTrivia() {
 
         {/* ==================== 1. LOBBY (NOT STARTED YET) ==================== */}
         {!errorMsg && !attempt && (
-          <div className="space-y-5">
-            <Card className="overflow-hidden rounded-3xl border-border/75 bg-card/95 shadow-xl">
-              <div className="relative overflow-hidden bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0070d1] p-6 text-white sm:p-8">
-                <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/25 blur-3xl" />
-                <div className="relative z-10 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-[11px] font-bold text-cyan-100">
-                      <Trophy className="h-3.5 w-3.5 text-amber-300" />
-                      Her Gün Yeni 15 Soru
-                    </span>
-                    {midnightCountdown && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/20 px-3 py-1 font-mono text-[11px] text-blue-100">
-                        <Clock className="h-3 w-3 text-cyan-300" />
-                        Yenilenmeye: {midnightCountdown}
-                      </span>
-                    )}
-                  </div>
+          <Card className="overflow-hidden rounded-3xl border-border/75 bg-card/95 shadow-xl">
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0070d1] px-6 py-10 text-center text-white sm:px-10 sm:py-14">
+              <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-cyan-400/25 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-amber-400/15 blur-3xl" />
+              <div className="relative z-10 space-y-4">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/10 backdrop-blur-md">
+                  <Trophy className="h-8 w-8 text-amber-300" />
+                </div>
+                <h1 className="text-2xl font-extrabold tracking-tight sm:text-4xl">
+                  Günlük Genel Kültür Bilgi Yarışması
+                </h1>
+                <p className="mx-auto max-w-md text-sm leading-relaxed text-blue-100 sm:text-base">
+                  Her gün yenilenen 15 genel kültür sorusuyla bilgini test et!
+                </p>
+              </div>
+            </div>
 
-                  <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                    Günlük Genel Kültür Bilgi Yarışması
-                  </h1>
-                  <p className="max-w-xl text-xs leading-relaxed text-blue-100/90 sm:text-sm">
-                    {formattedQuizDate ? `${formattedQuizDate} · ` : ''}
-                    Tarih, coğrafya, bilim, sanat, spor, teknoloji, edebiyat ve güncel genel kültür
-                    alanlarından her gün benzersiz 15 soruyla bilgini test et!
-                  </p>
+            <CardContent className="space-y-6 p-6 sm:p-8">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
+                <div className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/25 px-3 py-3.5 text-center sm:flex-col sm:gap-1 sm:py-4">
+                  <span className="text-xl font-extrabold tabular-nums text-foreground sm:text-2xl">15 Soru</span>
+                </div>
+                <div className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/25 px-3 py-3.5 text-center sm:flex-col sm:gap-1 sm:py-4">
+                  <span className="text-xl font-extrabold tabular-nums text-foreground sm:text-2xl">15 Dakika</span>
+                </div>
+                <div className="flex items-center justify-center gap-2 rounded-2xl border border-primary/25 bg-primary/[0.06] px-3 py-3.5 text-center sm:flex-col sm:gap-1 sm:py-4">
+                  <span className="text-sm font-extrabold text-primary sm:text-base">Her doğru cevap 25 XP</span>
                 </div>
               </div>
 
-              <CardContent className="space-y-5 p-5 sm:p-7">
-                {/* 4 Key Rule Tiles */}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-border/70 bg-muted/25 p-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      Her Doğru Cevap +25 XP
-                    </div>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      15 soruyu tamamlayamasan bile doğru bildiğin her soru için +25 XP anında
-                      hesabına eklenir ve korunur (14 doğru = 350 XP).
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-                      <Crown className="h-4 w-4 text-amber-500" />
-                      15/15 Büyük Ödül: 2 Saat Sınırsız Not
-                    </div>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      15 sorunun tamamını doğru bil: toplam <strong>375 XP</strong>, Şampiyon rozeti
-                      ve anında başlayan <strong>2 saatlik sınırsız not erişimi &amp; indirme</strong> kazan!
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-rose-500/30 bg-rose-500/[0.05] p-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-                      <ShieldAlert className="h-4 w-4 text-rose-500" />
-                      5 Saniyelik Güvenlik &amp; Kopya Koruması
-                    </div>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      Yarışma sırasında başka sekmeye geçer veya ekrandan ayrılırsan 5 saniyelik
-                      sayaç başlar. 5 sn içinde dönmezsen ya da sayfayı yenilersen yarışma iptal
-                      edilir ve ödüller verilmez.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-border/70 bg-muted/25 p-4">
-                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-                      <Lock className="h-4 w-4 text-emerald-500" />
-                      Günde 1 Katılım · Sunucu Doğrulamalı
-                    </div>
-                    <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      Her kullanıcı günlük yarışmaya yalnızca 1 kez katılabilir. Tüm cevaplar,
-                      süreler ve XP ödülleri sunucu tarafında doğrulanır.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Expandable XP Reward Ladder */}
-                <div className="rounded-2xl border border-border/70 bg-background/60">
-                  <button
-                    type="button"
-                    onClick={() => setShowXpTable((v) => !v)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-xs font-bold text-foreground"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Award className="h-4 w-4 text-primary" />
-                      Doğru Cevap &amp; XP Ödül Tablosu (1 – 15 Soru)
-                    </span>
-                    {showXpTable ? (
-                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </button>
-                  {showXpTable && (
-                    <div className="grid grid-cols-3 gap-1.5 border-t border-border/60 p-3 sm:grid-cols-5">
-                      {TRIVIA_XP_LADDER.map((row) => (
-                        <div
-                          key={row.correct}
-                          className={cn(
-                            'rounded-xl border px-2.5 py-2 text-center text-xs',
-                            row.isGrandPrize
-                              ? 'border-amber-500/50 bg-amber-500/15 font-extrabold text-amber-600 dark:text-amber-400'
-                              : 'border-border/60 bg-muted/30',
-                          )}
-                        >
-                          <p className="text-[10.5px] text-muted-foreground">{row.correct} doğru</p>
-                          <p className="font-bold tabular-nums">{row.xp} XP</p>
-                          {row.isGrandPrize && (
-                            <p className="mt-0.5 text-[9.5px] font-bold">+ 2 Saat Sınırsız</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <Button
-                  type="button"
-                  size="lg"
-                  disabled={starting}
-                  onClick={() => void handleStart()}
-                  className="h-12 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] text-sm font-extrabold text-white shadow-lg shadow-primary/25 hover:opacity-95"
-                >
-                  {starting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Günün 15 Sorusu Hazırlanıyor...
-                    </>
-                  ) : (
-                    <>
-                      <Flame className="h-4 w-4 text-amber-300" />
-                      Yarışmaya Başla (15 Soru)
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+              <Button
+                type="button"
+                size="lg"
+                disabled={starting}
+                onClick={() => void handleStart()}
+                className="h-14 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] text-base font-extrabold text-white shadow-lg shadow-primary/25 hover:opacity-95"
+              >
+                {starting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Hazırlanıyor...
+                  </>
+                ) : (
+                  <>
+                    <Flame className="h-5 w-5 text-amber-300" />
+                    Yarışmaya Başla
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {/* ==================== 2. ACTIVE QUIZ ==================== */}
@@ -844,55 +912,78 @@ export default function DailyTrivia() {
               </div>
             )}
 
-            {/* Top HUD: Progress, Remaining, Live Earned XP */}
+            {/* Question navigator */}
             <Card className="rounded-2xl border-border/75 bg-card/95 shadow-xs">
               <CardContent className="space-y-3 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-extrabold text-foreground">
+                    Soru {currentIdx + 1} / {TRIVIA_TOTAL_QUESTIONS}
+                  </span>
                   <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-foreground">
-                      Soru {currentIdx + 1} / {TRIVIA_TOTAL_QUESTIONS}
+                    <span
+                      className={cn(
+                        'text-[11px] font-medium',
+                        saveState === 'error' ? 'text-rose-500' : 'text-muted-foreground',
+                      )}
+                    >
+                      {saveState === 'saving'
+                        ? 'Kaydediliyor...'
+                        : saveState === 'error'
+                        ? 'Kaydedilemedi, yeniden denenecek'
+                        : saveState === 'saved'
+                        ? 'Cevaplar kaydedildi'
+                        : ''}
                     </span>
-                    <span className="text-muted-foreground">·</span>
-                    <span className="text-muted-foreground">
-                      Kalan: <strong className="text-foreground">{remainingQuestions}</strong> soru
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-bold tabular-nums text-primary">
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      {attempt?.correctCount ?? 0} Doğru
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-bold text-primary tabular-nums">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      +{attempt?.xpEarned ?? 0} XP
+                      {answeredCount}/{TRIVIA_TOTAL_QUESTIONS} cevaplandı
                     </span>
                   </div>
                 </div>
 
                 <Progress value={progressPct} className="h-2" />
 
-                {/* 15-Question Status Dots */}
-                <div className="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1">
+                <div className="grid grid-cols-5 gap-2 sm:grid-cols-[repeat(15,minmax(0,1fr))] sm:gap-1.5">
                   {Array.from({ length: TRIVIA_TOTAL_QUESTIONS }).map((_, idx) => {
-                    const ans = answers.find((a) => a.questionIndex === idx);
+                    const isAnswered = selected[idx] !== undefined;
+                    const isFlagged = flagged.has(idx);
                     const isCur = idx === currentIdx;
                     return (
-                      <div
+                      <button
                         key={idx}
+                        type="button"
+                        onClick={() => goToQuestion(idx)}
+                        aria-label={`Soru ${idx + 1}${isAnswered ? ' cevaplandı' : ' boş'}${isFlagged ? ' işaretli' : ''}`}
+                        aria-current={isCur ? 'step' : undefined}
                         className={cn(
-                          'h-1.5 rounded-full transition-all',
-                          ans
-                            ? ans.isCorrect
-                              ? 'bg-emerald-500'
-                              : 'bg-rose-500'
-                            : isCur
-                            ? 'bg-primary ring-2 ring-primary/30'
-                            : 'bg-muted',
+                          'relative flex h-10 items-center justify-center rounded-xl border text-xs font-bold tabular-nums transition-all sm:h-9',
+                          isFlagged
+                            ? 'border-amber-500 bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                            : isAnswered
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-dashed border-border bg-background text-muted-foreground hover:border-primary/50',
+                          isCur && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
                         )}
-                      />
+                      >
+                        {idx + 1}
+                        {isFlagged && isAnswered && (
+                          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
+                        )}
+                      </button>
                     );
                   })}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded bg-primary" /> Cevaplandı
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded border border-dashed border-muted-foreground" /> Boş
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded bg-amber-500" /> İşaretli
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -906,18 +997,35 @@ export default function DailyTrivia() {
             >
               <CardContent className="space-y-5 p-5 sm:p-7">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <Badge
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={cn('rounded-full px-3 py-1 text-xs font-bold', CATEGORY_STYLES[currentQuestion.category])}
+                    >
+                      {currentQuestion.category}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', DIFFICULTY_LABELS[currentQuestion.difficulty].cls)}
+                    >
+                      {DIFFICULTY_LABELS[currentQuestion.difficulty].label}
+                    </Badge>
+                  </div>
+                  <Button
+                    type="button"
                     variant="outline"
-                    className={cn('rounded-full px-3 py-1 text-xs font-bold', CATEGORY_STYLES[currentQuestion.category])}
+                    size="sm"
+                    onClick={handleToggleFlag}
+                    aria-pressed={flagged.has(currentIdx)}
+                    className={cn(
+                      'h-8 gap-1.5 rounded-xl text-xs font-semibold',
+                      flagged.has(currentIdx) &&
+                        'border-amber-500 bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300',
+                    )}
                   >
-                    {currentQuestion.category}
-                  </Badge>
-                  <Badge
-                    variant="outline"
-                    className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-semibold', DIFFICULTY_LABELS[currentQuestion.difficulty].cls)}
-                  >
-                    {DIFFICULTY_LABELS[currentQuestion.difficulty].label}
-                  </Badge>
+                    <Flag className={cn('h-3.5 w-3.5', flagged.has(currentIdx) && 'fill-current')} />
+                    {flagged.has(currentIdx) ? 'İşareti Kaldır' : 'İşaretle'}
+                  </Button>
                 </div>
 
                 <h2 className="text-base font-bold leading-relaxed text-foreground sm:text-xl">
@@ -927,43 +1035,27 @@ export default function DailyTrivia() {
                 {/* 4 Options (A, B, C, D) */}
                 <div className="space-y-2.5">
                   {currentQuestion.options.map((opt, idx) => {
-                    const isSelected = lastFeedback?.selectedOption === idx;
-                    const isCorrectOpt = lastFeedback?.correctIndex === idx;
-                    const showResult = Boolean(lastFeedback);
-
-                    let optionStyle =
-                      'border-border/80 bg-background/70 hover:border-primary/50 hover:bg-primary/[0.04]';
-                    if (showResult) {
-                      if (isCorrectOpt) {
-                        optionStyle =
-                          'border-emerald-500 bg-emerald-500/12 text-foreground ring-1 ring-emerald-500/35';
-                      } else if (isSelected && !lastFeedback?.isCorrect) {
-                        optionStyle =
-                          'border-rose-500 bg-rose-500/12 text-foreground ring-1 ring-rose-500/35';
-                      } else {
-                        optionStyle = 'border-border/50 bg-muted/20 opacity-60';
-                      }
-                    }
-
+                    const isSelected = selected[currentIdx] === idx;
                     return (
                       <button
                         key={idx}
                         type="button"
-                        disabled={submitting || showResult}
-                        onClick={() => void handleSelectOption(idx)}
+                        disabled={finishing}
+                        onClick={() => handleSelectOption(idx)}
+                        aria-pressed={isSelected}
                         className={cn(
                           'group flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all sm:p-4',
-                          optionStyle,
+                          isSelected
+                            ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
+                            : 'border-border/80 bg-background/70 hover:border-primary/50 hover:bg-primary/[0.04]',
                         )}
                       >
                         <span
                           className={cn(
                             'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-xs font-extrabold transition-colors',
-                            showResult && isCorrectOpt
-                              ? 'border-emerald-500 bg-emerald-500 text-white'
-                              : showResult && isSelected && !lastFeedback?.isCorrect
-                              ? 'border-rose-500 bg-rose-500 text-white'
-                              : 'border-border/80 bg-muted/60 text-foreground group-hover:border-primary/50 group-hover:bg-primary group-hover:text-primary-foreground',
+                            isSelected
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border/80 bg-muted/60 text-foreground group-hover:border-primary/50',
                           )}
                         >
                           {OPTION_LETTERS[idx]}
@@ -971,89 +1063,154 @@ export default function DailyTrivia() {
                         <span className="flex-1 text-sm font-medium leading-snug text-foreground">
                           {opt}
                         </span>
-                        {showResult && isCorrectOpt && (
-                          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
-                        )}
-                        {showResult && isSelected && !lastFeedback?.isCorrect && (
-                          <XCircle className="h-5 w-5 shrink-0 text-rose-500" />
-                        )}
+                        {isSelected && <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />}
                       </button>
                     );
                   })}
                 </div>
 
-                {/* Submitting indicator */}
-                {submitting && (
-                  <div className="flex items-center justify-center gap-2 py-1 text-xs text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    Cevabın sunucuda doğrulanıyor...
+                {/* Last question: answer status review */}
+                {isLastQuestion && (
+                  <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4">
+                    <p className="text-sm font-extrabold text-foreground">Cevap Durumu</p>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="rounded-xl border border-primary/25 bg-primary/[0.06] py-2">
+                        <p className="text-lg font-extrabold tabular-nums text-primary">{answeredCount}</p>
+                        <p className="text-muted-foreground">Cevaplanan</p>
+                      </div>
+                      <div className="rounded-xl border border-border/70 bg-background py-2">
+                        <p className="text-lg font-extrabold tabular-nums text-foreground">{blankIndexes.length}</p>
+                        <p className="text-muted-foreground">Boş</p>
+                      </div>
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] py-2">
+                        <p className="text-lg font-extrabold tabular-nums text-amber-600 dark:text-amber-400">
+                          {flaggedIndexes.length}
+                        </p>
+                        <p className="text-muted-foreground">İşaretli</p>
+                      </div>
+                    </div>
+                    {blankIndexes.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="font-semibold text-muted-foreground">Boş sorular:</span>
+                        {blankIndexes.map((i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => goToQuestion(i)}
+                            className="h-7 min-w-7 rounded-lg border border-dashed border-border bg-background px-2 font-bold tabular-nums text-foreground hover:border-primary"
+                          >
+                            {i + 1}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {flaggedIndexes.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="font-semibold text-muted-foreground">İşaretli sorular:</span>
+                        {flaggedIndexes.map((i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => goToQuestion(i)}
+                            className="h-7 min-w-7 rounded-lg border border-amber-500 bg-amber-500/15 px-2 font-bold tabular-nums text-amber-700 dark:text-amber-300"
+                          >
+                            {i + 1}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {blankIndexes.length === 0 && flaggedIndexes.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Tüm soruları cevapladın. İstersen önceki sorulara dönüp kontrol edebilirsin.
+                      </p>
+                    )}
                   </div>
                 )}
 
-                {/* Answer Feedback + Next Button */}
-                {lastFeedback && (
-                  <div
-                    className={cn(
-                      'space-y-3 rounded-2xl border p-4 animate-fade-in',
-                      lastFeedback.isCorrect
-                        ? 'border-emerald-500/35 bg-emerald-500/[0.07]'
-                        : 'border-rose-500/35 bg-rose-500/[0.06]',
-                    )}
+                {/* Prev / Next / Finish */}
+                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={currentIdx === 0 || finishing}
+                    onClick={() => goToQuestion(currentIdx - 1)}
+                    className="h-11 gap-2 rounded-xl font-bold"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-sm font-extrabold">
-                        {lastFeedback.isCorrect ? (
-                          <>
-                            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                            <span className="text-emerald-600 dark:text-emerald-400">
-                              Doğru Cevap! +{lastFeedback.xpAwarded} XP Kazandın
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-5 w-5 text-rose-500" />
-                            <span className="text-rose-600 dark:text-rose-400">
-                              Yanlış Cevap · Doğru seçenek: {OPTION_LETTERS[lastFeedback.correctIndex]}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <span className="text-xs font-semibold text-muted-foreground tabular-nums">
-                        Toplam kazanç: +{lastFeedback.totalXpEarned} XP
-                      </span>
-                    </div>
+                    <ArrowLeft className="h-4 w-4" />
+                    <span>Önceki Soru</span>
+                  </Button>
 
-                    <p className="text-xs leading-relaxed text-foreground/90">
-                      {lastFeedback.explanation}
-                    </p>
-
+                  {isLastQuestion ? (
                     <Button
                       type="button"
-                      onClick={handleNextQuestion}
-                      className="h-10 w-full gap-2 rounded-xl font-bold"
+                      disabled={finishing}
+                      onClick={() => setConfirmFinishOpen(true)}
+                      className="h-11 gap-2 rounded-xl bg-gradient-to-r from-[#003791] to-[#0070d1] font-extrabold text-white hover:opacity-95"
                     >
-                      {lastFeedback.completed ? (
-                        <>
-                          <Trophy className="h-4 w-4" />
-                          Yarışma Sonucunu Gör
-                        </>
-                      ) : (
-                        <>
-                          <span>Sonraki Soru ({currentIdx + 2} / {TRIVIA_TOTAL_QUESTIONS})</span>
-                          <ArrowRight className="h-4 w-4" />
-                        </>
-                      )}
+                      {finishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
+                      Yarışmayı Bitir
                     </Button>
-                  </div>
-                )}
+                  ) : (
+                    <Button
+                      type="button"
+                      disabled={finishing}
+                      onClick={() => goToQuestion(currentIdx + 1)}
+                      className="h-11 gap-2 rounded-xl font-bold"
+                    >
+                      <span>Sonraki Soru</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
+
+            {/* Finish confirmation (always requires explicit approval) */}
+            <AlertDialog open={confirmFinishOpen} onOpenChange={setConfirmFinishOpen}>
+              <AlertDialogContent className="rounded-3xl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Yarışmayı bitirmek istiyor musun?</AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      {blankIndexes.length > 0 ? (
+                        <p>
+                          <strong className="text-rose-500">{blankIndexes.length} soru</strong> cevapsız
+                          ({blankIndexes.map((i) => i + 1).join(', ')}). Bitirirsen bu sorular boş sayılır.
+                        </p>
+                      ) : (
+                        <p>Tüm soruları cevapladın.</p>
+                      )}
+                      {flaggedIndexes.length > 0 && (
+                        <p>
+                          İşaretlediğin {flaggedIndexes.length} soru var ({flaggedIndexes.map((i) => i + 1).join(', ')}).
+                        </p>
+                      )}
+                      <p>Bitirdikten sonra cevaplar değiştirilemez.</p>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Sorulara Dön</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => void finishQuiz(false)}>Evet, Bitir</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Auto-finish / finishing overlay */}
+            {finishing && (
+              <div className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm font-semibold text-foreground">
+                  {timeIsUp ? 'Süre doldu, sonuçlar hesaplanıyor...' : 'Sonuçlar hesaplanıyor...'}
+                </p>
+              </div>
+            )}
 
             {/* 5-Second Away Countdown Lock Overlay */}
             {awayActive && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4 backdrop-blur-md">
-                <div className="w-full max-w-md rounded-3xl border-2 border-rose-500/60 bg-card p-6 text-center shadow-2xl space-y-4">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-500/15 text-rose-500 animate-pulse">
+                <div className="w-full max-w-md space-y-4 rounded-3xl border-2 border-rose-500/60 bg-card p-6 text-center shadow-2xl">
+                  <div className="mx-auto flex h-16 w-16 animate-pulse items-center justify-center rounded-2xl bg-rose-500/15 text-rose-500">
                     <ShieldAlert className="h-8 w-8" />
                   </div>
                   <h2 className="text-xl font-extrabold text-foreground">
@@ -1063,7 +1220,7 @@ export default function DailyTrivia() {
                     Güvenlik kuralları gereği 5 saniye içinde yarışma ekranına geri dönmezseniz
                     yarışma otomatik olarak iptal edilecek ve ödüller verilmeyecektir.
                   </p>
-                  <div className="font-mono text-4xl font-black text-rose-500 tabular-nums">
+                  <div className="font-mono text-4xl font-black tabular-nums text-rose-500">
                     {(awayRemainingMs / 1000).toFixed(1)} sn
                   </div>
                   <Button
@@ -1119,7 +1276,7 @@ export default function DailyTrivia() {
           </Card>
         )}
 
-        {/* ==================== 4. COMPLETED SCREEN ==================== */}
+        {/* ==================== 4. RESULT SCREEN ==================== */}
         {!errorMsg && attempt?.status === 'completed' && (
           <Card
             className={cn(
@@ -1147,75 +1304,76 @@ export default function DailyTrivia() {
               <h1 className="text-2xl font-extrabold sm:text-3xl">
                 {attempt.grandPrizeAwarded
                   ? 'Efsane! 15/15 Tam Puan!'
-                  : 'Günlük Yarışmayı Tamamladın!'}
+                  : attempt.timedOut
+                  ? 'Süre Doldu'
+                  : 'Yarışma Tamamlandı'}
               </h1>
               <p className="mt-1.5 text-xs text-white/90 sm:text-sm">
                 {attempt.grandPrizeAwarded
-                  ? '15 sorunun tamamını doğru bilerek 375 XP, Şampiyon rozeti ve 2 saatlik sınırsız not erişimi kazandın!'
-                  : `${attempt.correctCount} doğru cevap ile kazandığın ${attempt.xpEarned} XP hesabına tanımlandı ve korundu.`}
+                  ? '375 XP ve 2 saatlik sınırsız not erişimi kazandın!'
+                  : attempt.timedOut
+                  ? 'Süre dolduğunda kaydedilmiş cevapların değerlendirildi.'
+                  : `${resultCorrect} doğru cevabınla ${attempt.xpEarned} XP kazandın.`}
               </p>
             </div>
 
             <CardContent className="space-y-5 p-6">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-border/70 bg-muted/25 p-4 text-center">
-                  <p className="text-xs text-muted-foreground">Doğru Sayısı</p>
-                  <p className="mt-1 text-2xl font-extrabold text-foreground tabular-nums">
-                    {attempt.correctCount} / {TRIVIA_TOTAL_QUESTIONS}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Doğru</p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+                    {resultCorrect}
                   </p>
+                </div>
+                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/[0.06] p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Yanlış</p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-rose-600 dark:text-rose-400">
+                    {resultWrong}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border/70 bg-muted/25 p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Boş</p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-foreground">{resultBlank}</p>
                 </div>
                 <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-4 text-center">
                   <p className="text-xs text-muted-foreground">Kazanılan XP</p>
-                  <p className="mt-1 text-2xl font-extrabold text-primary tabular-nums">
-                    +{attempt.xpEarned} XP
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border/70 bg-muted/25 p-4 text-center">
-                  <p className="text-xs text-muted-foreground">Büyük Ödül (15/15)</p>
-                  <p
-                    className={cn(
-                      'mt-1 text-sm font-extrabold',
-                      attempt.grandPrizeAwarded
-                        ? 'text-amber-600 dark:text-amber-400'
-                        : 'text-muted-foreground',
-                    )}
-                  >
-                    {attempt.grandPrizeAwarded ? '2 Saat Sınırsız Aktif' : 'Kazanılamadı'}
-                  </p>
+                  <p className="mt-1 text-2xl font-extrabold tabular-nums text-primary">+{attempt.xpEarned}</p>
                 </div>
               </div>
 
-              {!attempt.grandPrizeAwarded && (
-                <div className="rounded-2xl border border-border/70 bg-muted/20 p-3.5 text-center text-xs text-muted-foreground">
-                  2 saatlik sınırsız not erişimi büyük ödülü için 15 sorunun tamamını doğru
-                  cevaplamak gerekir. Kazandığın{' '}
-                  <strong className="text-foreground">{attempt.xpEarned} XP</strong> toplam puanına
-                  eklendi!
+              {attempt.grandPrizeAwarded && (
+                <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-center text-sm font-bold text-amber-700 dark:text-amber-300">
+                  Büyük ödül: 2 saatlik sınırsız not erişimi aktif
                 </div>
               )}
 
-              {/* Answer summary dots */}
-              {answers.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold text-muted-foreground">Soru Özeti</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {answers.map((a) => (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-muted-foreground">Soru Özeti</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Array.from({ length: TRIVIA_TOTAL_QUESTIONS }).map((_, idx) => {
+                    const rec = answers.find((a) => a.questionIndex === idx);
+                    const state = !rec ? 'blank' : rec.isCorrect ? 'correct' : 'wrong';
+                    return (
                       <span
-                        key={a.questionIndex}
+                        key={idx}
                         className={cn(
                           'inline-flex h-8 w-8 items-center justify-center rounded-xl border text-xs font-bold',
-                          a.isCorrect
-                            ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                            : 'border-rose-500/40 bg-rose-500/15 text-rose-600 dark:text-rose-400',
+                          state === 'correct' &&
+                            'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+                          state === 'wrong' &&
+                            'border-rose-500/40 bg-rose-500/15 text-rose-600 dark:text-rose-400',
+                          state === 'blank' && 'border-dashed border-border bg-muted/30 text-muted-foreground',
                         )}
-                        title={`Soru ${a.questionIndex + 1}: ${a.isCorrect ? 'Doğru (+25 XP)' : 'Yanlış (0 XP)'}`}
+                        title={`Soru ${idx + 1}: ${
+                          state === 'correct' ? 'Doğru (+25 XP)' : state === 'wrong' ? 'Yanlış' : 'Boş'
+                        }`}
                       >
-                        {a.questionIndex + 1}
+                        {idx + 1}
                       </span>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
 
               <div className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/25 px-4 py-3 text-xs text-muted-foreground">
                 <Clock className="h-4 w-4 text-primary" />
@@ -1226,11 +1384,11 @@ export default function DailyTrivia() {
               </div>
 
               <div className="flex flex-wrap justify-center gap-2.5">
-                <Button variant="outline" onClick={() => navigate('/points')} className="rounded-xl gap-1.5">
+                <Button variant="outline" onClick={() => navigate('/points')} className="gap-1.5 rounded-xl">
                   <Sparkles className="h-4 w-4 text-primary" />
                   Puan Geçmişim
                 </Button>
-                <Button onClick={() => navigate('/notes')} className="rounded-xl gap-1.5">
+                <Button onClick={() => navigate('/notes')} className="gap-1.5 rounded-xl">
                   <BookOpen className="h-4 w-4" />
                   {attempt.grandPrizeAwarded ? 'Sınırsız Notlara Git' : 'Ders Notlarına Git'}
                 </Button>

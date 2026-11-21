@@ -25,11 +25,15 @@ export interface TriviaQuestionClient {
   options: [string, string, string, string];
 }
 
+/**
+ * Kaydedilmiş cevap. Yarışma sürerken yalnızca `questionIndex` ve `selectedOption` döner;
+ * doğruluk bilgisi (isCorrect, correctIndex, explanation) yarışma bittikten sonra açıklanır.
+ */
 export interface TriviaAnswerRecord {
   questionIndex: number;
   selectedOption: number;
-  isCorrect: boolean;
-  xpAwarded: number;
+  isCorrect?: boolean;
+  xpAwarded?: number;
   correctIndex?: number;
   explanation?: string;
 }
@@ -40,12 +44,18 @@ export interface TriviaAttemptSummary {
   currentIndex: number;
   answeredCount: number;
   correctCount: number;
+  wrongCount?: number;
+  blankCount?: number;
   xpEarned: number;
   grandPrizeAwarded: boolean;
   unlimitedExpiresAt: string | null;
   cancelReason: string | null;
   cancelMessage: string | null;
   startedAt: string;
+  /** Sunucuda startedAt + 15 dk olarak hesaplanan bitiş zamanı */
+  deadlineAt?: string;
+  timeLimitSec?: number;
+  timedOut?: boolean;
   completedAt: string | null;
   cancelledAt: string | null;
 }
@@ -73,21 +83,32 @@ export interface TriviaStartResponse {
   questions: TriviaQuestionClient[];
 }
 
+/** Cevap kaydı yanıtı: doğru/yanlış bilgisi yarışma bitene kadar gizli tutulur. */
 export interface TriviaAnswerResponse {
   questionIndex: number;
   selectedOption: number;
-  isCorrect: boolean;
-  correctIndex: number;
-  explanation: string;
-  xpAwarded: number;
-  totalXpEarned: number;
-  correctCount: number;
+  saved: boolean;
   answeredCount: number;
   remainingCount: number;
-  completed: boolean;
+  deadlineAt: string;
+  serverNowIso: string;
+  /** Süre dolduğu için yarışma otomatik sonuçlandıysa true */
+  timedOut?: boolean;
+  final?: TriviaFinishResponse;
+}
+
+export interface TriviaFinishResponse {
+  attempt: TriviaAttemptSummary;
+  answers: TriviaAnswerRecord[];
+  correctCount: number;
+  wrongCount: number;
+  blankCount: number;
+  xpEarned: number;
   grandPrizeAwarded: boolean;
   unlimitedExpiresAt: string | null;
   newUserPointsTotal: number;
+  timedOut: boolean;
+  serverNowIso: string;
 }
 
 export interface TriviaReturnResponse {
@@ -102,6 +123,15 @@ export interface TriviaReturnResponse {
 export const TRIVIA_TOTAL_QUESTIONS = 15;
 export const TRIVIA_XP_PER_CORRECT = 25;
 export const TRIVIA_LEAVE_LIMIT_MS = 5000;
+export const TRIVIA_TIME_LIMIT_MS = 15 * 60 * 1000;
+export const TRIVIA_WARNING_MS = 2 * 60 * 1000;
+
+export function formatTriviaClock(ms: number): string {
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 
 export const TRIVIA_XP_LADDER = Array.from({ length: TRIVIA_TOTAL_QUESTIONS }, (_, i) => ({
   correct: i + 1,

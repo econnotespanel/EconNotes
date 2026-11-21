@@ -18,6 +18,8 @@ const TOTAL_QUESTIONS = 15;
 const XP_PER_CORRECT = 25;
 const MAX_AWAY_MS = 5500; // 5s strict client window + 0.5s network grace
 const GRAND_PRIZE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours real-time
+const TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes total for all 15 questions
+const TIME_GRACE_MS = 4000; // network latency tolerance for final answer / auto-finish
 
 interface StoredTriviaQuestion extends TriviaQuestionRecord {
   hash: string;
@@ -619,6 +621,175 @@ Deno.serve(async (req) => {
       return { cancelledNow: false, xpRevoked: 0, newPoints: null };
     };
 
+    // ---- 15 dakikalık toplam süre + sonuçlandırma yardımcıları ----
+    let livePoints = currentUserPoints;
+
+    const attemptDeadlineMs = (a: Record<string, any>): number => {
+      const started = Date.parse(String(a.started_at));
+      return (Number.isFinite(started) ? started : Date.now()) + TIME_LIMIT_MS;
+    };
+    const isAttemptExpired = (a: Record<string, any>): boolean =>
+      Date.now() > attemptDeadlineMs(a) + TIME_GRACE_MS;
+
+    const summarizeAttempt = (a: Record<string, any>) => {
+      const done = a.status === 'completed';
+      const answered = Number(a.answered_count ?? 0);
+      const correct = done ? Number(a.correct_count ?? 0) : 0;
+      return {
+        id: a.id,
+        status: a.status,
+        currentIndex: Number(a.current_index ?? 0),
+        answeredCount: answered,
+        correctCount: correct,
+        wrongCount: done ? answered - correct : 0,
+        blankCount: done ? TOTAL_QUESTIONS - answered : 0,
+        xpEarned: done ? Number(a.xp_earned ?? 0) : 0,
+        grandPrizeAwarded: Boolean(a.grand_prize_awarded),
+        unlimitedExpiresAt: a.unlimited_expires_at ?? null,
+        cancelReason: a.cancel_reason ?? null,
+        cancelMessage: a.status === 'cancelled' ? getCancelMessage(a.cancel_reason) : null,
+        startedAt: a.started_at,
+        deadlineAt: new Date(attemptDeadlineMs(a)).toISOString(),
+        timeLimitSec: TIME_LIMIT_MS / 1000,
+        timedOut: done && a.cancel_reason === 'time_expired',
+        completedAt: a.completed_at ?? null,
+        cancelledAt: a.cancelled_at ?? null,
+      };
+    };
+
+    const revealAnswerRow = (
+      row: Record<string, unknown>,
+      fullSet: StoredTriviaQuestion[],
+      reveal: boolean,
+    ): Record<string, unknown> => {
+      const idx = Number(row.question_index);
+      const base = { questionIndex: idx, selectedOption: Number(row.selected_option) };
+      if (!reveal) return base;
+      const qObj = fullSet[idx];
+      return {
+        ...base,
+        isCorrect: Boolean(row.is_correct),
+        xpAwarded: Number(row.xp_awarded ?? 0),
+        correctIndex: qObj?.correctIndex,
+        explanation: qObj?.explanation,
+      };
+    };
+
+    const buildFinishPayload = async (a: Record<string, any>, pointsTotal: number) => {
+      const { questions: fullSet } = await ensureTodayQuizSet(admin, String(a.quiz_date));
+      const { data: rows } = await admin
+        .from('daily_trivia_answers')
+        .select('question_index, selected_option, is_correct, xp_awarded')
+        .eq('attempt_id', a.id)
+        .order('question_index', { ascending: true });
+      const summary = summarizeAttempt(a);
+      return {
+        attempt: summary,
+        answers: (rows || []).map((r) => revealAnswerRow(r as Record<string, unknown>, fullSet, true)),
+        correctCount: summary.correctCount,
+        wrongCount: summary.wrongCount,
+        blankCount: summary.blankCount,
+        xpEarned: summary.xpEarned,
+        grandPrizeAwarded: summary.grandPrizeAwarded,
+        unlimitedExpiresAt: summary.grandPrizeAwarded ? summary.unlimitedExpiresAt : activeUnlimitedUntil,
+        newUserPointsTotal: pointsTotal,
+        timedOut: summary.timedOut,
+        serverNowIso: new Date().toISOString(),
+      };
+    };
+
+    /**
+     * Cevapları sunucuda değerlendirir; her doğru için 25 XP verir, 15/15 ise 2 saatlik sınırsız erişimi tanımlar.
+     * Durum `in_progress -> completed` geçişi tek seferlik (atomik) alınır; eşzamanlı ikinci çağrı ödülü tekrar veremez.
+     */
+    const finalizeAttempt = async (timedOut: boolean) => {
+      const att = attempt as Record<string, any>;
+      const { questions: fullSet } = await ensureTodayQuizSet(admin, String(att.quiz_date));
+      const { data: rows } = await admin
+        .from('daily_trivia_answers')
+        .select('question_index, selected_option')
+        .eq('attempt_id', att.id)
+        .order('question_index', { ascending: true });
+
+      const graded = (rows || []).map((r) => {
+        const idx = Number((r as { question_index: number }).question_index);
+        const sel = Number((r as { selected_option: number }).selected_option);
+        return { idx, ok: Boolean(fullSet[idx]) && sel === fullSet[idx].correctIndex };
+      });
+      const correctRows = graded.filter((g) => g.ok);
+      const correct = correctRows.length;
+      const xp = correct * XP_PER_CORRECT;
+      const perfect = correct === TOTAL_QUESTIONS;
+      const nowIso = new Date().toISOString();
+      const unlimited = perfect ? new Date(Date.now() + GRAND_PRIZE_DURATION_MS).toISOString() : null;
+
+      const { data: claimed } = await admin
+        .from('daily_trivia_attempts')
+        .update({
+          status: 'completed',
+          completed_at: nowIso,
+          answered_count: graded.length,
+          correct_count: correct,
+          xp_earned: xp,
+          grand_prize_awarded: perfect,
+          unlimited_expires_at: unlimited,
+          leave_started_at: null,
+          cancel_reason: timedOut ? 'time_expired' : null,
+        })
+        .eq('id', att.id)
+        .eq('status', 'in_progress')
+        .select('*')
+        .maybeSingle();
+
+      if (!claimed) {
+        // Başka bir istek sonuçlandırmış: mevcut sonucu döndür (ödül tekrar verilmez)
+        const { data: fresh } = await admin
+          .from('daily_trivia_attempts')
+          .select('*')
+          .eq('id', att.id)
+          .single();
+        attempt = (fresh as Record<string, any>) || att;
+        return buildFinishPayload(attempt as Record<string, any>, livePoints);
+      }
+
+      attempt = claimed as Record<string, any>;
+
+      if (correctRows.length > 0) {
+        await admin
+          .from('daily_trivia_answers')
+          .update({ xp_awarded: XP_PER_CORRECT })
+          .eq('attempt_id', att.id)
+          .in(
+            'question_index',
+            correctRows.map((g) => g.idx),
+          );
+      }
+      if (xp > 0) {
+        livePoints = await addUserPoints(admin, String(att.user_id), xp, `daily_trivia:${att.quiz_date}:final`);
+      }
+
+      if (perfect && unlimited) {
+        // Persist real-time 2-hour unlimited note access on profiles + auth user metadata
+        await admin.from('profiles').update({ trivia_unlimited_until: unlimited }).eq('user_id', att.user_id);
+        try {
+          const { data: authUserRes } = await admin.auth.admin.getUserById(String(att.user_id));
+          const existingMeta = (authUserRes?.user?.user_metadata || {}) as Record<string, unknown>;
+          const prevPerfect = Number(existingMeta.trivia_perfect_wins || 0);
+          await admin.auth.admin.updateUserById(String(att.user_id), {
+            user_metadata: {
+              ...existingMeta,
+              trivia_unlimited_until: unlimited,
+              trivia_perfect_wins: prevPerfect + 1,
+            },
+          });
+        } catch (metaErr) {
+          console.warn('daily-trivia user_metadata update warning:', metaErr);
+        }
+      }
+
+      return buildFinishPayload(attempt as Record<string, any>, livePoints);
+    };
+
     // ==================== ACTION: STATUS ====================
     if (action === 'status') {
       const clientReloaded = Boolean(body.clientReloaded);
@@ -627,19 +798,16 @@ Deno.serve(async (req) => {
           const cancelled = await cancelAttemptAndRevokeRewards(admin, attempt, 'page_reloaded');
           attempt = cancelled.attempt;
         } else {
-          await enforceServerAwayDeadline();
+          const away = await enforceServerAwayDeadline();
+          if (!away.cancelledNow && attempt && isAttemptExpired(attempt)) {
+            // Süre dolmuş: kayıtlı cevaplarla otomatik sonuçlandır
+            await finalizeAttempt(true);
+          }
         }
       }
 
       let questions: SanitizedTriviaQuestion[] | undefined;
-      let answers: Array<{
-        questionIndex: number;
-        selectedOption: number;
-        isCorrect: boolean;
-        xpAwarded: number;
-        correctIndex?: number;
-        explanation?: string;
-      }> = [];
+      let answers: Array<Record<string, unknown>> = [];
 
       if (attempt) {
         const { data: ansRows } = await admin
@@ -657,18 +825,10 @@ Deno.serve(async (req) => {
           }
         }
 
-        answers = (ansRows || []).map((r) => {
-          const idx = Number((r as { question_index: number }).question_index);
-          const qObj = fullSet[idx];
-          return {
-            questionIndex: idx,
-            selectedOption: Number((r as { selected_option: number }).selected_option),
-            isCorrect: Boolean((r as { is_correct: boolean }).is_correct),
-            xpAwarded: Number((r as { xp_awarded: number }).xp_awarded),
-            correctIndex: qObj?.correctIndex,
-            explanation: qObj?.explanation,
-          };
-        });
+        // Doğru/yanlış bilgisi yalnızca yarışma sonuçlandıktan sonra açıklanır
+        answers = (ansRows || []).map((r) =>
+          revealAnswerRow(r as Record<string, unknown>, fullSet, attempt?.status === 'completed'),
+        );
       }
 
       return json({
@@ -678,27 +838,13 @@ Deno.serve(async (req) => {
         xpPerCorrect: XP_PER_CORRECT,
         maxXp: TOTAL_QUESTIONS * XP_PER_CORRECT,
         serverNowIso: new Date().toISOString(),
-        userPoints: currentUserPoints,
+        userPoints: livePoints,
         perfectWinsCount,
-        unlimitedExpiresAt: activeUnlimitedUntil,
-        attempt: attempt
-          ? {
-              id: attempt.id,
-              status: attempt.status,
-              currentIndex: attempt.current_index,
-              answeredCount: attempt.answered_count,
-              correctCount: attempt.correct_count,
-              xpEarned: attempt.xp_earned,
-              grandPrizeAwarded: Boolean(attempt.grand_prize_awarded),
-              unlimitedExpiresAt: attempt.unlimited_expires_at,
-              cancelReason: attempt.cancel_reason,
-              cancelMessage:
-                attempt.status === 'cancelled' ? getCancelMessage(attempt.cancel_reason) : null,
-              startedAt: attempt.started_at,
-              completedAt: attempt.completed_at,
-              cancelledAt: attempt.cancelled_at,
-            }
-          : null,
+        unlimitedExpiresAt:
+          attempt?.status === 'completed' && attempt.grand_prize_awarded
+            ? attempt.unlimited_expires_at
+            : activeUnlimitedUntil,
+        attempt: attempt ? summarizeAttempt(attempt) : null,
         questions,
         answers,
       });
@@ -748,21 +894,7 @@ Deno.serve(async (req) => {
         quizDate,
         resetsAtIso,
         serverNowIso: new Date().toISOString(),
-        attempt: {
-          id: created.id,
-          status: created.status,
-          currentIndex: 0,
-          answeredCount: 0,
-          correctCount: 0,
-          xpEarned: 0,
-          grandPrizeAwarded: false,
-          unlimitedExpiresAt: null,
-          cancelReason: null,
-          cancelMessage: null,
-          startedAt: created.started_at,
-          completedAt: null,
-          cancelledAt: null,
-        },
+        attempt: summarizeAttempt(created),
         questions: sanitizeQuestions(questions),
       });
     }
@@ -846,7 +978,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ==================== ACTION: ANSWER ====================
+    // ==================== ACTION: ANSWER (kaydet / değiştir) ====================
     if (action === 'answer') {
       if (!attempt) {
         return json({ error: 'Aktif yarışma bulunamadı.' }, 404);
@@ -862,7 +994,7 @@ Deno.serve(async (req) => {
         );
       }
       if (attempt.status === 'completed') {
-        return json({ error: 'Bu yarışma zaten tamamlandı.' }, 409);
+        return json({ error: 'Bu yarışma zaten tamamlandı.', completed: true }, 409);
       }
 
       // Enforce 5-second away check before accepting any answer
@@ -880,6 +1012,22 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Sunucu tarafı süre kontrolü: 15 dk dolduysa bu cevap sayılmaz, kayıtlı cevaplarla sonuçlanır
+      if (isAttemptExpired(attempt)) {
+        const final = await finalizeAttempt(true);
+        return json({
+          questionIndex: Number(body.questionIndex) || 0,
+          selectedOption: Number(body.selectedOption) || 0,
+          saved: false,
+          answeredCount: Number(final.attempt.answeredCount),
+          remainingCount: Math.max(0, TOTAL_QUESTIONS - Number(final.attempt.answeredCount)),
+          deadlineAt: final.attempt.deadlineAt,
+          serverNowIso: new Date().toISOString(),
+          timedOut: true,
+          final,
+        });
+      }
+
       const questionIndex = Number(body.questionIndex);
       const selectedOption = Number(body.selectedOption);
 
@@ -889,9 +1037,6 @@ Deno.serve(async (req) => {
       if (!Number.isInteger(selectedOption) || selectedOption < 0 || selectedOption > 3) {
         return json({ error: 'Geçersiz seçenek.' }, 400);
       }
-      if (questionIndex !== Number(attempt.current_index)) {
-        return json({ error: 'Sorular sırayla ve yalnızca bir kez yanıtlanabilir.' }, 409);
-      }
 
       const { questions } = await ensureTodayQuizSet(admin, quizDate);
       const targetQuestion = questions[questionIndex];
@@ -899,99 +1044,86 @@ Deno.serve(async (req) => {
         return json({ error: 'Soru bulunamadı.' }, 404);
       }
 
-      const isCorrect = selectedOption === targetQuestion.correctIndex;
-      const xpAwarded = isCorrect ? XP_PER_CORRECT : 0;
-
-      // Insert validated answer first — UNIQUE(attempt_id, question_index) guarantees no duplicate XP!
-      const { error: ansInsErr } = await admin.from('daily_trivia_answers').insert({
-        attempt_id: attempt.id,
-        user_id: authUserId,
-        quiz_date: quizDate,
-        question_index: questionIndex,
-        selected_option: selectedOption,
-        is_correct: isCorrect,
-        xp_awarded: xpAwarded,
-      });
-
-      if (ansInsErr) {
-        return json({ error: 'Bu soru zaten yanıtlanmış.' }, 409);
-      }
-
-      let newUserPointsTotal = currentUserPoints;
-      if (isCorrect) {
-        newUserPointsTotal = await addUserPoints(
-          admin,
-          authUserId,
-          XP_PER_CORRECT,
-          `daily_trivia:${quizDate}:q${questionIndex + 1}`,
-        );
-      }
-
-      const nextAnswered = Number(attempt.answered_count) + 1;
-      const nextCorrect = Number(attempt.correct_count) + (isCorrect ? 1 : 0);
-      const nextXpEarned = Number(attempt.xp_earned) + xpAwarded;
-      const completed = nextAnswered >= TOTAL_QUESTIONS;
-      const isPerfect = completed && nextCorrect === TOTAL_QUESTIONS;
+      // Cevap kaydedilir veya (daha önce verildiyse) değiştirilir. XP yalnızca yarışma sonuçlanınca verilir.
       const nowIso = new Date().toISOString();
-
-      let unlimitedExpiresAt: string | null = activeUnlimitedUntil;
-      if (isPerfect) {
-        const expiresMs = Date.now() + GRAND_PRIZE_DURATION_MS;
-        unlimitedExpiresAt = new Date(expiresMs).toISOString();
-
-        // Persist real-time 2-hour unlimited note access on profiles + auth user metadata
-        await admin
-          .from('profiles')
-          .update({ trivia_unlimited_until: unlimitedExpiresAt })
-          .eq('user_id', authUserId);
-
-        try {
-          const { data: authUserRes } = await admin.auth.admin.getUserById(authUserId);
-          const existingMeta = (authUserRes?.user?.user_metadata || {}) as Record<string, unknown>;
-          const prevPerfect = Number(existingMeta.trivia_perfect_wins || 0);
-          await admin.auth.admin.updateUserById(authUserId, {
-            user_metadata: {
-              ...existingMeta,
-              trivia_unlimited_until: unlimitedExpiresAt,
-              trivia_perfect_wins: prevPerfect + 1,
-            },
-          });
-        } catch (metaErr) {
-          console.warn('daily-trivia user_metadata update warning:', metaErr);
-        }
+      const { error: ansUpsertErr } = await admin.from('daily_trivia_answers').upsert(
+        {
+          attempt_id: attempt.id,
+          user_id: authUserId,
+          quiz_date: quizDate,
+          question_index: questionIndex,
+          selected_option: selectedOption,
+          is_correct: selectedOption === targetQuestion.correctIndex,
+          xp_awarded: 0,
+          answered_at: nowIso,
+        },
+        { onConflict: 'attempt_id,question_index' },
+      );
+      if (ansUpsertErr) {
+        return json({ error: 'Cevap kaydedilemedi. Lütfen tekrar deneyin.' }, 500);
       }
+
+      const { count: answeredNow } = await admin
+        .from('daily_trivia_answers')
+        .select('id', { count: 'exact', head: true })
+        .eq('attempt_id', attempt.id);
+      const answeredCount = Math.min(TOTAL_QUESTIONS, Number(answeredNow ?? 0));
 
       await admin
         .from('daily_trivia_attempts')
         .update({
-          current_index: nextAnswered,
-          answered_count: nextAnswered,
-          correct_count: nextCorrect,
-          xp_earned: nextXpEarned,
-          status: completed ? 'completed' : 'in_progress',
-          completed_at: completed ? nowIso : null,
-          grand_prize_awarded: isPerfect,
-          unlimited_expires_at: isPerfect ? unlimitedExpiresAt : null,
+          current_index: questionIndex,
+          answered_count: answeredCount,
           leave_started_at: null,
         })
-        .eq('id', attempt.id);
+        .eq('id', attempt.id)
+        .eq('status', 'in_progress');
 
       return json({
         questionIndex,
         selectedOption,
-        isCorrect,
-        correctIndex: targetQuestion.correctIndex,
-        explanation: targetQuestion.explanation,
-        xpAwarded,
-        totalXpEarned: nextXpEarned,
-        correctCount: nextCorrect,
-        answeredCount: nextAnswered,
-        remainingCount: Math.max(0, TOTAL_QUESTIONS - nextAnswered),
-        completed,
-        grandPrizeAwarded: isPerfect,
-        unlimitedExpiresAt: isPerfect ? unlimitedExpiresAt : activeUnlimitedUntil,
-        newUserPointsTotal,
+        saved: true,
+        answeredCount,
+        remainingCount: Math.max(0, TOTAL_QUESTIONS - answeredCount),
+        deadlineAt: new Date(attemptDeadlineMs(attempt)).toISOString(),
+        serverNowIso: nowIso,
       });
+    }
+
+    // ==================== ACTION: FINISH (Yarışmayı Bitir / süre doldu) ====================
+    if (action === 'finish') {
+      if (!attempt) {
+        return json({ error: 'Aktif yarışma bulunamadı.' }, 404);
+      }
+      if (attempt.status === 'cancelled') {
+        return json(
+          {
+            error: getCancelMessage(attempt.cancel_reason),
+            cancelled: true,
+            cancelReason: attempt.cancel_reason,
+          },
+          409,
+        );
+      }
+      if (attempt.status === 'completed') {
+        // Idempotent: ödül ikinci kez verilmez
+        return json(await buildFinishPayload(attempt, livePoints));
+      }
+      const awayCheck = await enforceServerAwayDeadline();
+      if (awayCheck.cancelledNow) {
+        return json(
+          {
+            error: getCancelMessage('away_over_5s'),
+            cancelled: true,
+            cancelReason: 'away_over_5s',
+            xpRevoked: awayCheck.xpRevoked,
+            newUserPointsTotal: awayCheck.newPoints,
+          },
+          409,
+        );
+      }
+      const expired = isAttemptExpired(attempt) || Date.now() >= attemptDeadlineMs(attempt) - 1500;
+      return json(await finalizeAttempt(Boolean(body.timedOut) && expired));
     }
 
     return json({ error: 'Bilinmeyen işlem.' }, 400);
