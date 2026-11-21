@@ -120,16 +120,21 @@ export async function routedRagAnswer(params: {
   docIds?: string[];
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   coachMode?: CoachMode;
+  images?: Array<{ data: string; mimeType: string; name?: string }>;
+  fallbackContextText?: string;
+  notebookTitle?: string;
+  course?: string | null;
   onToken?: (partial: string, tokensPerSec: number) => void;
 }): Promise<RoutedRagResponse> {
   const startedAt = performance.now();
   const snap = neuralEngine.getSnapshot();
   const activeMode: CoachMode = params.coachMode || 'reinforce';
+  const hasImages = Array.isArray(params.images) && params.images.length > 0;
 
   // Kısa takip sorularında ("anlamadım", "örnek ver", "biraz daha basit anlat") önceki konunun anahtar kelimelerini aramaya dahil et
   const isFollowUpPrompt =
     params.question.trim().length < 55 ||
-    /\b(anlamadım|anlayamadım|basit|örnek|pekiştir|tekrar|açıkla|devam|soru\s*sor|test\s*et|neden|nasıl)\b/i.test(
+    /\b(anlamadım|anlayamadım|basit|örnek|pekiştir|tekrar|açıkla|devam|soru\s*sor|test\s*et|neden|nasıl|adım\s*adım|çöz)\b/i.test(
       params.question,
     );
   const recentUserTurns = (params.history || [])
@@ -143,44 +148,41 @@ export async function routedRagAnswer(params: {
 
   let queryVector: number[] | undefined;
 
-  if (snap.embedderStatus === 'ready') {
+  if (snap.embedderStatus === 'ready' && params.docIds && params.docIds.length > 0) {
     const qVecs = await neuralEngine.embedTexts([`query: ${retrievalQuery}`]);
     if (qVecs[0]) queryVector = qVecs[0];
   }
 
-  const hits = await searchChunks({
-    query: retrievalQuery,
-    docIds: params.docIds,
-    topK: 7,
-    queryVector,
-  });
+  const hits =
+    params.docIds && params.docIds.length === 0
+      ? []
+      : await searchChunks({
+          query: retrievalQuery,
+          docIds: params.docIds,
+          topK: 7,
+          queryVector,
+        });
 
-  if (hits.length === 0) {
-    return {
-      answer:
-        'Seçili notlarda veya slaytlarda bu soruyla doğrudan eşleşen bir pasaj bulunamadı. Lütfen sol taraftan bir PDF/slayt yükleyin veya ilgili ders notunu seçip tekrar sorun.',
-      hits: [],
-      engineUsed: 'local',
-      model: 'EconNotes Kaynak Tarayıcı',
-      tokensPerSec: null,
-      latencyMs: Math.round(performance.now() - startedAt),
-    };
-  }
-
-  const contextBlock = hits
-    .map(
-      (h, i) =>
-        `[Kaynak ${i + 1}: ${h.chunk.docTitle} · ${h.chunk.sectionHeading}]\n${h.chunk.text}`,
-    )
-    .join('\n\n---\n\n');
+  const fallbackText = (params.fallbackContextText || '').trim();
+  const contextBlock =
+    hits.length > 0
+      ? hits
+          .map(
+            (h, i) =>
+              `[Kaynak ${i + 1}: ${h.chunk.docTitle} · ${h.chunk.sectionHeading}]\n${h.chunk.text}`,
+          )
+          .join('\n\n---\n\n')
+      : fallbackText.slice(0, 20_000);
 
   const conversationTurns: Array<{ role: 'user' | 'assistant'; content: string }> = [
     ...(params.history || []).slice(-8),
-    { role: 'user', content: params.question },
+    { role: 'user', content: params.question || 'Bu görseldeki soruyu adım adım çöz ve anlat.' },
   ];
 
   const modeHint =
-    activeMode === 'reinforce'
+    activeMode === 'step_by_step'
+      ? 'ADIM ADIM ÇÖZÜM: Soruyu (1) Verilenler & İstenen, (2) Yöntem/Formül, (3) Adım 1, Adım 2... şeklinde ara adım atlamadan çözüm, (4) Nihai Sonuç & Kontrol biçiminde anlat.'
+      : activeMode === 'reinforce'
       ? 'PEKİŞTİREREK ANLAT: (1) Sade ve anlaşılır adım adım açıklama, (2) Yalnızca verilen kaynak pasajlarına dayalı somut bağlantı/örnek ([Kaynak 1] şeklinde atıf yap), (3) Sık karıştırılan 1 noktaya uyarı, (4) Sonunda 1 kısa pekiştirme sorusu sor.'
       : activeMode === 'feynman'
       ? 'FEYNMAN: Karmaşık kavramı en basit günlük mantıkla sadeleştir, ardından verilen not pasajındaki gerçek tanıma bağla.'
@@ -188,7 +190,7 @@ export async function routedRagAnswer(params: {
       ? 'SOKRATİK: Hazır cevabı hemen verme; nottaki ilgili pasaja dayalı kısa bir ipucu ve tek bir yönlendirici soru sor.'
       : 'NET & KAYNAKLI: YALNIZCA verilen kaynak parçalarına dayanarak net, gereksiz uzatmasız ve [Kaynak 1] atıflı cevap ver.';
 
-  if (shouldUseLocalGpu('instant')) {
+  if (!hasImages && contextBlock && shouldUseLocalGpu('instant')) {
     try {
       const gpuRes = await neuralEngine.streamChat({
         taskLabel: 'Notlarıma Sor (RAG)',
@@ -222,7 +224,18 @@ ${contextBlock}`,
     }
   }
 
-  if (snap.prefs.routingPolicy === 'local_privacy') {
+  if (!hasImages && snap.prefs.routingPolicy === 'local_privacy') {
+    if (hits.length === 0) {
+      return {
+        answer:
+          'Yerel gizlilik modu aktif ve seçili kaynaklarda doğrudan eşleşen pasaj bulunamadı. Sol panelden bir PDF/slayt ekleyip tekrar deneyin.',
+        hits: [],
+        engineUsed: 'local',
+        model: 'Yerel Gizlilik Arama',
+        tokensPerSec: null,
+        latencyMs: Math.round(performance.now() - startedAt),
+      };
+    }
     const summary = hits
       .slice(0, 3)
       .map((h, i) => `**${i + 1}. ${h.chunk.docTitle} (${h.chunk.sectionHeading})**\n${h.chunk.text}`)
@@ -237,14 +250,15 @@ ${contextBlock}`,
     };
   }
 
-  // Cloud Grounded Synthesis via askStudyCoach with full conversation history & mode
+  // Cloud Grounded Synthesis + Vision Snap & Solve via askStudyCoach
   const cloudRes = await askStudyCoach({
-    materialTitle: hits[0]?.chunk.docTitle || 'Yüklenen Ders Notları ve Slaytlar',
-    course: hits[0]?.chunk.course,
+    materialTitle: hits[0]?.chunk.docTitle || params.notebookTitle || 'Çalışma Defteri',
+    course: hits[0]?.chunk.course || params.course || undefined,
     materialType: 'summary',
-    materialContent: { overview: contextBlock },
+    materialContent: contextBlock ? { overview: contextBlock } : {},
     coachMode: activeMode,
     messages: conversationTurns,
+    images: hasImages ? params.images : undefined,
   });
 
   const latencyMs = Math.round(performance.now() - startedAt);

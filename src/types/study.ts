@@ -12,7 +12,14 @@ export type PedagogicalStyle =
 
 export type QuizFormat = 'multiple_choice' | 'open_ended' | 'mixed';
 export type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'mixed';
-export type CoachMode = 'reinforce' | 'tutor' | 'feynman' | 'socratic' | 'deep_research' | 'grade_answer';
+export type CoachMode =
+  | 'reinforce'
+  | 'step_by_step'
+  | 'tutor'
+  | 'feynman'
+  | 'socratic'
+  | 'deep_research'
+  | 'grade_answer';
 
 export interface SummaryCheckpointQuestion {
   question: string;
@@ -249,4 +256,56 @@ export interface StudioGenerationSettings {
   examFocus: string;
   faculty?: string;
   examMode?: ExamStudyMode;
+}
+
+export interface NotebookAttachmentImage {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl: string;
+  base64: string;
+}
+
+export interface PinnedStudyNote {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  sourceTag?: string;
+}
+
+export interface NotebookCitationHit {
+  docId: string;
+  docTitle: string;
+  sectionHeading: string;
+  excerpt: string;
+  score: number;
+}
+
+export interface NotebookChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+  mode?: CoachMode;
+  meta?: string;
+  citations?: NotebookCitationHit[];
+  suggestedTopics?: string[];
+  attachmentNames?: string[];
+  attachmentPreviews?: string[];
+}
+
+export interface StudioNotebook {
+  id: string;
+  title: string;
+  course: string;
+  emoji: string;
+  createdAt: string;
+  updatedAt: string;
+  sources: ExtractedSourceItem[];
+  checkedSourceIds: string[];
+  checkedMaterialIds: string[];
+  materialIds: string[];
+  pinnedNotes: PinnedStudyNote[];
+  messages: NotebookChatMessage[];
 }

@@ -11,9 +11,16 @@ import {
   createChatCompletion,
   createSpeech,
   OpenAIGatewayError,
+  type OpenAIMessage,
 } from '../_shared/openai-gateway.ts';
 
 interface ChatMsg { role: 'user' | 'assistant'; content: string }
+
+interface CoachImageAttachment {
+  data: string;
+  mimeType: string;
+  name?: string;
+}
 
 interface CoachReq {
   mode?: 'chat' | 'tts';
@@ -23,6 +30,7 @@ interface CoachReq {
   course?: string;
   materialContent?: any;
   messages?: ChatMsg[];
+  images?: CoachImageAttachment[];
   // TTS alanları
   text?: string;
   speaker?: 'Deniz' | 'Barış';
@@ -304,8 +312,8 @@ Deno.serve(async (req) => {
     if (!user) return jsonResponse(req, { error: 'Bu işlem için giriş yapmalısınız.' }, 401);
 
     const body = await readJsonBody<CoachReq & {
-      coachMode?: 'reinforce' | 'tutor' | 'feynman' | 'socratic' | 'deep_research' | 'grade_answer';
-    }>(req, 2_097_152);
+      coachMode?: 'reinforce' | 'step_by_step' | 'tutor' | 'feynman' | 'socratic' | 'deep_research' | 'grade_answer';
+    }>(req, 6_291_456);
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY') || '';
 
     if (body.mode === 'tts') {
@@ -332,11 +340,28 @@ Deno.serve(async (req) => {
       throw new RequestError('İstek içeriği geçersiz.', 400);
     }
 
-    const contextJson = JSON.stringify(body.materialContent).slice(0, 60_000);
+    const validImages: Array<{ mimeType: string; data: string; name?: string }> = [];
+    if (Array.isArray(body.images)) {
+      for (const img of body.images.slice(0, 3)) {
+        if (!img || typeof img.data !== 'string' || typeof img.mimeType !== 'string') continue;
+        if (!/^image\/(png|jpe?g|webp|gif)$/i.test(img.mimeType)) continue;
+        const commaIdx = img.data.indexOf(',');
+        const rawB64 = img.data.startsWith('data:image/') && commaIdx !== -1
+          ? img.data.slice(commaIdx + 1).replace(/\s+/g, '')
+          : img.data.trim().replace(/\s+/g, '');
+        if (rawB64.length > 64 && rawB64.length < 4_500_000) {
+          validImages.push({ mimeType: img.mimeType, data: rawB64, name: img.name });
+        }
+      }
+    }
+
+    const contextJson = JSON.stringify(body.materialContent ?? {}).slice(0, 60_000);
     const coachMode = body.coachMode || 'tutor';
 
     const modeDirective =
-      coachMode === 'reinforce'
+      coachMode === 'step_by_step'
+        ? 'ÖĞRETİM MODU (ADIM ADIM ÇÖZÜM — ASTRA AI ÖĞRETMEN): Öğrencinin sorusunu veya gönderdiği soru fotoğrafını/problemi eksiksiz ve anlaşılır biçimde şu 4 net aşamada çöz: (1) **Verilenler & İstenen:** Sorudaki temel bilgileri, kavramları/değerleri net listele; (2) **Yöntem / Formül:** Hangi ilke, teorem veya formülü neden kullandığımızı bir cümleyle açıkla; (3) **Adım Adım Çözüm:** Adım 1, Adım 2, Adım 3... şeklinde hiçbir ara basamağı atlamadan anlatarak çöz (matematiksel ifade varsa LaTeX $...$ / $$...$$ kullan); (4) **Sonuç & Hızlı Kontrol:** Nihai cevabı belirginleştir ve öğrencinin benzer soruda dikkat etmesi gereken 1 kilit püf noktası ver.'
+        : coachMode === 'reinforce'
         ? 'ÖĞRETİM MODU (PEKİŞTİREREK ANLAT): Öğrencinin anlayamadığı veya sormak istediği konuyu kalıcı biçimde öğret. Şu 4 net adımı izle: (1) **Sade & Net Açıklama:** Konuyu gereksiz süsleme olmadan adım adım mantığıyla anlat; (2) **Notundan Somut Bağlantı / Örnek:** Öğrencinin yüklediği nottaki/slayttaki gerçek kavram, mekanizma veya örneğe doğrudan bağla; (3) **Dikkat Edilecek Ayrım:** En sık karıştırılan 1 noktayı netleştir; (4) **Mini Pekiştirme Sorusu:** Öğrencinin kavrayıp kavramadığını ölçen tek bir kısa kontrol sorusu sor (cevabını hemen verme, öğrenci cevaplayınca değerlendir).'
         : coachMode === 'feynman'
         ? 'ÖĞRETİM MODU (FEYNMAN): Karmaşık terimi önce hiç teknik bilgi gerektirmeyen, tamamen konuyla tutarlı sade bir günlük hayat örneğiyle sezdir, ardından nottaki gerçek akademik tanıma bağla ve "Şimdi sen tek cümleyle kendi kelimelerinle özetler misin?" diye sor.'
@@ -346,13 +371,19 @@ Deno.serve(async (req) => {
         ? 'ÖĞRETİM MODU (DERİN AKADEMİK ARAŞTIRMA): Soruyu üniversite kürsü düzeyinde ele al: teorik varsayımları, varsa metindeki formülleri ($...$ / $$...$$), karşılaştırma tablosunu (|...|) ve alanına uygun somut vaka örneğini sun. Materyalde olmayan literatür katkılarını [Not Dışı Akademik Bilgi] olarak açıkça işaretle.'
         : coachMode === 'grade_answer'
         ? 'ÖĞRETİM MODU (RUBRİK DEĞERLENDİRME): Öğrencinin cevabını doğruluk, kavramsal eksiksizlik ve terminoloji açısından incele; güçlü yönleri, eksikleri, tahmini puanı (100 üzerinden) ve örnek mükemmel cevabı düzenli başlıklarla ver.'
-        : 'ÖĞRETİM MODU (NET & KAYNAKLI ANLATIM): Doğrudan öğrencinin notuna/slaytına dayanarak açık, anlaşılır, adım adım ve pekiştirici Türkçe yanıt ver.';
+        : 'ÖĞRETİM MODU (NET & KAYNAKLI ANLATIM): Doğrudan öğrencinin notuna/slaytına dayanarak açık, anlaşılır, adım adım ve pekiştirici Türkçe yanıt ver; kullandığın pasajlara [Kaynak 1], [Kaynak 2] biçiminde atıf yap.';
 
-    const system = `Sen EconNotes Akıl Hocası'sın — tüm üniversite fakültelerindeki (İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat, Hukuk) öğrencilere ders notları ve slaytları üzerinden birebir yardımcı olan güvenilir akademik öğretmensin.
+    const hasMaterialContext = contextJson.length > 40 && contextJson !== '{}' && contextJson !== '{"overview":""}';
+    const groundingRule = validImages.length > 0
+      ? '- Öğrencinin gönderdiği görsel(ler)deki soruyu, grafiği, tabloyu veya formülü dikkatlice okuyup doğrudan görsele dayanarak çöz. Varsa <materyal> notlarıyla da bağlantı kur.'
+      : hasMaterialContext
+      ? '- Öncelikli ve birincil kaynağın öğrencinin yüklediği <materyal> içeriğidir. Notun/slaytın dışından konu dışı bilgi, başka bölümlerden alakasız benzetme veya uydurma istatistik/kaynak KESİNLİKLE YASAKTIR. Notta doğrudan geçmiyorsa "Yüklediğin notta bu bilgi doğrudan yer almıyor." de; yalnızca faydalıysa doğrulanmış akademik bilgiyi **[Not Dışı Genel Bilgi]** etiketiyle ekle.'
+      : '- Öğrenci henüz not yüklemeden genel akademik soru sordu. Yalnızca doğrulanmış üniversite düzeyindeki akademik bilgiye dayanarak açık, güvenilir ve öğretici yanıt ver; uydurma veri/kaynak ekleme.';
+
+    const system = `Sen EconNotes Akıl Hocası'sın — tüm üniversite fakültelerindeki (İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat, Hukuk) öğrencilere ders notları, slaytlar ve soru görselleri üzerinden birebir yardımcı olan güvenilir akademik öğretmensin.
 ${modeDirective}
 KESİN DOĞRULUK VE SAÇMA BİLGİ YASAĞI:
-- Öncelikli ve birincil kaynağın öğrencinin yüklediği <materyal> içeriğidir. Notun/slaytın dışından konu dışı bilgi, başka bölümlerden alakasız benzetme (ör. tıp/mühendislik/spor/ziraat notuna alakasız iktisat veya tarih örneği katmak), uydurma istatistik/yüzde/kanun maddesi/kaynak veya boş laf KESİNLİKLE YASAKTIR.
-- Öğrencinin sorduğu bilgi yüklenen notta/slaytta geçmiyorsa ASLA uydurma! Önce açıkça "Yüklediğin notta/slaytta bu bilgi doğrudan yer almıyor." de; yalnızca öğrenciye gerçekten faydalı olacaksa doğrulanmış genel akademik bilgiyi **[Not Dışı Genel Bilgi]** etiketiyle kısaca ekle.
+${groundingRule}
 - Öğrenci "anlamadım", "tekrar anlat", "örnek ver" derse önceki cevabı kopyalamak yerine daha yalın, adım adım ve somut bir örnekle pekiştir.
 - Cevapların net, düzenli, gereksiz uzatmadan uzak, Türkçe ve öğretici olsun. Matematik/fen formülü yalnızca ders gerçekten formül içeriyorsa LaTeX ($...$ / $$...$$) ile yaz; sözel derslerde uydurma formül ekleme.
 - Sadece akademik, öğrenmeye yönelik içerik sun. Uygunsuz veya sınav kopyası isteklere kibarca hayır de.
@@ -360,20 +391,53 @@ KESİN DOĞRULUK VE SAÇMA BİLGİ YASAĞI:
 
     const materialMsg = `<materyal>\n${JSON.stringify({ tur: body.materialType, baslik: body.materialTitle, ders: body.course ?? '-', icerik: contextJson })}\n</materyal>`;
 
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    const historySlice = body.messages.slice(-14);
+    const chatMessages: OpenAIMessage[] = historySlice.map((m, idx) => {
+      const isLastUser = idx === historySlice.length - 1 && m.role === 'user' && validImages.length > 0;
+      if (!isLastUser) {
+        return { role: m.role as 'user' | 'assistant', content: m.content };
+      }
+      return {
+        role: 'user',
+        content: [
+          { type: 'text', text: m.content || 'Bu görseldeki soruyu adım adım çöz ve anlat.' },
+          ...validImages.map((img) => ({
+            type: 'image_url' as const,
+            image_url: {
+              url: `data:${img.mimeType};base64,${img.data}`,
+              detail: 'high' as const,
+            },
+          })),
+        ],
+      };
+    });
+
+    const messages: OpenAIMessage[] = [
       { role: 'system', content: system },
-      { role: 'user', content: materialMsg },
-      { role: 'assistant', content: 'Materyali aldım; yalnızca veri olarak kullanacağım.' },
-      ...body.messages.slice(-14).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      ...(hasMaterialContext
+        ? [
+            { role: 'user' as const, content: materialMsg },
+            { role: 'assistant' as const, content: 'Materyali aldım; yalnızca veri olarak kullanacağım.' },
+          ]
+        : []),
+      ...chatMessages,
     ];
 
+    const selectedModel = validImages.length > 0
+      ? 'gpt-4o'
+      : coachMode === 'deep_research'
+      ? 'google/gemini-2.5-pro'
+      : coachMode === 'step_by_step'
+      ? 'gpt-4o'
+      : 'gpt-4o-mini';
+
     const result = await createChatCompletion({
-      model: coachMode === 'deep_research' ? 'google/gemini-2.5-pro' : 'gpt-4o-mini',
+      model: selectedModel,
       messages,
-      temperature: coachMode === 'deep_research' ? 0.25 : 0.3,
+      temperature: coachMode === 'deep_research' || coachMode === 'step_by_step' ? 0.2 : 0.3,
       max_tokens: 4500,
       timeoutMs: 65_000,
-      allowPublicFallback: true,
+      allowPublicFallback: validImages.length === 0,
     });
 
     const reply = result.content ?? 'Yanıt üretilemedi.';

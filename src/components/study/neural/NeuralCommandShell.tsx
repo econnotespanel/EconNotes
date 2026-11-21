@@ -6,9 +6,7 @@ import {
   Flag,
   FolderKanban,
   GraduationCap,
-  MessageSquareText,
   Settings2,
-  Sparkles,
   Timer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,16 +14,17 @@ import { cn } from '@/lib/utils';
 import type { NeuralEngineState } from '@/lib/neural/neuralEngine';
 
 export type NeuralTabId =
-  | 'hub'
-  | 'create'
+  | 'workspace'
   | 'library'
-  | 'rag'
   | 'planner'
   | 'exam'
-  | 'engine';
+  | 'engine'
+  | 'hub'
+  | 'create'
+  | 'rag';
 
 interface NavItem {
-  id: NeuralTabId;
+  id: 'workspace' | 'exam' | 'planner' | 'library';
   label: string;
   shortLabel: string;
   icon: typeof BookOpen;
@@ -51,9 +50,21 @@ export function NeuralCommandShell({
   onReportIssue,
   children,
 }: NeuralCommandShellProps) {
+  const normalizedTab =
+    activeTab === 'hub' || activeTab === 'create' || activeTab === 'rag'
+      ? 'workspace'
+      : activeTab;
+
   const navItems: NavItem[] = [
-    { id: 'hub', label: 'Genel Bakış', shortLabel: 'Özet', icon: BookOpen },
-    { id: 'create', label: 'Yeni Çalışma Seti', shortLabel: 'Oluştur', icon: Sparkles },
+    { id: 'workspace', label: 'Çalışma Defteri', shortLabel: 'Defter', icon: BookOpen },
+    { id: 'exam', label: 'Sınav Simülatörü', shortLabel: 'Sınav', icon: Timer },
+    {
+      id: 'planner',
+      label: 'Sınav Planı & SM-2',
+      shortLabel: 'Plan',
+      icon: CalendarClock,
+      badge: dueCardsCount > 0 ? dueCardsCount : undefined,
+    },
     {
       id: 'library',
       label: 'Kitaplığım',
@@ -61,99 +72,55 @@ export function NeuralCommandShell({
       icon: FolderKanban,
       badge: materialsCount > 0 ? materialsCount : undefined,
     },
-    {
-      id: 'rag',
-      label: 'Notlarıma Sor',
-      shortLabel: 'Soru Sor',
-      icon: MessageSquareText,
-    },
-    { id: 'exam', label: 'Sınav Simülatörü', shortLabel: 'Sınav', icon: Timer },
-    {
-      id: 'planner',
-      label: 'Tekrar Planım',
-      shortLabel: 'Plan',
-      icon: CalendarClock,
-      badge: dueCardsCount > 0 ? dueCardsCount : undefined,
-    },
   ];
 
   return (
-    <div className="space-y-5">
-      {/* Üst Başlık ve Birleşik Yatay Sekme Çubuğu (İkinci sol menü kaldırıldı, tam genişlik sağlandı) */}
-      <div className="rounded-2xl border border-border/70 bg-card/90 p-4 sm:p-5 shadow-xs backdrop-blur-xl">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border/60">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
-              <GraduationCap className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold tracking-tight sm:text-lg text-foreground">
+    <div className="space-y-3.5">
+      {/* Unified Compact Top Studio Header (NotebookLM × Astra AI Aesthetic) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/90 px-4 py-3 shadow-2xs backdrop-blur-xl">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-blue-500/15 to-violet-500/20 text-primary ring-1 ring-primary/25">
+            <GraduationCap className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
                 Çalışma Stüdyosu
               </h1>
-              <p className="text-xs text-muted-foreground">
-                Ders notlarından özet, videolu anlatım, çalışma kartı ve deneme sınavı hazırla
-              </p>
+              <span className="hidden rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary sm:inline-flex">
+                AI Notebook &amp; Tutor
+              </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <Button
-              type="button"
-              variant={activeTab === 'engine' ? 'secondary' : 'ghost'}
-              size="sm"
-              onClick={() => onTabChange('engine')}
-              title="Çalışma Tercihleri"
-              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Settings2 className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Tercihler</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onReportIssue}
-              className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Flag className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Geri Bildirim</span>
-            </Button>
+            <p className="hidden text-[11px] text-muted-foreground md:block">
+              Kaynaklarınla konuş, soru fotoğrafı çöz, tek tıkla özet · video · sınav · kavram haritası üret
+            </p>
           </div>
         </div>
 
-        {/* Tek ve Temiz Yatay Sekme Çubuğu */}
         <nav
           aria-label="Çalışma Stüdyosu bölümleri"
-          className="mt-3.5 flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="order-3 flex w-full items-center gap-1 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:order-2 xl:w-auto xl:pb-0"
         >
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = activeTab === item.id;
+            const active = normalizedTab === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onTabChange(item.id)}
                 className={cn(
-                  'group relative flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-[13px] transition-all duration-200',
+                  'group relative flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs transition-all duration-150',
                   active
-                    ? 'bg-blue-500/10 font-semibold text-blue-600 ring-1 ring-blue-500/25 dark:bg-[#19283e] dark:text-[#5b9cf6] dark:ring-[#5b9cf6]/30'
-                    : 'font-medium text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-[#8e96a4] dark:hover:bg-white/[0.05] dark:hover:text-[#e2e8f0]',
+                    ? 'bg-primary/12 font-semibold text-primary ring-1 ring-primary/25 shadow-2xs'
+                    : 'font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground',
                 )}
               >
-                <Icon
-                  className={cn(
-                    'h-4 w-4 shrink-0 transition-colors',
-                    active
-                      ? 'text-blue-600 dark:text-[#5b9cf6]'
-                      : 'text-slate-500 group-hover:text-slate-800 dark:text-[#8e96a4] dark:group-hover:text-[#e2e8f0]',
-                  )}
-                  strokeWidth={active ? 2.1 : 1.85}
-                />
+                <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={active ? 2.15 : 1.85} />
                 <span className="hidden sm:inline">{item.label}</span>
                 <span className="sm:hidden">{item.shortLabel}</span>
                 {item.badge !== undefined && (
-                  <span className="inline-flex h-[18px] min-w-[20px] items-center justify-center rounded-full bg-primary/15 px-1.5 text-[10.5px] font-bold text-primary">
+                  <span className="inline-flex h-[17px] min-w-[18px] items-center justify-center rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary">
                     {item.badge}
                   </span>
                 )}
@@ -161,17 +128,42 @@ export function NeuralCommandShell({
             );
           })}
         </nav>
+
+        <div className="order-2 flex items-center gap-1 xl:order-3">
+          <Button
+            type="button"
+            variant={normalizedTab === 'engine' ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => onTabChange(normalizedTab === 'engine' ? 'workspace' : 'engine')}
+            title="AI Motor Tercihleri"
+            className="h-8 gap-1.5 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Tercihler</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onReportIssue}
+            className="h-8 gap-1.5 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            title="Sorun veya öneri bildir"
+          >
+            <Flag className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Bildir</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Tam Genişlikli Stüdyo Sahnesi */}
+      {/* Main Studio Stage */}
       <section className="min-w-0">
         <AnimatePresence mode="wait">
           <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 6 }}
+            key={normalizedTab}
+            initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            exit={{ opacity: 0, y: -3 }}
+            transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
           >
             {children}
           </motion.div>

@@ -4,15 +4,13 @@ import { Coffee, Loader2, LogIn, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import Layout from '@/components/Layout';
 import { NeuralCommandShell, type NeuralTabId } from '@/components/study/neural/NeuralCommandShell';
-import { NeuralCreateView } from '@/components/study/neural/NeuralCreateView';
 import { NeuralEnginePanelView } from '@/components/study/neural/NeuralEnginePanelView';
 import { NeuralExamSimView } from '@/components/study/neural/NeuralExamSimView';
-import { NeuralHubView } from '@/components/study/neural/NeuralHubView';
 import { NeuralLibraryView } from '@/components/study/neural/NeuralLibraryView';
 import { NeuralPlannerView } from '@/components/study/neural/NeuralPlannerView';
-import { NeuralRagChatView, type IncomingInspectBatch } from '@/components/study/neural/NeuralRagChatView';
 import { NeuralReportDialog } from '@/components/study/neural/NeuralReportDialog';
 import { NeuralWorkspaceFrame } from '@/components/study/neural/NeuralWorkspaceFrame';
+import { NotebookStudioWorkspace } from '@/components/study/neural/NotebookStudioWorkspace';
 import { useNeuralEngine } from '@/components/study/neural/useNeuralEngine';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,22 +29,38 @@ import {
   extractSearchableTextFromMaterial,
   indexDocumentInVectorStore,
   routedGenerateMaterial,
+  routedRagAnswer,
 } from '@/lib/neural/engineRouter';
 import {
-  analyzeWeakTopics,
+  createEmptyNotebook,
+  loadActiveNotebookId,
+  loadUserNotebooks,
+  saveActiveNotebookId,
+  saveUserNotebooks,
+} from '@/lib/neural/notebookStore';
+import {
   getDueSrsCards,
   syncSrsCardsFromMaterials,
   type SrsCardState,
 } from '@/lib/neural/studyPlanner';
 import { getIndexedDocuments, removeDocumentIndex } from '@/lib/neural/vectorIndex';
 import { expandSingleSummarySection } from '@/lib/studyAiClient';
-import { buildNoteSourceItem, combineStudySources } from '@/lib/studySourceProcessor';
+import {
+  buildNoteSourceItem,
+  buildPastedSourceItem,
+  classifyStudyDomain,
+  combineStudySources,
+} from '@/lib/studySourceProcessor';
 import type {
+  CoachMode,
   ExtractedSourceItem,
   MaterialType,
+  NotebookAttachmentImage,
+  NotebookChatMessage,
   NoteSourceOption,
-  ProcessedStudyBundle,
+  PinnedStudyNote,
   StudioGenerationSettings,
+  StudioNotebook,
   StudyMaterial,
   StudyProgressRow,
 } from '@/types/study';
@@ -68,26 +82,47 @@ const DEFAULT_SETTINGS: StudioGenerationSettings = {
   examMode: 'balanced',
 };
 
-const VALID_TABS: NeuralTabId[] = ['hub', 'create', 'library', 'rag', 'planner', 'exam', 'engine'];
+const VALID_TABS: NeuralTabId[] = [
+  'workspace',
+  'hub',
+  'create',
+  'library',
+  'rag',
+  'planner',
+  'exam',
+  'engine',
+];
+
+function normalizeTab(tab: NeuralTabId | null): NeuralTabId {
+  if (!tab || !VALID_TABS.includes(tab)) return 'workspace';
+  if (tab === 'hub' || tab === 'create' || tab === 'rag') return 'workspace';
+  return tab;
+}
 
 export default function Study() {
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const engine = useNeuralEngine();
 
-  const [activeTab, setActiveTab] = useState<NeuralTabId>('hub');
+  const [activeTab, setActiveTab] = useState<NeuralTabId>('workspace');
   const [materials, setMaterials] = useState<StudyMaterial[]>([]);
   const [progress, setProgress] = useState<StudyProgressRow[]>([]);
   const [ownNotes, setOwnNotes] = useState<NoteSourceOption[]>([]);
   const [platformNotes, setPlatformNotes] = useState<NoteSourceOption[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
+  const [notebooks, setNotebooks] = useState<StudioNotebook[]>(() => [
+    createEmptyNotebook({ title: 'Çalışma Defterim', emoji: '📘' }),
+  ]);
+  const [activeNotebookId, setActiveNotebookId] = useState<string>('');
+  const [notebooksLoadedForUser, setNotebooksLoadedForUser] = useState<string | null>(null);
+
   const [activeMaterial, setActiveMaterial] = useState<StudyMaterial | null>(null);
-  const [sources, setSources] = useState<ExtractedSourceItem[]>([]);
   const [settings, setSettings] = useState<StudioGenerationSettings>(DEFAULT_SETTINGS);
-  const [customTitle, setCustomTitle] = useState('');
-  const [customCourse, setCustomCourse] = useState('');
+  const [coachMode, setCoachMode] = useState<CoachMode>('reinforce');
+  const [chatBusy, setChatBusy] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationPct, setGenerationPct] = useState(0);
@@ -100,9 +135,54 @@ export default function Study() {
   const [indexedDocsCount, setIndexedDocsCount] = useState(0);
   const [reportOpen, setReportOpen] = useState(false);
   const [breakDialogOpen, setBreakDialogOpen] = useState(false);
-  const [incomingInspectBatch, setIncomingInspectBatch] = useState<IncomingInspectBatch | null>(null);
 
   const deepLinkAppliedRef = useRef(false);
+
+  const activeNotebook = useMemo(
+    () => notebooks.find((n) => n.id === activeNotebookId) || notebooks[0],
+    [notebooks, activeNotebookId],
+  );
+
+  const updateActiveNotebook = useCallback(
+    (updater: (nb: StudioNotebook) => StudioNotebook) => {
+      setNotebooks((prev) => {
+        const targetId = prev.some((n) => n.id === activeNotebookId)
+          ? activeNotebookId
+          : prev[0]?.id;
+        return prev.map((nb) =>
+          nb.id === targetId
+            ? { ...updater(nb), updatedAt: new Date().toISOString() }
+            : nb,
+        );
+      });
+    },
+    [activeNotebookId],
+  );
+
+  // Load persisted notebooks when user signs in
+  useEffect(() => {
+    if (!user) return;
+    const loaded = loadUserNotebooks(user.id);
+    const savedActive = loadActiveNotebookId(user.id);
+    const chosenId =
+      savedActive && loaded.some((n) => n.id === savedActive)
+        ? savedActive
+        : loaded[0].id;
+    setNotebooks(loaded);
+    setActiveNotebookId(chosenId);
+    setNotebooksLoadedForUser(user.id);
+  }, [user]);
+
+  // Persist notebooks whenever they change
+  useEffect(() => {
+    if (!user || notebooksLoadedForUser !== user.id) return;
+    saveUserNotebooks(user.id, notebooks);
+  }, [user, notebooks, notebooksLoadedForUser]);
+
+  useEffect(() => {
+    if (!user || !activeNotebookId || notebooksLoadedForUser !== user.id) return;
+    saveActiveNotebookId(user.id, activeNotebookId);
+  }, [user, activeNotebookId, notebooksLoadedForUser]);
 
   const refreshIndexedDocsCount = useCallback(() => {
     getIndexedDocuments()
@@ -110,7 +190,7 @@ export default function Study() {
       .catch(() => {});
   }, []);
 
-  // Load user materials, quiz progress, and note sources
+  // Load user materials, quiz progress, and note sources (FIXED platform notes query!)
   useEffect(() => {
     refreshIndexedDocsCount();
     if (authLoading) return;
@@ -144,8 +224,8 @@ export default function Study() {
             .from('notes')
             .select('id, title, course, description, department, semester, file_url, file_name, file_type')
             .eq('status', 'approved')
-            .eq('visibility_status', 'public')
-            .order('created_at', { ascending: false }),
+            .order('created_at', { ascending: false })
+            .limit(400),
         ]);
 
         if (cancelled) return;
@@ -189,10 +269,6 @@ export default function Study() {
   }, [refreshSrsCards]);
 
   const dueCards = useMemo(() => getDueSrsCards(srsCards), [srsCards]);
-  const weakTopics = useMemo(
-    () => analyzeWeakTopics(materials, progress, srsCards),
-    [materials, progress, srsCards],
-  );
 
   // 60-minute study break wellness reminder
   useEffect(() => {
@@ -239,45 +315,6 @@ export default function Study() {
     [],
   );
 
-  // URL Deep-link handling (?tab=..., ?create=video&noteId=...)
-  useEffect(() => {
-    if (deepLinkAppliedRef.current || loadingData) return;
-
-    const tabParam = searchParams.get('tab') as NeuralTabId | null;
-    const createParam = searchParams.get('create') as MaterialType | null;
-    const noteId = searchParams.get('noteId');
-
-    if (tabParam && VALID_TABS.includes(tabParam)) {
-      deepLinkAppliedRef.current = true;
-      setActiveTab(tabParam);
-      return;
-    }
-
-    if (!createParam && !noteId) return;
-    deepLinkAppliedRef.current = true;
-    setActiveTab('create');
-
-    if (
-      createParam &&
-      (['summary', 'quiz', 'flashcards', 'video'] as MaterialType[]).includes(createParam)
-    ) {
-      setSettings((prev) => ({ ...prev, materialType: createParam }));
-    }
-
-    if (noteId) {
-      const target =
-        ownNotes.find((n) => n.id === noteId) || platformNotes.find((n) => n.id === noteId);
-      if (target) {
-        void handleExtractRemoteNoteFile(target).then((src) => {
-          setSources([src]);
-          setCustomTitle(target.title);
-          if (target.course) setCustomCourse(target.course);
-          toast.info(`"${target.title}" kaynak olarak hazırlandı.`);
-        });
-      }
-    }
-  }, [loadingData, searchParams, ownNotes, platformNotes, handleExtractRemoteNoteFile]);
-
   const indexMaterialSilent = useCallback(
     async (mat: StudyMaterial) => {
       try {
@@ -297,17 +334,409 @@ export default function Study() {
     [refreshIndexedDocsCount],
   );
 
-  const handleGenerate = async (bundle: ProcessedStudyBundle) => {
-    if (!user) {
+  const indexSourceSilent = useCallback(
+    async (src: ExtractedSourceItem, courseFallback?: string) => {
+      if (!src.text || src.text.trim().length < 20) return;
+      try {
+        const domain = classifyStudyDomain(src.text, courseFallback || src.course || undefined, src.name);
+        await indexDocumentInVectorStore({
+          docId: `direct-${src.id}`,
+          title: src.name,
+          course: courseFallback || src.course || domain.discipline,
+          text: src.text,
+          computeEmbeddings: engine.embedderStatus === 'ready',
+        });
+        refreshIndexedDocsCount();
+      } catch {
+        // Ignore non-fatal indexing errors
+      }
+    },
+    [engine.embedderStatus, refreshIndexedDocsCount],
+  );
+
+  const handleAddNotebookSources = useCallback(
+    async (items: ExtractedSourceItem[]) => {
+      if (items.length === 0) return;
+
+      for (const item of items) {
+        void indexSourceSilent(item, activeNotebook?.course);
+      }
+
+      updateActiveNotebook((nb) => {
+        const existingIds = new Set(nb.sources.map((s) => s.id));
+        const newItems = items.filter((it) => !existingIds.has(it.id));
+        const mergedSources = [...newItems, ...nb.sources];
+        const nextChecked = Array.from(
+          new Set([...newItems.map((it) => it.id), ...nb.checkedSourceIds]),
+        );
+
+        const isDefaultTitle =
+          nb.title === 'Çalışma Defterim' || nb.title === 'Yeni Çalışma Defteri';
+        const autoTitle =
+          isDefaultTitle && nb.sources.length === 0 && newItems[0]
+            ? newItems[0].name.replace(/\.(pdf|pptx?|docx?|txt|md|png|jpe?g)$/i, '').slice(0, 52)
+            : nb.title;
+        const autoCourse =
+          !nb.course && newItems[0]?.course ? newItems[0].course : nb.course;
+
+        return {
+          ...nb,
+          title: autoTitle,
+          course: autoCourse,
+          sources: mergedSources,
+          checkedSourceIds: nextChecked,
+        };
+      });
+
+      toast.success(
+        items.length === 1
+          ? `"${items[0].name}" deftere eklendi ve AI Öğretmen için indekslendi.`
+          : `${items.length} kaynak deftere eklendi ve indekslendi.`,
+      );
+    },
+    [activeNotebook?.course, indexSourceSilent, updateActiveNotebook],
+  );
+
+  // URL Deep-link handling (?tab=..., ?create=video&noteId=...)
+  useEffect(() => {
+    if (deepLinkAppliedRef.current || loadingData || !user || notebooksLoadedForUser !== user.id) {
+      return;
+    }
+
+    const tabParam = searchParams.get('tab') as NeuralTabId | null;
+    const createParam = searchParams.get('create') as MaterialType | null;
+    const noteId = searchParams.get('noteId');
+
+    if (tabParam && VALID_TABS.includes(tabParam)) {
+      deepLinkAppliedRef.current = true;
+      setActiveTab(normalizeTab(tabParam));
+      return;
+    }
+
+    if (!createParam && !noteId) return;
+    deepLinkAppliedRef.current = true;
+    setActiveTab('workspace');
+
+    if (
+      createParam &&
+      (['summary', 'quiz', 'flashcards', 'video'] as MaterialType[]).includes(createParam)
+    ) {
+      setSettings((prev) => ({ ...prev, materialType: createParam }));
+    }
+
+    if (noteId) {
+      const target =
+        ownNotes.find((n) => n.id === noteId) || platformNotes.find((n) => n.id === noteId);
+      if (target) {
+        void handleExtractRemoteNoteFile(target).then((src) => {
+          void handleAddNotebookSources([src]);
+        });
+      }
+    }
+  }, [
+    loadingData,
+    user,
+    notebooksLoadedForUser,
+    searchParams,
+    ownNotes,
+    platformNotes,
+    handleExtractRemoteNoteFile,
+    handleAddNotebookSources,
+  ]);
+
+  const handleRemoveNotebookSource = (sourceId: string) => {
+    void removeDocumentIndex(`direct-${sourceId}`).then(refreshIndexedDocsCount).catch(() => {});
+    updateActiveNotebook((nb) => ({
+      ...nb,
+      sources: nb.sources.filter((s) => s.id !== sourceId),
+      checkedSourceIds: nb.checkedSourceIds.filter((id) => id !== sourceId),
+    }));
+  };
+
+  const handleToggleNotebookSource = (sourceId: string) => {
+    updateActiveNotebook((nb) => {
+      const exists = nb.checkedSourceIds.includes(sourceId);
+      return {
+        ...nb,
+        checkedSourceIds: exists
+          ? nb.checkedSourceIds.filter((id) => id !== sourceId)
+          : [...nb.checkedSourceIds, sourceId],
+      };
+    });
+  };
+
+  const handleToggleAllNotebookSources = (selectAll: boolean) => {
+    updateActiveNotebook((nb) => ({
+      ...nb,
+      checkedSourceIds: selectAll ? nb.sources.map((s) => s.id) : [],
+    }));
+  };
+
+  const handleToggleMaterialSource = (materialId: string) => {
+    const mat = materials.find((m) => m.id === materialId);
+    if (mat) void indexMaterialSilent(mat);
+    updateActiveNotebook((nb) => {
+      const exists = nb.checkedMaterialIds.includes(materialId);
+      return {
+        ...nb,
+        checkedMaterialIds: exists
+          ? nb.checkedMaterialIds.filter((id) => id !== materialId)
+          : [...nb.checkedMaterialIds, materialId],
+      };
+    });
+  };
+
+  const handleCreateNotebook = (params: { title: string; course: string; emoji: string }) => {
+    const nb = createEmptyNotebook({
+      title: params.title,
+      course: params.course,
+      emoji: params.emoji,
+      index: notebooks.length,
+    });
+    setNotebooks((prev) => [nb, ...prev]);
+    setActiveNotebookId(nb.id);
+    toast.success(`"${nb.title}" defteri oluşturuldu.`);
+  };
+
+  const handleRenameNotebook = (id: string, title: string, course: string) => {
+    setNotebooks((prev) =>
+      prev.map((nb) =>
+        nb.id === id ? { ...nb, title, course, updatedAt: new Date().toISOString() } : nb,
+      ),
+    );
+    toast.success('Defter bilgileri güncellendi.');
+  };
+
+  const handleDeleteNotebook = (id: string) => {
+    setNotebooks((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((nb) => nb.id !== id);
+      if (activeNotebookId === id && next[0]) {
+        setActiveNotebookId(next[0].id);
+      }
+      return next;
+    });
+    toast.success('Defter silindi.');
+  };
+
+  const handleNotebookSendMessage = async (params: {
+    text: string;
+    mode?: CoachMode;
+    images?: NotebookAttachmentImage[];
+  }) => {
+    if (!activeNotebook || chatBusy) return;
+    const modeToUse = params.mode || coachMode;
+    if (params.mode && params.mode !== coachMode) {
+      setCoachMode(params.mode);
+    }
+
+    const userMsg: NotebookChatMessage = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      content: params.text,
+      createdAt: new Date().toISOString(),
+      mode: modeToUse,
+      attachmentNames: params.images?.map((i) => i.name),
+      attachmentPreviews: params.images?.map((i) => i.dataUrl),
+    };
+
+    const priorHistory = activeNotebook.messages.slice(-10).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    updateActiveNotebook((nb) => ({
+      ...nb,
+      messages: [...nb.messages, userMsg],
+    }));
+
+    setChatBusy(true);
+    setStreamingText('');
+
+    try {
+      const checkedSources = activeNotebook.sources.filter((s) =>
+        activeNotebook.checkedSourceIds.includes(s.id),
+      );
+      const checkedMaterials = materials.filter((m) =>
+        activeNotebook.checkedMaterialIds.includes(m.id),
+      );
+
+      // Ensure active sources are indexed in IndexedDB before retrieval
+      const existingDocs = await getIndexedDocuments().catch(() => []);
+      const existingDocIds = new Set(existingDocs.map((d) => d.docId));
+      for (const src of checkedSources) {
+        if (!existingDocIds.has(`direct-${src.id}`) && src.text?.trim()) {
+          await indexSourceSilent(src, activeNotebook.course);
+        }
+      }
+      for (const mat of checkedMaterials) {
+        if (!existingDocIds.has(mat.id)) {
+          await indexMaterialSilent(mat);
+        }
+      }
+
+      const activeDocIds = [
+        ...checkedSources.map((s) => `direct-${s.id}`),
+        ...checkedMaterials.map((m) => m.id),
+      ];
+
+      const fallbackContextParts: string[] = [];
+      for (const src of checkedSources) {
+        if (src.text?.trim()) {
+          fallbackContextParts.push(`### ${src.name}\n${src.text.slice(0, 7000)}`);
+        }
+      }
+      for (const mat of checkedMaterials) {
+        const txt = extractSearchableTextFromMaterial(mat);
+        if (txt.trim()) {
+          fallbackContextParts.push(`### ${mat.title}\n${txt.slice(0, 5000)}`);
+        }
+      }
+
+      const res = await routedRagAnswer({
+        question: params.text,
+        docIds: activeDocIds,
+        history: priorHistory,
+        coachMode: modeToUse,
+        images: params.images?.map((i) => ({
+          data: i.base64,
+          mimeType: i.mimeType,
+          name: i.name,
+        })),
+        fallbackContextText: fallbackContextParts.join('\n\n'),
+        notebookTitle: activeNotebook.title,
+        course: activeNotebook.course || checkedSources[0]?.course || null,
+        onToken: (partial) => setStreamingText(partial),
+      });
+
+      const assistantMsg: NotebookChatMessage = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: res.answer,
+        createdAt: new Date().toISOString(),
+        mode: modeToUse,
+        meta: `${res.model} · ${(res.latencyMs / 1000).toFixed(1)} sn`,
+        citations: res.hits.slice(0, 5).map((h) => ({
+          docId: h.chunk.docId,
+          docTitle: h.chunk.docTitle,
+          sectionHeading: h.chunk.sectionHeading,
+          excerpt: h.chunk.text.slice(0, 420),
+          score: h.score,
+        })),
+      };
+
+      updateActiveNotebook((nb) => ({
+        ...nb,
+        messages: [...nb.messages, assistantMsg],
+      }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Yanıt oluşturulamadı.');
+    } finally {
+      setChatBusy(false);
+      setStreamingText('');
+    }
+  };
+
+  const handlePinMessage = (msg: NotebookChatMessage) => {
+    const firstLine = msg.content
+      .split('\n')
+      .map((l) => l.replace(/^[#*\-\s]+/, '').trim())
+      .find((l) => l.length > 4);
+    const note: PinnedStudyNote = {
+      id: `pin-${Date.now()}`,
+      title: (firstLine || 'Sabitlenen AI Notu').slice(0, 64),
+      content: msg.content,
+      createdAt: new Date().toISOString(),
+      sourceTag: 'AI Öğretmen yanıtından sabitlendi',
+    };
+    updateActiveNotebook((nb) => ({
+      ...nb,
+      pinnedNotes: [note, ...nb.pinnedNotes],
+    }));
+    toast.success('Yanıt sağdaki Stüdyo notlarına sabitlendi.');
+  };
+
+  const handleAddManualNote = (title: string, content: string) => {
+    const note: PinnedStudyNote = {
+      id: `note-${Date.now()}`,
+      title,
+      content,
+      createdAt: new Date().toISOString(),
+      sourceTag: 'Kişisel çalışma notu',
+    };
+    updateActiveNotebook((nb) => ({
+      ...nb,
+      pinnedNotes: [note, ...nb.pinnedNotes],
+    }));
+    toast.success('Çalışma notu kaydedildi.');
+  };
+
+  const handleDeletePinnedNote = (noteId: string) => {
+    updateActiveNotebook((nb) => ({
+      ...nb,
+      pinnedNotes: nb.pinnedNotes.filter((n) => n.id !== noteId),
+    }));
+  };
+
+  const handlePromotePinnedToSource = (note: PinnedStudyNote) => {
+    const src = buildPastedSourceItem(`📌 ${note.title}`, note.content, activeNotebook?.course);
+    void handleAddNotebookSources([src]);
+  };
+
+  const handleClearChat = () => {
+    updateActiveNotebook((nb) => ({ ...nb, messages: [] }));
+  };
+
+  const handleNotebookGenerateType = async (targetType: MaterialType) => {
+    if (!user || !activeNotebook) {
       toast.error('Materyal üretmek için giriş yapmalısınız.');
       return;
     }
+
+    const checkedSources = activeNotebook.sources.filter((s) =>
+      activeNotebook.checkedSourceIds.includes(s.id),
+    );
+    const checkedMatSources: ExtractedSourceItem[] = materials
+      .filter((m) => activeNotebook.checkedMaterialIds.includes(m.id))
+      .map((mat) => {
+        const txt = extractSearchableTextFromMaterial(mat);
+        return {
+          id: `mat-src-${mat.id}`,
+          name: mat.title,
+          kind: 'note' as const,
+          originNoteId: mat.source_note_id || undefined,
+          originType: mat.source_type,
+          course: mat.course,
+          text: txt || mat.title,
+          pagesOrSlides: Math.max(1, Math.ceil(txt.split(/\s+/).length / 300)),
+          wordCount: Math.max(1, txt.split(/\s+/).filter(Boolean).length),
+          charCount: txt.length,
+        };
+      });
+
+    const allSelectedSources = [...checkedSources, ...checkedMatSources];
+    if (allSelectedSources.length === 0) {
+      toast.info('Üretim yapmak için önce sol panelden en az 1 ders notu, PDF veya slayt ekleyip seçin.');
+      return;
+    }
+
+    const bundle = combineStudySources(
+      allSelectedSources,
+      activeNotebook.title,
+      activeNotebook.course || allSelectedSources[0]?.course || '',
+    );
+
+    const nextSettings: StudioGenerationSettings = {
+      ...settings,
+      materialType: targetType,
+    };
+    setSettings(nextSettings);
     setIsGenerating(true);
-    setGenerationPct(8);
-    setGenerationLabel('Çalışma materyali hazırlanıyor...');
+    setGenerationPct(10);
+    setGenerationLabel('Seçili kaynaklardan çalışma materyali hazırlanıyor...');
 
     try {
-      const result = await routedGenerateMaterial(bundle, settings, (pct, msg) => {
+      const result = await routedGenerateMaterial(bundle, nextSettings, (pct, msg) => {
         setGenerationPct(pct);
         setGenerationLabel(msg);
       });
@@ -319,13 +748,13 @@ export default function Study() {
           user_id: user.id,
           source_type: noteSource?.originType === 'platform' ? 'platform' : 'own',
           source_note_id: noteSource?.originNoteId || null,
-          material_type: settings.materialType,
+          material_type: targetType,
           title: bundle.title,
           course: bundle.course || bundle.detectedDiscipline || null,
           content: result.content as unknown as Json,
           model: result.model,
-          exam_profile: settings.examFocus
-            ? { examFocus: settings.examFocus, pedagogicalStyle: settings.pedagogicalStyle }
+          exam_profile: nextSettings.examFocus
+            ? { examFocus: nextSettings.examFocus, pedagogicalStyle: nextSettings.pedagogicalStyle }
             : null,
         })
         .select()
@@ -337,14 +766,19 @@ export default function Study() {
 
       const saved = data as unknown as StudyMaterial;
       setMaterials((prev) => [saved, ...prev]);
+      updateActiveNotebook((nb) => ({
+        ...nb,
+        materialIds: [saved.id, ...nb.materialIds.filter((id) => id !== saved.id)],
+      }));
       setActiveMaterial(saved);
       void indexMaterialSilent(saved);
+
       if (result.sourceMode === 'local') {
         toast.warning(
-          'Yapay zekâ bağlantısına geçici olarak ulaşılamadı; temel yerel ayrıştırıcı ile oluşturuldu. Birkaç saniye sonra "Yeniden Üret" ile tekrar deneyebilirsiniz.',
+          'Yapay zekâ bağlantısına geçici olarak ulaşılamadı; temel yerel ayrıştırıcı ile oluşturuldu.',
         );
       } else {
-        toast.success('Çalışma materyali hazırlandı ve RAG indeksine eklendi.');
+        toast.success('Çalışma materyali hazırlandı ve defterine kaydedildi.');
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Materyal oluşturulurken bir hata oluştu.');
@@ -360,6 +794,13 @@ export default function Study() {
       const { error } = await supabase.from('study_materials').delete().eq('id', id);
       if (error) throw error;
       setMaterials((prev) => prev.filter((m) => m.id !== id));
+      setNotebooks((prev) =>
+        prev.map((nb) => ({
+          ...nb,
+          materialIds: nb.materialIds.filter((mid) => mid !== id),
+          checkedMaterialIds: nb.checkedMaterialIds.filter((mid) => mid !== id),
+        })),
+      );
       if (activeMaterial?.id === id) setActiveMaterial(null);
       await removeDocumentIndex(id);
       refreshIndexedDocsCount();
@@ -408,6 +849,10 @@ export default function Study() {
       if (error || !data) throw new Error(error?.message || 'Dönüştürme kaydedilemedi.');
       const saved = data as unknown as StudyMaterial;
       setMaterials((prev) => [saved, ...prev]);
+      updateActiveNotebook((nb) => ({
+        ...nb,
+        materialIds: [saved.id, ...nb.materialIds.filter((id) => id !== saved.id)],
+      }));
       setActiveMaterial(saved);
       void indexMaterialSilent(saved);
       toast.success('Yeni format başarıyla oluşturuldu.');
@@ -538,8 +983,13 @@ export default function Study() {
 
   const handleSavedLiveMaterial = (saved: StudyMaterial) => {
     setMaterials((prev) => [saved, ...prev]);
-    setActiveMaterial(saved);
+    updateActiveNotebook((nb) => ({
+      ...nb,
+      materialIds: [saved.id, ...nb.materialIds.filter((id) => id !== saved.id)],
+      checkedMaterialIds: [saved.id, ...nb.checkedMaterialIds.filter((id) => id !== saved.id)],
+    }));
     void indexMaterialSilent(saved);
+    toast.success('Canlı ders kaydı defterine eklendi.');
   };
 
   if (authLoading) {
@@ -547,7 +997,7 @@ export default function Study() {
       <Layout>
         <div className="flex min-h-[60vh] items-center justify-center gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          <span>EconNotes Neural Studio hazırlanıyor...</span>
+          <span>EconNotes Çalışma Stüdyosu hazırlanıyor...</span>
         </div>
       </Layout>
     );
@@ -560,12 +1010,12 @@ export default function Study() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Sparkles className="h-6 w-6" />
           </div>
-          <h1 className="text-xl font-bold">EconNotes Neural Studio</h1>
+          <h1 className="text-xl font-bold">EconNotes Çalışma Stüdyosu</h1>
           <p className="text-sm text-muted-foreground">
-            Çalışma materyali üretmek, derin akademik özet çıkarmak ve çoklu kaynak asistanını
-            kullanmak için oturum açmalısınız.
+            Kişisel AI çalışma defterini oluşturmak, soru fotoğrafı çözmek ve ders notlarından özet,
+            video ders ve deneme sınavı üretmek için oturum açmalısın.
           </p>
-          <Button onClick={() => navigate('/auth')} className="gap-2">
+          <Button onClick={() => navigate('/login')} className="gap-2 rounded-xl">
             <LogIn className="h-4 w-4" />
             Giriş Yap / Kayıt Ol
           </Button>
@@ -574,9 +1024,17 @@ export default function Study() {
     );
   }
 
+  const resolvedTab = normalizeTab(activeTab);
+
   return (
     <Layout>
-      <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
+      <div
+        className={
+          resolvedTab === 'workspace' && !activeMaterial
+            ? 'mx-auto w-full max-w-[1560px] px-2.5 py-3 sm:px-5 sm:py-4'
+            : 'mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6'
+        }
+      >
         {activeMaterial?.material_type === 'video' ? (
           <Suspense
             fallback={
@@ -592,7 +1050,7 @@ export default function Study() {
               onReport={() => setReportOpen(true)}
               onOpenCoach={() => {
                 setActiveMaterial(null);
-                setActiveTab('rag');
+                setActiveTab('workspace');
               }}
             />
           </Suspense>
@@ -613,104 +1071,70 @@ export default function Study() {
           />
         ) : (
           <NeuralCommandShell
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
+            activeTab={resolvedTab}
+            onTabChange={(next) => setActiveTab(normalizeTab(next))}
             engine={engine}
             dueCardsCount={dueCards.length}
             materialsCount={materials.length}
             indexedDocsCount={indexedDocsCount}
             onReportIssue={() => setReportOpen(true)}
           >
-            {activeTab === 'hub' && (
-              <NeuralHubView
-                materials={materials}
-                progress={progress}
-                dueCards={dueCards}
-                weakTopics={weakTopics}
-                engine={engine}
-                isAdmin={isAdmin}
+            {resolvedTab === 'workspace' && activeNotebook && (
+              <NotebookStudioWorkspace
                 userId={user.id}
-                onSavedLiveMaterial={handleSavedLiveMaterial}
-                onGoTab={setActiveTab}
-                onOpenMaterial={setActiveMaterial}
-                onQuickCreateType={(type) => {
-                  setSettings((prev) => ({ ...prev, materialType: type }));
-                  setActiveTab('create');
-                }}
-                onQuickExamPreset={(mode) => {
-                  setSettings((prev) => ({
-                    ...prev,
-                    materialType: 'summary',
-                    examMode: mode,
-                    summaryDepth:
-                      mode === 'cram_24h'
-                        ? 'standard'
-                        : mode === 'large_note'
-                        ? 'textbook'
-                        : 'comprehensive',
-                    pedagogicalStyle:
-                      mode === 'cram_24h'
-                        ? 'exam_blitz'
-                        : mode === 'deep_mastery'
-                        ? 'feynman'
-                        : 'academic_rigor',
-                    deepResearch: mode !== 'cram_24h',
-                  }));
-                  setActiveTab('create');
-                }}
-              />
-            )}
-
-            {activeTab === 'create' && (
-              <NeuralCreateView
+                notebooks={notebooks}
+                activeNotebook={activeNotebook}
+                onSelectNotebook={setActiveNotebookId}
+                onCreateNotebook={handleCreateNotebook}
+                onRenameNotebook={handleRenameNotebook}
+                onDeleteNotebook={handleDeleteNotebook}
                 ownNotes={ownNotes}
                 platformNotes={platformNotes}
-                sources={sources}
-                onSourcesChange={setSources}
+                allMaterials={materials}
+                progress={progress}
+                dueCardsCount={dueCards.length}
                 settings={settings}
                 onSettingsChange={setSettings}
-                customTitle={customTitle}
-                onCustomTitleChange={setCustomTitle}
-                customCourse={customCourse}
-                onCustomCourseChange={setCustomCourse}
+                coachMode={coachMode}
+                onCoachModeChange={setCoachMode}
+                chatBusy={chatBusy}
+                streamingText={streamingText}
                 isGenerating={isGenerating}
                 generationPct={generationPct}
                 generationLabel={generationLabel}
-                onGenerate={handleGenerate}
-                onInspectInChat={(items, courseLabel) => {
-                  setIncomingInspectBatch({
-                    id: Date.now(),
-                    sources: items,
-                    course: courseLabel,
-                  });
-                  setActiveTab('rag');
-                }}
+                onAddSources={handleAddNotebookSources}
+                onRemoveSource={handleRemoveNotebookSource}
+                onToggleSource={handleToggleNotebookSource}
+                onToggleAllSources={handleToggleAllNotebookSources}
+                onToggleMaterialSource={handleToggleMaterialSource}
                 onExtractRemoteNoteFile={handleExtractRemoteNoteFile}
-                engine={engine}
+                onSavedLiveMaterial={handleSavedLiveMaterial}
+                onSendMessage={handleNotebookSendMessage}
+                onPinMessage={handlePinMessage}
+                onClearChat={handleClearChat}
+                onGenerateType={handleNotebookGenerateType}
+                onOpenPlanner={() => setActiveTab('planner')}
+                onOpenExamSim={() => setActiveTab('exam')}
+                onOpenMaterial={setActiveMaterial}
+                onDeleteMaterial={handleDeleteMaterial}
+                onAddManualNote={handleAddManualNote}
+                onDeletePinnedNote={handleDeletePinnedNote}
+                onPromotePinnedToSource={handlePromotePinnedToSource}
               />
             )}
 
-            {activeTab === 'library' && (
+            {resolvedTab === 'library' && (
               <NeuralLibraryView
                 materials={materials}
                 progress={progress}
                 onOpenMaterial={setActiveMaterial}
                 onDeleteMaterial={handleDeleteMaterial}
-                onCreateNew={() => setActiveTab('create')}
+                onCreateNew={() => setActiveTab('workspace')}
                 onIndexChanged={refreshIndexedDocsCount}
               />
             )}
 
-            {activeTab === 'rag' && (
-              <NeuralRagChatView
-                materials={materials}
-                incomingBatch={incomingInspectBatch}
-                onIndexChanged={refreshIndexedDocsCount}
-                onOpenMaterial={setActiveMaterial}
-              />
-            )}
-
-            {activeTab === 'planner' && (
+            {resolvedTab === 'planner' && (
               <NeuralPlannerView
                 materials={materials}
                 progress={progress}
@@ -722,7 +1146,7 @@ export default function Study() {
               />
             )}
 
-            {activeTab === 'exam' && (
+            {resolvedTab === 'exam' && (
               <NeuralExamSimView
                 materials={materials}
                 onRecordExamProgress={handleRecordProgress}
@@ -730,7 +1154,7 @@ export default function Study() {
               />
             )}
 
-            {activeTab === 'engine' && <NeuralEnginePanelView engine={engine} />}
+            {resolvedTab === 'engine' && <NeuralEnginePanelView engine={engine} />}
           </NeuralCommandShell>
         )}
       </div>
@@ -749,9 +1173,9 @@ export default function Study() {
               60 Dakikalık Odak Molası Önerisi
             </DialogTitle>
             <DialogDescription>
-              Kesintisiz 60 dakikadır Çalışma Stüdyosu’ndasınız. Bilişsel hafıza pekişmesi için
+              Kesintisiz 60 dakikadır Çalışma Stüdyosu’ndasın. Bilişsel hafıza pekişmesi için
               5-10 dakikalık kısa bir mola verip ardından Aralıklı Tekrar (SM-2) kartlarına göz
-              atmanız önerilir.
+              atman önerilir.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -2192,8 +2192,10 @@ export async function askStudyCoach(params: {
   materialContent: StudyContentPayload | Record<string, unknown>;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
   coachMode: CoachMode;
+  images?: Array<{ data: string; mimeType: string; name?: string }>;
 }): Promise<{ reply: string; model: string }> {
   await ensureFreshSession();
+  const hasImages = Array.isArray(params.images) && params.images.length > 0;
   try {
     const { data, error } = await supabase.functions.invoke('study-coach', {
       body: {
@@ -2203,6 +2205,7 @@ export async function askStudyCoach(params: {
         materialContent: params.materialContent,
         messages: params.messages.slice(-14),
         coachMode: params.coachMode,
+        images: hasImages ? params.images!.slice(0, 3) : undefined,
       },
     });
     if (!error && data?.reply) {
@@ -2215,9 +2218,45 @@ export async function askStudyCoach(params: {
     // Fall through to resilient cloud fallback
   }
 
+  const plainContext = flattenMaterialContextForCoach(params.materialContent);
+  const lastUserQuestion =
+    [...params.messages].reverse().find((m) => m.role === 'user')?.content || '';
+  const focusedContext =
+    plainContext.length > 13_000
+      ? sliceContextForSection(plainContext, lastUserQuestion || params.materialTitle, 0, 1, [], 13_000)
+      : plainContext;
+
+  // Tier-1.5 Live Vision & Step-by-Step Bridge via academic-assistant (GPT-4o Vision ready)
+  if (hasImages || params.coachMode === 'step_by_step') {
+    try {
+      const { data, error } = await supabase.functions.invoke('academic-assistant', {
+        body: {
+          message: lastUserQuestion || 'Görseldeki soruyu adım adım çöz ve anlat.',
+          mode: params.coachMode === 'step_by_step' || hasImages ? 'step_by_step' : 'concept',
+          notesContext: focusedContext.slice(0, 12_000) || undefined,
+          history: params.messages.slice(-10, -1),
+          hasFile: hasImages,
+          fileName: hasImages ? params.images![0]?.name : undefined,
+          images: hasImages ? params.images!.slice(0, 3) : undefined,
+        },
+      });
+      const replyText = data?.reply || data?.answer || data?.content;
+      if (!error && typeof replyText === 'string' && replyText.trim()) {
+        return {
+          reply: replyText.trim(),
+          model: 'EconNotes AI Öğretmen (Görsel & Adım Adım)',
+        };
+      }
+    } catch {
+      // Fall through to Tier-2
+    }
+  }
+
   // Tier-2 Public Reasoning fallback with strict source-fidelity & zero-nonsense guardrails
   const modeNote =
-    params.coachMode === 'reinforce'
+    params.coachMode === 'step_by_step'
+      ? 'ADIM ADIM ÇÖZÜM MODU: Soruyu (1) Verilenler & İstenen, (2) Yöntem/Formül, (3) Adım 1, Adım 2... şeklinde ara basamak atlamadan çözüm, (4) Sonuç & Kontrol adımlarıyla çöz.'
+      : params.coachMode === 'reinforce'
       ? 'PEKİŞTİREREK ANLAT MODU: (1) Konuyu sade ve anlaşılır biçimde adım adım açıkla, (2) Öğrencinin notundaki/slaytındaki gerçek kavram veya örneğe doğrudan bağla, (3) En sık karıştırılan 1 noktaya dikkat çek, (4) Sonunda öğrencinin anlayıp anlamadığını ölçen 1 kısa kontrol sorusu sor.'
       : params.coachMode === 'feynman'
       ? 'FEYNMAN MODU: Konuyu önce sade bir günlük hayat örneğiyle sezdir, ardından nottaki gerçek akademik tanıma bağla ve öğrenciden tek cümleyle özetlemesini iste.'
@@ -2226,14 +2265,6 @@ export async function askStudyCoach(params: {
       : params.coachMode === 'deep_research'
       ? 'DERİN ARAŞTIRMA MODU: Teorik arka plan, varsa formüller ve alana özgü somut vaka örneğiyle derinlemesine açıkla. Notta olmayan bilgileri [Not Dışı Genel Bilgi] diye açıkça işaretle.'
       : 'NET VE KAYNAKLI ANLATIM: Doğrudan nottaki içeriğe dayanarak sade, net, adım adım ve pekiştirici Türkçe yanıt ver.';
-
-  const plainContext = flattenMaterialContextForCoach(params.materialContent);
-  const lastUserQuestion =
-    [...params.messages].reverse().find((m) => m.role === 'user')?.content || '';
-  const focusedContext =
-    plainContext.length > 13_000
-      ? sliceContextForSection(plainContext, lastUserQuestion || params.materialTitle, 0, 1, [], 13_000)
-      : plainContext;
 
   try {
     const res = await fetch(PUBLIC_REASONING_URL, {

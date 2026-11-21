@@ -31,6 +31,7 @@ interface NeuralCoachPanelProps {
 }
 
 const MODES: Array<{ id: CoachMode; label: string }> = [
+  { id: 'step_by_step', label: 'Adım Adım Çöz' },
   { id: 'reinforce', label: 'Pekiştirerek Anlat' },
   { id: 'tutor', label: 'Net & Kaynaklı' },
   { id: 'feynman', label: 'Basitçe (Feynman)' },
