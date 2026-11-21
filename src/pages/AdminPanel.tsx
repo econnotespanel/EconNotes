@@ -24,7 +24,6 @@ import { NOTE_SELECT } from '@/lib/noteColumns';
 import {
   fetchNoteEngagementCounts,
   formatEngagementNumber,
-  sumNoteEngagement,
   type NoteEngagementMap,
 } from '@/lib/noteEngagement';
 import SiteDesignPanel from '@/components/admin/SiteDesignPanel';
@@ -77,10 +76,6 @@ const AdminPanel = () => {
   const [noteEngagement, setNoteEngagement] = useState<NoteEngagementMap>({});
   const [userRoles, setUserRoles] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
-  const totalNoteEngagement = useMemo(
-    () => sumNoteEngagement(noteEngagement, notes.map((n) => n.id)),
-    [noteEngagement, notes],
-  );
   const renderNoteEngagementBadges = (noteId: string) => {
     const counts = noteEngagement[noteId] || { views: 0, downloads: 0 };
     return (
@@ -1539,33 +1534,15 @@ const AdminPanel = () => {
                     </Button>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-primary/20 bg-primary/[0.06] px-2.5 py-1.5 text-xs text-foreground"
-                      title="Tüm notların toplam görüntülenme sayısı"
-                    >
-                      <Eye className="h-3.5 w-3.5 text-primary" />
-                      <strong className="font-bold tabular-nums">{formatEngagementNumber(totalNoteEngagement.views)}</strong>
-                      <span className="text-muted-foreground">görüntülenme</span>
-                    </span>
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] px-2.5 py-1.5 text-xs text-foreground"
-                      title="Tüm notların toplam indirme sayısı"
-                    >
-                      <Download className="h-3.5 w-3.5 text-emerald-500" />
-                      <strong className="font-bold tabular-nums">{formatEngagementNumber(totalNoteEngagement.downloads)}</strong>
-                      <span className="text-muted-foreground">indirme</span>
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={fetchAll}
-                      className="h-8 rounded-xl gap-1 text-xs"
-                      title="Notları yenile"
-                    >
-                      <RotateCcw className="h-3 w-3" /> Yenile
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchAll}
+                    className="h-8 rounded-xl gap-1 text-xs"
+                    title="Notları yenile"
+                  >
+                    <RotateCcw className="h-3 w-3" /> Yenile
+                  </Button>
                 </div>
 
                 {notesLoading && (

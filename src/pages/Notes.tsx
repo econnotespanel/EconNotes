@@ -1195,8 +1195,6 @@ const Notes = () => {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {Object.entries(universityGroups).map(([university, universityNotes]) => {
                   const universityLogo = getUniversityLogo(university);
-                  const uniViews = universityNotes.reduce((sum, n) => sum + (viewCounts[n.id] || 0), 0);
-                  const uniDownloads = universityNotes.reduce((sum, n) => sum + (downloadCounts[n.id] || 0), 0);
                   return (
                   <button
                     key={university}
@@ -1222,15 +1220,7 @@ const Notes = () => {
                     </div>
                     <div className="relative mt-4">
                       <span className="block truncate text-base font-semibold text-foreground">{university}</span>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                        <span className="inline-flex items-center gap-1" title="Toplam görüntülenme">
-                          <Eye className="h-3 w-3 text-primary/80" /> {formatEngagementNumber(uniViews)}
-                        </span>
-                        <span className="opacity-40">•</span>
-                        <span className="inline-flex items-center gap-1" title="Toplam indirme">
-                          <Download className="h-3 w-3 text-secondary" /> {formatEngagementNumber(uniDownloads)}
-                        </span>
-                      </div>
+                      <span className="mt-1 block text-xs text-muted-foreground">Ders klasörlerini görüntüle</span>
                     </div>
                   </button>
                   );
@@ -1238,10 +1228,7 @@ const Notes = () => {
               </div>
             ) : (
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-                {Object.entries(courseGroups).map(([course, courseNotes]) => {
-                  const courseViews = courseNotes.reduce((sum, n) => sum + (viewCounts[n.id] || 0), 0);
-                  const courseDownloads = courseNotes.reduce((sum, n) => sum + (downloadCounts[n.id] || 0), 0);
-                  return (
+                {Object.entries(courseGroups).map(([course, courseNotes]) => (
                   <button
                     key={course}
                     onClick={() => setSelectedCourse(course)}
@@ -1258,18 +1245,9 @@ const Notes = () => {
                       <span className="mt-1 block truncate text-xs text-muted-foreground">
                         {Array.from(new Set(courseNotes.map((note) => note.semester).filter(Boolean))).join(' · ') || 'Ders notları'}
                       </span>
-                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                        <span className="inline-flex items-center gap-1" title="Toplam görüntülenme">
-                          <Eye className="h-3 w-3 text-primary/80" /> {formatEngagementNumber(courseViews)}
-                        </span>
-                        <span className="inline-flex items-center gap-1" title="Toplam indirme">
-                          <Download className="h-3 w-3 text-secondary" /> {formatEngagementNumber(courseDownloads)}
-                        </span>
-                      </div>
                     </div>
                   </button>
-                  );
-                })}
+                ))}
               </div>
             )}
             {!loading && Object.keys(filterUniversity === 'all' ? universityGroups : courseGroups).length === 0 && (
