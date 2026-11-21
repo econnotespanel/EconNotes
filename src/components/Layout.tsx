@@ -9,7 +9,7 @@ import DailyTriviaLauncher from '@/components/DailyTriviaLauncher';
 import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
 import { cn } from '@/lib/utils';
 
-const Layout = ({ children }: { children: React.ReactNode }) => {
+const Layout = ({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) => {
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
@@ -42,8 +42,20 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
       <DailyTriviaLauncher />
       <Header />
       <Sidebar />
-      <main className="relative z-10 min-h-[calc(100vh-4rem)] min-w-0 px-3 py-4 pb-24 sm:px-4 sm:pb-28 md:ml-[16.5rem] md:p-8 opacity-100 visible">
-        <div className="mx-auto w-full max-w-7xl opacity-100 visible text-foreground">
+      <main
+        className={cn(
+          "relative z-10 min-h-[calc(100vh-4rem)] min-w-0 opacity-100 visible md:ml-[16.5rem]",
+          wide
+            ? "px-2.5 py-3 pb-24 sm:px-4 sm:pb-28 md:px-4 md:py-4 xl:px-5"
+            : "px-3 py-4 pb-24 sm:px-4 sm:pb-28 md:p-8",
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto w-full min-w-0 opacity-100 visible text-foreground",
+            wide ? "max-w-[1680px]" : "max-w-7xl",
+          )}
+        >
           {children}
         </div>
       </main>

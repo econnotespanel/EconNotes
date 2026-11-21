@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   BookOpen,
   Check,
   ChevronDown,
@@ -29,6 +30,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { COMMON_UNIVERSITY_COURSES } from '@/lib/courseDetector';
+import type { CanonicalSourceAnalysis } from '@/lib/studySourceAnalysis';
 import { cn } from '@/lib/utils';
 import type {
   CoachMode,
@@ -54,6 +57,7 @@ interface NotebookStudioWorkspaceProps {
   userId: string;
   notebooks: StudioNotebook[];
   activeNotebook: StudioNotebook;
+  canonicalAnalysis: CanonicalSourceAnalysis;
   onSelectNotebook: (id: string) => void;
   onCreateNotebook: (params: { title: string; course: string; emoji: string }) => void;
   onRenameNotebook: (id: string, title: string, course: string) => void;
@@ -77,6 +81,10 @@ interface NotebookStudioWorkspaceProps {
   onToggleSource: (sourceId: string) => void;
   onToggleAllSources: (selectAll: boolean) => void;
   onToggleMaterialSource: (materialId: string) => void;
+  onUpdateSourceCourse: (sourceId: string, course: string) => void;
+  pendingCourseConfirmType: MaterialType | null;
+  onCancelPendingCourseConfirm: () => void;
+  onConfirmCoursesAndContinue: (assignments: Record<string, string>) => void;
   onExtractRemoteNoteFile: (note: NoteSourceOption) => Promise<ExtractedSourceItem>;
   onSavedLiveMaterial: (mat: StudyMaterial) => void;
   onSendMessage: (params: {
@@ -100,6 +108,7 @@ export function NotebookStudioWorkspace({
   userId,
   notebooks,
   activeNotebook,
+  canonicalAnalysis,
   onSelectNotebook,
   onCreateNotebook,
   onRenameNotebook,
@@ -123,6 +132,10 @@ export function NotebookStudioWorkspace({
   onToggleSource,
   onToggleAllSources,
   onToggleMaterialSource,
+  onUpdateSourceCourse,
+  pendingCourseConfirmType,
+  onCancelPendingCourseConfirm,
+  onConfirmCoursesAndContinue,
   onExtractRemoteNoteFile,
   onSavedLiveMaterial,
   onSendMessage,
@@ -151,6 +164,65 @@ export function NotebookStudioWorkspace({
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTitle, setRenameTitle] = useState('');
   const [renameCourse, setRenameCourse] = useState('');
+
+  // Per-source course editor / confirmation modal
+  const [editingCourseSource, setEditingCourseSource] = useState<ExtractedSourceItem | null>(null);
+  const [courseDrafts, setCourseDrafts] = useState<Record<string, string>>({});
+  const [courseFilterQuery, setCourseFilterQuery] = useState('');
+
+  const courseDialogSources = useMemo(() => {
+    if (editingCourseSource) return [editingCourseSource];
+    if (pendingCourseConfirmType && canonicalAnalysis.unconfirmedSources.length > 0) {
+      return canonicalAnalysis.unconfirmedSources.map((p) => p.source);
+    }
+    return [];
+  }, [editingCourseSource, pendingCourseConfirmType, canonicalAnalysis.unconfirmedSources]);
+
+  const courseDialogOpen = courseDialogSources.length > 0;
+
+  useEffect(() => {
+    if (!courseDialogOpen) return;
+    const next: Record<string, string> = {};
+    for (const s of courseDialogSources) {
+      next[s.id] = s.course || s.detectedCourse || '';
+    }
+    setCourseDrafts(next);
+    setCourseFilterQuery('');
+  }, [courseDialogOpen, courseDialogSources]);
+
+  const filteredCourseOptions = useMemo(() => {
+    const q = courseFilterQuery.trim().toLocaleLowerCase('tr-TR');
+    if (!q) return COMMON_UNIVERSITY_COURSES;
+    return COMMON_UNIVERSITY_COURSES.filter((c) => c.toLocaleLowerCase('tr-TR').includes(q));
+  }, [courseFilterQuery]);
+
+  const closeCourseDialog = () => {
+    setEditingCourseSource(null);
+    if (pendingCourseConfirmType) {
+      onCancelPendingCourseConfirm();
+    }
+  };
+
+  const handleSaveCourseDialog = () => {
+    const cleaned: Record<string, string> = {};
+    for (const s of courseDialogSources) {
+      const val = (courseDrafts[s.id] || '').trim();
+      if (!val) return;
+      cleaned[s.id] = val;
+    }
+    if (editingCourseSource) {
+      onUpdateSourceCourse(editingCourseSource.id, cleaned[editingCourseSource.id]);
+      setEditingCourseSource(null);
+    } else if (pendingCourseConfirmType) {
+      onConfirmCoursesAndContinue(cleaned);
+    }
+  };
+
+  const openConfirmForUnconfirmed = () => {
+    if (canonicalAnalysis.unconfirmedSources[0]) {
+      setEditingCourseSource(canonicalAnalysis.unconfirmedSources[0].source);
+    }
+  };
 
   const activeSources = useMemo(
     () => activeNotebook.sources.filter((s) => activeNotebook.checkedSourceIds.includes(s.id)),
@@ -263,15 +335,33 @@ export function NotebookStudioWorkspace({
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {activeNotebook.course && (
+          {canonicalAnalysis.primaryCourseLabel ? (
             <Badge
               variant="outline"
-              className="hidden sm:inline-flex items-center gap-1 rounded-full bg-primary/[0.06] text-[11px] font-medium text-primary border-primary/20"
+              className="hidden max-w-[260px] items-center gap-1 rounded-full border-primary/20 bg-primary/[0.06] text-[11px] font-medium text-primary sm:inline-flex"
+              title={canonicalAnalysis.primaryCourseLabel}
             >
-              <BookOpen className="h-3 w-3" />
-              {activeNotebook.course}
+              <BookOpen className="h-3 w-3 shrink-0" />
+              <span className="truncate">{canonicalAnalysis.primaryCourseLabel}</span>
             </Badge>
-          )}
+          ) : canonicalAnalysis.hasUnconfirmedCourses ? (
+            <button
+              type="button"
+              onClick={openConfirmForUnconfirmed}
+              className="hidden items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/12 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-300 sm:inline-flex"
+            >
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              Ders Seç ({canonicalAnalysis.unconfirmedSources.length})
+            </button>
+          ) : activeNotebook.course ? (
+            <Badge
+              variant="outline"
+              className="hidden max-w-[240px] items-center gap-1 rounded-full border-primary/20 bg-primary/[0.06] text-[11px] font-medium text-primary sm:inline-flex"
+            >
+              <BookOpen className="h-3 w-3 shrink-0" />
+              <span className="truncate">{activeNotebook.course}</span>
+            </Badge>
+          ) : null}
 
           <Button
             type="button"
@@ -313,8 +403,8 @@ export function NotebookStudioWorkspace({
         </div>
       </div>
 
-      {/* Mobile / Tablet 3-Panel Segmented Switcher */}
-      <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border/70 bg-muted/40 p-1 lg:hidden">
+      {/* Mobile / Tablet / Compact Laptop (< 1280px) 3-Panel Segmented Switcher — zero horizontal overflow */}
+      <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border/70 bg-muted/40 p-1 xl:hidden">
         {(
           [
             ['sources', 'Kaynaklar', FolderOpen, activeNotebook.sources.length],
@@ -327,16 +417,16 @@ export function NotebookStudioWorkspace({
             type="button"
             onClick={() => setMobilePanel(id)}
             className={cn(
-              'flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all',
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold transition-all',
               mobilePanel === id
                 ? 'bg-card text-primary shadow-xs ring-1 ring-primary/20'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            <Icon className="h-3.5 w-3.5" />
-            <span>{label}</span>
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{label}</span>
             {count > 0 && (
-              <span className="rounded-full bg-primary/12 px-1.5 py-0.2 text-[10px] font-bold text-primary">
+              <span className="shrink-0 rounded-full bg-primary/12 px-1.5 py-0.2 text-[10px] font-bold text-primary">
                 {count}
               </span>
             )}
@@ -344,10 +434,10 @@ export function NotebookStudioWorkspace({
         ))}
       </div>
 
-      {/* Synchronized 3-Panel NotebookLM × Astra AI Desktop Grid */}
-      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
+      {/* Synchronized 3-Panel Responsive Desktop Grid (>= 1280px) with explicit balanced tracks & min-w-0 */}
+      <div className="grid min-w-0 w-full grid-cols-1 gap-3 xl:grid-cols-[minmax(240px,268px)_minmax(0,1fr)_minmax(272px,312px)] 2xl:grid-cols-[minmax(260px,296px)_minmax(0,1fr)_minmax(300px,336px)]">
         {/* LEFT PANEL: Sources */}
-        <div className={cn('lg:col-span-3', mobilePanel !== 'sources' && 'hidden lg:block')}>
+        <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'sources' && 'hidden xl:block')}>
           <NotebookSourcesPanel
             userId={userId}
             sources={activeNotebook.sources}
@@ -364,18 +454,20 @@ export function NotebookStudioWorkspace({
             onToggleSource={onToggleSource}
             onToggleAllSources={onToggleAllSources}
             onToggleMaterialSource={onToggleMaterialSource}
+            onEditSourceCourse={(src) => setEditingCourseSource(src)}
             onExtractRemoteNoteFile={onExtractRemoteNoteFile}
             onSavedLiveMaterial={onSavedLiveMaterial}
           />
         </div>
 
         {/* CENTER PANEL: AI Tutor & Grounded Chat */}
-        <div className={cn('lg:col-span-6', mobilePanel !== 'chat' && 'hidden lg:block')}>
+        <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'chat' && 'hidden xl:block')}>
           <NotebookTutorChat
             notebookTitle={activeNotebook.title}
             notebookEmoji={activeNotebook.emoji}
             activeSources={activeSources}
             activeMaterials={activeMaterials}
+            canonicalAnalysis={canonicalAnalysis}
             messages={activeNotebook.messages}
             coachMode={coachMode}
             onCoachModeChange={onCoachModeChange}
@@ -385,13 +477,15 @@ export function NotebookStudioWorkspace({
             onPinMessage={onPinMessage}
             onClearChat={onClearChat}
             onOpenAddSource={openAddSource}
+            onRequestCourseConfirm={openConfirmForUnconfirmed}
           />
         </div>
 
         {/* RIGHT PANEL: Studio Production & Artifacts */}
-        <div className={cn('lg:col-span-3', mobilePanel !== 'studio' && 'hidden lg:block')}>
+        <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'studio' && 'hidden xl:block')}>
           <NotebookToolsPanel
             activeSourceCount={activeSourceCount}
+            canonicalAnalysis={canonicalAnalysis}
             notebookMaterials={notebookMaterials}
             allMaterials={allMaterials}
             pinnedNotes={activeNotebook.pinnedNotes}
@@ -403,6 +497,7 @@ export function NotebookStudioWorkspace({
             generationPct={generationPct}
             generationLabel={generationLabel}
             onGenerateType={onGenerateType}
+            onRequestCourseConfirm={openConfirmForUnconfirmed}
             onOpenMindMap={() => setMindMapOpen(true)}
             onOpenPlanner={onOpenPlanner}
             onOpenExamSim={onOpenExamSim}
@@ -422,11 +517,128 @@ export function NotebookStudioWorkspace({
         notebookTitle={activeNotebook.title}
         sources={activeSources}
         materials={mindMapMaterials}
+        canonicalAnalysis={canonicalAnalysis}
         onAskTutor={(prompt) => {
           setMobilePanel('chat');
           void onSendMessage({ text: prompt, mode: 'reinforce' });
         }}
       />
+
+      {/* Per-Source Course Confirmation & Editor Dialog */}
+      <Dialog open={courseDialogOpen} onOpenChange={(o) => !o && closeCourseDialog()}>
+        <DialogContent className="flex max-h-[86dvh] w-[calc(100vw-1.5rem)] max-w-lg flex-col overflow-hidden rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <BookOpen className="h-4 w-4 text-primary" />
+              {pendingCourseConfirmType
+                ? 'Kaynak Dersini Doğrula'
+                : 'Kaynak Dersini Seç / Düzenle'}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {pendingCourseConfirmType
+                ? 'Sistem bu kaynağın dersini kesin tespit edemediği için otomatik atama yapmadı. Doğru dersi seçtiğinde analiz ve üretim yalnızca bu kaynağa göre başlatılacak.'
+                : 'Her kaynak kendi gerçek dersine göre bağımsız analiz edilir ve diğer kaynakları etkilemez.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            {courseDialogSources.map((src) => {
+              const currentVal = courseDrafts[src.id] || '';
+              return (
+                <div
+                  key={src.id}
+                  className="space-y-2.5 rounded-xl border border-border/70 bg-muted/20 p-3"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-foreground">{src.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      ~{src.pagesOrSlides} sayfa · {src.wordCount.toLocaleString('tr-TR')} kelime
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-semibold">Ders Adı *</Label>
+                    <Input
+                      value={currentVal}
+                      onChange={(e) => {
+                        setCourseDrafts((prev) => ({ ...prev, [src.id]: e.target.value }));
+                        setCourseFilterQuery(e.target.value);
+                      }}
+                      placeholder="Örn: Para Teorisi ve Politikası, Borçlar Hukuku, İstatistik..."
+                      className="h-9 rounded-xl text-xs"
+                    />
+                  </div>
+
+                  {src.courseCandidates && src.courseCandidates.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10.5px] font-semibold text-muted-foreground">
+                        İçerikten Önerilen Dersler:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {src.courseCandidates.map((cand) => (
+                          <button
+                            key={cand}
+                            type="button"
+                            onClick={() =>
+                              setCourseDrafts((prev) => ({ ...prev, [src.id]: cand }))
+                            }
+                            className={cn(
+                              'rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                              currentVal === cand
+                                ? 'border-primary bg-primary/15 text-primary'
+                                : 'border-border/70 bg-background text-foreground hover:border-primary/40',
+                            )}
+                          >
+                            {cand}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <p className="text-[10.5px] font-semibold text-muted-foreground">
+                      Üniversite Ders Kataloğundan Hızlı Seç:
+                    </p>
+                    <div className="flex max-h-32 flex-wrap gap-1 overflow-y-auto rounded-lg border border-border/50 bg-background/70 p-2">
+                      {filteredCourseOptions.map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() =>
+                            setCourseDrafts((prev) => ({ ...prev, [src.id]: opt }))
+                          }
+                          className={cn(
+                            'rounded-full border px-2 py-0.5 text-[10.5px] transition-colors',
+                            currentVal === opt
+                              ? 'border-primary bg-primary text-primary-foreground font-semibold'
+                              : 'border-border/60 bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                          )}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={closeCourseDialog}>
+              İptal
+            </Button>
+            <Button
+              size="sm"
+              disabled={courseDialogSources.some((s) => !(courseDrafts[s.id] || '').trim())}
+              onClick={handleSaveCourseDialog}
+            >
+              {pendingCourseConfirmType ? 'Dersi Onayla ve Devam Et' : 'Dersi Kaydet'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* New Notebook Dialog */}
       <Dialog open={newNbOpen} onOpenChange={setNewNbOpen}>

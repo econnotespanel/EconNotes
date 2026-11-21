@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   BookMarked,
   BookOpen,
   Check,
@@ -12,6 +13,7 @@ import {
   FolderOpen,
   Loader2,
   Mic,
+  Pencil,
   Plus,
   Search,
   Sparkles,
@@ -32,9 +34,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { ACCEPTED_FILES } from '@/lib/extractFile';
+import { analyzeSingleSource } from '@/lib/studySourceAnalysis';
 import {
   buildPastedSourceItem,
-  classifyStudyDomain,
   extractFullDocumentOutline,
   extractUploadedSource,
 } from '@/lib/studySourceProcessor';
@@ -63,6 +65,7 @@ interface NotebookSourcesPanelProps {
   onToggleSource: (sourceId: string) => void;
   onToggleAllSources: (selectAll: boolean) => void;
   onToggleMaterialSource: (materialId: string) => void;
+  onEditSourceCourse: (source: ExtractedSourceItem) => void;
   onExtractRemoteNoteFile: (note: NoteSourceOption) => Promise<ExtractedSourceItem>;
   onSavedLiveMaterial: (mat: StudyMaterial) => void;
 }
@@ -92,6 +95,7 @@ export function NotebookSourcesPanel({
   onToggleSource,
   onToggleAllSources,
   onToggleMaterialSource,
+  onEditSourceCourse,
   onExtractRemoteNoteFile,
   onSavedLiveMaterial,
 }: NotebookSourcesPanelProps) {
@@ -184,9 +188,14 @@ export function NotebookSourcesPanel({
     onAddDialogOpenChange(false);
   };
 
+  const inspectProfile = useMemo(() => {
+    if (!inspectSource) return null;
+    return analyzeSingleSource(inspectSource);
+  }, [inspectSource]);
+
   const inspectOutline = useMemo(() => {
     if (!inspectSource?.text) return [];
-    return extractFullDocumentOutline(inspectSource.text, 10);
+    return extractFullDocumentOutline(inspectSource.text, 16);
   }, [inspectSource]);
 
   return (
@@ -202,21 +211,21 @@ export function NotebookSourcesPanel({
         void handleFiles(e.dataTransfer.files);
       }}
       className={cn(
-        'flex h-full min-h-[540px] flex-col rounded-2xl border bg-card/95 shadow-xs transition-colors lg:h-[calc(100vh-12.5rem)] lg:min-h-[620px]',
+        'flex h-full min-h-[520px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-card/95 shadow-xs transition-colors xl:h-[calc(100vh-11.5rem)] xl:min-h-[600px]',
         dragging
           ? 'border-primary bg-primary/[0.04] ring-2 ring-primary/25'
           : 'border-border/75',
       )}
     >
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3.5">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3.5 py-3">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <FolderOpen className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold tracking-tight text-foreground">Kaynaklar</h2>
-            <p className="text-[11px] text-muted-foreground">
+            <h2 className="truncate text-sm font-bold tracking-tight text-foreground">Kaynaklar</h2>
+            <p className="truncate text-[11px] text-muted-foreground">
               {allCount > 0 ? `${activeCount} / ${allCount} aktif` : 'PDF, slayt veya ders notu ekle'}
             </p>
           </div>
@@ -225,7 +234,7 @@ export function NotebookSourcesPanel({
           type="button"
           size="sm"
           onClick={() => onAddDialogOpenChange(true)}
-          className="h-8 gap-1 rounded-xl px-2.5 text-xs font-semibold shadow-xs"
+          className="h-8 shrink-0 gap-1 rounded-xl px-2.5 text-xs font-semibold shadow-xs"
         >
           <Plus className="h-3.5 w-3.5" />
           Ekle
@@ -234,27 +243,27 @@ export function NotebookSourcesPanel({
 
       {/* Master Select All Bar (NotebookLM style) */}
       {sources.length > 0 && (
-        <div className="flex items-center justify-between border-b border-border/50 bg-muted/20 px-4 py-2 text-xs">
-          <label className="flex cursor-pointer items-center gap-2 text-muted-foreground hover:text-foreground">
+        <div className="flex shrink-0 items-center justify-between border-b border-border/50 bg-muted/20 px-3.5 py-2 text-xs">
+          <label className="flex min-w-0 cursor-pointer items-center gap-2 text-muted-foreground hover:text-foreground">
             <Checkbox
               checked={allSourcesChecked}
               onCheckedChange={(v) => onToggleAllSources(Boolean(v))}
               aria-label="Tüm kaynakları seç"
             />
-            <span className="font-medium">Tüm kaynakları seç</span>
+            <span className="truncate font-medium">Tüm kaynakları seç</span>
           </label>
-          <span className="text-[10.5px] text-muted-foreground tabular-nums">
+          <span className="shrink-0 text-[10.5px] text-muted-foreground tabular-nums">
             {checkedSourceIds.length}/{sources.length}
           </span>
         </div>
       )}
 
-      {/* Sources Scroll List */}
-      <ScrollArea className="flex-1 px-3 py-3">
+      {/* Sources Scroll List (native overflow-x-hidden avoids clipping) */}
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
         {extracting && (
           <div className="mb-2.5 flex items-center gap-2.5 rounded-xl border border-primary/25 bg-primary/[0.06] px-3 py-2.5 text-xs text-primary">
             <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-            <span className="font-medium">Kaynak okunuyor ve indeksleniyor...</span>
+            <span className="font-medium">Kaynak okunuyor, dersi analiz ediliyor...</span>
           </div>
         )}
 
@@ -281,19 +290,19 @@ export function NotebookSourcesPanel({
             </Button>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             {sources.map((src) => {
               const Icon = getSourceIcon(src);
               const checked = checkedSourceIds.includes(src.id);
-              const domain = classifyStudyDomain(src.text || '', src.course || undefined, src.name);
+              const profile = analyzeSingleSource(src);
               return (
                 <div
                   key={src.id}
                   className={cn(
-                    'group relative flex items-start gap-2.5 rounded-xl border p-2.5 transition-all',
+                    'group relative flex min-w-0 w-full items-start gap-2 rounded-xl border p-2.5 transition-all',
                     checked
                       ? 'border-primary/30 bg-primary/[0.04] shadow-[0_2px_10px_hsl(var(--primary)/0.05)]'
-                      : 'border-border/60 bg-background/50 opacity-70 hover:opacity-100',
+                      : 'border-border/60 bg-background/50 opacity-75 hover:opacity-100',
                   )}
                 >
                   <Checkbox
@@ -308,26 +317,54 @@ export function NotebookSourcesPanel({
                         type="button"
                         onClick={() => setInspectSource(src)}
                         className="flex min-w-0 items-center gap-1.5 text-left"
-                        title="Kaynak özetini ve başlıklarını incele"
+                        title="Kaynak başlıklarını, ders analizini ve metnini incele"
                       >
                         <Icon className="h-3.5 w-3.5 shrink-0 text-primary" />
-                        <span className="truncate text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                        <span className="truncate text-xs font-semibold text-foreground transition-colors group-hover:text-primary">
                           {src.name}
                         </span>
                       </button>
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px] text-muted-foreground">
+
+                    {/* Independent Per-Source Course Badge / Confirmation Trigger */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                      {profile.needsConfirmation ? (
+                        <button
+                          type="button"
+                          onClick={() => onEditSourceCourse(profile.source)}
+                          className="inline-flex max-w-full items-center gap-1 rounded-full border border-amber-500/45 bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-300"
+                          title="Bu kaynağın dersi kesin belirlenemedi; doğru dersi seçmek için tıkla"
+                        >
+                          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                          <span className="truncate">Ders Seç</span>
+                        </button>
+                      ) : profile.resolvedCourse ? (
+                        <button
+                          type="button"
+                          onClick={() => onEditSourceCourse(profile.source)}
+                          className="inline-flex max-w-full items-center gap-1 rounded-full border border-primary/25 bg-primary/[0.08] px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/15"
+                          title={`Tespit edilen ders: ${profile.resolvedCourse} (değiştirmek için tıkla)`}
+                        >
+                          <span className="truncate max-w-[140px]">{profile.resolvedCourse}</span>
+                          <Pencil className="h-2.5 w-2.5 shrink-0 opacity-60" />
+                        </button>
+                      ) : null}
+
+                      {profile.unreadablePages.length > 0 && (
+                        <span
+                          className="inline-flex items-center gap-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9.5px] font-medium text-amber-700 dark:text-amber-300"
+                          title={profile.warnings.join(' ')}
+                        >
+                          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                          {profile.unreadablePages.length} görsel syf
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
                       <span>~{src.pagesOrSlides} syf</span>
                       <span>·</span>
                       <span>{src.wordCount.toLocaleString('tr-TR')} kelime</span>
-                      {domain.discipline && (
-                        <>
-                          <span>·</span>
-                          <span className="truncate max-w-[110px] text-primary/80 font-medium">
-                            {domain.discipline}
-                          </span>
-                        </>
-                      )}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5 opacity-80 group-hover:opacity-100">
@@ -409,11 +446,11 @@ export function NotebookSourcesPanel({
             )}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Bottom quick drag hint */}
-      <div className="border-t border-border/50 bg-muted/15 px-3.5 py-2 text-[10.5px] text-muted-foreground">
-        Seçili kaynaklar hem <strong>AI Öğretmen</strong> hem de <strong>Stüdyo</strong> üretimlerinde tek kaynak olarak kullanılır.
+      <div className="shrink-0 border-t border-border/50 bg-muted/15 px-3.5 py-2 text-[10.5px] text-muted-foreground">
+        Her kaynak kendi gerçek dersiyle analiz edilir; seçili kaynaklar tüm <strong>Stüdyo</strong> araçlarında ortak kullanılır.
       </div>
 
       {/* Add Source Modal (NotebookLM style) */}
@@ -647,16 +684,70 @@ export function NotebookSourcesPanel({
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[58vh] pr-2">
+            {inspectProfile && (
+              <div className="mb-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/25 px-3 py-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-semibold text-muted-foreground">Tanımlanan Ders:</span>
+                    {inspectProfile.resolvedCourse ? (
+                      <Badge variant="secondary" className="text-[11px] font-semibold">
+                        {inspectProfile.resolvedCourse}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-700 dark:text-amber-300">
+                        Ders Onayı Gerekli
+                      </Badge>
+                    )}
+                    {inspectProfile.formulas.length > 0 && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {inspectProfile.formulas.length} formül
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 rounded-lg px-2 text-[11px]"
+                    onClick={() => {
+                      const target = inspectProfile.source;
+                      setInspectSource(null);
+                      onEditSourceCourse(target);
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Dersi Düzenle
+                  </Button>
+                </div>
+
+                {inspectProfile.warnings.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-2.5 text-[11px] text-amber-800 dark:text-amber-200">
+                    <p className="mb-1 flex items-center gap-1 font-bold">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Belge Okuma Uyarısı
+                    </p>
+                    <ul className="space-y-0.5">
+                      {inspectProfile.warnings.map((w, wi) => (
+                        <li key={wi}>• {w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
             {inspectOutline.length > 0 && (
               <div className="mb-4 rounded-xl border border-primary/20 bg-primary/[0.04] p-3">
                 <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-primary">
-                  Tespit Edilen Konu Başlıkları
+                  Tespit Edilen Konu Başlıkları ({inspectOutline.length})
                 </p>
                 <ul className="space-y-1 text-xs text-foreground/90">
                   {inspectOutline.map((o, idx) => (
                     <li key={idx} className="flex items-start gap-1.5">
                       <span className="font-mono text-[10px] text-primary mt-0.5">{idx + 1}.</span>
-                      <span>{o.heading}</span>
+                      <span>
+                        {o.heading}
+                        {o.pageHint ? ` (${o.pageHint})` : ''}
+                      </span>
                     </li>
                   ))}
                 </ul>

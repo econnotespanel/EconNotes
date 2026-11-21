@@ -149,6 +149,37 @@ Fiyat oranına eşitlik koşulu geçerlidir.
     }
   });
 
+  it('extracts PPTX tables into Markdown and reports image-only unreadable slides', async () => {
+    const zip = new JSZip();
+    zip.file(
+      'ppt/slides/slide1.xml',
+      `<p:sld><p:cSld><p:spTree>
+        <p:sp><p:txBody><a:p><a:r><a:t>İstatistik Hipotez Testleri</a:t></a:r></a:p></p:txBody></p:sp>
+        <p:graphicFrame><a:graphic><a:graphicData><a:tbl>
+          <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Test</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Dağılım</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+          <a:tr><a:tc><a:txBody><a:p><a:r><a:t>ANOVA</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>F-Dağılımı</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        </a:tbl></a:graphicData></a:graphic></p:graphicFrame>
+      </p:spTree></p:cSld></p:sld>`,
+    );
+    zip.file(
+      'ppt/slides/slide2.xml',
+      `<p:sld><p:cSld><p:spTree><p:pic></p:pic></p:spTree></p:cSld></p:sld>`,
+    );
+    const buffer = await zip.generateAsync({ type: 'arraybuffer' });
+    const file = new File([buffer], 'istatistik-tablolu.pptx', {
+      type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    });
+
+    const extracted = await extractFile(file);
+    expect(extracted.kind).toBe('text');
+    if (extracted.kind === 'text') {
+      expect(extracted.text).toContain('| Test | Dağılım |');
+      expect(extracted.text).toContain('| ANOVA | F-Dağılımı |');
+      expect(extracted.unreadablePages).toEqual([2]);
+      expect((extracted.warnings || []).some((w) => w.includes('Slayt 2'))).toBe(true);
+    }
+  });
+
   it('detects empty scanned PDFs cleanly instead of returning empty page headers', async () => {
     const scannedBytes = new Uint8Array([99, 1, 2, 3]);
     const scannedFile = new File([scannedBytes], 'taranmis.pdf', { type: 'application/pdf' });

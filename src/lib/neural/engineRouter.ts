@@ -164,15 +164,20 @@ export async function routedRagAnswer(params: {
         });
 
   const fallbackText = (params.fallbackContextText || '').trim();
-  const contextBlock =
+  const hitContext =
     hits.length > 0
       ? hits
           .map(
             (h, i) =>
-              `[Kaynak ${i + 1}: ${h.chunk.docTitle} · ${h.chunk.sectionHeading}]\n${h.chunk.text}`,
+              `[Kaynak ${i + 1}: ${h.chunk.docTitle}${h.chunk.course ? ` · Ders: ${h.chunk.course}` : ''} · ${h.chunk.sectionHeading}]\n${h.chunk.text}`,
           )
           .join('\n\n---\n\n')
-      : fallbackText.slice(0, 20_000);
+      : '';
+  const contextBlock = hitContext
+    ? fallbackText
+      ? `${hitContext}\n\n=== KAYNAK HARİTASI & BAĞLAM ===\n${fallbackText.slice(0, 10_000)}`
+      : hitContext
+    : fallbackText.slice(0, 24_000);
 
   const conversationTurns: Array<{ role: 'user' | 'assistant'; content: string }> = [
     ...(params.history || []).slice(-8),

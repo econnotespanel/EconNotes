@@ -83,6 +83,12 @@ export function NeuralSummaryWorkspace({
       studyPriorityMap: Array.isArray(material.content?.studyPriorityMap)
         ? material.content.studyPriorityMap
         : undefined,
+      extractionNotices: Array.isArray(material.content?.extractionNotices)
+        ? material.content.extractionNotices
+        : [],
+      sourceCourseBreakdown: Array.isArray(material.content?.sourceCourseBreakdown)
+        ? material.content.sourceCourseBreakdown
+        : [],
       metadata: material.content?.metadata,
     }),
     [material.content],
@@ -497,9 +503,9 @@ export function NeuralSummaryWorkspace({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+      <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-12">
         {/* Sticky Chapter Navigator */}
-        <aside className="neural-card h-fit space-y-3 p-4 xl:sticky xl:top-20 xl:col-span-4">
+        <aside className="neural-card h-fit min-w-0 space-y-3 p-4 xl:sticky xl:top-20 xl:col-span-4">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-xs font-bold">
               <BookOpen className="h-4 w-4 text-primary" />
@@ -532,9 +538,24 @@ export function NeuralSummaryWorkspace({
         </aside>
 
         {/* Main Academic Body */}
-        <div className="space-y-5 xl:col-span-8">
+        <div className="min-w-0 space-y-5 xl:col-span-8">
+          {/* Extraction / Unreadable Pages Transparency Banner */}
+          {c.extractionNotices && c.extractionNotices.length > 0 && (
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-900 dark:text-amber-100">
+              <p className="mb-1.5 flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                Belge Okuma &amp; Eksik / Görsel Kısım Bildirimi
+              </p>
+              <ul className="space-y-1 text-amber-800/90 dark:text-amber-200/90">
+                {c.extractionNotices.map((notice, ni) => (
+                  <li key={ni}>• {notice}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Executive Overview */}
-          <div className="neural-card space-y-3 p-5">
+          <div className="neural-card min-w-0 space-y-3 p-5">
             <div className="flex flex-wrap items-center gap-2">
               {c.disciplineTag && (
                 <Badge variant="outline" className="text-xs text-cyan-600 dark:text-cyan-300">
@@ -545,7 +566,24 @@ export function NeuralSummaryWorkspace({
                 Yönetici Özeti & Çerçeve
               </span>
             </div>
-            <AcademicMarkdown content={c.overview} className="text-sm leading-relaxed" />
+            {c.sourceCourseBreakdown && c.sourceCourseBreakdown.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {c.sourceCourseBreakdown.map((item, bi) => (
+                  <span
+                    key={`${item.sourceName}-${bi}`}
+                    className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2.5 py-0.5 text-[11px] text-muted-foreground"
+                  >
+                    <strong className="text-foreground">{item.course}</strong>
+                    <span>·</span>
+                    <span className="truncate max-w-[180px]">{item.sourceName}</span>
+                    <span>({item.pagesOrSlides} syf)</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="min-w-0 overflow-x-auto">
+              <AcademicMarkdown content={c.overview} className="text-sm leading-relaxed" />
+            </div>
             {c.keyPoints.length > 0 && (
               <ul className="space-y-1.5 rounded-xl border border-border/60 bg-background/50 p-3.5 text-xs">
                 {c.keyPoints.map((kp, idx) => (
@@ -623,7 +661,9 @@ export function NeuralSummaryWorkspace({
                 </div>
 
                 {(!examFocusMode || expandedInFocus[idx]) ? (
-                  <AcademicMarkdown content={sec.content} className="text-sm leading-relaxed" />
+                  <div className="min-w-0 overflow-x-auto">
+                    <AcademicMarkdown content={sec.content} className="text-sm leading-relaxed" />
+                  </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 px-3.5 py-2.5 flex items-center justify-between gap-2 text-xs">
                     <span className="text-muted-foreground">

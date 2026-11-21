@@ -306,48 +306,59 @@ function parseMarkdownSummaryToSections(
 function buildChatGptStyleSummaryPrompt(
   bundle: ProcessedStudyBundle,
   settings: StudioGenerationSettings,
-  disciplineLabel: string,
+  courseOrDisciplineLabel: string,
   outlineList: string[],
 ): string {
   const isLarge = isLargeStudyBundle(bundle) || settings.examMode === 'large_note';
   const sectionRange =
     settings.summaryDepth === 'short'
-      ? '4-5'
+      ? '5-6'
       : settings.summaryDepth === 'textbook' || isLarge
-      ? '8-12'
-      : '6-9';
+      ? '9-14'
+      : '7-10';
   const outlineHint =
     outlineList.length > 0
-      ? `\nNottaki tespit edilen başlıklar (hiçbirini atlama): ${outlineList.slice(0, 18).join(' | ')}`
+      ? `\nNottaki baştan sona tespit edilen başlıklar (hiçbirini atlama): ${outlineList.slice(0, 28).join(' | ')}`
+      : '';
+  const multiCourseHint =
+    bundle.isMultiCourse && bundle.sourceCourses && bundle.sourceCourses.length > 1
+      ? `\nÇOKLU DERS İZOLASYONU: Bu oturumda farklı dersler (${bundle.sourceCourses.join(', ')}) var. Her dersin içeriğini yalnızca kendi [Ders Adı] başlığı altında işle; farklı derslerin bilgilerini ASLA karıştırma!`
+      : '';
+  const warningsHint =
+    bundle.extractionWarnings && bundle.extractionWarnings.length > 0
+      ? `\nEKSİK / OKUNAMAYAN BELGE UYARILARI (extractionNotices alanında dürüstçe belirt): ${bundle.extractionWarnings.join(' | ')}`
       : '';
   const customRule = settings.customPrompt?.trim()
     ? `\nÖğrencinin özel isteği: ${settings.customPrompt.trim()}`
     : '';
   const examRule =
     settings.examMode === 'cram_24h'
-      ? '\nOdak: Sınava son 24 saat — en yüksek sınav olasılıklı kavramları ve kritik ayrımları özellikle öne çıkar.'
+      ? '\nOdak: Sınava son 24 saat — en yüksek sınav olasılıklı kavramları, kritik ayrımları ve formülleri özellikle öne çıkar.'
       : '';
 
-  return `Görev: Aşağıdaki ders notunu başından sonuna dikkatlice okuyup, öğrencinin sınav için birkaç sayfalık temiz, akıcı ve çok anlaşılır bir ders özeti gibi okuyabileceği kapsamlı bir Türkçe özet hazırla.
+  return `Görev: Aşağıdaki ders materyalini ilk sayfadan son sayfaya kadar eksiksiz analiz edip, öğrencinin konuyu gerçekten öğrenmesini ve sınava tam hazırlanmasını sağlayacak kapsamlı, nitelikli bir Türkçe çalışma özeti hazırla.
 KESİN KURALLAR:
-1. YALNIZCA bu ders notunda yer alan gerçek konuları, kavramları, tanımları, olayları ve örnekleri anlat. Notta bulunmayan başka bir dersin veya alanın kavramlarını, grafiklerini veya örneklerini KESİNLİKLE uydurma ve ekleme.
-2. Robotik tekrar eden şablon başlıklar yerine, tıpkı ChatGPT'ye bir ders notu atıp "bunu ayrıntılı özetler misin" dediğinde verilen gibi sade, akıcı, düzenli ve öğretici Markdown anlatım yaz (temiz alt başlıklar ####, akıcı paragraflar, madde listeleri, kalın anahtar kavramlar; yalnızca notta gerçek karşılaştırma varsa kısa tablo, yalnızca notta denklem varsa $...$).
-3. Nottaki ilk sayfadan son sayfaya kadar önemli hiçbir bölümü atlama (${sectionRange} bölüm oluştur, her bölüm 240-440 kelime arası doyurucu olsun).
-4. "studyPriorityMap" alanında nottaki gerçek konu başlıklarını sınav önceliğine göre (critical / important / review) sırala.${outlineHint}${examRule}${customRule}
+1. YÜZEYSEL VE KISA ÖZET YASAKTIR: Birkaç kısa paragraf yazıp geçme. Belgedeki TÜM ana ve alt başlıkları (####), kavramları, tanımları, teorileri, yaklaşımları, modelleri, formülleri (LaTeX $...$ / $$...$$ ile ve her değişkeni açıklayarak), grafikleri, tabloları ve örnekleri ayrıntılı biçimde açıkla.
+2. %100 KAYNAK SADAKATİ: Yalnızca yüklenen belgede bulunan gerçek bilgilere dayan. Kaynakta olmayan teorileri, tanımları veya başka bir dersin konularını içeriği uzatmak için KESİNLİKLE ekleme. Kaynaktaki akademik terminoloji ve konu sıralamasını koru.
+3. ŞEFFAF EK AÇIKLAMA: Öğrencinin zorlanabileceği bir noktayı sadeleştirmek için kaynaktaki metnin ötesinde kısa açıklama ekliyorsan, bunu mutlaka **[Ek Açıklama]** etiketiyle kaynak bilgisinden ayır.
+4. KONULAR ARASI BAĞLANTI, TABLO VE SINAV VURGUSU: Kavramlar arası ilişkileri kur, gerektiğinde karşılaştırmalı Markdown tabloları (|...|) ekle, sınavda sorulabilecek ayrıntıları ve sık karıştırılan tuzakları özellikle vurgula.
+5. Belgedeki ilk sayfadan son sayfaya kadar önemli hiçbir bölümü atlama (${sectionRange} kapsamlı bölüm oluştur, her bölüm 380-620 kelime arası doyurucu olsun). Okunamayan/eksik sayfa varsa "extractionNotices" dizisinde açıkça belirt.${outlineHint}${multiCourseHint}${warningsHint}${examRule}${customRule}
 
 YANITINI YALNIZCA AŞAĞIDAKİ GEÇERLİ JSON FORMATINDA DÖNDÜR (başka sohbet metni yazma):
 {
-  "overview": "Ders notunun bütününü sade ve net anlatan 1-2 paragraf giriş özeti",
-  "disciplineTag": "${disciplineLabel}",
-  "keyPoints": ["Nottaki 6-8 en önemli ana nokta"],
+  "overview": "Ders materyalinin bütününü, kapsamını ve temel konu akışını anlatan 2-3 paragraf nitelikli giriş özeti",
+  "disciplineTag": "${courseOrDisciplineLabel}",
+  "extractionNotices": ["Varsa okunamayan veya eksik kalan sayfa/slayt uyarısı; yoksa []"],
+  "keyPoints": ["Nottaki 8-12 en önemli somut kavram/çıkarım"],
   "sections": [
     {
       "index": 0,
-      "heading": "Nottaki gerçek konu başlığı",
-      "pageRange": "Varsa sayfa/slayt",
-      "content": "Akıcı, anlaşılır, ayrıntılı Markdown özet anlatımı...",
-      "takeaways": ["Kısa net çıkarım 1", "Kısa net çıkarım 2"],
-      "commonPitfalls": ["Varsa sınavda karıştırılabilecek 1 nokta"]
+      "heading": "Nottaki gerçek ana konu başlığı",
+      "pageRange": "Varsa sayfa/slayt aralığı",
+      "content": "Alt başlıklar (####), detaylı kavram/teori/formül/tablo/örnek açıklaması, konular arası bağlantı ve sınav vurgusu içeren 380-620 kelimelik Türkçe Markdown anlatım...",
+      "takeaways": ["Net çıkarım 1", "Net çıkarım 2", "Net çıkarım 3"],
+      "commonPitfalls": ["Sınavda karıştırılabilecek 1-2 kritik nokta"],
+      "checkpointQuestion": { "question": "Bölüme özel kontrol sorusu?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Kaynağa dayalı açıklama." }
     }
   ],
   "studyPriorityMap": [
@@ -355,19 +366,24 @@ YANITINI YALNIZCA AŞAĞIDAKİ GEÇERLİ JSON FORMATINDA DÖNDÜR (başka sohbet
       "topic": "Nottaki gerçek konu başlığı",
       "priority": "critical",
       "reason": "Sınavda neden mutlaka bakılması gerektiği (1-2 net cümle)",
-      "estimatedMinutes": 8,
+      "estimatedMinutes": 10,
       "focusConcepts": ["Kavram 1", "Kavram 2"],
-      "likelyQuestionType": "Tanım / Karşılaştırma / Uygulama / Yorum",
+      "likelyQuestionType": "Tanım / Karşılaştırma / Formül & Uygulama / Yorum",
       "sectionIndex": 0
     }
   ],
-  "teacherEmphasis": [{ "point": "Nottaki kritik kavram", "whyImportant": "Neden önemli", "examProbability": "Yüksek" }],
-  "keyTerms": [{ "term": "Nottaki terim", "definition": "Net ve anlaşılır tanım", "formula": "" }],
-  "studyChecklist": ["Bu notu bitirdiğimde ... konusunu açıklayabilirim."]
+  "comparativeMatrix": {
+    "title": "Kaynaktaki Kavram / Teori Karşılaştırma Tablosu (karşılaştırma varsa)",
+    "columns": ["Ölçüt", "Kavram A", "Kavram B"],
+    "rows": [["...", "...", "..."]]
+  },
+  "teacherEmphasis": [{ "point": "Nottaki kritik sınav ayrıntısı", "whyImportant": "Neden önemli", "examProbability": "Yüksek" }],
+  "keyTerms": [{ "term": "Nottaki terim", "definition": "Ayrıntılı ve doğru tanım", "formula": "Varsa kaynaktaki formül" }],
+  "studyChecklist": ["Bu notu bitirdiğimde ... konusunu ve ayrımlarını açıklayabilirim."]
 }`;
 }
 
-function buildStrictQuizPrompt(settings: StudioGenerationSettings): string {
+function buildStrictQuizPrompt(settings: StudioGenerationSettings, bundle?: ProcessedStudyBundle): string {
   const count = Math.min(Math.max(settings.questionCount || 10, 4), 25);
   const formatRule =
     settings.quizFormat === 'open_ended'
@@ -375,16 +391,24 @@ function buildStrictQuizPrompt(settings: StudioGenerationSettings): string {
       : settings.quizFormat === 'mixed'
       ? 'Soruların yaklaşık %75i 4 şıklı çoktan seçmeli (multiple_choice), %25i açık uçlu (short_answer) olsun.'
       : 'Tüm sorular 4 şıklı çoktan seçmeli (multiple_choice) olsun.';
+  const multiRule =
+    bundle?.isMultiCourse && bundle.sourceCourses?.length
+      ? `\nÇOKLU DERS KURALI: Seçili dersler (${bundle.sourceCourses.join(', ')}) birbirine karıştırılmamalı; her sorunun "topic" alanında "[Ders Adı] — Konu" biçimini kullan.`
+      : '';
+  const digestHint = bundle?.canonicalAnalysisDigest
+    ? `\nORTAK KAYNAK ANALİZİ (ÖZET VE DİĞER ARAÇLARLA %100 AYNI KAPSAM):\n${bundle.canonicalAnalysisDigest.slice(0, 3_200)}`
+    : '';
 
-  return `Görev: Yalnızca yüklenen ders notuna dayanarak tam ${count} adet net, anlaşılır, gerçek üniversite sınavı kalitesinde Türkçe soru üret.
-${formatRule}
-${settings.customPrompt?.trim() ? `Özel istek: ${settings.customPrompt.trim()}` : ''}
+  return `Görev: Yalnızca yüklenen ders notuna ve ortak kaynak analizine dayanarak tam ${count} adet net, anlaşılır, gerçek üniversite sınavı kalitesinde Türkçe soru üret.
+${formatRule}${multiRule}
+${settings.customPrompt?.trim() ? `Özel istek: ${settings.customPrompt.trim()}` : ''}${digestHint}
 
 KESİN KURALLAR:
-1. YALNIZCA bu ders notunda geçen gerçek kavram, tanım, mekanizma ve olaylardan soru yaz. Not dışından başka bir dersin veya alanın konularını ASLA sorma.
-2. Her soru kökü dilbilgisi düzgün, açık ve tek bir net cevabı olacak şekilde yazılmalıdır. Nottan rastgele kesilmiş anlamsız cümleler YASAKTIR.
-3. Çoktan seçmeli sorularda TAM OLARAK 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır. Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt (hepsini 0 yapma).
-4. Her soru için doğru cevabın neden doğru olduğunu nota dayanarak 2-3 sade cümleyle açıkla.
+1. YALNIZCA bu ders notunda geçen gerçek dersin kavram, tanım, teori, formül ve olaylarından soru yaz. Başka bir dersin konularını ASLA karıştırma ve ekleme.
+2. Belgenin yalnızca ilk sayfalarından değil, başından sonuna tüm önemli başlıklarından dengeli soru üret.
+3. Her soru kökü dilbilgisi düzgün, açık ve tek bir net cevabı olacak şekilde yazılmalıdır.
+4. Çoktan seçmeli sorularda TAM OLARAK 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır. Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt.
+5. Her soru için doğru cevabın neden doğru olduğunu kaynağa dayanarak 2-3 sade cümleyle açıkla.
 
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 {
@@ -405,18 +429,26 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 }`;
 }
 
-function buildStrictFlashcardsPrompt(settings: StudioGenerationSettings): string {
+function buildStrictFlashcardsPrompt(settings: StudioGenerationSettings, bundle?: ProcessedStudyBundle): string {
   const count = Math.min(Math.max(settings.cardCount || 14, 6), 30);
-  return `Görev: Yalnızca yüklenen ders notuna dayanarak tam ${count} adet net, anlaşılır, sınav tekrarında gerçekten işe yarayan Türkçe çalışma kartı (flashcard) üret.
+  const multiRule =
+    bundle?.isMultiCourse && bundle.sourceCourses?.length
+      ? `\nÇOKLU DERS KURALI: Her kartı kendi dersine ait tut ve "topic" alanında "[Ders Adı] — Konu" kullan (${bundle.sourceCourses.join(', ')}).`
+      : '';
+  const digestHint = bundle?.canonicalAnalysisDigest
+    ? `\nORTAK KAYNAK ANALİZİ:\n${bundle.canonicalAnalysisDigest.slice(0, 3_000)}`
+    : '';
+  return `Görev: Yalnızca yüklenen ders notuna ve ortak kaynak analizine dayanarak tam ${count} adet net, anlaşılır, sınav tekrarında gerçekten işe yarayan Türkçe çalışma kartı (flashcard) üret.${multiRule}${digestHint}
 KESİN KURALLAR:
-1. Sadece bu ders notunda yer alan gerçek kavram, tanım, süreç ve ayrımları kullan; not dışından başka bir dersin kavramlarını ASLA ekleme.
-2. Ön yüz (front) kısa, açık bir soru veya kavram olsun; arka yüz (back) sade, doğru ve akılda kalıcı net bir cevap olsun.
+1. Sadece bu ders notunda yer alan gerçek dersin kavram, tanım, teori, formül ve ayrımlarını kullan; başka bir dersin bilgilerini ASLA karıştırma.
+2. Belgenin başından sonuna tüm önemli başlıkları kapsa.
+3. Ön yüz (front) kısa, açık bir soru veya kavram olsun; arka yüz (back) sade, doğru ve akılda kalıcı net bir cevap olsun.
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 {
   "cards": [
     {
       "front": "Net soru veya kavram?",
-      "back": "Anlaşılır, doğru ve kısa cevap.",
+      "back": "Anlaşılır, doğru ve net cevap.",
       "hint": "Kısa hatırlatıcı ipucu",
       "topic": "Nottaki ilgili başlık",
       "difficulty": "medium"
@@ -425,14 +457,26 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 }`;
 }
 
-function buildStrictVideoPrompt(disciplineLabel: string, customPrompt?: string): string {
+function buildStrictVideoPrompt(
+  courseOrDisciplineLabel: string,
+  customPrompt?: string,
+  bundle?: ProcessedStudyBundle,
+): string {
   const extra = customPrompt?.trim() ? `\nÖğrencinin özel isteği: ${customPrompt.trim()}` : '';
-  return `Görev: Yüklenen ders notundan 5-7 sahneli, Dr. Deniz (anlatıcı) ve Barış (soru soran öğrenci) arasında geçen, ekranda çok rahat okunabilir ve %100 nota sadık Türkçe Video Ders JSON'u üret.${extra}
+  const multiRule =
+    bundle?.isMultiCourse && bundle.sourceCourses?.length
+      ? `\nÇOKLU DERS KURALI: Farklı derslerin (${bundle.sourceCourses.join(', ')}) sahnelerini ayrı tut ve her sahne başlığında [Ders Adı] belirt.`
+      : '';
+  const digestHint = bundle?.canonicalAnalysisDigest
+    ? `\nORTAK KAYNAK ANALİZİ (ÖZETLE %100 AYNI KAPSAM):\n${bundle.canonicalAnalysisDigest.slice(0, 3_000)}`
+    : '';
+  return `Görev: Yüklenen ders notundan ve ortak kaynak analizinden 5-8 sahneli, Dr. Deniz (anlatıcı) ve Barış (soru soran öğrenci) arasında geçen, ekranda çok rahat okunabilir ve %100 nota sadık Türkçe Video Ders JSON'u üret.${extra}${multiRule}${digestHint}
 KESİN KURALLAR:
-1. YALNIZCA yüklenen ders notunda geçen gerçek kavram, süreç, mekanizma ve örnekleri anlat. Notta olmayan başka bir dersin veya alanın kavramlarını, grafiklerini ya da klişe giriş cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda") KESİNLİKLE ekleme.
-2. OKUNABİLİRLİK: Her sahnenin "diagramData.nodes" dizisinde 3-4 net kavram kartı üret. Her kartta "label" en fazla 34 karakter, "subtext" ise en fazla 125 karakterlik 1-2 sade ve anlaşılır cümle olsun.
-3. GÖRSEL TİPİ: Sadece metne uygun şemalar seç: "visual", "table", "comparison", "timeline", "scenario", "shapes". Yalnızca notta gerçek sayısal veriler varsa "chart" kullan.
-4. "visualTheme" değerini yalnızca bu dersin gerçek alanına göre seç: "medicine" | "engineering" | "science" | "law" | "politics" | "education" | "sports" | "agriculture" | "history" | "economics" | "society". (Tespit edilen alan: ${disciplineLabel})
+1. YALNIZCA yüklenen ders notunda geçen gerçek dersin kavram, teori, formül, süreç ve örneklerini anlat. Başka bir dersin kavramlarını veya klişe giriş cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda") KESİNLİKLE ekleme.
+2. Belgenin başından sonuna tüm önemli bölümleri sırayla kapsa.
+3. OKUNABİLİRLİK: Her sahnenin "diagramData.nodes" dizisinde 3-4 net kavram kartı üret. Her kartta "label" en fazla 34 karakter, "subtext" ise en fazla 125 karakterlik 1-2 sade cümle olsun.
+4. GÖRSEL TİPİ: Sadece metne uygun şemalar seç: "visual", "table", "comparison", "timeline", "scenario", "shapes". Yalnızca notta gerçek sayısal veriler varsa "chart" kullan.
+5. "visualTheme" değerini yalnızca bu dersin gerçek alanına göre seç: "medicine" | "engineering" | "science" | "law" | "politics" | "education" | "sports" | "agriculture" | "history" | "economics" | "society". (Tespit edilen ders/alan: ${courseOrDisciplineLabel})
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 {
   "videoTitle": "Yüklenen ders notunun gerçek ve net başlığı",
@@ -624,15 +668,23 @@ async function buildSummaryFromLiveAi(
   const largeBundle = isLargeStudyBundle(bundle) || settings.examMode === 'large_note';
   const courseLabel =
     bundle.course?.trim() ||
-    (domain.discipline !== 'Üniversite Akademik Çalışma' ? domain.discipline : bundle.title);
+    bundle.detectedCourse?.trim() ||
+    domain.detectedCourse ||
+    bundle.title;
 
-  // Case A: Standard/medium notes (<= 32k chars, ~1-20 pages) -> ONE cohesive multi-page ChatGPT-style pass
-  if (bundle.combinedText.length <= 32_000) {
+  const sourceCourseBreakdown = bundle.sources.map((s) => ({
+    sourceName: s.name,
+    course: s.course || s.detectedCourse || courseLabel,
+    pagesOrSlides: s.pagesOrSlides,
+  }));
+
+  // Case A: Short/medium notes (<= 22k chars, ~1-12 pages) -> ONE cohesive deep multi-section pass
+  if (bundle.combinedText.length <= 22_000) {
     onProgress?.(45, 'Ders notu baştan sona incelenip kapsamlı özet yazılıyor...');
     const taskPrompt = buildChatGptStyleSummaryPrompt(
       bundle,
       settings,
-      domain.discipline,
+      courseLabel,
       fullOutlineHint,
     );
     const liveRes = await invokeLiveServerAiText({
@@ -653,7 +705,7 @@ async function buildSummaryFromLiveAi(
         String(parsed.overview || '').trim() ||
         `${bundle.title} ders notu ${jsonSections.length} ana başlık altında ayrıntılı biçimde özetlenmiştir.`;
       const keyPoints = Array.isArray(parsed.keyPoints)
-        ? parsed.keyPoints.map(String).filter(Boolean).slice(0, 10)
+        ? parsed.keyPoints.map(String).filter(Boolean).slice(0, 12)
         : jsonSections.map((s) => `**${s.heading}**`).slice(0, 8);
       const keyTerms = Array.isArray(parsed.keyTerms)
         ? (parsed.keyTerms as SummaryContent['keyTerms'])
@@ -661,7 +713,15 @@ async function buildSummaryFromLiveAi(
       const teacherEmphasis = Array.isArray(parsed.teacherEmphasis)
         ? (parsed.teacherEmphasis as SummaryContent['teacherEmphasis'])
         : [];
-      const disciplineTag = String(parsed.disciplineTag || domain.discipline);
+      const disciplineTag = String(parsed.disciplineTag || courseLabel);
+      const extractionNotices = Array.from(
+        new Set([
+          ...(bundle.extractionWarnings || []),
+          ...(Array.isArray(parsed.extractionNotices)
+            ? parsed.extractionNotices.map(String).filter(Boolean)
+            : []),
+        ]),
+      );
 
       onProgress?.(94, 'Özet ve sınav öncelik rehberi düzenleniyor...');
       const summary: SummaryContent = {
@@ -672,6 +732,8 @@ async function buildSummaryFromLiveAi(
         teacherEmphasis,
         comparativeMatrix: parsed.comparativeMatrix as SummaryContent['comparativeMatrix'],
         keyTerms,
+        extractionNotices: extractionNotices.length > 0 ? extractionNotices : undefined,
+        sourceCourseBreakdown,
         studyChecklist: Array.isArray(parsed.studyChecklist)
           ? parsed.studyChecklist.map(String).filter(Boolean)
           : [],
@@ -690,6 +752,9 @@ async function buildSummaryFromLiveAi(
           examMode: settings.examMode,
           faculty: settings.faculty,
           isLargeBundle: largeBundle,
+          sourceFingerprint: bundle.sourceFingerprint,
+          analyzedCourses: bundle.sourceCourses,
+          isMultiCourse: bundle.isMultiCourse,
           sourceStats: {
             sourceCount: bundle.sourceCount,
             wordCount: bundle.totalWords,
@@ -702,12 +767,14 @@ async function buildSummaryFromLiveAi(
     }
 
     // Fallback parser if the AI responded in natural Markdown instead of JSON
-    const mdSummary = parseMarkdownSummaryToSections(liveRes.text, bundle.title, domain.discipline);
+    const mdSummary = parseMarkdownSummaryToSections(liveRes.text, bundle.title, courseLabel);
     if (mdSummary && mdSummary.sections.length > 0) {
       onProgress?.(94, 'Özet düzenleniyor...');
       return {
         content: {
           ...mdSummary,
+          extractionNotices: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
+          sourceCourseBreakdown,
           metadata: {
             sourceMode: 'ai',
             deepResearch: settings.deepResearch,
@@ -715,6 +782,9 @@ async function buildSummaryFromLiveAi(
             examMode: settings.examMode,
             faculty: settings.faculty,
             isLargeBundle: largeBundle,
+            sourceFingerprint: bundle.sourceFingerprint,
+            analyzedCourses: bundle.sourceCourses,
+            isMultiCourse: bundle.isMultiCourse,
             sourceStats: {
               sourceCount: bundle.sourceCount,
               wordCount: bundle.totalWords,
@@ -731,8 +801,8 @@ async function buildSummaryFromLiveAi(
     return null;
   }
 
-  // Case B: Huge multi-page PDF / multi-week lecture notes (> 32k chars) -> 2-4 sequential contiguous passes
-  const chunks = splitNoteIntoSequentialChunks(bundle.combinedText, 24_000, 4);
+  // Case B: Long multi-page PDF / PowerPoint (> 22k chars) -> up to 8 sequential contiguous passes covering 100% of pages!
+  const chunks = splitNoteIntoSequentialChunks(bundle.combinedText, 24_000, 8);
   const allSections: SummarySection[] = [];
   const allKeyPoints: string[] = [];
   const allKeyTerms: NonNullable<SummaryContent['keyTerms']> = [];
@@ -745,10 +815,14 @@ async function buildSummaryFromLiveAi(
     const pct = Math.min(90, Math.round(28 + ((c + 1) / chunks.length) * 60));
     onProgress?.(pct, `Kapsamlı ders notu baştan sona özetleniyor (${c + 1}/${chunks.length}. kısım)...`);
 
-    const chunkPrompt = `Görev: Aşağıda kapsamlı bir ders notunun ${c + 1}/${chunks.length}. kısmı yer alıyor. Bu kısımdaki TÜM önemli konuları başından sonuna atlamadan, tıpkı ChatGPT'nin birkaç sayfalık ders özeti hazırlaması gibi sade, akıcı ve öğretici Türkçe Markdown ile özetle.
+    const chunkPrompt = `Görev: Aşağıda kapsamlı bir ders materyalinin ${c + 1}/${chunks.length}. kısmı yer alıyor. Bu kısımdaki TÜM sayfaları/slaytları, ana ve alt başlıkları (####), tanımları, teorileri, modelleri, formülleri ($...$ / $$...$$ ve değişken açıklamalarıyla), grafikleri, tabloları ve örnekleri ATLAMADAN ayrıntılı ve anlaşılır Türkçe Markdown ile özetle.
 KESİN KURALLAR:
-1. YALNIZCA bu kısımdaki gerçek konu, tanım, süreç ve örnekleri anlat. Başka bir dersin/alanın kavramlarını veya uydurma bilgiyi ASLA ekleme.
-2. Bu kısım için 3-4 doyurucu bölüm (her biri 240-400 kelime) yaz.${
+1. YALNIZCA bu kısımdaki gerçek dersin konularını, kavramlarını ve örneklerini anlat. Başka bir dersin bilgilerini veya kaynakta olmayan teorileri ASLA ekleme. Ek pedagojik açıklama gerekirse **[Ek Açıklama]** etiketiyle ayır.${
+      bundle.isMultiCourse && bundle.sourceCourses?.length
+        ? `\n2. ÇOKLU DERS: Farklı dersler (${bundle.sourceCourses.join(', ')}) varsa bölüm başlıklarında [Ders Adı] etiketini koru ve dersleri birbirine karıştırma.`
+        : ''
+    }
+3. Bu kısım için 3-4 kapsamlı, sınava hazırlayıcı bölüm (her biri 350-580 kelime) yaz.${
       settings.customPrompt?.trim() ? `\nÖğrencinin özel isteği: ${settings.customPrompt.trim()}` : ''
     }
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
@@ -760,13 +834,13 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
       "index": 0,
       "heading": "Nottaki gerçek konu başlığı",
       "pageRange": "Varsa sayfa/slayt",
-      "content": "Akıcı, ayrıntılı, anlaşılır Markdown özet...",
-      "takeaways": ["Net çıkarım 1", "Net çıkarım 2"],
+      "content": "Alt başlıklı (####), ayrıntılı, formül/tablo/örnek/bağlantı içeren 350-580 kelimelik Markdown özet...",
+      "takeaways": ["Net çıkarım 1", "Net çıkarım 2", "Net çıkarım 3"],
       "commonPitfalls": ["Varsa sınavda karıştırılabilecek nokta"]
     }
   ],
-  "teacherEmphasis": [{ "point": "Önemli kavram", "whyImportant": "Neden önemli", "examProbability": "Yüksek" }],
-  "keyTerms": [{ "term": "Nottaki terim", "definition": "Net tanım", "formula": "" }],
+  "teacherEmphasis": [{ "point": "Önemli sınav ayrıntısı", "whyImportant": "Neden önemli", "examProbability": "Yüksek" }],
+  "keyTerms": [{ "term": "Nottaki terim", "definition": "Net ve ayrıntılı tanım", "formula": "" }],
   "studyChecklist": ["Öğrenme hedefi"]
 }`;
 
@@ -858,19 +932,21 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 
   const summary: SummaryContent = {
     overview: finalOverview,
-    disciplineTag: domain.discipline,
+    disciplineTag: courseLabel,
     keyPoints: finalKeyPoints,
     sections: allSections,
-    teacherEmphasis: allEmphasis.slice(0, 8),
-    keyTerms: allKeyTerms.slice(0, 20),
-    studyChecklist: allChecklists.slice(0, 8),
+    teacherEmphasis: allEmphasis.slice(0, 10),
+    keyTerms: allKeyTerms.slice(0, 28),
+    extractionNotices: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
+    sourceCourseBreakdown,
+    studyChecklist: allChecklists.slice(0, 10),
     studyPriorityMap: normalizePriorityMap(
       undefined,
       allSections,
       allKeyTerms,
       allEmphasis,
       finalOverview,
-      domain.discipline,
+      courseLabel,
     ),
     metadata: {
       sourceMode: 'ai',
@@ -879,6 +955,9 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
       examMode: settings.examMode,
       faculty: settings.faculty,
       isLargeBundle: largeBundle,
+      sourceFingerprint: bundle.sourceFingerprint,
+      analyzedCourses: bundle.sourceCourses,
+      isMultiCourse: bundle.isMultiCourse,
       sourceStats: {
         sourceCount: bundle.sourceCount,
         wordCount: bundle.totalWords,
@@ -1414,13 +1493,21 @@ async function generateSummaryMapReduce(
       : '1/3 • Kaynak mimarisi ve ders haritası çıkarılıyor...',
   );
   const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty);
-  const fullOutlineHint = extractFullDocumentOutline(bundle.combinedText, 24).map(
+  const fullOutlineHint = extractFullDocumentOutline(bundle.combinedText, 32).map(
     (a) => `${a.heading}${a.pageHint ? ` (${a.pageHint})` : ''}`,
   );
 
   const resolvedCourse =
     bundle.course?.trim() ||
-    (domain.discipline !== 'Üniversite Akademik Çalışma' ? domain.discipline : bundle.title);
+    bundle.detectedCourse?.trim() ||
+    domain.detectedCourse ||
+    bundle.title;
+
+  const sourceCourseBreakdown = bundle.sources.map((s) => ({
+    sourceName: s.name,
+    course: s.course || s.detectedCourse || resolvedCourse,
+    pagesOrSlides: s.pagesOrSlides,
+  }));
 
   const commonReq = {
     noteTitle: bundle.title,
@@ -1428,6 +1515,10 @@ async function generateSummaryMapReduce(
     faculty: settings.faculty && settings.faculty !== 'auto' ? domain.discipline : undefined,
     examMode: settings.examMode || undefined,
     fullOutlineHint: fullOutlineHint.length > 0 ? fullOutlineHint : undefined,
+    isMultiCourse: bundle.isMultiCourse || undefined,
+    sourceCourses: bundle.sourceCourses?.length ? bundle.sourceCourses : undefined,
+    canonicalAnalysisDigest: bundle.canonicalAnalysisDigest || undefined,
+    extractionWarnings: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
     summaryDepth: settings.summaryDepth,
     deepResearch: settings.deepResearch,
     pedagogicalStyle: settings.pedagogicalStyle,
@@ -1435,9 +1526,10 @@ async function generateSummaryMapReduce(
     examFocus: settings.examFocus || undefined,
   };
 
-  // Tier-1A: Single cohesive ChatGPT-style pass on `generate-study-material` for notes <= 28k chars
-  if (!largeBundle && bundle.combinedText.length <= 28_000) {
-    onProgress?.(32, '1/2 • Ders notu baştan sona incelenip akıcı özet oluşturuluyor...');
+  // Tier-1A: Single cohesive deep pass on `generate-study-material` ONLY for compact notes <= 18k chars
+  let needsMapReduceFallback = largeBundle || bundle.combinedText.length > 18_000;
+  if (!needsMapReduceFallback) {
+    onProgress?.(32, '1/2 • Ders notu baştan sona incelenip kapsamlı özet oluşturuluyor...');
     const singleEdge = await invokeEdgeGenerate({
       ...commonReq,
       materialType: 'summary',
@@ -1448,19 +1540,37 @@ async function generateSummaryMapReduce(
     });
     if (singleEdge && singleEdge.sourceMode === 'ai') {
       const secs = sanitizeAiSummarySections(singleEdge.content?.sections);
-      if (secs.length > 0) {
+      // Quality gate: reject superficial few-paragraph summaries on substantial notes
+      const isSubstantialNote = bundle.totalWords >= 800 || bundle.totalPagesOrSlides >= 4;
+      const avgWords = averageSectionWords(secs);
+      const isSuperficial =
+        isSubstantialNote &&
+        settings.summaryDepth !== 'short' &&
+        (secs.length < 3 || avgWords < 165);
+
+      if (secs.length > 0 && !isSuperficial) {
+        const mergedNotices = Array.from(
+          new Set([
+            ...(bundle.extractionWarnings || []),
+            ...(Array.isArray(singleEdge.content?.extractionNotices)
+              ? singleEdge.content.extractionNotices.map(String).filter(Boolean)
+              : []),
+          ]),
+        );
         return {
           content: {
             ...singleEdge.content,
             sections: secs,
-            disciplineTag: singleEdge.content?.disciplineTag || domain.discipline,
+            disciplineTag: singleEdge.content?.disciplineTag || resolvedCourse,
+            extractionNotices: mergedNotices.length > 0 ? mergedNotices : undefined,
+            sourceCourseBreakdown,
             studyPriorityMap: normalizePriorityMap(
               singleEdge.content?.studyPriorityMap,
               secs,
               singleEdge.content?.keyTerms,
               singleEdge.content?.teacherEmphasis,
               singleEdge.content?.overview,
-              singleEdge.content?.disciplineTag || domain.discipline,
+              singleEdge.content?.disciplineTag || resolvedCourse,
             ),
             metadata: {
               sourceMode: 'ai',
@@ -1469,6 +1579,9 @@ async function generateSummaryMapReduce(
               examMode: settings.examMode,
               faculty: settings.faculty,
               isLargeBundle: largeBundle,
+              sourceFingerprint: bundle.sourceFingerprint,
+              analyzedCourses: bundle.sourceCourses,
+              isMultiCourse: bundle.isMultiCourse,
               sourceStats: {
                 sourceCount: bundle.sourceCount,
                 wordCount: bundle.totalWords,
@@ -1481,21 +1594,23 @@ async function generateSummaryMapReduce(
           sourceMode: 'ai',
         };
       }
+      if (isSuperficial) {
+        needsMapReduceFallback = true;
+      }
     }
   }
 
-  // Tier-1B: Map-Reduce Blueprint + Expand on `generate-study-material` (for huge notes or if single-pass missed)
-  const blueprintRes =
-    largeBundle || bundle.combinedText.length > 28_000
-      ? await invokeEdgeGenerate({
-          ...commonReq,
-          materialType: 'summary',
-          stage: 'blueprint',
-          noteContext: sampleUniformContext(bundle.combinedText, 68_000),
-          images: bundle.images.length > 0 ? bundle.images : undefined,
-          audio: bundle.audio,
-        })
-      : null;
+  // Tier-1B: Map-Reduce Blueprint + Expand on `generate-study-material` (for medium/long notes or thin single-pass)
+  const blueprintRes = needsMapReduceFallback
+    ? await invokeEdgeGenerate({
+        ...commonReq,
+        materialType: 'summary',
+        stage: 'blueprint',
+        noteContext: sampleUniformContext(bundle.combinedText, 88_000),
+        images: bundle.images.length > 0 ? bundle.images : undefined,
+        audio: bundle.audio,
+      })
+    : null;
 
   if (blueprintRes && blueprintRes.sourceMode === 'ai' && Array.isArray(blueprintRes.content?.sectionsPlan)) {
     const blueprint = blueprintRes.content;
@@ -1612,13 +1727,22 @@ async function generateSummaryMapReduce(
     onProgress?.(96, '3/3 • Sınav öncelik haritası, karşılaştırma matrisi ve kontrol listesi birleştiriliyor...');
     const finalSummary: SummaryContent = {
       overview: blueprint.overview,
-      disciplineTag: blueprint.disciplineTag || domain.discipline,
+      disciplineTag: blueprint.disciplineTag || resolvedCourse,
       keyPoints: blueprint.keyPoints || [],
       sections: expandedSections,
       teacherEmphasis: blueprint.teacherEmphasis || [],
       comparativeMatrix: blueprint.comparativeMatrix,
       deepResearchTopics: blueprint.deepResearchTopics || [],
       keyTerms: blueprint.keyTerms || [],
+      extractionNotices: Array.from(
+        new Set([
+          ...(bundle.extractionWarnings || []),
+          ...(Array.isArray(blueprint.extractionNotices)
+            ? blueprint.extractionNotices.map(String).filter(Boolean)
+            : []),
+        ]),
+      ),
+      sourceCourseBreakdown,
       studyChecklist: blueprint.studyChecklist || [],
       studyPriorityMap: normalizePriorityMap(
         blueprint.studyPriorityMap,
@@ -1626,7 +1750,7 @@ async function generateSummaryMapReduce(
         blueprint.keyTerms,
         blueprint.teacherEmphasis,
         blueprint.overview,
-        blueprint.disciplineTag || domain.discipline,
+        blueprint.disciplineTag || resolvedCourse,
       ),
       metadata: {
         sourceMode: allBatchesAi ? 'ai' : 'fallback',
@@ -1635,6 +1759,9 @@ async function generateSummaryMapReduce(
         examMode: settings.examMode,
         faculty: settings.faculty,
         isLargeBundle: largeBundle,
+        sourceFingerprint: bundle.sourceFingerprint,
+        analyzedCourses: bundle.sourceCourses,
+        isMultiCourse: bundle.isMultiCourse,
         sourceStats: {
           sourceCount: bundle.sourceCount,
           wordCount: bundle.totalWords,
@@ -1735,25 +1862,28 @@ async function generateSummaryMapReduce(
   const local = generateClientStudyMaterial({
     materialType: 'summary',
     noteTitle: bundle.title,
-    course: bundle.course || domain.discipline,
+    course: resolvedCourse,
     noteContext: bundle.combinedText,
     summaryDepth: settings.summaryDepth,
     deepResearch: settings.deepResearch,
     pedagogicalStyle: settings.pedagogicalStyle,
     customPrompt: settings.customPrompt,
+    extractionWarnings: bundle.extractionWarnings,
   });
   const localSections = Array.isArray(local.sections) ? (local.sections as SummarySection[]) : [];
   return {
     content: {
       ...local,
-      disciplineTag: domain.discipline,
+      disciplineTag: resolvedCourse,
+      extractionNotices: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
+      sourceCourseBreakdown,
       studyPriorityMap: normalizePriorityMap(
         local.studyPriorityMap,
         localSections,
         local.keyTerms as SummaryContent['keyTerms'],
         local.teacherEmphasis as SummaryContent['teacherEmphasis'],
         String(local.overview || ''),
-        domain.discipline,
+        resolvedCourse,
       ),
       metadata: {
         sourceMode: 'local',
@@ -1762,6 +1892,9 @@ async function generateSummaryMapReduce(
         examMode: settings.examMode,
         faculty: settings.faculty,
         isLargeBundle: largeBundle,
+        sourceFingerprint: bundle.sourceFingerprint,
+        analyzedCourses: bundle.sourceCourses,
+        isMultiCourse: bundle.isMultiCourse,
         sourceStats: {
           sourceCount: bundle.sourceCount,
           wordCount: bundle.totalWords,
@@ -1787,16 +1920,26 @@ export async function generateMaterialWithOrchestration(
   onProgress?.(
     25,
     settings.materialType === 'quiz'
-      ? 'Soru bankası ve rubrikler oluşturuluyor...'
+      ? 'Ortak kaynak analizinden sınav soruları oluşturuluyor...'
       : settings.materialType === 'flashcards'
-      ? 'Aktif hatırlama kartları sentezleniyor...'
-      : 'İnteraktif video ders sahneleri ve görsel diyagramlar hazırlanıyor...',
+      ? 'Ortak kaynak analizinden aktif hatırlama kartları sentezleniyor...'
+      : 'Ortak kaynak analizinden video ders sahneleri hazırlanıyor...',
   );
 
   const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty);
   const resolvedCourse =
     bundle.course?.trim() ||
-    (domain.discipline !== 'Üniversite Akademik Çalışma' ? domain.discipline : bundle.title);
+    bundle.detectedCourse?.trim() ||
+    domain.detectedCourse ||
+    bundle.title;
+
+  const sharedMeta = {
+    sourceMode: 'ai' as const,
+    deepResearch: settings.deepResearch,
+    sourceFingerprint: bundle.sourceFingerprint,
+    analyzedCourses: bundle.sourceCourses,
+    isMultiCourse: bundle.isMultiCourse,
+  };
 
   const edgeRes = await invokeEdgeGenerate({
     materialType: settings.materialType,
@@ -1805,7 +1948,11 @@ export async function generateMaterialWithOrchestration(
     course: resolvedCourse,
     faculty: settings.faculty && settings.faculty !== 'auto' ? domain.discipline : undefined,
     examMode: settings.examMode || undefined,
-    noteContext: sampleUniformContext(bundle.combinedText, 68_000),
+    isMultiCourse: bundle.isMultiCourse || undefined,
+    sourceCourses: bundle.sourceCourses?.length ? bundle.sourceCourses : undefined,
+    canonicalAnalysisDigest: bundle.canonicalAnalysisDigest || undefined,
+    extractionWarnings: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
+    noteContext: sampleUniformContext(bundle.combinedText, 85_000),
     questionCount: settings.questionCount,
     cardCount: settings.cardCount,
     difficulty: settings.difficulty,
@@ -1823,10 +1970,7 @@ export async function generateMaterialWithOrchestration(
     return {
       content: {
         ...edgeRes.content,
-        metadata: {
-          sourceMode: 'ai',
-          deepResearch: settings.deepResearch,
-        },
+        metadata: sharedMeta,
       },
       model: edgeRes.model,
       sourceMode: 'ai',
@@ -1849,8 +1993,8 @@ export async function generateMaterialWithOrchestration(
         materialType: 'quiz',
         title: bundle.title,
         course: resolvedCourse,
-        noteContext: sampleUniformContext(bundle.combinedText, 50_000),
-        taskPrompt: buildStrictQuizPrompt(settings),
+        noteContext: sampleUniformContext(bundle.combinedText, 56_000),
+        taskPrompt: buildStrictQuizPrompt(settings, bundle),
         preferPro: true,
         images: bundle.images,
       });
@@ -1862,7 +2006,7 @@ export async function generateMaterialWithOrchestration(
           return {
             content: {
               questions,
-              metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch },
+              metadata: sharedMeta,
             },
             model: liveQuiz.model,
             sourceMode: 'ai',
@@ -1874,8 +2018,8 @@ export async function generateMaterialWithOrchestration(
         materialType: 'flashcards',
         title: bundle.title,
         course: resolvedCourse,
-        noteContext: sampleUniformContext(bundle.combinedText, 48_000),
-        taskPrompt: buildStrictFlashcardsPrompt(settings),
+        noteContext: sampleUniformContext(bundle.combinedText, 52_000),
+        taskPrompt: buildStrictFlashcardsPrompt(settings, bundle),
         preferPro: false,
         images: bundle.images,
       });
@@ -1887,7 +2031,7 @@ export async function generateMaterialWithOrchestration(
           return {
             content: {
               cards,
-              metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch },
+              metadata: sharedMeta,
             },
             model: liveCards.model,
             sourceMode: 'ai',
@@ -1899,8 +2043,8 @@ export async function generateMaterialWithOrchestration(
         materialType: 'video',
         title: bundle.title,
         course: resolvedCourse,
-        noteContext: sampleUniformContext(bundle.combinedText, 44_000),
-        taskPrompt: buildStrictVideoPrompt(domain.discipline, settings.customPrompt),
+        noteContext: sampleUniformContext(bundle.combinedText, 48_000),
+        taskPrompt: buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle),
         preferPro: true,
         images: bundle.images,
       });
@@ -1911,7 +2055,7 @@ export async function generateMaterialWithOrchestration(
           return {
             content: {
               ...parsed,
-              metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch },
+              metadata: sharedMeta,
             },
             model: liveVideo.model,
             sourceMode: 'ai',
@@ -1925,7 +2069,7 @@ export async function generateMaterialWithOrchestration(
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
     onProgress?.(72, 'Bulut yapay zekâ üzerinden tamamlanıyor...');
     if (settings.materialType === 'video') {
-      const videoSys = buildStrictVideoPrompt(domain.discipline, settings.customPrompt);
+      const videoSys = buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle);
       const videoUser = `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
         bundle.combinedText,
         14_000,
@@ -1933,7 +2077,7 @@ export async function generateMaterialWithOrchestration(
       const pubVideo = await invokePublicJsonFallback(videoSys, videoUser);
       if (Array.isArray(pubVideo?.scenes) && pubVideo.scenes.length > 0) {
         return {
-          content: { ...pubVideo, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
+          content: { ...pubVideo, metadata: sharedMeta },
           model: 'EconNotes Cloud Academic AI',
           sourceMode: 'ai',
         };
@@ -1941,8 +2085,8 @@ export async function generateMaterialWithOrchestration(
     } else {
       const isQuiz = settings.materialType === 'quiz';
       const system = isQuiz
-        ? buildStrictQuizPrompt(settings)
-        : buildStrictFlashcardsPrompt(settings);
+        ? buildStrictQuizPrompt(settings, bundle)
+        : buildStrictFlashcardsPrompt(settings, bundle);
       const user = `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
         bundle.combinedText,
         14_500,
@@ -1953,7 +2097,7 @@ export async function generateMaterialWithOrchestration(
         const questions = sanitizeAiQuizQuestions(pub?.questions);
         if (questions.length > 0) {
           return {
-            content: { questions, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
+            content: { questions, metadata: sharedMeta },
             model: 'EconNotes Cloud Academic AI',
             sourceMode: 'ai',
           };
@@ -1962,7 +2106,7 @@ export async function generateMaterialWithOrchestration(
         const cards = sanitizeAiFlashcards(pub?.cards);
         if (cards.length > 0) {
           return {
-            content: { cards, metadata: { sourceMode: 'ai', deepResearch: settings.deepResearch } },
+            content: { cards, metadata: sharedMeta },
             model: 'EconNotes Cloud Academic AI',
             sourceMode: 'ai',
           };

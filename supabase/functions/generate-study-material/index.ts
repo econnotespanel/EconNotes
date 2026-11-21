@@ -48,6 +48,10 @@ interface GenerateReq {
   faculty?: string;
   examMode?: string;
   fullOutlineHint?: string[];
+  isMultiCourse?: boolean;
+  sourceCourses?: string[];
+  canonicalAnalysisDigest?: string;
+  extractionWarnings?: string[];
   sectionTargets?: SectionTarget[];
   globalOutline?: {
     overview?: string;
@@ -78,18 +82,22 @@ function sanitizeText(raw: string): string {
  * Evenly samples context from beginning, middle, and end when source exceeds single-prompt budget,
  * so slide decks and textbooks never lose later chapters.
  */
-function sampleBalancedContext(text: string, maxChars = 75_000): string {
+function sampleBalancedContext(text: string, maxChars = 95_000): string {
   const clean = sanitizeText(text);
   if (clean.length <= maxChars) return clean;
 
-  const chunkCount = 7;
-  const perChunk = Math.floor(maxChars / chunkCount) - 80;
-  const step = Math.floor(clean.length / chunkCount);
+  const chunkCount = clean.length > 140_000 ? 11 : 9;
+  const overhead = 72;
+  const perChunk = Math.max(1200, Math.floor(maxChars / chunkCount) - overhead);
+  const maxStart = Math.max(0, clean.length - perChunk);
   const parts: string[] = [];
   for (let i = 0; i < chunkCount; i++) {
-    const start = i * step;
+    const start =
+      i === chunkCount - 1
+        ? maxStart
+        : Math.floor((maxStart * i) / Math.max(1, chunkCount - 1));
     const end = Math.min(clean.length, start + perChunk);
-    const pct = Math.round((start / clean.length) * 100);
+    const pct = Math.round((start / Math.max(1, clean.length)) * 100);
     parts.push(`[--- BÖLÜM ${i + 1}/${chunkCount} (~%${pct} konum) ---]\n${clean.slice(start, end)}`);
   }
   return parts.join('\n\n');
@@ -248,16 +256,22 @@ function getStyleDirective(style?: string): string {
 }
 
 function getResearchDirective(deepResearch?: boolean, domainMode: 'verbal' | 'quantitative' | 'hybrid' = 'hybrid'): string {
+  const baseGrounding = `KAYNAK SADAKATİ VE ŞEFFAF AYRIM (ZORUNLU):
+1. Temel ve birincil kaynağın YALNIZCA kullanıcının yüklediği ders materyalidir. Kaynaktaki tüm başlıkları, alt başlıkları, tanımları, teorileri, yaklaşımları, modelleri, formülleri, tabloları, grafik açıklamalarını ve örnekleri eksiksiz koru.
+2. Kaynakta yer almayan teorileri, kavramları, formülleri veya olguları sırf içeriği uzatmak için KESİNLİKLE uydurma ve kaynakta varmış gibi gösterme.
+3. Öğrencinin anlamakta zorlanabileceği bir noktayı sadeleştirmek için kaynak metnin ötesinde kısa pedagojik açıklama eklemen gerekirse, bu kısmı mutlaka **[Ek Açıklama]** etiketiyle kaynak bilgisinden açıkça ayır.
+4. Kaynaktaki akademik terminolojiyi ve konu sıralamasını koru. Belgede okunamayan, görsel/taranmış ya da eksik kalmış sayfalar varsa bunları uydurmadan "extractionNotices" alanında ve ilgili bölümde açıkça belirt.`;
+
   if (!deepResearch) {
-    return 'KAYNAK SADAKATİ: Kaynak notlardaki hiçbir terimi, denklemi, tarihi veya vakayı atlama; uydurma detay ekleme.';
+    return baseGrounding;
   }
   const domainTail =
     domainMode === 'verbal'
-      ? '3. Sözel/sosyal bilimler konularında kavram ikiliklerini ayırt et, tarihsel/hukuki neden–sonuç zincirini kur, Markdown karşılaştırma tabloları (`|...|`) ekle ve uydurma matematik formülü üretme.'
-      : '3. Sayısal/ekonomik/teknik konular için LaTeX formülleri ($...$ / $$...$$), karşılaştırma tabloları (Markdown |...|) ve yaygın kavram yanılgılarını ekle.';
-  return `DERİN ARAŞTIRMA & ÖĞRENME MODU AKTİF:
-1. Yalnızca slayt/not özetlemekle kalma; üniversite ders kitabı düzeyinde akademik sentez yap.
-2. KAYNAK SADAKATİ + ŞEFFAF AYRIM: Kaynak nottan gelen bilgileri anlatırken doğrudan temellendir; notun kısa geçtiği yerleri üniversite literatüründen teorik arka plan, tarihsel bağlam, alternatif modeller ve ampirik/Türkiye örnekleriyle derinleştirirken bunu **[Derin Akademik Araştırma]** etiketiyle açıkça belirt.
+      ? '5. Sözel/hukuk/sosyal bilimler derslerinde kavram ikiliklerini, kanun/ilke unsurlarını, neden–sonuç zincirini ve Markdown karşılaştırma tablolarını (`|...|`) öne çıkar; uydurma matematik formülü üretme.'
+      : '5. Sayısal/istatistik/ekonomi/mühendislik derslerinde kaynaktaki her formülü LaTeX ($...$ / $$...$$) ile yaz, her değişkenin anlamını açıkla, çözümlü örnekleri adım adım aç ve karşılaştırma tabloları (`|...|`) ekle.';
+  return `${baseGrounding}
+DERİN ÖĞRENME KATMANI AKTİF:
+- Kaynakta yer alan kavramların arka planını ve sınav bağlantısını netleştirirken, kaynak dışından gelen her akademik tamamlayıcı bilgiyi mutlaka **[Ek Açıklama]** etiketiyle işaretle.
 ${domainTail}`;
 }
 
@@ -293,15 +307,31 @@ function buildStagePrompts(req: GenerateReq, enrichedContext: string): {
   maxTokens: number;
   temperature: number;
 } {
-  const courseName = req.course || 'Üniversite Dersi';
+  const courseName = req.course || 'Belgeden Analiz Edilen Ders';
   const noteTitle = req.noteTitle || 'Yüklenen Ders Materyali';
   const domainMode = detectEdgeDomainMode(enrichedContext, courseName, noteTitle);
   const styleInstruction = getStyleDirective(req.pedagogicalStyle);
   const researchInstruction = getResearchDirective(req.deepResearch, domainMode);
+  const multiCourseDirective =
+    req.isMultiCourse && Array.isArray(req.sourceCourses) && req.sourceCourses.length > 1
+      ? `\nÇOKLU DERS İZOLASYONU (KRİTİK): Bu oturumda birbirinden farklı dersler (${req.sourceCourses.join(
+          ', ',
+        )}) bulunuyor. Her kaynağın içeriğini YALNIZCA kendi dersi ve başlığı altında işle; bölüm başlıklarında [Ders Adı] etiketini kullan ve farklı derslerin kavram/formül/örneklerini ASLA birbirine karıştırma!`
+      : '';
+  const canonicalDigestBlock = req.canonicalAnalysisDigest?.trim()
+    ? `\n\nORTAK KAYNAK ANALİZİ (TÜM STÜDYO ARAÇLARI BU ANALİZİ TEMEL ALIR):\n${req.canonicalAnalysisDigest.slice(
+        0,
+        6_000,
+      )}\n`
+    : '';
+  const warningsBlock =
+    Array.isArray(req.extractionWarnings) && req.extractionWarnings.length > 0
+      ? `\nBELGE OKUMA / EKSİK SAYFA UYARILARI:\n${req.extractionWarnings.map((w) => `- ${w}`).join('\n')}\n`
+      : '';
   const verbalInstruction =
     domainMode === 'verbal'
-      ? `\nSÖZEL / KURAMSAL UZMANLIĞI AKTİF: Bu metin sözel/sosyal bilimler ağırlıklıdır. Uydurma matematiksel formül üretme! Her bölümde şu net yapıyı uygula: (1) \`#### Kavramsal Öz ve Ana Tez\`, (2) \`#### Neden–Sonuç Zinciri ve Süreç\`, (3) \`#### Karşılaştırma ve Ayrım Tablosu\` (Markdown \`|...|...|\`), (4) \`#### Klasik Sınav & Yorum Sorusu Çerçevesi\`.`
-      : '';
+      ? `\nSÖZEL / HUKUK / SOSYAL BİLİMLER ANLATIM STANDARDI: Bu materyal sözel/kuramsal ağırlıklıdır. Uydurma matematiksel formül üretme! Ana ve alt başlıkları koru; kavram tanımları, unsurlar/istisnalar, neden–sonuç zinciri, karşılaştırmalı Markdown tabloları (\`|...|...|\`) ve sınavda sorulabilecek kritik ayrımları ayrıntılı açıkla.`
+      : `\nANALİTİK / SAYISAL ANLATIM STANDARDI: Ana ve alt başlıkları koru; kaynaktaki her tanım, teori, model, formül ($...$ / $$...$$ ile ve her değişkenin açıklamasıyla), tablo, grafik açıklaması ve örneği atlamadan, anlaşılır ve sınava hazırlayıcı derinlikte açıkla; konular arası bağlantıları kur ve gerektiğinde karşılaştırma tablosu ekle.`;
   const customDirective = req.customPrompt?.trim()
     ? `\nKULLANICININ ÖZEL İSTEĞİ (Öncelikli uygula): "${req.customPrompt.trim()}"`
     : '';
@@ -326,119 +356,124 @@ Yanıtını YALNIZCA geçerli bir JSON objesi olarak döndür:
 
   // --- STAGE 1: SUMMARY BLUEPRINT ---
   if (req.materialType === 'summary' && stage === 'blueprint') {
-    const isLargeDoc = enrichedContext.length >= 20_000 || req.examMode === 'large_note';
+    const isLargeDoc = enrichedContext.length >= 16_000 || req.examMode === 'large_note';
     const targetSections =
       req.summaryDepth === 'short'
-        ? '4-5'
+        ? '5-6'
         : req.summaryDepth === 'standard'
         ? isLargeDoc
-          ? '7-10'
-          : '6-8'
+          ? '8-12'
+          : '6-9'
         : req.summaryDepth === 'textbook'
         ? isLargeDoc
-          ? '10-14'
+          ? '10-16'
           : '8-12'
         : isLargeDoc
-        ? '9-12'
+        ? '9-14'
         : '7-10';
     const facultyDirective = req.faculty
-      ? `\nFAKÜLTE / BÖLÜM: ${req.faculty}. Yalnızca bu alanın gerçek akademik terminolojisine ve ders notuna sadık kal; başka bölümlerden alakasız örnek ekleme.`
-      : '\nTÜM FAKÜLTELER STANDARDI: EconNotes tüm üniversite bölümlerine (İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat, Hukuk) hizmet verir. Yalnızca yüklenen notun kendi alanına ve içeriğine sadık kal.';
+      ? `\nDERS / ALAN ODAĞI: ${req.faculty}. Yalnızca yüklenen belgenin gerçek dersine, terminolojisine ve içeriğine %100 sadık kal; başka derslerden veya alanlardan alakasız kavram ekleme.`
+      : '\nBAĞIMSIZ DERS ANALİZİ: Yüklenen belgenin kendi gerçek dersini (örn. Para Teorisi, Borçlar Hukuku, İstatistik ve Olasılık, Mikro İktisat vb.) başlık ve içerikten birebir koru; asla başka bir dersin kapsamına kaydırma.';
     const outlineBlock =
       Array.isArray(req.fullOutlineHint) && req.fullOutlineHint.length > 0
-        ? `\nDOKÜMANIN BAŞTAN SONA BAŞLIK HARİTASI (HİÇBİR ÜNİTEYİ ATLAMA):\n${req.fullOutlineHint
-            .slice(0, 24)
+        ? `\nDOKÜMANIN BAŞTAN SONA BAŞLIK HARİTASI (İLK SAYFADAN SON SAYFAYA HİÇBİR BÖLÜMÜ ATLAMA):\n${req.fullOutlineHint
+            .slice(0, 32)
             .map((h, i) => `${i + 1}. ${h}`)
             .join('\n')}\n`
         : '';
 
-    const system = `Sen üst düzey bir üniversite kürsü profesörü ve akademik editörsün.
-Görevin, verilen ders materyalinin TAMAMINI (ilk sayfadan son sayfaya kadar hiçbir bölümü atlamadan) tarayıp eksiksiz bir Çalışma Stüdyosu Ders Mimarisi (Blueprint) ve "Hangi Konulara Bakmalıyım?" sınav öncelik haritası (studyPriorityMap) oluşturmaktır.
-${facultyDirective}
+    const system = `Sen üst düzey bir üniversite kürsü profesörü ve akademik eğitim materyali mimarısın.
+Görevin, verilen ders materyalinin TAMAMINI (ilk sayfadan son sayfaya kadar tek bir önemli başlığı, kavramı, teoriyi, modeli veya formülü bile atlamadan) tarayıp eksiksiz bir Çalışma Stüdyosu Ders Mimarisi (Blueprint) ve "Hangi Konulara Bakmalıyım?" sınav öncelik haritası (studyPriorityMap) oluşturmaktır.
+${facultyDirective}${multiCourseDirective}
 ${styleInstruction}
 ${researchInstruction}${verbalInstruction}
 ${customDirective}
 
 KRİTİK KURALLAR:
-1. Kesinlikle genel geçer şablon cümleler veya konu dışı bölüm örnekleri kullanma. Her başlık kaynak metindeki gerçek konulara özel olmalıdır.
-2. ${domainMode === 'verbal' ? 'Sözel derslerde kavram ayrımlarına, neden-sonuç zincirine ve ekol/kuram kıyaslamalarına odaklan; gereksiz formül ekleme.' : 'Matematiksel ifadeleri yalnızca metinde/alanda geçerliyse LaTeX ($...$ veya $$...$$) ile yaz.'}
-3. YALNIZCA geçerli JSON döndür (ekstra düz metin yok):
+1. YÜZEYSEL ÖZET YASAKTIR: Amaç metni kısaltmak değil, öğrencinin konuyu gerçekten öğrenip sınava eksiksiz hazırlanmasını sağlayacak yapısal ders mimarisini kurmaktır.
+2. KAYNAĞA %100 SADAKAT: Her bölüm başlığı, alt odak noktası, terim ve karşılaştırma tablosu doğrudan kaynak metindeki gerçek içerikten çıkmalıdır. Kaynakta bulunmayan teori, tanım veya formülleri ASLA uydurma.
+3. ${domainMode === 'verbal' ? 'Sözel/hukuk derslerinde ana ve alt başlıkları, kanun/ilke unsurlarını, istisnaları, neden-sonuç zincirini ve kavram ayrımlarını koru; uydurma matematiksel formül ekleme.' : 'Formül, denklem, tablo ve grafik içeren derslerde metindeki TÜM formülleri LaTeX ($...$ veya $$...$$) ile keyTerms ve focusPoints içinde koru; her değişkenin anlamını planla.'}
+4. Belgede okunamayan veya eksik sayfa/slayt uyarısı varsa "extractionNotices" dizisinde dürüstçe bildir.
+5. YALNIZCA geçerli JSON döndür (ekstra düz metin yok):
 {
-  "overview": "Dersin ana tezini, kapsamını, metodolojisini ve neden önemli olduğunu anlatan 2-3 paragraflık kapsamlı yönetici özeti.",
-  "disciplineTag": "Örn: Tıp Bilimleri / Mühendislik / Siyaset Bilimi / Uluslararası İlişkiler / Eğitim / Spor Bilimleri / Ziraat / İktisat / Hukuk",
-  "keyPoints": ["Madde 1 — somut kavram ve mekanizma", "Madde 2...", "... (8-12 güçlü madde)"],
+  "overview": "Ders belgesinin bütününü, temel amacını, konu akışını ve sınav açısından kritik eksenlerini anlatan 2-3 paragraflık nitelikli giriş özeti.",
+  "disciplineTag": "${courseName}",
+  "extractionNotices": ["Varsa okunamayan/eksik sayfa veya görsel slayt bildirimi; yoksa []"],
+  "keyPoints": ["Madde 1 — kaynaktaki somut kavram, teori veya mekanizma", "... (8-14 güçlü madde)"],
   "sectionsPlan": [
     {
       "index": 0,
-      "title": "Bölüm 1: ...",
+      "title": "Nottaki gerçek ana başlık (çoklu ders varsa [Ders Adı] etiketiyle)",
       "pageRange": "Sayfa 1-4 veya Slayt 1-6",
-      "focusPoints": ["Alt başlık A", "Alt başlık B", "Kavram/model C"],
-      "keyConcepts": ["Terim 1", "Terim 2"]
+      "focusPoints": ["Alt başlık A", "Alt başlık B", "Önemli tanım/teori/formül/örnek C"],
+      "keyConcepts": ["Terim 1", "Terim 2", "Formül/Model 3"]
     }
   ],
   "studyPriorityMap": [
     {
       "topic": "Bölüm / Konu başlığı",
       "priority": "critical" | "important" | "review",
-      "reason": "Sınavda neden mutlaka bakılması veya pekiştirilmesi gerektiğini açıklayan 1-2 somut cümle",
+      "reason": "Sınavda neden mutlaka bakılması gerektiğini açıklayan 1-2 somut cümle",
       "estimatedMinutes": 10,
       "focusConcepts": ["Kavram 1", "Kavram 2"],
-      "likelyQuestionType": "Karşılaştırma / Tanım & Ayrım / Vaka / Uygulama",
+      "likelyQuestionType": "Karşılaştırma / Tanım & Ayrım / Formül & Uygulama / Vaka",
       "sectionIndex": 0
     }
   ],
   "teacherEmphasis": [
     {
-      "point": "Kritik kavram veya ayrım",
-      "whyImportant": "Sınavda neden sık sorulur veya öğrencilerin en çok karıştırdığı nokta nedir?",
+      "point": "Sınavda sorulma olasılığı yüksek kritik ayrıntı veya kavram",
+      "whyImportant": "Sınavda neden sorulur ve öğrencilerin dikkat etmesi gereken ayrım nedir?",
       "examProbability": "Yüksek" | "Orta"
     }
   ],
   "comparativeMatrix": {
-    "title": "Kavram / Model Karşılaştırma Tablosu",
-    "columns": ["Boyut", "Model / Kavram A", "Model / Kavram B"],
-    "rows": [["Temel Varsayım", "...", "..."], ["Avantaj / Sınır", "...", "..."]]
+    "title": "Kaynaktaki Kavram / Teori / Yaklaşım Karşılaştırma Tablosu",
+    "columns": ["Boyut", "Yaklaşım / Kavram A", "Yaklaşım / Kavram B"],
+    "rows": [["Temel Tanım / Varsayım", "...", "..."], ["Temel Fark / Sınır", "...", "..."]]
   },
   "deepResearchTopics": [
     {
-      "topic": "İleri Okuma / Akademik Bağlam Başlığı",
-      "literatureContext": "Teorinin literatürdeki yeri, gelişimi veya ampirik bulgular",
-      "realWorldApplication": "Somut güncel veya mesleki uygulama örneği"
+      "topic": "Kavramlar Arası Bağlantı veya Sınav Uygulama Başlığı",
+      "literatureContext": "Kaynaktaki teorinin konunun bütünüyle bağlantısı (ek bilgi varsa [Ek Açıklama] olarak belirt)",
+      "realWorldApplication": "Kaynaktaki örnek veya sadeleştirilmiş uygulama bağlantısı"
     }
   ],
   "keyTerms": [
-    { "term": "Akademik Terim", "definition": "Net, derinlemesine ve ayırt edici tanım", "formula": "Varsa LaTeX formül" }
+    { "term": "Kaynaktaki Akademik Terim", "definition": "Anlaşılır, eksiksiz ve ayırt edici tanım", "formula": "Varsa kaynaktaki LaTeX formül" }
   ],
   "studyChecklist": [
-    "Bu bölümü bitirdiğimde ... arasındaki temel farkı açıklayabilirim.",
-    "..."
+    "Bu bölümü bitirdiğimde ... kavramını/teorisini ve farklarını açıklayabilirim."
   ]
 }
-sectionsPlan dizisi tam ${targetSections} bölüm içermeli ve kaynak notun BAŞINDAN SONUNA tüm sayfalarını kapsayacak şekilde sıralanmalıdır.`;
+sectionsPlan dizisi tam ${targetSections} bölüm içermeli ve belgenin BAŞINDAN SONUNA (ilk sayfadan son sayfaya) tüm konuları sıralı biçimde eksiksiz kapsamalıdır.`;
 
-    const userText = `DERS: ${courseName}\nMATERYAL BAŞLIĞI: ${noteTitle}${outlineBlock}\n\nKAYNAK İÇERİĞİ:\n${sampleBalancedContext(
+    const userText = `DERS: ${courseName}\nMATERYAL BAŞLIĞI: ${noteTitle}${outlineBlock}${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK İÇERİĞİ:\n${sampleBalancedContext(
       enrichedContext,
-      70_000,
+      92_000,
     )}`;
 
-    return { system, userText, maxTokens: 7800, temperature: 0.25 };
+    return { system, userText, maxTokens: 9000, temperature: 0.22 };
   }
 
   // --- STAGE 2: SUMMARY EXPAND BATCH ---
   if (req.materialType === 'summary' && stage === 'expand_batch') {
     const targets = req.sectionTargets || [];
-    const system = `Sen bir üniversite ders kitabı yazarı ve derin akademik araştırma uzmanısın.
-Sana verilen ders mimarisi bağlamı içinde, SADECE aşağıdaki hedef bölümlerin her birini çok derin, öğretici, eksiksiz ve akıcı Türkçe ile yazacaksın.
+    const system = `Sen üniversite öğrencilerine sınava tam hazırlık sağlayan, kapsamlı ve anlaşılır çalışma rehberleri yazan uzman bir akademisyensin.
+Sana verilen ders mimarisi ve kaynak kesitleri doğrultusunda, SADECE aşağıdaki hedef bölümlerin her birini derinlemesine, anlaşılır ve eksiksiz Türkçe Markdown olarak yazacaksın.
+${multiCourseDirective}
 ${styleInstruction}
 ${researchInstruction}${verbalInstruction}
 ${customDirective}
 
-HER BÖLÜM İÇİN KALİTE STANDARDI:
-- Uzunluk: Bölüm başına 350–600 kelime arası DOLGUN, SOMUT, akıcı akademik anlatım. Boş laf veya tekrar eden şablon alt başlıklar YASAK!
-- Yapı: İçeriği Markdown alt başlıkları (\`####\`), numaralı mantık akışı, madde imleri, kalın vurgu${domainMode === 'verbal' ? '' : ', LaTeX denklemler (`$...$` ve `$$...$$`)'} ve en az 1 Markdown karşılaştırma/özet tablosu veya somut vaka örneği ile zenginleştir.
-- Bilimsel Doğruluk: Kaynak materyaldeki tüm tanım, formül, yazar, tarih ve kanıtları birebir koru.
-- Derin Araştırma Katmanı: Eğer Derin Araştırma aktifse, her bölümde \`deepResearchNote\` alanında konunun teorik derinliğini, literatürdeki tartışmayı veya güncel gerçek dünya / Türkiye örneğini ver.
-- Kendini Sına Mini Sorusu: Her bölümün sonunda öğrencinin o bölümü anlayıp anlamadığını ölçen 1 zorlayıcı mini çoktan seçmeli soru (`checkpointQuestion`) üret.
+HER BÖLÜM İÇİN ZORUNLU KALİTE STANDARDI:
+1. YÜZEYSEL VE KISA ÖZET YASAKTIR: Her bölüm 420–720 kelime arası DOLGUN, ÖĞRETİCİ ve SINAVA HAZIRLAYICI bir çalışma bölümü olmalıdır (ancak kaynakta olmayan bilgileri uydurarak uzatma — kaynak metindeki tüm detayları, tanımları, alt başlıkları, örnekleri, formülleri ve bağlantıları tam aç!).
+2. ANA VE ALT BAŞLIKLARI KORU: Kaynaktaki alt başlıkları \`####\` olarak koru, akademik terminolojiyi ve konu sıralamasını bozma.
+3. KAVRAM, TANIM, TEORİ VE MODELLER: Geçen hiçbir önemli kavramı, teoriyi, yaklaşımı veya modeli atlama; öğrencinin zorlanabileceği noktaları sade bir dille açıkla.
+4. FORMÜL, GRAFİK, TABLO VE ÖRNEKLER: ${domainMode === 'verbal' ? 'Sözel/hukuk/sosyal bilimlerde karşılaştırma veya unsur ayrımı gerektiğinde mutlaka Markdown tablosu (`|...|`) kur; uydurma matematiksel formül ekleme.' : 'Kaynaktaki TÜM formülleri LaTeX (`$...$` ve `$$...$$`) ile yaz, her sembolün/değişkenin ne anlama geldiğini açıkla, kaynaktaki grafik/tablo ve sayısal örnekleri adım adım anlat.'}
+5. KONULAR ARASI BAĞLANTI VE SINAV ODAĞI: Bu bölümün önceki/sonraki konularla bağlantısını kur ve sınavlarda sorulabilecek kritik ayrıntıları/tuzakları özel olarak vurgula.
+6. ŞEFFAF KAYNAK AYRIMI: Kaynak dışından kısa bir sadeleştirici açıklama eklemen gerekirse mutlaka **[Ek Açıklama]** etiketiyle kaynak bilgisinden ayır. Okunamayan/görsel sayfa uyarısı varsa açıkça belirt.
+7. KONTROL SORUSU: Her bölümün sonunda öğrencinin o bölümü kavrayıp kavramadığını ölçen 1 ayırt edici mini soru (\`checkpointQuestion\`) üret.
 
 YALNIZCA geçerli JSON döndür:
 {
@@ -447,15 +482,15 @@ YALNIZCA geçerli JSON döndür:
       "index": 0,
       "heading": "Bölüm başlığı",
       "pageRange": "Sayfa / Slayt aralığı",
-      "content": "Zengin Markdown + LaTeX + Tablo + Çözümlü/Somut Örnek içeren 350-600 kelimelik tam bölüm metni...",
-      "takeaways": ["Bu bölümden çıkarılacak en kritik 3-4 net çıkarım"],
-      "deepResearchNote": "Teorik arka plan, literatür perspektifi ve gerçek hayat uygulaması (Derin Araştırma)",
-      "commonPitfalls": ["Öğrencilerin bu konuda sık düştüğü 1-2 kavramsal tuzak"],
+      "content": "Alt başlıklar (####), detaylı kavram/teori açıklamaları, varsa formüller + değişken tanımları, tablo/örnek açıklaması, konular arası bağlantı ve sınav vurgusu içeren 420-720 kelimelik eksiksiz Türkçe Markdown metni...",
+      "takeaways": ["Bu bölümden akılda kalması gereken 3-4 net çıkarım"],
+      "deepResearchNote": "Varsa konular arası kuramsal bağlantı veya [Ek Açıklama] notu",
+      "commonPitfalls": ["Sınavda sık yapılan 1-2 kavram tuzağı veya karışıklık"],
       "checkpointQuestion": {
-        "question": "Bölüme özel ayırt edici kavramsal soru?",
+        "question": "Bölüme özel ayırt edici sınav kontrol sorusu?",
         "options": ["A", "B", "C", "D"],
         "correctIndex": 0,
-        "explanation": "Doğru şıkkın kısa akademik gerekçesi."
+        "explanation": "Doğru şıkkın kaynağa dayalı net gerekçesi."
       }
     }
   ]
@@ -467,47 +502,56 @@ YALNIZCA geçerli JSON döndür:
           `Bölüm Index=${t.index} | Başlık: ${t.title} | Kapsam: ${t.pageRange || 'Kaynak'}\nOdak Noktaları: ${(
             t.focusPoints || []
           ).join(', ')}\nKavramlar: ${(t.keyConcepts || []).join(', ')}${
-            t.contextSlice ? `\nİLGİLİ KAYNAK METİN PARÇASI:\n${t.contextSlice.slice(0, 14_000)}` : ''
+            t.contextSlice ? `\nİLGİLİ KAYNAK METİN PARÇASI:\n${t.contextSlice.slice(0, 18_000)}` : ''
           }`,
       )
       .join('\n\n====================\n\n');
 
     const userText = `DERS: ${courseName}\nMATERYAL: ${noteTitle}\nGENEL ÇERÇEVE: ${
-      req.globalOutline?.overview || 'Üniversite ders notları sentezi'
-    }\n\nİŞLENECEK HEDEF BÖLÜMLER (${targets.length} adet — her birini mutlaka 'sections' dizisine eksiksiz yaz):\n\n${planText}\n\nDESTEKLEYİCİ TAM METİN KESİTİ:\n${sampleBalancedContext(
+      req.globalOutline?.overview || 'Üniversite ders notları kapsamlı analizi'
+    }${warningsBlock}\n\nİŞLENECEK HEDEF BÖLÜMLER (${targets.length} adet — her birini mutlaka 'sections' dizisine eksiksiz yaz):\n\n${planText}\n\nDESTEKLEYİCİ BAĞLAM KESİTİ:\n${sampleBalancedContext(
       enrichedContext,
-      36_000,
+      44_000,
     )}`;
 
-    return { system, userText, maxTokens: 14_000, temperature: 0.3 };
+    return { system, userText, maxTokens: 15_500, temperature: 0.24 };
   }
 
-  // --- SINGLE-CALL SUMMARY (ChatGPT-style fluent, comprehensive, 100% source-faithful) ---
+  // --- SINGLE-CALL SUMMARY (Deep, comprehensive, 100% source-faithful) ---
   if (req.materialType === 'summary') {
     const isShort = req.summaryDepth === 'short' || req.detailLevel === 'concise';
-    const secCount = isShort ? '4-5' : '6-10';
-    const system = `Sen üniversite öğrencilerine ders notlarını tıpkı ChatGPT'de olduğu gibi çok anlaşılır, akıcı, düzenli ve eksiksiz biçimde özetleyen uzman bir akademik asistansın.
+    const secCount = isShort ? '5-6' : '7-11';
+    const system = `Sen üniversite öğrencilerine ders materyallerinden sınava tam hazırlık sağlayan, kapsamlı ve anlaşılır çalışma rehberleri oluşturan uzman bir akademisyensin.
+${multiCourseDirective}
 ${styleInstruction}
 ${researchInstruction}${verbalInstruction}
 ${customDirective}
 
-KESİN KURALLAR:
-1. %100 YALNIZCA YÜKLENEN NOTA ODAKLAN: Sadece kullanıcının yüklediği ders notunda yer alan gerçek konuları, başlıkları, kavramları, tanımları, olayları, süreçleri ve örnekleri özetle. Notta olmayan başka bir dersin veya alanın kavramlarını, grafiklerini veya örneklerini KESİNLİKLE ekleme.
-2. AKICI VE ANLAŞILIR DİL: Robotik şablon cümleler kullanma. Öğrencinin bir oturuşta birkaç sayfalık temiz, doyurucu bir ders özeti gibi okuyup hemen anlayabileceği doğal Türkçe Markdown kullan (net alt başlıklar \`####\`, anlaşılır paragraflar, önemli kavramlar **kalın**, madde listeleri, yalnızca metinde karşılaştırma varsa kısa tablo, yalnızca metinde denklem varsa LaTeX \`$...$\`).
-3. BAŞTAN SONA TAM KAPSAM: Nottaki ilk sayfadan son sayfaya kadar önemli hiçbir konuyu atlama.
-4. "studyPriorityMap" ile öğrencinin sınavda hangi konulara öncelik vermesi gerektiğini gerçek not başlıklarına göre sırala.
-5. YALNIZCA geçerli JSON döndür:
+KESİN KALİTE VE DOĞRULUK KURALLARI:
+1. YÜZEYSEL ÖZET YASAKTIR: Özet asla birkaç kısa paragraftan ibaret olmamalı. Belgedeki TÜM sayfaları/slaytları, ana ve alt başlıkları (\`####\`), tanımları, teorileri, yaklaşımları, modelleri, formülleri ($...$ / $$...$$ ve değişken açıklamalarıyla), tabloları, grafik/şekil açıklamalarını ve örnekleri eksiksiz analiz edip öğretici biçimde açıkla.
+2. %100 KAYNAK SADAKATİ: Yalnızca yüklenen belgenin gerçek içeriğine dayan. Kaynakta bulunmayan teorileri, tanımları veya başka bir dersin konularını sırf içeriği uzatmak için KESİNLİKLE ekleme.
+3. ŞEFFAF EK AÇIKLAMA: Zor bir kavramı sadeleştirmek için kaynaktaki metnin ötesinde kısa açıklama eklersen mutlaka **[Ek Açıklama]** etiketiyle işaretle.
+4. EKSİK / OKUNAMAYAN KISIMLAR: Belgede okunamayan, taranmış veya metin katmanı olmayan sayfalar/slaytlar varsa bunları uydurmadan "extractionNotices" listesinde açıkça belirt.
+5. KARŞILAŞTIRMALI TABLO, BAĞLANTILAR VE SINAV VURGUSU: Kavramlar/modeller arası bağlantıları kur, gerektiğinde Markdown karşılaştırma tablosu (\`|...|\`) ekle ve sınavlarda sorulabilecek kritik ayrıntıları + "studyPriorityMap" öncelik sırasını vurgula.
+6. YALNIZCA geçerli JSON döndür:
 {
-  "overview": "Ders notunun neyi anlattığını sade ve bütüncül özetleyen 1-2 paragraf",
-  "disciplineTag": "Nottan çıkarılan ders/alan adı",
-  "keyPoints": ["Nottan 6-10 net ana çıkarım"],
+  "overview": "Belgenin kapsamını, ana konusunu ve tüm bölümlerinin bütüncül bağlantısını anlatan 2-3 paragraflık nitelikli giriş özeti",
+  "disciplineTag": "${courseName}",
+  "extractionNotices": ["Varsa okunamayan/eksik sayfa uyarısı; yoksa []"],
+  "keyPoints": ["Nottan 8-12 net ve somut ana çıkarım"],
   "sections": [
     {
-      "heading": "Nottaki gerçek konu başlığı",
+      "heading": "Nottaki gerçek ana konu başlığı",
       "pageRange": "Varsa sayfa/slayt aralığı",
-      "content": "${isShort ? '200-320' : '320-520'} kelimelik akıcı, sade, anlaşılır Türkçe Markdown özet anlatımı",
-      "takeaways": ["Bu bölümden 2-3 kısa net çıkarım"],
-      "commonPitfalls": ["Varsa sınavda karıştırılabilecek 1 nokta"]
+      "content": "${isShort ? '260-380' : '420-680'} kelimelik alt başlıklı (####), ayrıntılı, anlaşılır, formül/tablo/örnek/bağlantı ve sınav vurgusu içeren Türkçe Markdown anlatımı",
+      "takeaways": ["Bu bölümden 3-4 net çıkarım"],
+      "commonPitfalls": ["Sınavda karıştırılabilecek 1-2 kritik nokta"],
+      "checkpointQuestion": {
+        "question": "Bölüme özel kontrol sorusu?",
+        "options": ["A", "B", "C", "D"],
+        "correctIndex": 0,
+        "explanation": "Kaynağa dayalı net açıklama."
+      }
     }
   ],
   "studyPriorityMap": [
@@ -517,50 +561,52 @@ KESİN KURALLAR:
       "reason": "Sınavda neden bakılması gerektiğini açıklayan 1-2 net cümle",
       "estimatedMinutes": 8,
       "focusConcepts": ["Kavram 1", "Kavram 2"],
-      "likelyQuestionType": "Tanım / Karşılaştırma / Uygulama / Yorum",
+      "likelyQuestionType": "Tanım / Karşılaştırma / Formül & Uygulama / Yorum",
       "sectionIndex": 0
     }
   ],
   "teacherEmphasis": [
-    { "point": "Nottaki kritik kavram", "whyImportant": "Neden önemli olduğu", "examProbability": "Yüksek" }
+    { "point": "Nottaki kritik kavram/ayrıntı", "whyImportant": "Sınavda neden önemli olduğu", "examProbability": "Yüksek" }
   ],
   "comparativeMatrix": {
-    "title": "Yalnızca metinde karşılaştırma varsa doldur",
+    "title": "Kaynaktaki Kavram / Teori Karşılaştırma Tablosu (metinde karşılaştırılabilir unsurlar varsa)",
     "columns": ["Ölçüt", "Kavram A", "Kavram B"],
     "rows": [["...", "...", "..."]]
   },
-  "keyTerms": [{ "term": "Nottaki terim", "definition": "Sade ve doğru tanım", "formula": "" }],
-  "studyChecklist": ["Bu notu bitirdiğimde ... konusunu açıklayabilirim."]
+  "keyTerms": [{ "term": "Nottaki terim", "definition": "Ayrıntılı ve doğru tanım", "formula": "Varsa kaynaktaki formül" }],
+  "studyChecklist": ["Bu notu bitirdiğimde ... konusunu ve ayrımlarını açıklayabilirim."]
 }
-Tam ${secCount} bölüm üret ve kaynağın tamamını kapsa.`;
+Tam ${secCount} kapsamlı bölüm üret ve belgenin ilk sayfasından son sayfasına kadar tamamını kapsa.`;
 
-    const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}\n\nKAYNAK NOT (YALNIZCA BU METNE SADIK KAL):\n${sampleBalancedContext(
+    const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK NOT (YALNIZCA BU METNE SADIK KAL):\n${sampleBalancedContext(
       enrichedContext,
-      68_000,
+      92_000,
     )}`;
-    return { system, userText, maxTokens: 14_000, temperature: 0.25 };
+    return { system, userText, maxTokens: 15_500, temperature: 0.22 };
   }
 
   // --- FLASHCARDS ---
   if (req.materialType === 'flashcards') {
     const cardCount = Math.min(Math.max(req.cardCount || 18, 6), 40);
     const system = `Sen aktif hatırlama (Active Recall) ve aralıklı tekrar (Spaced Repetition) pedagojisinde uzman bir üniversite hocasısın.
-Verilen kaynak materyali tarayarak tam ${cardCount} adet yüksek kalitede bilgi kartı üret.
+Verilen kaynak materyali ve ortak kaynak analizini temel alarak tam ${cardCount} adet yüksek kalitede, %100 kaynağa sadık Türkçe bilgi kartı üret.
+${multiCourseDirective}
 ${styleInstruction}
 ${researchInstruction}
 ${customDirective}
 
 KURALLAR:
-1. Kartların yarısı kavramsal derinlik/karşılaştırma ("Neden?", "Farkı nedir?", "Koşulu nedir?"), kalanı formül ($...$), mekanizma ve sınav tuzağı sormalıdır.
-2. Basit tek kelimelik sözlük tanımları yerine gerçek üniversite sınavı refleksi kazandıran sorular yaz.
-3. YALNIZCA geçerli JSON döndür:
+1. YALNIZCA bu kaynaktaki gerçek dersin kavram, tanım, teori, formül ve ayrımlarından kart üret; başka bir dersin bilgilerini KESİNLİKLE karıştırma.
+2. Kartların yarısı kavramsal derinlik/karşılaştırma ("Neden?", "Farkı nedir?", "Koşulu/unsuru nedir?"), kalanı kaynaktaki formül ($...$), mekanizma ve sınav tuzağı sormalıdır (sözel derslerde uydurma formül ekleme).
+3. Belgenin başından sonuna tüm önemli başlıkları dengeli dağıt; yalnızca ilk sayfalardan kart üretme.
+4. YALNIZCA geçerli JSON döndür:
 {
   "cards": [
     {
       "front": "Net, düşündürücü soru veya kavram istemi (LaTeX destekli)",
-      "back": "Kapsamlı, net, ezbersiz kavrayış sağlayan cevap + gerekiyorsa formül veya ayırt edici mekanizma",
+      "back": "Kapsamlı, net, kaynağa sadık cevap + varsa kaynaktaki formül veya ayırt edici mekanizma",
       "hint": "Cevabı hatırlamayı tetikleyen 1 kısa ipucu",
-      "topic": "Alt konu etiketi",
+      "topic": "Kaynaktaki alt konu (çoklu derste [Ders Adı] — Konu)",
       "difficulty": "easy" | "medium" | "hard",
       "examTip": "Sınavda sorulursa dikkat edilecek kritik tuzak veya püf noktası"
     }
@@ -569,8 +615,11 @@ KURALLAR:
 
     const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}\nZORLUK: ${
       req.difficulty || 'mixed'
-    }\nADET: ${cardCount}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(enrichedContext, 68_000)}`;
-    return { system, userText, maxTokens: 9000, temperature: 0.3 };
+    }\nADET: ${cardCount}${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(
+      enrichedContext,
+      85_000,
+    )}`;
+    return { system, userText, maxTokens: 10_000, temperature: 0.25 };
   }
 
   // --- QUIZ ---
@@ -585,17 +634,18 @@ KURALLAR:
         : 'Tüm sorular 4 şıklı çoktan seçmeli (multiple_choice) formatında olsun.';
 
     const system = `Sen üniversite düzeyinde çok net, adil ve anlaşılır sınav soruları hazırlayan uzman bir öğretim üyesisin.
-Kullanıcının yüklediği ders notuna %100 sadık kalarak tam ${qCount} soruluk gerçek vize/final deneme testi üret.
+Kullanıcının yüklediği ders notuna ve ortak kaynak analizine %100 sadık kalarak tam ${qCount} soruluk gerçek vize/final deneme testi üret.
 ${formatInstruction}
-ZORLUK SEVİYESİ: ${req.difficulty || 'mixed'}
+ZORLUK SEVİYESİ: ${req.difficulty || 'mixed'}${multiCourseDirective}
 ${customDirective}
 
 KESİN KURALLAR:
-1. %100 KAYNAK SADAKATİ: Her soru YALNIZCA kullanıcının yüklediği ders notundaki gerçek bilgilerden üretilmelidir. Notun dışından alakasız başka bir dersin veya alanın kavramlarını KESİNLİKLE sorma.
-2. ANLAŞILIR VE NET SORU KÖKÜ: Her soru açık, dilbilgisi düzgün, tek bir doğru cevabı olan gerçek bir üniversite sınav sorusu olsun. Kesik cümleler, belirsiz ifadeler veya nottan rastgele kopyalanmış anlamsız parçalar YASAKTIR.
-3. GERÇEK ÇELDİRİCİLER & ŞIK DENGESİ: Çoktan seçmeli sorularda YALNIZCA 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır (asla nottan 4 doğru cümleyi şık yapma!). Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt.
-4. SADE AÇIKLAMA: Her soru için doğru cevabın neden doğru olduğunu nota dayanarak 2-3 anlaşılır cümleyle açıkla. Formül yalnızca derste gerçekten denklem varsa LaTeX ($...$) ile yaz.
-5. YALNIZCA geçerli JSON döndür:
+1. %100 KAYNAK VE DERS SADAKATİ: Her soru YALNIZCA kullanıcının yüklediği ders notundaki gerçek bilgilerden ve aynı kaynak analizindeki konulardan üretilmelidir. Başka bir dersin veya alanın kavramlarını KESİNLİKLE sorma ve karıştırma.
+2. TÜM BELGE KAPSAMI: Soruları belgenin başından sonuna (tüm sayfa/slayt ve ana başlıklara) dengeli dağıt; sadece ilk sayfalardan soru üretme.
+3. ANLAŞILIR VE NET SORU KÖKÜ: Her soru açık, dilbilgisi düzgün, tek bir doğru cevabı olan gerçek bir üniversite sınav sorusu olsun.
+4. GERÇEK ÇELDİRİCİLER & ŞIK DENGESİ: Çoktan seçmeli sorularda YALNIZCA 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır. Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt.
+5. SADE AÇIKLAMA: Her soru için doğru cevabın neden doğru olduğunu kaynağa dayanarak 2-3 anlaşılır cümleyle açıkla. Formül yalnızca derste gerçekten denklem varsa LaTeX ($...$) ile yaz.
+6. YALNIZCA geçerli JSON döndür:
 {
   "questions": [
     {
@@ -606,7 +656,7 @@ KESİN KURALLAR:
       "sampleAnswer": "Açık uçlu ise tam puanlık net örnek cevap",
       "rubric": ["Puanlama kriteri 1", "Puanlama kriteri 2"],
       "explanation": "Doğru cevabın nota dayalı anlaşılır açıklaması",
-      "topic": "Nottaki ilgili alt konu",
+      "topic": "Nottaki ilgili alt konu (çoklu derste [Ders Adı] — Konu)",
       "difficulty": "easy" | "medium" | "hard",
       "bloomLevel": "Anlama" | "Uygulama" | "Analiz"
     }
@@ -615,22 +665,27 @@ KESİN KURALLAR:
 
     const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}\nSINAV ODAĞI: ${
       req.examFocus || 'Vize/Final kapsamlı akademik değerlendirme'
-    }\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(enrichedContext, 68_000)}`;
-    return { system, userText, maxTokens: 10_000, temperature: 0.3 };
+    }${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(
+      enrichedContext,
+      85_000,
+    )}`;
+    return { system, userText, maxTokens: 11_000, temperature: 0.25 };
   }
 
-  // --- VIDEO (High-readability, strictly source-faithful, all university faculties) ---
-  const system = `Sen tüm üniversite fakülteleri (İktisat, Siyaset Bilimi ve Kamu Yönetimi, Uluslararası İlişkiler, Mühendislik, Eğitim, Tıp, Fen-Edebiyat, Sağlık Bilimleri, İşletme, Spor Bilimleri, Ziraat, Hukuk) için ders notlarını yüksek okunabilirlikli, tamamen konuya sadık etkileşimli video derslere dönüştüren akademik senaristsin.
-Verilen ders materyalinden 5-7 sahneli, Dr. Deniz (anlatıcı akademisyen) ile Barış (meraklı öğrenci) arasında geçen doğal, akıcı ve %100 not içeriğine bağlı Türkçe Video Ders paketi oluştur.
+  // --- VIDEO (High-readability, strictly source-faithful, aligned with canonical source analysis) ---
+  const system = `Sen tüm üniversite dersleri için ders notlarını yüksek okunabilirlikli, %100 konuya ve ortak kaynak analizine sadık etkileşimli video derslere dönüştüren akademik senaristsin.
+Verilen ders materyalinden 5-8 sahneli, Dr. Deniz (anlatıcı akademisyen) ile Barış (meraklı öğrenci) arasında geçen doğal, akıcı ve %100 not içeriğine bağlı Türkçe Video Ders paketi oluştur.
+${multiCourseDirective}
 ${styleInstruction}
 ${customDirective}
 
 KESİN KURALLAR:
-1. KONU DIŞI BİLGİ KESİNLİKLE YASAKTIR: Yalnızca kullanıcının yüklediği ders notundaki gerçek kavram, süreç, formül ve bilgileri anlat. Notla ilgisi olmayan başka bölüm terimleri (ör. tıp/mühendislik/spor/ziraat/eğitim notuna iktisat veya tarih örneği katmak), uydurma istatistik/yüzde (%88, %76 gibi) ve klişe sohbet cümleleri ("Merhaba arkadaşlar", "Akıllı tahtamızda") kesinlikle EKLEME.
-2. YÜKSEK OKUNABİLİRLİK: Her sahnenin 'diagramData.nodes' dizisinde 3-4 net ve kısa kavram kartı üret. 'label' en fazla 36 karakterlik net kavram başlığı; 'subtext' ise ekranda rahatça okunabilecek 1-2 sade cümle (en fazla 130 karakter) olsun.
-3. DOĞRU GÖRSEL ŞEMA: Görsel türü olarak 'visual', 'table', 'comparison', 'timeline', 'scenario', 'shapes' türlerini dengeli kullan. 'curve' türünü YALNIZCA iktisat arz-talep/faiz dengesi konusundaysa kullan; 'chart' türünü YALNIZCA ders notunda gerçek sayısal veriler varsa kullan.
-4. 'examTip' alanı asla selamlama veya genel klişe olmasın; o sahneye özgü gerçek sınav tuzağını veya kavram ayrımını yaz.
-5. 'visualTheme' değerini dersin gerçek fakültesine göre seç: "economics" | "history" | "law" | "politics" | "medicine" | "engineering" | "education" | "sports" | "agriculture" | "science" | "society".
+1. KONU DIŞI BİLGİ KESİNLİKLE YASAKTIR: Yalnızca kullanıcının yüklediği ders notundaki gerçek dersin kavram, süreç, teori, formül ve bilgilerini anlat. Başka bir dersin terimlerini, uydurma istatistikleri ve klişe sohbet cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda") kesinlikle EKLEME.
+2. BELGENİN TAMAMINI KAPSA: Sahneler belgenin başından sonuna tüm ana başlıkları sırayla işlemelidir.
+3. YÜKSEK OKUNABİLİRLİK: Her sahnenin 'diagramData.nodes' dizisinde 3-4 net ve kısa kavram kartı üret. 'label' en fazla 36 karakter; 'subtext' ise 1-2 sade cümle (en fazla 130 karakter) olsun.
+4. DOĞRU GÖRSEL ŞEMA: Görsel türü olarak 'visual', 'table', 'comparison', 'timeline', 'scenario', 'shapes' türlerini dengeli kullan. 'curve' türünü YALNIZCA arz-talep/faiz/eğri dengesi içeren dersteyse kullan; 'chart' türünü YALNIZCA ders notunda gerçek sayısal veriler varsa kullan.
+5. 'examTip' alanı o sahneye özgü gerçek sınav tuzağını veya kavram ayrımını yazsın.
+6. 'visualTheme' değerini dersin gerçek alanına göre seç: "economics" | "history" | "law" | "politics" | "medicine" | "engineering" | "education" | "sports" | "agriculture" | "science" | "society".
 
 YALNIZCA geçerli JSON döndür:
 {
@@ -676,11 +731,11 @@ YALNIZCA geçerli JSON döndür:
   "keyTerms": [{ "term": "Terim", "definition": "Tanım" }]
 }`;
 
-  const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(
+  const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(
     enrichedContext,
-    60_000,
+    76_000,
   )}`;
-  return { system, userText, maxTokens: 12_500, temperature: 0.32 };
+  return { system, userText, maxTokens: 13_500, temperature: 0.28 };
 }
 
 function normalizeMaterialContent(materialType: GenerateReq['materialType'], stage: string, raw: any, req: GenerateReq): any {
@@ -711,6 +766,11 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
     return {
       overview: String(raw.overview || ''),
       disciplineTag: raw.disciplineTag ? String(raw.disciplineTag) : undefined,
+      extractionNotices: Array.isArray(raw.extractionNotices)
+        ? raw.extractionNotices.map(String).filter(Boolean)
+        : req.extractionWarnings?.length
+        ? req.extractionWarnings
+        : undefined,
       keyPoints: Array.isArray(raw.keyPoints) ? raw.keyPoints.map(String) : [],
       sectionsPlan,
       teacherEmphasis: Array.isArray(raw.teacherEmphasis) ? raw.teacherEmphasis : [],
@@ -752,6 +812,11 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
     return {
       overview: String(raw.overview || ''),
       disciplineTag: raw.disciplineTag ? String(raw.disciplineTag) : undefined,
+      extractionNotices: Array.isArray(raw.extractionNotices)
+        ? raw.extractionNotices.map(String).filter(Boolean)
+        : req.extractionWarnings?.length
+        ? req.extractionWarnings
+        : undefined,
       keyPoints: Array.isArray(raw.keyPoints) ? raw.keyPoints.map(String) : [],
       sections: sections.map((s: any, idx: number) => ({
         heading: String(s?.heading || s?.title || `Bölüm ${idx + 1}`),

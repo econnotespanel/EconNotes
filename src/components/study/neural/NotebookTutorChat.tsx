@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   BookOpen,
   BookOpenCheck,
   BookmarkPlus,
@@ -21,9 +22,8 @@ import {
 import AcademicMarkdown from '@/components/AcademicMarkdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import { classifyStudyDomain, extractFullDocumentOutline } from '@/lib/studySourceProcessor';
+import type { CanonicalSourceAnalysis } from '@/lib/studySourceAnalysis';
 import { cn } from '@/lib/utils';
 import type {
   CoachMode,
@@ -39,6 +39,7 @@ interface NotebookTutorChatProps {
   notebookEmoji: string;
   activeSources: ExtractedSourceItem[];
   activeMaterials: StudyMaterial[];
+  canonicalAnalysis: CanonicalSourceAnalysis;
   messages: NotebookChatMessage[];
   coachMode: CoachMode;
   onCoachModeChange: (mode: CoachMode) => void;
@@ -52,6 +53,7 @@ interface NotebookTutorChatProps {
   onPinMessage: (msg: NotebookChatMessage) => void;
   onClearChat: () => void;
   onOpenAddSource: (tab: 'upload' | 'notes' | 'paste' | 'live') => void;
+  onRequestCourseConfirm?: () => void;
 }
 
 const TUTOR_MODES: Array<{
@@ -92,6 +94,7 @@ export function NotebookTutorChat({
   notebookEmoji,
   activeSources,
   activeMaterials,
+  canonicalAnalysis,
   messages,
   coachMode,
   onCoachModeChange,
@@ -101,6 +104,7 @@ export function NotebookTutorChat({
   onPinMessage,
   onClearChat,
   onOpenAddSource,
+  onRequestCourseConfirm,
 }: NotebookTutorChatProps) {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<NotebookAttachmentImage[]>([]);
@@ -116,20 +120,10 @@ export function NotebookTutorChat({
   const totalActiveCount = activeSources.length + activeMaterials.length;
 
   const briefing = useMemo(() => {
-    const combined = activeSources.map((s) => s.text || '').join('\n\n');
-    const words = activeSources.reduce((acc, s) => acc + (s.wordCount || 0), 0);
-    const pages = activeSources.reduce((acc, s) => acc + (s.pagesOrSlides || 0), 0);
-    const domain =
-      combined.trim().length > 30
-        ? classifyStudyDomain(combined, activeSources[0]?.course || undefined, notebookTitle)
-        : null;
     const topics: string[] = [];
-    for (const src of activeSources) {
-      if (!src.text) continue;
-      for (const h of extractFullDocumentOutline(src.text, 6)) {
-        if (!topics.includes(h.heading) && topics.length < 6) {
-          topics.push(h.heading);
-        }
+    for (const item of canonicalAnalysis.masterOutline) {
+      if (!topics.includes(item.heading) && topics.length < 6) {
+        topics.push(item.heading);
       }
     }
     for (const mat of activeMaterials) {
@@ -140,8 +134,17 @@ export function NotebookTutorChat({
         }
       }
     }
-    return { words, pages, discipline: domain?.discipline || null, topics };
-  }, [activeSources, activeMaterials, notebookTitle]);
+    return {
+      words: canonicalAnalysis.totalWords,
+      pages: canonicalAnalysis.totalPagesOrSlides,
+      courseLabel: canonicalAnalysis.primaryCourseLabel,
+      distinctCourses: canonicalAnalysis.distinctCourses,
+      isMultiCourse: canonicalAnalysis.isMultiCourse,
+      warnings: canonicalAnalysis.extractionWarnings,
+      hasUnconfirmed: canonicalAnalysis.hasUnconfirmedCourses,
+      topics,
+    };
+  }, [canonicalAnalysis, activeMaterials]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -262,9 +265,9 @@ export function NotebookTutorChat({
   const activeModeMeta = TUTOR_MODES.find((m) => m.id === coachMode) || TUTOR_MODES[0];
 
   return (
-    <div className="flex h-full min-h-[580px] flex-col overflow-hidden rounded-2xl border border-border/75 bg-card/95 shadow-xs lg:h-[calc(100vh-12.5rem)] lg:min-h-[620px]">
+    <div className="flex h-full min-h-[540px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border/75 bg-card/95 shadow-xs xl:h-[calc(100vh-11.5rem)] xl:min-h-[600px]">
       {/* Center Panel Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-gradient-to-r from-primary/[0.04] via-transparent to-violet-500/[0.04] px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-gradient-to-r from-primary/[0.04] via-transparent to-violet-500/[0.04] px-3.5 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-base">
             {notebookEmoji}
@@ -273,20 +276,22 @@ export function NotebookTutorChat({
             <h2 className="truncate text-sm font-bold text-foreground">{notebookTitle}</h2>
             <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
               {totalActiveCount > 0 ? (
-                <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                  <BookOpenCheck className="h-3 w-3" />
+                <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                  <BookOpenCheck className="h-3 w-3 shrink-0" />
                   {totalActiveCount} kaynak bağlı · Kaynağa sadık
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-primary font-medium">
-                  <Sparkles className="h-3 w-3" />
+                <span className="inline-flex items-center gap-1 font-medium text-primary">
+                  <Sparkles className="h-3 w-3 shrink-0" />
                   AI Öğretmen &amp; Snap-Solve Hazır
                 </span>
               )}
-              {briefing.discipline && (
+              {briefing.courseLabel && (
                 <>
                   <span>·</span>
-                  <span>{briefing.discipline}</span>
+                  <span className="truncate max-w-[220px] font-medium text-foreground/80">
+                    {briefing.courseLabel}
+                  </span>
                 </>
               )}
             </div>
@@ -299,7 +304,7 @@ export function NotebookTutorChat({
             variant="ghost"
             size="sm"
             onClick={onClearChat}
-            className="h-8 gap-1 rounded-xl px-2.5 text-[11px] text-muted-foreground hover:text-foreground"
+            className="h-8 shrink-0 gap-1 rounded-xl px-2.5 text-[11px] text-muted-foreground hover:text-foreground"
             title="Sohbeti temizle"
           >
             <RotateCcw className="h-3.5 w-3.5" />
@@ -308,32 +313,67 @@ export function NotebookTutorChat({
         )}
       </div>
 
-      {/* Chat & Briefing Body */}
-      <ScrollArea className="flex-1 px-4 py-4">
+      {/* Chat & Briefing Body (native overflow-x-hidden keeps wide tables inside bubbles) */}
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3.5 py-4">
         {messages.length === 0 ? (
-          <div className="mx-auto max-w-2xl space-y-5 py-2">
+          <div className="mx-auto max-w-2xl space-y-4 py-1">
             {totalActiveCount > 0 ? (
               /* NotebookLM-style Auto Briefing Card when sources are selected */
               <div className="space-y-4">
-                <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-card to-violet-500/[0.05] p-5 shadow-xs">
+                <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.06] via-card to-violet-500/[0.05] p-4 shadow-xs sm:p-5">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-[10.5px] font-semibold text-primary">
-                        <Sparkles className="h-3 w-3" />
-                        Defter Özeti Hazır
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-[10.5px] font-semibold text-primary">
+                          <Sparkles className="h-3 w-3" />
+                          Ortak Kaynak Analizi Hazır
+                        </div>
+                        {briefing.distinctCourses.map((c) => (
+                          <Badge key={c} variant="secondary" className="text-[10.5px] font-semibold">
+                            {c}
+                          </Badge>
+                        ))}
                       </div>
-                      <h3 className="text-base font-bold text-foreground sm:text-lg">
+                      <h3 className="break-words text-base font-bold text-foreground sm:text-lg">
                         {notebookTitle}
                       </h3>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
+                      <p className="text-xs leading-relaxed text-muted-foreground">
                         <strong>{totalActiveCount} aktif kaynak</strong>
                         {briefing.words > 0
                           ? ` (~${briefing.pages} sayfa · ${briefing.words.toLocaleString('tr-TR')} kelime)`
                           : ''}{' '}
-                        bağlandı. Tüm yanıtlar seçili kaynaklarına dayanır ve pasaj atıflarıyla sunulur.
+                        bağlandı.{' '}
+                        {briefing.isMultiCourse
+                          ? 'Birden fazla farklı ders seçili; her dersin içeriği kendi kaynağı altında ayrı korunur.'
+                          : 'Tüm yanıtlar ve Stüdyo araçları seçili kaynaklarının gerçek içeriğine dayanır.'}
                       </p>
                     </div>
                   </div>
+
+                  {briefing.hasUnconfirmed && onRequestCourseConfirm && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200">
+                      <span className="flex items-center gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        Bazı kaynakların dersi kesin tespit edilemedi; otomatik tahminde bulunulmadı.
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={onRequestCourseConfirm}
+                        className="h-7 rounded-lg border-amber-500/45 bg-background/80 px-2.5 text-[11px] font-semibold"
+                      >
+                        Doğru Dersi Seç
+                      </Button>
+                    </div>
+                  )}
+
+                  {briefing.warnings.length > 0 && (
+                    <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200">
+                      <p className="font-semibold">Belge Okuma Notu:</p>
+                      <p className="mt-0.5 text-muted-foreground">{briefing.warnings[0]}</p>
+                    </div>
+                  )}
 
                   {briefing.topics.length > 0 && (
                     <div className="mt-4 space-y-2 border-t border-border/60 pt-3.5">
@@ -527,9 +567,9 @@ export function NotebookTutorChat({
                     )}
 
                     {isUser ? (
-                      <p className="whitespace-pre-wrap text-xs sm:text-sm">{msg.content}</p>
+                      <p className="whitespace-pre-wrap break-words text-xs sm:text-sm">{msg.content}</p>
                     ) : (
-                      <div className="prose-sm max-w-none text-xs sm:text-[13.5px]">
+                      <div className="prose-sm max-w-full min-w-0 overflow-x-auto break-words text-xs sm:text-[13.5px]">
                         <AcademicMarkdown content={msg.content} />
                       </div>
                     )}
@@ -685,10 +725,10 @@ export function NotebookTutorChat({
             <div ref={bottomRef} />
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Bottom Astra AI Mode Selector + Multimodal Composer */}
-      <div className="border-t border-border/60 bg-background/80 p-3 backdrop-blur-md">
+      <div className="shrink-0 border-t border-border/60 bg-background/80 p-3 backdrop-blur-md">
         {/* Learning Mode Pills */}
         <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {TUTOR_MODES.map((m) => {

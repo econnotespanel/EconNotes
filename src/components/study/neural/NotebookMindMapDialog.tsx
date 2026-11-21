@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import type { CanonicalSourceAnalysis } from '@/lib/studySourceAnalysis';
 import { extractFullDocumentOutline } from '@/lib/studySourceProcessor';
 import type { ExtractedSourceItem, StudyMaterial } from '@/types/study';
 
@@ -27,6 +28,7 @@ interface MindNode {
   label: string;
   detail: string;
   sourceName: string;
+  courseLabel?: string | null;
   ring: 1 | 2;
   color: string;
   x: number;
@@ -40,6 +42,7 @@ interface NotebookMindMapDialogProps {
   notebookTitle: string;
   sources: ExtractedSourceItem[];
   materials: StudyMaterial[];
+  canonicalAnalysis?: CanonicalSourceAnalysis;
   onAskTutor: (prompt: string) => void;
 }
 
@@ -58,6 +61,7 @@ export function NotebookMindMapDialog({
   notebookTitle,
   sources,
   materials,
+  canonicalAnalysis,
   onAskTutor,
 }: NotebookMindMapDialogProps) {
   const [search, setSearch] = useState('');
@@ -65,25 +69,56 @@ export function NotebookMindMapDialog({
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { nodes, totalConcepts } = useMemo(() => {
-    const rawItems: Array<{ label: string; detail: string; sourceName: string; isCore: boolean }> = [];
+    const rawItems: Array<{
+      label: string;
+      detail: string;
+      sourceName: string;
+      courseLabel?: string | null;
+      isCore: boolean;
+    }> = [];
     const seen = new Set<string>();
 
-    const pushUnique = (label: string, detail: string, sourceName: string, isCore: boolean) => {
+    const pushUnique = (
+      label: string,
+      detail: string,
+      sourceName: string,
+      isCore: boolean,
+      courseLabel?: string | null,
+    ) => {
       const clean = label.replace(/^#+\s*/, '').replace(/\s+/g, ' ').trim();
       if (clean.length < 3 || clean.length > 72) return;
-      const key = clean.toLocaleLowerCase('tr-TR');
+      const key = `${courseLabel || ''}::${clean.toLocaleLowerCase('tr-TR')}`;
       if (seen.has(key)) return;
       seen.add(key);
       rawItems.push({
         label: clean,
         detail: detail.trim() || `${sourceName} kaynağından çıkarılan temel başlık.`,
         sourceName,
+        courseLabel,
         isCore,
       });
     };
 
-    // 1) Pull structured sections & keyTerms from linked materials
-    for (const mat of materials) {
+    // Only pull materials aligned with the current canonical source analysis (preventing cross-course bleed!)
+    const activeCoursesLower = new Set(
+      (canonicalAnalysis?.distinctCourses || []).map((c) => c.toLocaleLowerCase('tr-TR')),
+    );
+    const alignedMaterials =
+      sources.length > 0 && canonicalAnalysis
+        ? materials.filter((mat) => {
+            const matFp =
+              mat.content?.metadata?.sourceFingerprint ||
+              (mat.exam_profile as Record<string, unknown> | null | undefined)?.sourceFingerprint;
+            if (matFp && matFp === canonicalAnalysis.fingerprint) return true;
+            if (activeCoursesLower.size === 0) return false;
+            return Boolean(
+              mat.course && activeCoursesLower.has(mat.course.toLocaleLowerCase('tr-TR')),
+            );
+          })
+        : materials;
+
+    // 1) Pull structured sections & keyTerms ONLY from aligned materials
+    for (const mat of alignedMaterials) {
       const sections = mat.content?.sections;
       if (Array.isArray(sections)) {
         for (const sec of sections.slice(0, 8)) {
@@ -93,6 +128,7 @@ export function NotebookMindMapDialog({
               (sec.takeaways?.[0] || sec.content || '').slice(0, 260),
               mat.title,
               true,
+              mat.course,
             );
           }
         }
@@ -101,7 +137,7 @@ export function NotebookMindMapDialog({
       if (Array.isArray(keyTerms)) {
         for (const kt of keyTerms.slice(0, 10)) {
           if (kt?.term) {
-            pushUnique(kt.term, kt.definition || '', mat.title, false);
+            pushUnique(kt.term, kt.definition || '', mat.title, false, mat.course);
           }
         }
       }
@@ -109,18 +145,32 @@ export function NotebookMindMapDialog({
       if (Array.isArray(cards)) {
         for (const card of cards.slice(0, 8)) {
           if (card?.front) {
-            pushUnique(card.front.slice(0, 62), card.back || '', mat.title, false);
+            pushUnique(card.front.slice(0, 62), card.back || '', mat.title, false, mat.course);
           }
         }
       }
     }
 
-    // 2) Pull headings & concepts from active raw sources
-    for (const src of sources) {
-      if (!src.text) continue;
-      const outline = extractFullDocumentOutline(src.text, 10);
-      for (const item of outline) {
-        pushUnique(item.heading, item.excerpt || '', src.name, true);
+    // 2) Pull headings & concepts from active raw sources (preserving each source's own course!)
+    if (canonicalAnalysis && canonicalAnalysis.masterOutline.length > 0) {
+      for (const item of canonicalAnalysis.masterOutline.slice(0, 18)) {
+        pushUnique(
+          canonicalAnalysis.isMultiCourse && item.course
+            ? `[${item.course}] ${item.heading}`
+            : item.heading,
+          item.excerpt || '',
+          item.sourceName,
+          true,
+          item.course,
+        );
+      }
+    } else {
+      for (const src of sources) {
+        if (!src.text) continue;
+        const outline = extractFullDocumentOutline(src.text, 10);
+        for (const item of outline) {
+          pushUnique(item.heading, item.excerpt || '', src.name, true, src.course);
+        }
       }
     }
 
@@ -141,6 +191,7 @@ export function NotebookMindMapDialog({
         label: item.label,
         detail: item.detail,
         sourceName: item.sourceName,
+        courseLabel: item.courseLabel,
         ring: 1,
         color: BRANCH_COLORS[idx % BRANCH_COLORS.length],
         x: Math.round(cx + r * Math.cos(angle)),
@@ -163,6 +214,7 @@ export function NotebookMindMapDialog({
         label: item.label,
         detail: item.detail,
         sourceName: item.sourceName,
+        courseLabel: item.courseLabel,
         ring: 2,
         color: parent?.color || BRANCH_COLORS[idx % BRANCH_COLORS.length],
         x: Math.round(cx + r * Math.cos(angle)),
@@ -172,7 +224,7 @@ export function NotebookMindMapDialog({
     });
 
     return { nodes: built, totalConcepts: built.length };
-  }, [sources, materials]);
+  }, [sources, materials, canonicalAnalysis]);
 
   const filteredIds = useMemo(() => {
     const q = search.trim().toLocaleLowerCase('tr-TR');

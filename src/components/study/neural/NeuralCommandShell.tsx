@@ -75,7 +75,7 @@ export function NeuralCommandShell({
   ];
 
   return (
-    <div className="space-y-3.5">
+    <div className="min-w-0 space-y-3.5">
       {/* Unified Compact Top Studio Header (NotebookLM × Astra AI Aesthetic) */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card/90 px-4 py-3 shadow-2xs backdrop-blur-xl">
         <div className="flex items-center gap-2.5">
@@ -160,6 +160,7 @@ export function NeuralCommandShell({
         <AnimatePresence mode="wait">
           <motion.div
             key={normalizedTab}
+            className="min-w-0"
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -3 }}

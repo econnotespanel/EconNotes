@@ -197,7 +197,7 @@ export function NeuralExamSimView({
               {materialOptions.map((m) => (
                 <label
                   key={m.id}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-background/60 p-2.5 text-xs"
+                  className="flex min-w-0 cursor-pointer items-center gap-2.5 rounded-xl border border-border/60 bg-background/60 p-2.5 text-xs"
                 >
                   <Checkbox
                     checked={selectedIds.includes(m.id)}
@@ -207,7 +207,12 @@ export function NeuralExamSimView({
                       )
                     }
                   />
-                  <span className="truncate font-medium">{m.title}</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{m.title}</span>
+                  {m.course && (
+                    <Badge variant="outline" className="shrink-0 text-[10px]">
+                      {m.course}
+                    </Badge>
+                  )}
                 </label>
               ))}
             </div>

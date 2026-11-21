@@ -43,7 +43,7 @@ export function NeuralWorkspaceFrame({
   };
 
   return (
-    <div className="neural-shell space-y-5 p-3 sm:p-5 lg:p-6">
+    <div className="neural-shell min-w-0 space-y-5 p-3 sm:p-5 lg:p-6">
       {/* Workspace Header */}
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-4">
         <div className="flex min-w-0 items-center gap-3">
@@ -128,7 +128,7 @@ export function NeuralWorkspaceFrame({
         </div>
 
         {coachOpen && (
-          <aside className="hidden lg:col-span-4 lg:block">
+          <aside className="hidden min-w-0 lg:col-span-4 lg:block">
             <div className="sticky top-20">
               <NeuralCoachPanel material={material} injectedPrompt={injectedPrompt} />
             </div>

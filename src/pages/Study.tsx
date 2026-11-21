@@ -46,9 +46,13 @@ import {
 import { getIndexedDocuments, removeDocumentIndex } from '@/lib/neural/vectorIndex';
 import { expandSingleSummarySection } from '@/lib/studyAiClient';
 import {
+  buildBundleFromCanonicalAnalysis,
+  buildCanonicalSourceAnalysis,
+  enrichSourceWithCourseDetection,
+} from '@/lib/studySourceAnalysis';
+import {
   buildNoteSourceItem,
   buildPastedSourceItem,
-  classifyStudyDomain,
   combineStudySources,
 } from '@/lib/studySourceProcessor';
 import type {
@@ -127,6 +131,7 @@ export default function Study() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationPct, setGenerationPct] = useState(0);
   const [generationLabel, setGenerationLabel] = useState('');
+  const [pendingCourseConfirmType, setPendingCourseConfirmType] = useState<MaterialType | null>(null);
   const [convertingTo, setConvertingTo] = useState<MaterialType | null>(null);
   const [expandingSectionIdx, setExpandingSectionIdx] = useState<number | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -142,6 +147,38 @@ export default function Study() {
     () => notebooks.find((n) => n.id === activeNotebookId) || notebooks[0],
     [notebooks, activeNotebookId],
   );
+
+  // Single canonical source analysis shared across ALL Studio tools (Summary, Video, Quiz, Flashcards, MindMap, Exam Plan, Tutor)
+  const canonicalAnalysis = useMemo(() => {
+    if (!activeNotebook) {
+      return buildCanonicalSourceAnalysis({ sources: [], allMaterials: materials });
+    }
+    const checkedRaw = activeNotebook.sources.filter((s) =>
+      activeNotebook.checkedSourceIds.includes(s.id),
+    );
+    const checkedMats: ExtractedSourceItem[] = materials
+      .filter((m) => activeNotebook.checkedMaterialIds.includes(m.id))
+      .map((mat) => {
+        const txt = extractSearchableTextFromMaterial(mat);
+        return {
+          id: `mat-src-${mat.id}`,
+          name: mat.title,
+          kind: 'note' as const,
+          originNoteId: mat.source_note_id || undefined,
+          originType: mat.source_type,
+          course: mat.course,
+          courseConfirmedByUser: Boolean(mat.course),
+          text: txt || mat.title,
+          pagesOrSlides: Math.max(1, Math.ceil(txt.split(/\s+/).length / 300)),
+          wordCount: Math.max(1, txt.split(/\s+/).filter(Boolean).length),
+          charCount: txt.length,
+        };
+      });
+    return buildCanonicalSourceAnalysis({
+      sources: [...checkedRaw, ...checkedMats],
+      allMaterials: materials,
+    });
+  }, [activeNotebook, materials]);
 
   const updateActiveNotebook = useCallback(
     (updater: (nb: StudioNotebook) => StudioNotebook) => {
@@ -300,7 +337,11 @@ export default function Study() {
         const extracted = await extractFile(file);
 
         if (extracted.kind === 'text') {
-          return buildNoteSourceItem(note, extracted.text, extracted.images);
+          return buildNoteSourceItem(note, extracted.text, extracted.images, {
+            totalPages: extracted.totalPages || extracted.pages,
+            unreadablePages: extracted.unreadablePages,
+            warnings: extracted.warnings,
+          });
         }
         if (extracted.kind === 'image') {
           return buildNoteSourceItem(note, undefined, [
@@ -335,15 +376,16 @@ export default function Study() {
   );
 
   const indexSourceSilent = useCallback(
-    async (src: ExtractedSourceItem, courseFallback?: string) => {
+    async (src: ExtractedSourceItem) => {
       if (!src.text || src.text.trim().length < 20) return;
       try {
-        const domain = classifyStudyDomain(src.text, courseFallback || src.course || undefined, src.name);
+        // Strictly independent per-source course (NEVER inherit from notebook or prior sources!)
+        const analyzed = enrichSourceWithCourseDetection(src);
         await indexDocumentInVectorStore({
-          docId: `direct-${src.id}`,
-          title: src.name,
-          course: courseFallback || src.course || domain.discipline,
-          text: src.text,
+          docId: `direct-${analyzed.id}`,
+          title: analyzed.name,
+          course: analyzed.course || null,
+          text: analyzed.text,
           computeEmbeddings: engine.embedderStatus === 'ready',
         });
         refreshIndexedDocsCount();
@@ -358,13 +400,16 @@ export default function Study() {
     async (items: ExtractedSourceItem[]) => {
       if (items.length === 0) return;
 
-      for (const item of items) {
-        void indexSourceSilent(item, activeNotebook?.course);
+      // Analyze EVERY uploaded/added source independently from its own content & filename
+      const enrichedItems = items.map((item) => enrichSourceWithCourseDetection(item));
+
+      for (const item of enrichedItems) {
+        void indexSourceSilent(item);
       }
 
       updateActiveNotebook((nb) => {
         const existingIds = new Set(nb.sources.map((s) => s.id));
-        const newItems = items.filter((it) => !existingIds.has(it.id));
+        const newItems = enrichedItems.filter((it) => !existingIds.has(it.id));
         const mergedSources = [...newItems, ...nb.sources];
         const nextChecked = Array.from(
           new Set([...newItems.map((it) => it.id), ...nb.checkedSourceIds]),
@@ -376,25 +421,74 @@ export default function Study() {
           isDefaultTitle && nb.sources.length === 0 && newItems[0]
             ? newItems[0].name.replace(/\.(pdf|pptx?|docx?|txt|md|png|jpe?g)$/i, '').slice(0, 52)
             : nb.title;
-        const autoCourse =
-          !nb.course && newItems[0]?.course ? newItems[0].course : nb.course;
+
+        // Never leak an older source's course onto a new notebook or overwrite multi-course sessions
+        const singleDetectedCourse =
+          nb.sources.length === 0 &&
+          !nb.course &&
+          newItems.length === 1 &&
+          newItems[0]?.course &&
+          !newItems[0]?.courseNeedsConfirmation
+            ? newItems[0].course
+            : nb.course;
 
         return {
           ...nb,
           title: autoTitle,
-          course: autoCourse,
+          course: singleDetectedCourse,
           sources: mergedSources,
           checkedSourceIds: nextChecked,
         };
       });
 
-      toast.success(
-        items.length === 1
-          ? `"${items[0].name}" deftere eklendi ve AI Öğretmen için indekslendi.`
-          : `${items.length} kaynak deftere eklendi ve indekslendi.`,
-      );
+      const unconfirmedCount = enrichedItems.filter((it) => it.courseNeedsConfirmation).length;
+      if (unconfirmedCount > 0) {
+        toast.info(
+          unconfirmedCount === 1
+            ? `"${enrichedItems[0].name}" eklendi. Ders bilgisi kesin tespit edilemediği için otomatik atama yapılmadı — lütfen sol panelden "Ders Seç" ile doğrulayın.`
+            : `${enrichedItems.length} kaynak eklendi. ${unconfirmedCount} kaynağın dersini sol panelden "Ders Seç" ile seçebilirsiniz.`,
+        );
+      } else {
+        const detectedSummary =
+          enrichedItems.length === 1 && enrichedItems[0].course
+            ? ` (Ders: ${enrichedItems[0].course})`
+            : '';
+        toast.success(
+          enrichedItems.length === 1
+            ? `"${enrichedItems[0].name}"${detectedSummary} deftere eklendi ve indekslendi.`
+            : `${enrichedItems.length} kaynak kendi dersleriyle bağımsız analiz edilip deftere eklendi.`,
+        );
+      }
     },
-    [activeNotebook?.course, indexSourceSilent, updateActiveNotebook],
+    [indexSourceSilent, updateActiveNotebook],
+  );
+
+  const handleUpdateSourceCourse = useCallback(
+    (sourceId: string, newCourse: string) => {
+      const cleanCourse = newCourse.trim();
+      if (!cleanCourse) return;
+      let updatedSource: ExtractedSourceItem | null = null;
+      updateActiveNotebook((nb) => ({
+        ...nb,
+        sources: nb.sources.map((s) => {
+          if (s.id !== sourceId) return s;
+          updatedSource = {
+            ...s,
+            course: cleanCourse,
+            detectedCourse: cleanCourse,
+            courseConfirmedByUser: true,
+            courseNeedsConfirmation: false,
+            courseConfidence: 'high',
+          };
+          return updatedSource;
+        }),
+      }));
+      if (updatedSource) {
+        void indexSourceSilent(updatedSource);
+      }
+      toast.success(`Kaynak dersi "${cleanCourse}" olarak güncellendi.`);
+    },
+    [indexSourceSilent, updateActiveNotebook],
   );
 
   // URL Deep-link handling (?tab=..., ?create=video&noteId=...)
@@ -561,12 +655,12 @@ export default function Study() {
         activeNotebook.checkedMaterialIds.includes(m.id),
       );
 
-      // Ensure active sources are indexed in IndexedDB before retrieval
+      // Ensure active sources are indexed in IndexedDB with their OWN independent course
       const existingDocs = await getIndexedDocuments().catch(() => []);
       const existingDocIds = new Set(existingDocs.map((d) => d.docId));
       for (const src of checkedSources) {
         if (!existingDocIds.has(`direct-${src.id}`) && src.text?.trim()) {
-          await indexSourceSilent(src, activeNotebook.course);
+          await indexSourceSilent(src);
         }
       }
       for (const mat of checkedMaterials) {
@@ -581,15 +675,15 @@ export default function Study() {
       ];
 
       const fallbackContextParts: string[] = [];
-      for (const src of checkedSources) {
-        if (src.text?.trim()) {
-          fallbackContextParts.push(`### ${src.name}\n${src.text.slice(0, 7000)}`);
-        }
+      if (canonicalAnalysis.canonicalDigest) {
+        fallbackContextParts.push(canonicalAnalysis.canonicalDigest);
       }
-      for (const mat of checkedMaterials) {
-        const txt = extractSearchableTextFromMaterial(mat);
-        if (txt.trim()) {
-          fallbackContextParts.push(`### ${mat.title}\n${txt.slice(0, 5000)}`);
+      for (const prof of canonicalAnalysis.profiles) {
+        const src = prof.source;
+        if (src.text?.trim()) {
+          fallbackContextParts.push(
+            `### ${src.name}${prof.resolvedCourse ? ` (Ders: ${prof.resolvedCourse})` : ''}\n${src.text.slice(0, 8000)}`,
+          );
         }
       }
 
@@ -605,7 +699,7 @@ export default function Study() {
         })),
         fallbackContextText: fallbackContextParts.join('\n\n'),
         notebookTitle: activeNotebook.title,
-        course: activeNotebook.course || checkedSources[0]?.course || null,
+        course: canonicalAnalysis.primaryCourseLabel || null,
         onToken: (partial) => setStreamingText(partial),
       });
 
@@ -679,7 +773,7 @@ export default function Study() {
   };
 
   const handlePromotePinnedToSource = (note: PinnedStudyNote) => {
-    const src = buildPastedSourceItem(`📌 ${note.title}`, note.content, activeNotebook?.course);
+    const src = buildPastedSourceItem(`📌 ${note.title}`, note.content);
     void handleAddNotebookSources([src]);
   };
 
@@ -687,15 +781,29 @@ export default function Study() {
     updateActiveNotebook((nb) => ({ ...nb, messages: [] }));
   };
 
-  const handleNotebookGenerateType = async (targetType: MaterialType) => {
+  const handleNotebookGenerateType = async (
+    targetType: MaterialType,
+    overrideCourseAssignments?: Record<string, string>,
+  ) => {
     if (!user || !activeNotebook) {
       toast.error('Materyal üretmek için giriş yapmalısınız.');
       return;
     }
 
-    const checkedSources = activeNotebook.sources.filter((s) =>
-      activeNotebook.checkedSourceIds.includes(s.id),
-    );
+    const checkedSources = activeNotebook.sources
+      .filter((s) => activeNotebook.checkedSourceIds.includes(s.id))
+      .map((s) => {
+        const assigned = overrideCourseAssignments?.[s.id]?.trim();
+        if (!assigned) return s;
+        return {
+          ...s,
+          course: assigned,
+          detectedCourse: assigned,
+          courseConfirmedByUser: true,
+          courseNeedsConfirmation: false,
+          courseConfidence: 'high' as const,
+        };
+      });
     const checkedMatSources: ExtractedSourceItem[] = materials
       .filter((m) => activeNotebook.checkedMaterialIds.includes(m.id))
       .map((mat) => {
@@ -707,6 +815,7 @@ export default function Study() {
           originNoteId: mat.source_note_id || undefined,
           originType: mat.source_type,
           course: mat.course,
+          courseConfirmedByUser: Boolean(mat.course),
           text: txt || mat.title,
           pagesOrSlides: Math.max(1, Math.ceil(txt.split(/\s+/).length / 300)),
           wordCount: Math.max(1, txt.split(/\s+/).filter(Boolean).length),
@@ -720,11 +829,19 @@ export default function Study() {
       return;
     }
 
-    const bundle = combineStudySources(
-      allSelectedSources,
-      activeNotebook.title,
-      activeNotebook.course || allSelectedSources[0]?.course || '',
-    );
+    // Build shared Canonical Source Analysis over the exact checked sources
+    const freshAnalysis = buildCanonicalSourceAnalysis({
+      sources: allSelectedSources,
+      allMaterials: materials,
+    });
+
+    // If any source's course is uncertain and not confirmed yet, ask the user instead of guessing!
+    if (!overrideCourseAssignments && freshAnalysis.hasUnconfirmedCourses) {
+      setPendingCourseConfirmType(targetType);
+      return;
+    }
+
+    const bundle = buildBundleFromCanonicalAnalysis(freshAnalysis, activeNotebook.title);
 
     const nextSettings: StudioGenerationSettings = {
       ...settings,
@@ -733,7 +850,11 @@ export default function Study() {
     setSettings(nextSettings);
     setIsGenerating(true);
     setGenerationPct(10);
-    setGenerationLabel('Seçili kaynaklardan çalışma materyali hazırlanıyor...');
+    setGenerationLabel(
+      freshAnalysis.isMultiCourse
+        ? `${freshAnalysis.distinctCourses.length} ayrı ders için ortak kaynak analizi hazırlanıyor...`
+        : `${bundle.course || 'Seçili kaynak'} baştan sona analiz ediliyor...`,
+    );
 
     try {
       const result = await routedGenerateMaterial(bundle, nextSettings, (pct, msg) => {
@@ -742,6 +863,17 @@ export default function Study() {
       });
 
       const noteSource = bundle.sources.find((s) => s.kind === 'note');
+      const resolvedSavedCourse = bundle.course || bundle.detectedCourse || null;
+      const examProfileMeta: Record<string, unknown> = {
+        sourceFingerprint: freshAnalysis.fingerprint,
+        analyzedCourses: freshAnalysis.distinctCourses,
+        isMultiCourse: freshAnalysis.isMultiCourse,
+      };
+      if (nextSettings.examFocus) {
+        examProfileMeta.examFocus = nextSettings.examFocus;
+        examProfileMeta.pedagogicalStyle = nextSettings.pedagogicalStyle;
+      }
+
       const { data, error } = await supabase
         .from('study_materials')
         .insert({
@@ -750,12 +882,10 @@ export default function Study() {
           source_note_id: noteSource?.originNoteId || null,
           material_type: targetType,
           title: bundle.title,
-          course: bundle.course || bundle.detectedDiscipline || null,
+          course: resolvedSavedCourse,
           content: result.content as unknown as Json,
           model: result.model,
-          exam_profile: nextSettings.examFocus
-            ? { examFocus: nextSettings.examFocus, pedagogicalStyle: nextSettings.pedagogicalStyle }
-            : null,
+          exam_profile: examProfileMeta as unknown as Json,
         })
         .select()
         .single();
@@ -775,10 +905,10 @@ export default function Study() {
 
       if (result.sourceMode === 'local') {
         toast.warning(
-          'Yapay zekâ bağlantısına geçici olarak ulaşılamadı; temel yerel ayrıştırıcı ile oluşturuldu.',
+          'Yapay zekâ bağlantısına geçici olarak ulaşılamadı; yerel yapısal ayrıştırıcı ile oluşturuldu.',
         );
       } else {
-        toast.success('Çalışma materyali hazırlandı ve defterine kaydedildi.');
+        toast.success('Çalışma materyali ortak kaynak analiziyle hazırlandı ve defterine kaydedildi.');
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Materyal oluşturulurken bir hata oluştu.');
@@ -786,6 +916,17 @@ export default function Study() {
       setIsGenerating(false);
       setGenerationPct(0);
       setGenerationLabel('');
+    }
+  };
+
+  const handleConfirmCoursesAndContinue = (assignments: Record<string, string>) => {
+    const target = pendingCourseConfirmType;
+    setPendingCourseConfirmType(null);
+    Object.entries(assignments).forEach(([srcId, courseName]) => {
+      handleUpdateSourceCourse(srcId, courseName);
+    });
+    if (target) {
+      void handleNotebookGenerateType(target, assignments);
     }
   };
 
@@ -814,20 +955,33 @@ export default function Study() {
     if (!activeMaterial || !user) return;
     setConvertingTo(targetType);
     try {
-      const text = extractSearchableTextFromMaterial(activeMaterial);
-      const source: ExtractedSourceItem = {
-        id: `conv-${activeMaterial.id}`,
-        name: activeMaterial.title,
-        kind: 'note',
-        originNoteId: activeMaterial.source_note_id || undefined,
-        originType: activeMaterial.source_type,
-        course: activeMaterial.course,
-        text: text || activeMaterial.title,
-        pagesOrSlides: 1,
-        wordCount: Math.max(1, text.split(/\s+/).filter(Boolean).length),
-        charCount: text.length,
-      };
-      const bundle = combineStudySources([source], activeMaterial.title, activeMaterial.course || '');
+      const matFp =
+        activeMaterial.content?.metadata?.sourceFingerprint ||
+        (activeMaterial.exam_profile as Record<string, unknown> | null | undefined)
+          ?.sourceFingerprint;
+      const useActiveCanonical =
+        Boolean(matFp && matFp === canonicalAnalysis.fingerprint && canonicalAnalysis.profiles.length > 0);
+
+      let bundle;
+      if (useActiveCanonical) {
+        bundle = buildBundleFromCanonicalAnalysis(canonicalAnalysis, activeMaterial.title);
+      } else {
+        const text = extractSearchableTextFromMaterial(activeMaterial);
+        const source: ExtractedSourceItem = {
+          id: `conv-${activeMaterial.id}`,
+          name: activeMaterial.title,
+          kind: 'note',
+          originNoteId: activeMaterial.source_note_id || undefined,
+          originType: activeMaterial.source_type,
+          course: activeMaterial.course,
+          courseConfirmedByUser: Boolean(activeMaterial.course),
+          text: text || activeMaterial.title,
+          pagesOrSlides: 1,
+          wordCount: Math.max(1, text.split(/\s+/).filter(Boolean).length),
+          charCount: text.length,
+        };
+        bundle = combineStudySources([source], activeMaterial.title, activeMaterial.course || '');
+      }
       const nextSettings: StudioGenerationSettings = { ...settings, materialType: targetType };
       const res = await routedGenerateMaterial(bundle, nextSettings);
 
@@ -839,9 +993,12 @@ export default function Study() {
           source_note_id: activeMaterial.source_note_id,
           material_type: targetType,
           title: activeMaterial.title,
-          course: activeMaterial.course,
+          course: activeMaterial.course || bundle.course || null,
           content: res.content as unknown as Json,
           model: res.model,
+          exam_profile: activeMaterial.exam_profile
+            ? (activeMaterial.exam_profile as unknown as Json)
+            : null,
         })
         .select()
         .single();
@@ -909,23 +1066,36 @@ export default function Study() {
     if (!activeMaterial) return;
     setIsRegenerating(true);
     try {
-      const text = extractSearchableTextFromMaterial(activeMaterial);
-      const bundle = combineStudySources(
-        [
-          {
-            id: `regen-${activeMaterial.id}`,
-            name: activeMaterial.title,
-            kind: 'pasted',
-            course: activeMaterial.course,
-            text: text || activeMaterial.title,
-            pagesOrSlides: 1,
-            wordCount: Math.max(1, text.split(/\s+/).filter(Boolean).length),
-            charCount: text.length,
-          },
-        ],
-        activeMaterial.title,
-        activeMaterial.course || '',
-      );
+      const matFp =
+        activeMaterial.content?.metadata?.sourceFingerprint ||
+        (activeMaterial.exam_profile as Record<string, unknown> | null | undefined)
+          ?.sourceFingerprint;
+      const useActiveCanonical =
+        Boolean(matFp && matFp === canonicalAnalysis.fingerprint && canonicalAnalysis.profiles.length > 0);
+
+      let bundle;
+      if (useActiveCanonical) {
+        bundle = buildBundleFromCanonicalAnalysis(canonicalAnalysis, activeMaterial.title);
+      } else {
+        const text = extractSearchableTextFromMaterial(activeMaterial);
+        bundle = combineStudySources(
+          [
+            {
+              id: `regen-${activeMaterial.id}`,
+              name: activeMaterial.title,
+              kind: 'pasted',
+              course: activeMaterial.course,
+              courseConfirmedByUser: Boolean(activeMaterial.course),
+              text: text || activeMaterial.title,
+              pagesOrSlides: 1,
+              wordCount: Math.max(1, text.split(/\s+/).filter(Boolean).length),
+              charCount: text.length,
+            },
+          ],
+          activeMaterial.title,
+          activeMaterial.course || '',
+        );
+      }
 
       const res = await routedGenerateMaterial(bundle, {
         ...settings,
@@ -1026,13 +1196,15 @@ export default function Study() {
 
   const resolvedTab = normalizeTab(activeTab);
 
+  const isWorkspaceStage = resolvedTab === 'workspace' && !activeMaterial;
+
   return (
-    <Layout>
+    <Layout wide={isWorkspaceStage}>
       <div
         className={
-          resolvedTab === 'workspace' && !activeMaterial
-            ? 'mx-auto w-full max-w-[1560px] px-2.5 py-3 sm:px-5 sm:py-4'
-            : 'mx-auto w-full max-w-7xl px-3 py-4 sm:px-6 sm:py-6'
+          isWorkspaceStage
+            ? 'mx-auto w-full min-w-0'
+            : 'mx-auto w-full max-w-7xl min-w-0 px-1 py-2 sm:px-3 sm:py-4'
         }
       >
         {activeMaterial?.material_type === 'video' ? (
@@ -1084,6 +1256,7 @@ export default function Study() {
                 userId={user.id}
                 notebooks={notebooks}
                 activeNotebook={activeNotebook}
+                canonicalAnalysis={canonicalAnalysis}
                 onSelectNotebook={setActiveNotebookId}
                 onCreateNotebook={handleCreateNotebook}
                 onRenameNotebook={handleRenameNotebook}
@@ -1107,12 +1280,16 @@ export default function Study() {
                 onToggleSource={handleToggleNotebookSource}
                 onToggleAllSources={handleToggleAllNotebookSources}
                 onToggleMaterialSource={handleToggleMaterialSource}
+                onUpdateSourceCourse={handleUpdateSourceCourse}
+                pendingCourseConfirmType={pendingCourseConfirmType}
+                onCancelPendingCourseConfirm={() => setPendingCourseConfirmType(null)}
+                onConfirmCoursesAndContinue={handleConfirmCoursesAndContinue}
                 onExtractRemoteNoteFile={handleExtractRemoteNoteFile}
                 onSavedLiveMaterial={handleSavedLiveMaterial}
                 onSendMessage={handleNotebookSendMessage}
                 onPinMessage={handlePinMessage}
                 onClearChat={handleClearChat}
-                onGenerateType={handleNotebookGenerateType}
+                onGenerateType={(type) => void handleNotebookGenerateType(type)}
                 onOpenPlanner={() => setActiveTab('planner')}
                 onOpenExamSim={() => setActiveTab('exam')}
                 onOpenMaterial={setActiveMaterial}
@@ -1140,6 +1317,11 @@ export default function Study() {
                 progress={progress}
                 srsCards={srsCards}
                 dueCards={dueCards}
+                activeCourseHint={
+                  canonicalAnalysis.distinctCourses.length === 1
+                    ? canonicalAnalysis.distinctCourses[0]
+                    : null
+                }
                 onSrsUpdated={refreshSrsCards}
                 onOpenMaterial={setActiveMaterial}
                 onStartExamSim={() => setActiveTab('exam')}

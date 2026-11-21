@@ -19,6 +19,9 @@ export type Extracted =
       kind: 'text';
       text: string;
       pages?: number;
+      totalPages?: number;
+      unreadablePages?: number[];
+      warnings?: string[];
       images?: ExtractedImagePage[];
       isScannedOcr?: boolean;
     }
@@ -225,7 +228,7 @@ export async function extractFile(
   }
 
   if (name.endsWith('.txt') || name.endsWith('.md')) {
-    const text = (await file.text()).slice(0, 350_000);
+    const text = (await file.text()).slice(0, 600_000);
     if (!text.trim()) throw new Error('Dosya boş.');
     onProgress?.(95, 'Metin dosyası hazır.');
     return { kind: 'text', text };
@@ -236,8 +239,10 @@ export async function extractFile(
     const buf = await readFileAsArrayBuffer(file);
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     const total = pdf.numPages;
-    const maxPages = Math.min(total, 120);
+    const maxPages = Math.min(total, 250);
     const parts: string[] = new Array(maxPages).fill('');
+    const unreadablePages: number[] = [];
+    const warnings: string[] = [];
     let meaningfulChars = 0;
 
     onProgress?.(20, `PDF taranıyor (${maxPages} sayfa)...`);
@@ -252,12 +257,19 @@ export async function extractFile(
             const page = await pdf.getPage(pageNum);
             const content = await page.getTextContent();
             const pageText = formatPdfItemsToText(content.items || []);
-            if (pageText.trim().length > 0) {
-              meaningfulChars += pageText.replace(/\s+/g, '').length;
+            const nonWs = pageText.replace(/\s+/g, '').length;
+            if (nonWs >= 15) {
+              meaningfulChars += nonWs;
               parts[pageNum - 1] = `--- Sayfa ${pageNum} ---\n${pageText}`;
+            } else if (pageText.trim().length > 0) {
+              meaningfulChars += nonWs;
+              unreadablePages.push(pageNum);
+              parts[pageNum - 1] = `--- Sayfa ${pageNum} ---\n${pageText.trim()}\n[UYARI: Bu sayfada çok az metin tespit edildi; tablo, grafik veya taranmış görsel içerik olabilir.]`;
+            } else {
+              unreadablePages.push(pageNum);
             }
           } catch {
-            // Skip unreadable page without crashing entire PDF
+            unreadablePages.push(pageNum);
           }
         }),
       );
@@ -265,16 +277,28 @@ export async function extractFile(
       onProgress?.(pct, `PDF işleniyor... (${end}/${maxPages} sayfa)`);
     }
 
-    const extractedText = parts.filter(Boolean).join('\n\n').slice(0, 350_000);
+    unreadablePages.sort((a, b) => a - b);
+    const extractedText = parts.filter(Boolean).join('\n\n').slice(0, 600_000);
     const avgCharsPerPage = meaningfulChars / Math.max(1, maxPages);
+
+    if (total > maxPages) {
+      warnings.push(
+        `Belge toplam ${total} sayfadır; ilk ${maxPages} sayfa işlendi (sayfa ${maxPages + 1}-${total} kapsam dışı kaldı).`,
+      );
+    }
 
     // Scanned or image-heavy PDF detection: trigger visual page rendering + OCR
     if (!extractedText.trim() || avgCharsPerPage < 28) {
       onProgress?.(62, 'PDF taranmış/görsel yoğunluklu tespit edildi — sayfa görselleri hazırlanıyor...');
-      const renderedImages = await renderPdfPagesAsImages(pdf, maxPages, 8);
+      const renderedImages = await renderPdfPagesAsImages(pdf, maxPages, 12);
       if (renderedImages.length > 0) {
         const ocrText = await ocrExtractedImages(renderedImages, onProgress);
         const combined = [extractedText.trim(), ocrText.trim()].filter(Boolean).join('\n\n');
+        if (maxPages > renderedImages.length) {
+          warnings.push(
+            `Bu PDF taranmış/görsel formatında (${maxPages} sayfa). ${renderedImages.length} temsilî sayfa görsel OCR ile okundu; tüm sayfaların eksiksiz analizi için metin katmanlı PDF önerilir.`,
+          );
+        }
         onProgress?.(95, 'Taranmış PDF sayfa görselleri ve OCR metni hazır.');
         return {
           kind: 'text',
@@ -282,6 +306,9 @@ export async function extractFile(
             combined ||
             `[Taranmış PDF (${maxPages} sayfa): Görsel zekâ analizi için ${renderedImages.length} sayfa karesi eklendi.]`,
           pages: maxPages,
+          totalPages: total,
+          unreadablePages,
+          warnings,
           images: renderedImages,
           isScannedOcr: true,
         };
@@ -293,12 +320,26 @@ export async function extractFile(
       }
     }
 
+    if (unreadablePages.length > 0) {
+      const samplePages = unreadablePages.slice(0, 12).join(', ');
+      warnings.push(
+        `PDF içinde okunabilir metin katmanı olmayan veya yalnızca görsel/grafik içeren ${unreadablePages.length} sayfa tespit edildi (Sayfa: ${samplePages}${unreadablePages.length > 12 ? '...' : ''}).`,
+      );
+    }
+
     onProgress?.(95, 'PDF ders notu hazır.');
-    return { kind: 'text', text: extractedText, pages: maxPages };
+    return {
+      kind: 'text',
+      text: extractedText,
+      pages: maxPages,
+      totalPages: total,
+      unreadablePages: unreadablePages.length > 0 ? unreadablePages : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
   }
 
   if (name.endsWith('.pptx')) {
-    onProgress?.(20, 'PowerPoint slaytları ve konuşmacı notları okunuyor...');
+    onProgress?.(20, 'PowerPoint slaytları, tablolar, diyagramlar ve konuşmacı notları okunuyor...');
     const zip = await JSZip.loadAsync(await readFileAsArrayBuffer(file));
     const slideFiles = Object.keys(zip.files)
       .filter((k) => /^ppt\/slides\/slide\d+\.xml$/.test(k))
@@ -327,12 +368,81 @@ export async function extractFile(
       return paragraphs.join('\n');
     };
 
+    const extractPptxTablesAsMarkdown = (xml: string): { markdownTables: string[]; xmlWithoutTables: string } => {
+      const markdownTables: string[] = [];
+      const xmlWithoutTables = xml.replace(/<a:tbl\b[\s\S]*?<\/a:tbl>/g, (tblXml) => {
+        const rows = tblXml.match(/<a:tr\b[\s\S]*?<\/a:tr>/g) || [];
+        const parsedRows: string[][] = [];
+        for (const rowXml of rows) {
+          const cells = rowXml.match(/<a:tc\b[\s\S]*?<\/a:tc>/g) || [];
+          const cellTexts = cells.map((tc) =>
+            extractXmlParagraphs(tc).replace(/\n+/g, ' ').replace(/\|/g, '/').trim(),
+          );
+          if (cellTexts.some((c) => c.length > 0)) {
+            parsedRows.push(cellTexts);
+          }
+        }
+        if (parsedRows.length >= 2) {
+          const colCount = Math.max(...parsedRows.map((r) => r.length));
+          const normalized = parsedRows.map((r) =>
+            Array.from({ length: colCount }, (_, ci) => r[ci] || '—'),
+          );
+          const header = `| ${normalized[0].join(' | ')} |`;
+          const sep = `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`;
+          const body = normalized.slice(1).map((r) => `| ${r.join(' | ')} |`).join('\n');
+          markdownTables.push(`${header}\n${sep}\n${body}`);
+        } else if (parsedRows.length === 1) {
+          markdownTables.push(parsedRows[0].filter(Boolean).join(' — '));
+        }
+        return '';
+      });
+      return { markdownTables, xmlWithoutTables };
+    };
+
+    const extractRelatedExtras = async (slideNum: string): Promise<string[]> => {
+      const extras: string[] = [];
+      const relsPath = `ppt/slides/_rels/slide${slideNum}.xml.rels`;
+      if (!zip.files[relsPath]) return extras;
+      try {
+        const relsXml = await zip.files[relsPath].async('text');
+        const targets = Array.from(relsXml.matchAll(/Target="([^"]+)"/g)).map((m) => m[1]);
+        for (const rawTarget of targets) {
+          const normalizedPath = rawTarget.startsWith('../')
+            ? `ppt/${rawTarget.slice(3)}`
+            : rawTarget.replace(/^\/+/, '');
+          if (/^ppt\/diagrams\/data\d+\.xml$/i.test(normalizedPath) && zip.files[normalizedPath]) {
+            const diagXml = await zip.files[normalizedPath].async('text');
+            const diagText = extractXmlParagraphs(diagXml);
+            if (diagText.trim()) extras.push(`[Diyagram / SmartArt]:\n${diagText.trim()}`);
+          } else if (/^ppt\/charts\/chart\d+\.xml$/i.test(normalizedPath) && zip.files[normalizedPath]) {
+            const chartXml = await zip.files[normalizedPath].async('text');
+            const chartLabels = Array.from(chartXml.matchAll(/<(?:a:t|c:v)[^>]*>([\s\S]*?)<\/(?:a:t|c:v)>/g))
+              .map((m) => decodeXmlEntities(m[1]).trim())
+              .filter(Boolean)
+              .slice(0, 60);
+            if (chartLabels.length > 0) {
+              extras.push(`[Grafik Verisi]: ${chartLabels.join(' · ')}`);
+            }
+          }
+        }
+      } catch {
+        // Ignore malformed rels gracefully
+      }
+      return extras;
+    };
+
     const slides: string[] = [];
+    const unreadableSlides: number[] = [];
+    const warnings: string[] = [];
+
     for (let i = 0; i < slideFiles.length; i++) {
       const sf = slideFiles[i];
       const slideNum = sf.match(/\d+/)?.[0] || String(i + 1);
+      const slideIndexNum = parseInt(slideNum, 10) || i + 1;
       const xml = await zip.files[sf].async('text');
-      const slideBody = extractXmlParagraphs(xml);
+      const { markdownTables, xmlWithoutTables } = extractPptxTablesAsMarkdown(xml);
+      const slideBody = extractXmlParagraphs(xmlWithoutTables);
+      const relatedExtras = await extractRelatedExtras(slideNum);
 
       // Include speaker notes when available (ppt/notesSlides/notesSlideN.xml)
       const notesPath = `ppt/notesSlides/notesSlide${slideNum}.xml`;
@@ -340,46 +450,103 @@ export async function extractFile(
       if (zip.files[notesPath]) {
         const notesXml = await zip.files[notesPath].async('text');
         notesBody = extractXmlParagraphs(notesXml)
-          // Filter trailing standalone slide-number strings common in notes footer
           .split('\n')
           .filter((l) => l.trim() !== slideNum)
           .join('\n')
           .trim();
       }
 
-      if (slideBody || notesBody) {
-        const block = notesBody
-          ? `--- Slayt ${slideNum} ---\n${slideBody}\n[Hoca / Konuşmacı Notu]: ${notesBody}`
-          : `--- Slayt ${slideNum} ---\n${slideBody}`;
-        slides.push(block);
+      const contentParts = [
+        slideBody,
+        ...markdownTables.map((t) => `[Slayt Tablosu]\n${t}`),
+        ...relatedExtras,
+        notesBody ? `[Hoca / Konuşmacı Notu]: ${notesBody}` : '',
+      ].filter((p) => p && p.trim().length > 0);
+
+      if (contentParts.length > 0) {
+        slides.push(`--- Slayt ${slideNum} ---\n${contentParts.join('\n\n')}`);
+      } else {
+        unreadableSlides.push(slideIndexNum);
+        slides.push(
+          `--- Slayt ${slideNum} ---\n[UYARI: Bu slaytta yalnızca görsel/şekil bulunuyor; okunabilir metin katmanı yok.]`,
+        );
       }
-      if (i % 10 === 0) {
-        onProgress?.(25 + Math.round((i / Math.max(1, slideFiles.length)) * 65), `Slaytlar (${i + 1}/${slideFiles.length})`);
+
+      if (i % 8 === 0) {
+        onProgress?.(
+          25 + Math.round((i / Math.max(1, slideFiles.length)) * 65),
+          `Slaytlar işleniyor (${i + 1}/${slideFiles.length})`,
+        );
       }
     }
 
-    const text = slides.join('\n\n').slice(0, 350_000);
-    if (!text.trim()) throw new Error('Sunum dosyasında metin bulunamadı.');
+    const text = slides.join('\n\n').slice(0, 600_000);
+    const hasRealContent = slides.some((s) => !s.includes('[UYARI: Bu slaytta yalnızca görsel/şekil bulunuyor'));
+    if (!text.trim() || !hasRealContent) {
+      throw new Error('Sunum dosyasında metin bulunamadı.');
+    }
+    if (unreadableSlides.length > 0) {
+      warnings.push(
+        `Sunumda yalnızca görsel/şekil içeren ${unreadableSlides.length} slayt tespit edildi (Slayt: ${unreadableSlides.slice(0, 12).join(', ')}${unreadableSlides.length > 12 ? '...' : ''}).`,
+      );
+    }
     onProgress?.(95, 'Sunum slaytları hazır.');
-    return { kind: 'text', text, pages: slideFiles.length };
+    return {
+      kind: 'text',
+      text,
+      pages: slideFiles.length,
+      totalPages: slideFiles.length,
+      unreadablePages: unreadableSlides.length > 0 ? unreadableSlides : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
   }
 
   if (name.endsWith('.docx')) {
-    onProgress?.(30, 'Word belgesi okunuyor...');
+    onProgress?.(30, 'Word belgesi ve tablolar okunuyor...');
     const zip = await JSZip.loadAsync(await readFileAsArrayBuffer(file));
     const docXml = await zip.files['word/document.xml']?.async('text');
     if (!docXml) throw new Error('Word belgesi okunamadı.');
 
-    const paragraphs: string[] = [];
-    const pBlocks = docXml.match(/<w:p\b[\s\S]*?<\/w:p>/g) || [];
-    for (const pBlock of pBlocks) {
-      const runs = Array.from(pBlock.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g))
-        .map((m) => decodeXmlEntities(m[1]))
-        .join('');
-      if (runs.trim()) paragraphs.push(runs.trim());
-    }
+    const extractWordParagraphs = (xml: string): string[] => {
+      const out: string[] = [];
+      const pBlocks = xml.match(/<w:p\b[\s\S]*?<\/w:p>/g) || [];
+      for (const pBlock of pBlocks) {
+        const runs = Array.from(pBlock.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g))
+          .map((m) => decodeXmlEntities(m[1]))
+          .join('');
+        if (runs.trim()) out.push(runs.trim());
+      }
+      return out;
+    };
 
-    const text = paragraphs.join('\n').slice(0, 350_000);
+    const blocks: string[] = [];
+    const docWithMarkers = docXml.replace(/<w:tbl\b[\s\S]*?<\/w:tbl>/g, (tblXml) => {
+      const rows = tblXml.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) || [];
+      const parsedRows: string[][] = [];
+      for (const rowXml of rows) {
+        const cells = rowXml.match(/<w:tc\b[\s\S]*?<\/w:tc>/g) || [];
+        const cellTexts = cells.map((tc) =>
+          extractWordParagraphs(tc).join(' ').replace(/\|/g, '/').trim(),
+        );
+        if (cellTexts.some((c) => c.length > 0)) parsedRows.push(cellTexts);
+      }
+      if (parsedRows.length >= 2) {
+        const colCount = Math.max(...parsedRows.map((r) => r.length));
+        const norm = parsedRows.map((r) =>
+          Array.from({ length: colCount }, (_, ci) => r[ci] || '—'),
+        );
+        const md = [
+          `| ${norm[0].join(' | ')} |`,
+          `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`,
+          ...norm.slice(1).map((r) => `| ${r.join(' | ')} |`),
+        ].join('\n');
+        blocks.push(md);
+      }
+      return '';
+    });
+
+    const paragraphs = extractWordParagraphs(docWithMarkers);
+    const text = [...paragraphs, ...blocks].join('\n\n').slice(0, 600_000);
     if (!text.trim()) throw new Error('Word belgesi boş.');
     onProgress?.(95, 'Belge hazır.');
     return { kind: 'text', text };

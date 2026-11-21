@@ -32,6 +32,7 @@ interface NeuralPlannerViewProps {
   progress: StudyProgressRow[];
   srsCards: SrsCardState[];
   dueCards: SrsCardState[];
+  activeCourseHint?: string | null;
   onSrsUpdated: () => void;
   onOpenMaterial: (mat: StudyMaterial) => void;
   onStartExamSim: () => void;
@@ -42,6 +43,7 @@ export function NeuralPlannerView({
   progress,
   srsCards,
   dueCards,
+  activeCourseHint,
   onSrsUpdated,
   onOpenMaterial,
   onStartExamSim,
@@ -50,6 +52,54 @@ export function NeuralPlannerView({
   const [activeCardIdx, setActiveCardIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
 
+  const availableCourses = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          materials
+            .map((m) => (m.course || '').trim())
+            .filter(Boolean),
+        ),
+      ),
+    [materials],
+  );
+
+  const [selectedCourse, setSelectedCourse] = useState<string>(() => {
+    if (activeCourseHint && availableCourses.includes(activeCourseHint)) {
+      return activeCourseHint;
+    }
+    return 'all';
+  });
+
+  const scopedMaterials = useMemo(
+    () =>
+      selectedCourse === 'all'
+        ? materials
+        : materials.filter((m) => (m.course || '').trim() === selectedCourse),
+    [materials, selectedCourse],
+  );
+
+  const scopedMaterialIds = useMemo(
+    () => new Set(scopedMaterials.map((m) => m.id)),
+    [scopedMaterials],
+  );
+
+  const scopedSrsCards = useMemo(
+    () =>
+      selectedCourse === 'all'
+        ? srsCards
+        : srsCards.filter((c) => scopedMaterialIds.has(c.materialId)),
+    [srsCards, selectedCourse, scopedMaterialIds],
+  );
+
+  const scopedDueCards = useMemo(
+    () =>
+      selectedCourse === 'all'
+        ? dueCards
+        : dueCards.filter((c) => scopedMaterialIds.has(c.materialId)),
+    [dueCards, selectedCourse, scopedMaterialIds],
+  );
+
   const updateCfg = (patch: Partial<PlannerConfig>) => {
     const next = { ...cfg, ...patch };
     setCfg(next);
@@ -57,8 +107,8 @@ export function NeuralPlannerView({
   };
 
   const weakTopics = useMemo(
-    () => analyzeWeakTopics(materials, progress, srsCards),
-    [materials, progress, srsCards],
+    () => analyzeWeakTopics(scopedMaterials, progress, scopedSrsCards),
+    [scopedMaterials, progress, scopedSrsCards],
   );
 
   const schedule = useMemo(
@@ -66,15 +116,15 @@ export function NeuralPlannerView({
       buildExamStudyPlan({
         examDateIso: cfg.examDateIso,
         dailyMinutes: cfg.dailyMinutes,
-        materials,
+        materials: scopedMaterials,
         weakTopics,
-        dueCardsCount: dueCards.length,
+        dueCardsCount: scopedDueCards.length,
         completedTaskIds: cfg.completedTaskIds,
       }),
-    [cfg, materials, weakTopics, dueCards.length],
+    [cfg, scopedMaterials, weakTopics, scopedDueCards.length],
   );
 
-  const currentDueCard = dueCards[activeCardIdx] || null;
+  const currentDueCard = scopedDueCards[activeCardIdx] || null;
 
   const handleGradeDueCard = (q: ReviewQuality) => {
     if (!currentDueCard) return;
@@ -115,6 +165,45 @@ export function NeuralPlannerView({
             Sınav Simülasyonunu Başlat
           </Button>
         </div>
+
+        {availableCourses.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-1.5 border-b border-border/50 pb-3">
+            <span className="mr-1 text-[11px] font-semibold text-muted-foreground">Ders Odağı:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCourse('all');
+                setActiveCardIdx(0);
+              }}
+              className={cn(
+                'rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                selectedCourse === 'all'
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border/70 bg-background text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Tüm Dersler ({materials.length})
+            </button>
+            {availableCourses.map((courseName) => (
+              <button
+                key={courseName}
+                type="button"
+                onClick={() => {
+                  setSelectedCourse(courseName);
+                  setActiveCardIdx(0);
+                }}
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                  selectedCourse === courseName
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border/70 bg-background text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {courseName}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-1.5">
@@ -165,8 +254,8 @@ export function NeuralPlannerView({
                 <Flame className="h-4 w-4 text-amber-500" />
                 Bugünün SM-2 Tekrar Kuyruğu
               </h3>
-              <Badge variant={dueCards.length > 0 ? 'default' : 'outline'} className="text-xs">
-                {dueCards.length} Kart Bekliyor
+              <Badge variant={scopedDueCards.length > 0 ? 'default' : 'outline'} className="text-xs">
+                {scopedDueCards.length} Kart Bekliyor
               </Badge>
             </div>
 
@@ -175,8 +264,8 @@ export function NeuralPlannerView({
                 <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                 <p className="mt-2 text-sm font-semibold">Bugünkü tüm tekrarlar tamam!</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {srsCards.length > 0
-                    ? `Toplam ${srsCards.length} kartın tekrar tarihleri optimum düzeyde.`
+                  {scopedSrsCards.length > 0
+                    ? `Toplam ${scopedSrsCards.length} kartın tekrar tarihleri optimum düzeyde.`
                     : 'Özet veya Flashcard materyali oluşturduğunda kartlar burada otomatik sıralanır.'}
                 </p>
               </div>

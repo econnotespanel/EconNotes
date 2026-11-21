@@ -17,6 +17,7 @@ export interface GeneratePayload {
   course?: string;
   noteContext?: string;
   customPrompt?: string;
+  extractionWarnings?: string[];
   detailLevel?: 'concise' | 'standard' | 'deep' | 'textbook';
   summaryDepth?: 'short' | 'standard' | 'comprehensive' | 'textbook';
   deepResearch?: boolean;
@@ -233,10 +234,11 @@ function extractKeyTerms(text: string, sentences: string[], course?: string): Ar
 
 function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSections: number): ParsedUnit[] {
   const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
-  const rawBlocks: Array<{ heading: string; pageRange?: string; lines: string[] }> = [];
+  const rawBlocks: Array<{ heading: string; pageRange?: string; sourceTag?: string; lines: string[] }> = [];
 
   let currentHeading = '';
   let currentPageRange: string | undefined;
+  let currentSourceTag: string | undefined;
   let currentLines: string[] = [];
 
   const isHeadingCandidate = (line: string): boolean => {
@@ -270,11 +272,14 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
         rawBlocks.push({
           heading: currentHeading || `${fallbackTitle} — Bölüm ${rawBlocks.length + 1}`,
           pageRange: currentPageRange,
+          sourceTag: currentSourceTag,
           lines: currentLines,
         });
         currentLines = [];
       }
-      currentHeading = line.replace(/^===\s*|\s*===$/g, '').trim();
+      const cleanedSrc = line.replace(/^===\s*|\s*===$/g, '').trim();
+      currentSourceTag = cleanedSrc;
+      currentHeading = cleanedSrc;
       currentPageRange = undefined;
       continue;
     }
@@ -282,6 +287,7 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
       rawBlocks.push({
         heading: currentHeading || `${fallbackTitle} — Bölüm ${rawBlocks.length + 1}`,
         pageRange: currentPageRange,
+        sourceTag: currentSourceTag,
         lines: currentLines,
       });
       currentHeading = line.replace(/^#{1,4}\s+/, '').replace(/:$/, '').trim();
@@ -300,6 +306,7 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
     rawBlocks.push({
       heading: currentHeading || `${fallbackTitle} — Bölüm ${rawBlocks.length + 1}`,
       pageRange: currentPageRange,
+      sourceTag: currentSourceTag,
       lines: currentLines,
     });
   }
@@ -337,14 +344,32 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
       };
     });
   } else if (normalizedBlocks.length > targetSections + 3) {
-    // Coalesce excess tiny blocks cleanly without losing content
+    // Coalesce excess tiny blocks ONLY within the same sourceTag so different courses never merge!
     const step = Math.ceil(normalizedBlocks.length / targetSections);
     const merged: typeof normalizedBlocks = [];
-    for (let i = 0; i < normalizedBlocks.length; i += step) {
-      const group = normalizedBlocks.slice(i, i + step);
+    let i = 0;
+    while (i < normalizedBlocks.length) {
+      const base = normalizedBlocks[i];
+      const group = [base];
+      i += 1;
+      while (
+        i < normalizedBlocks.length &&
+        group.length < step &&
+        normalizedBlocks[i].sourceTag === base.sourceTag
+      ) {
+        group.push(normalizedBlocks[i]);
+        i += 1;
+      }
+      const firstRange = group.find((g) => g.pageRange)?.pageRange;
+      const lastRange = [...group].reverse().find((g) => g.pageRange)?.pageRange;
+      const combinedRange =
+        firstRange && lastRange && firstRange !== lastRange
+          ? `${firstRange.split('-')[0].trim()}-${lastRange.split('-').pop()?.trim()}`
+          : firstRange;
       merged.push({
         heading: group[0].heading,
-        pageRange: group[0].pageRange,
+        pageRange: combinedRange,
+        sourceTag: base.sourceTag,
         lines: group.flatMap((g) => g.lines),
       });
     }
@@ -357,7 +382,15 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
     const bullets = b.lines
       .filter((l) => /^[-•*]\s+/.test(l))
       .map((l) => l.replace(/^[-•*]\s+/, '').trim());
-    const formulas = b.lines.filter((l) => /[=$\\]/.test(l) && l.length < 140).slice(0, 3);
+    const formulas = b.lines
+      .filter(
+        (l) =>
+          l.length > 3 &&
+          l.length < 160 &&
+          (/[=$\\]/.test(l) || /(?:H[₀0]|H[₁1]|χ²|σ²|s²|x̄|μ|∑|√|Var\(|Cov\(|E\(|P\()/.test(l)) &&
+          !/^\|.*\|$/.test(l),
+      )
+      .slice(0, 8);
 
     const paragraphs: string[] = [];
     for (let i = 0; i < sentences.length; i += 3) {
@@ -366,7 +399,7 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
     return {
       heading: b.heading,
       pageRange: b.pageRange,
-      paragraphs: paragraphs.length > 0 ? paragraphs : [joined.slice(0, 900)],
+      paragraphs: paragraphs.length > 0 ? paragraphs : [joined.slice(0, 1200)],
       sentences,
       bullets,
       formulas,
@@ -845,21 +878,21 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
   }
 
   // ---------------- SUMMARY ----------------
-  const isLargeLocalDoc = cleanText.length >= 18_000;
+  const isLargeLocalDoc = cleanText.length >= 16_000;
   const targetSections =
     effectiveDepth === 'short'
-      ? 4
+      ? 5
       : effectiveDepth === 'standard'
       ? isLargeLocalDoc
-        ? 8
+        ? 10
         : 6
       : effectiveDepth === 'textbook'
       ? isLargeLocalDoc
-        ? 12
-        : 9
+        ? 16
+        : 10
       : isLargeLocalDoc
-      ? 10
-      : 7;
+      ? 14
+      : 8;
   const units = splitDocumentIntoUnits(cleanText, title, targetSections);
 
   const sections = units.map((u, idx) =>
@@ -915,10 +948,14 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
     examProbability: idx < 2 ? 'Yüksek' : 'Orta',
   }));
 
-  const disciplineTag = isVerbal ? `${domain.discipline} · Sözel Özet` : domain.discipline;
+  const displayCourseTag =
+    req.course && req.course.trim().length > 1 && req.course.trim() !== 'Akademik Ders'
+      ? req.course.trim()
+      : domain.detectedCourse || domain.discipline;
+  const disciplineTag = isVerbal ? `${displayCourseTag} · Sözel Özet` : displayCourseTag;
   const studyPriorityMap = buildTopicPriorityGuide({
     sections,
-    keyTerms: keyTerms.slice(0, 10),
+    keyTerms: keyTerms.slice(0, 14),
     teacherEmphasis,
     overview: overviewText,
     disciplineTag,
@@ -927,14 +964,15 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
   return {
     overview: overviewText,
     disciplineTag,
+    extractionNotices: req.extractionWarnings?.length ? req.extractionWarnings : undefined,
     keyPoints: (sentences.length > 0 ? sentences : [title])
-      .slice(0, 8)
-      .map((s) => highlightKeyTermsInProse(s.slice(0, 195), keyTerms.slice(0, 4).map((k) => k.term))),
+      .slice(0, 10)
+      .map((s) => highlightKeyTermsInProse(s.slice(0, 210), keyTerms.slice(0, 4).map((k) => k.term))),
     sections,
     teacherEmphasis,
     comparativeMatrix,
     deepResearchTopics,
-    keyTerms: keyTerms.slice(0, 10),
+    keyTerms: keyTerms.slice(0, 14),
     studyPriorityMap,
     studyChecklist: sections.map((s) =>
       isVerbal

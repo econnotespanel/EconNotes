@@ -77,6 +77,12 @@ export interface StudyTopicPriorityItem {
 
 export type ExamStudyMode = 'balanced' | 'cram_24h' | 'deep_mastery' | 'large_note';
 
+export interface SourceCourseBreakdownItem {
+  sourceName: string;
+  course: string;
+  pagesOrSlides: number;
+}
+
 export interface SummaryContent {
   overview: string;
   disciplineTag?: string;
@@ -88,6 +94,8 @@ export interface SummaryContent {
   keyTerms?: KeyTermItem[];
   studyChecklist?: string[];
   studyPriorityMap?: StudyTopicPriorityItem[];
+  extractionNotices?: string[];
+  sourceCourseBreakdown?: SourceCourseBreakdownItem[];
   metadata?: {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
@@ -95,6 +103,9 @@ export interface SummaryContent {
     examMode?: ExamStudyMode;
     faculty?: string;
     isLargeBundle?: boolean;
+    sourceFingerprint?: string;
+    analyzedCourses?: string[];
+    isMultiCourse?: boolean;
     sourceStats?: {
       sourceCount: number;
       wordCount: number;
@@ -122,6 +133,9 @@ export interface QuizContent {
   metadata?: {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
+    sourceFingerprint?: string;
+    analyzedCourses?: string[];
+    isMultiCourse?: boolean;
   };
 }
 
@@ -148,6 +162,9 @@ export interface FlashcardsContent {
   metadata?: {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
+    sourceFingerprint?: string;
+    analyzedCourses?: string[];
+    isMultiCourse?: boolean;
   };
 }
 
@@ -164,6 +181,9 @@ export type StudyContentPayload = Partial<SummaryContent> &
       examMode?: ExamStudyMode;
       faculty?: string;
       isLargeBundle?: boolean;
+      sourceFingerprint?: string;
+      analyzedCourses?: string[];
+      isMultiCourse?: boolean;
       sourceStats?: {
         sourceCount: number;
         wordCount: number;
@@ -211,6 +231,8 @@ export interface NoteSourceOption {
   origin: 'own' | 'platform';
 }
 
+export type CourseDetectionConfidence = 'high' | 'medium' | 'uncertain';
+
 export interface ExtractedSourceItem {
   id: string;
   name: string;
@@ -218,8 +240,18 @@ export interface ExtractedSourceItem {
   originNoteId?: string;
   originType?: 'own' | 'platform';
   course?: string | null;
+  detectedCourse?: string | null;
+  detectedDiscipline?: string | null;
+  courseConfidence?: CourseDetectionConfidence;
+  courseConfirmedByUser?: boolean;
+  courseNeedsConfirmation?: boolean;
+  courseCandidates?: string[];
+  courseEvidence?: string[];
   text: string;
   pagesOrSlides: number;
+  totalPagesInFile?: number;
+  unreadablePages?: number[];
+  extractionWarnings?: string[];
   wordCount: number;
   charCount: number;
   isScannedOcr?: boolean;
@@ -230,6 +262,13 @@ export interface ExtractedSourceItem {
 export interface ProcessedStudyBundle {
   title: string;
   course: string;
+  detectedCourse?: string | null;
+  courseConfidence?: CourseDetectionConfidence;
+  sourceCourses?: string[];
+  isMultiCourse?: boolean;
+  extractionWarnings?: string[];
+  canonicalAnalysisDigest?: string;
+  sourceFingerprint?: string;
   combinedText: string;
   totalWords: number;
   totalChars: number;

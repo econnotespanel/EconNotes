@@ -1,4 +1,9 @@
 import { extractFile, type ExtractedImagePage } from '@/lib/extractFile';
+import {
+  detectCourseIdentity,
+  foldTurkishToAscii,
+  isGenericCoursePlaceholder,
+} from '@/lib/courseDetector';
 import type {
   ExtractedSourceItem,
   KeyTermItem,
@@ -156,67 +161,99 @@ export function detectDiscipline(text: string, course?: string, explicitFaculty?
     if (matched.id !== 'auto') return matched.disciplineLabel;
   }
 
-  const hay = `${course || ''} ${text.slice(0, 12_000)}`.toLocaleLowerCase('tr-TR');
+  // Primary: delegate to Unicode-safe Turkish course identity detector so specific courses
+  // (Para Teorisi, Hukuk, İstatistik, Mikro İktisat, etc.) are never misrouted by broken ASCII \b regexes.
+  const identity = detectCourseIdentity({
+    text: text || '',
+    fileNameOrTitle: undefined,
+    explicitCourse: !isGenericCoursePlaceholder(course) ? course : undefined,
+  });
+
+  if (identity.course && identity.discipline) {
+    // Map economics sub-courses cleanly to broader faculty label ONLY for broad discipline tagging,
+    // while keeping exact course name in identity.course everywhere in the UI and AI prompts.
+    const d = identity.discipline;
+    if (
+      d === 'Para Teorisi ve Politikası' ||
+      d === 'Mikro İktisat' ||
+      d === 'Makro İktisat' ||
+      d === 'Ekonometri' ||
+      d === 'Kamu Maliyesi' ||
+      d === 'Uluslararası İktisat'
+    ) {
+      return 'İktisat & Ekonometri';
+    }
+    if (d === 'Hukuk') {
+      return 'Hukuk & Kamu Yönetimi';
+    }
+    if (d === 'Tarih & İktisat Tarihi' || d === 'Tarih') {
+      return 'Tarih & Siyaset Bilimi';
+    }
+    return d;
+  }
+
+  // Fallback check on folded text for short snippets (e.g. 1-line unit test strings)
+  const hay = foldTurkishToAscii(`${course || ''} ${(text || '').slice(0, 16_000)}`);
   const rules: Array<[string, RegExp]> = [
     [
       'Hukuk & Kamu Yönetimi',
-      /\b(kanun|anayasa|yargıtay|danıştay|madde\s*\d+|hukuk|borçlar|ceza|medeni|idare|ticaret\s+hukuku|icra|mahkeme|sözleşme|tüzel|yaptırım|müeyyide|tbk|tmk|tck|mevzuat|içtihat|ehliyet|butlan|zilyetlik|mülkiyet|miras|haksız\s+fiil)\b/g,
-    ],
-    [
-      'Uluslararası İlişkiler',
-      /\b(uluslararası\s+ilişkiler|diplomasi|dış\s+politika|jeopolitik|realizm|neorealizm|konstrüktivizm|birleşmiş\s+milletler|nato|avrupa\s+birliği|soğuk\s+savaş|uluslararası\s+örgüt|güvenlik\s+ikilemi|hegemonya|dışişleri|antlaşma)\b/g,
-    ],
-    [
-      'Siyaset Bilimi ve Kamu Yönetimi',
-      /\b(siyaset\s+bilimi|kamu\s+yönetimi|kamu\s+politikası|bürokrasi|yerel\s+yönetim|belediye|parlamenter\s+sistem|başkanlık\s+sistemi|siyasal\s+düşünceler|seçim\s+sistemi|siyasal\s+parti|demokrasi|egemenlik|kuvvetler\s+ayrılığı|yönetişim|merkezi\s+yönetim)\b/g,
-    ],
-    [
-      'Eğitim Bilimleri',
-      /\b(eğitim\s+bilimleri|pedagoji|öğretim\s+ilke|öğretim\s+yöntem|müfredat|program\s+geliştirme|ölçme\s+ve\s+değerlendirme|geçerlik|güvenirlik|gelişim\s+psikolojisi|öğrenme\s+psikolojisi|sınıf\s+yönetimi|rehberlik|pdr|özel\s+eğitim|bloom\s+taksonomi|yapılandırmacılık|piaget|vygotsky|öğretmenlik)\b/g,
-    ],
-    [
-      'Tıp Bilimleri',
-      /\b(tıp|anatomi|fizyoloji|patoloji|patofizyoloji|farmakoloji|histoloji|embriyoloji|immünoloji|mikrobiyoloji|dahiliye|kardiyoloji|nöroloji|pediatri|cerrahi|endokrinoloji|semptom|etiyoloji|prognoz|sendrom|ayırıcı\s+tanı|biyokimya|hücre\s+zarı|mitokondri|metabolizma)\b/g,
-    ],
-    [
-      'Sağlık Bilimleri',
-      /\b(sağlık\s+bilimleri|hemşirelik|fizyoterapi|rehabilitasyon|beslenme\s+ve\s+diyetetik|diyetetik|ebelik|eczacılık|diş\s+hekimliği|ergoterapi|odyoloji|hasta\s+bakımı|halk\s+sağlığı|epidemiyoloji|vital\s+bulgu|klinik\s+beslenme|farmasötik|antropometri)\b/g,
-    ],
-    [
-      'Spor Bilimleri',
-      /\b(spor\s+bilimleri|antrenörlük|beden\s+eğitimi|egzersiz\s+fizyolojisi|spor\s+biyomekaniği|kinesiyoloji|motor\s+öğrenme|spor\s+psikolojisi|spor\s+yönetimi|rekreasyon|aerobik|anaerobik|vo2\s*max|laktat|kas\s+kasılması|hipertrofi|periyotlama|sürat|dayanıklılık|kuvvet\s+antrenmanı)\b/g,
-    ],
-    [
-      'Ziraat & Tarım Bilimleri',
-      /\b(ziraat|tarım|bitki\s+koruma|tarla\s+bitkileri|bahçe\s+bitkileri|toprak\s+bilimi|zootekni|bitki\s+besleme|fitopatoloji|entomoloji|sulama|gübreleme|seracılık|tohumculuk|tarım\s+ekonomisi|fotosentez|verim\s+unsurları|organik\s+tarım|hayvansal\s+üretim|peyzaj|toprak\s+ph)\b/g,
-    ],
-    [
-      'Tarih & Siyaset Bilimi',
-      /\b(tarih|osmanlı|cumhuriyet|inkılap|devrim|savaş|dönem|padişah|tanzimat|meşrutiyet|siyaset|ideoloji|devlet|rejim|iktisat\s+tarihi|merkantilizm|fizyokrasi|selçuklu|bizans|vakıf|ikta|tımar)\b/g,
-    ],
-    [
-      'Sosyoloji, Psikoloji & Felsefe',
-      /\b(sosyoloji|psikoloji|felsefe|antropoloji|etik|epistemoloji|ontoloji|bilişsel|davranış|toplum|kültür|norm|statü|rol|durkheim|weber|marx|freud|kant|platon|aristoteles|algı|bellek|motivasyon|kişilik|anomi)\b/g,
-    ],
-    [
-      'Fen-Edebiyat Bilimleri',
-      /\b(fen-edebiyat|edebiyat|şiir|roman|hikaye|edebi\s+akım|romantizm|realizm|sembolizm|divan|dilbilim|organik\s+kimya|analitik\s+kimya|kuantum|elektromanyetizma|optik|moleküler\s+biyoloji|genetik|ekoloji|coğrafya|arkeoloji|sanat\s+tarihi)\b/g,
-    ],
-    [
-      'İktisat & Ekonometri',
-      /\b(ekonometri|mikroekonomi|makroekonomi|enflasyon|gsyih|elastikiyet|regresyon|ols|merkez\s+bankası|para\s+politikası|maliye\s+politikası|arz\s+ve\s+talep|arz\s+eğrisi|talep\s+eğrisi|marjinal\s+fayda|piyasa\s+dengesi|is-lm|solow|keynes|tcmb|iktisat|para\s+teorisi|deflasyon|stagflasyon|cari\s+açık|döviz\s+kuru)\b/g,
-    ],
-    [
-      'Finans & İşletme',
-      /\b(finans|işletme|bilanço|nakit\s+akışı|iskonto|npv|irr|capm|portföy|hisse|tahvil|türev|opsiyon|pazarlama|yönetim|organizasyon|muhasebe|maliyet|kârlılık|roe|stratejik\s+yönetim|insan\s+kaynakları|tedarik\s+zinciri|girişimcilik)\b/g,
-    ],
-    [
-      'Bilgisayar & Mühendislik',
-      /\b(mühendislik|algoritma|veri\s+yapısı|veri\s+yapıları|kompleksite|karmaşıklığı|big-o|python|java|sql|veritabanı|network|makine\s+öğrenmesi|derin\s+öğrenme|yapay\s+zeka|devre|termodinamik|mukavemet|yazılım|akışkanlar\s+mekaniği|statik|dinamik|sinyal\s+işleme|kontrol\s+sistemleri)\b/g,
+      /(?<![a-z0-9])(kanun|anayasa|yargitay|danistay|madde\s*\d+|hukuk|borclar|ceza|medeni|idare|ticaret\s+hukuku|icra|mahkeme|sozlesme|tuzel|yaptirim|mueyyide|tbk|tmk|tck|mevzuat|ictihat|ehliyet|butlan|zilyetlik|mulkiyet|miras|haksiz\s+fiil)[a-z]{0,7}(?![a-z0-9])/g,
     ],
     [
       'Matematik & İstatistik',
-      /\b(teorem|ispat|integral|türev|matris|determinant|özdeğer|olasılık|dağılım|hipotez\s+testi|p-değeri|varyans|kovaryans|limit|diferansiyel|kalkülüs|lineer\s+cebir)\b/g,
+      /(?<![a-z0-9])(istatistik|olasilik|dagilim|hipotez\s+test|p-deger|varyans|standart\s+sapma|kovaryans|korelasyon|anova|ki-kare|bayes|teorem|ispat|integral|turev|matris|determinant|ozdeger|limit|diferansiyel|kalkulus|lineer\s+cebir)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Uluslararası İlişkiler',
+      /(?<![a-z0-9])(uluslararasi\s+iliskiler|diplomasi|dis\s+politika|jeopolitik|realizm|neorealizm|konstruktivizm|birlesmis\s+milletler|nato|avrupa\s+birligi|soguk\s+savas|uluslararasi\s+orgut|guvenlik\s+ikilemi|hegemonya)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Siyaset Bilimi ve Kamu Yönetimi',
+      /(?<![a-z0-9])(siyaset\s+bilimi|kamu\s+yonetimi|kamu\s+politikasi|burokrasi|yerel\s+yonetim|belediye|parlamenter\s+sistem|baskanlik\s+sistemi|siyasal\s+dusunceler|secim\s+sistemi|demokrasi|egemenlik|kuvvetler\s+ayriligi|yonetisim)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Eğitim Bilimleri',
+      /(?<![a-z0-9])(egitim\s+bilimleri|pedagoji|ogretim\s+ilke|ogretim\s+yontem|mufredat|program\s+gelistirme|olcme\s+ve\s+degerlendirme|gecerlik|guvenirlik|gelisim\s+psikolojisi|ogrenme\s+psikolojisi|sinif\s+yonetimi|rehberlik|bloom\s+taksonomi|yapilandirmacilik|piaget|vygotsky)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Tıp Bilimleri',
+      /(?<![a-z0-9])(anatomi|fizyoloji|patoloji|patofizyoloji|farmakoloji|histoloji|embriyoloji|immunoloji|mikrobiyoloji|dahiliye|kardiyoloji|noroloji|pediatri|cerrahi|endokrinoloji|semptom|etiyoloji|prognoz|sendrom|ayirici\s+tani|biyokimya)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Sağlık Bilimleri',
+      /(?<![a-z0-9])(saglik\s+bilimleri|hemsirelik|fizyoterapi|rehabilitasyon|beslenme\s+ve\s+diyetetik|diyetetik|ebelik|eczacilik|ergoterapi|odyoloji|hasta\s+bakimi|halk\s+sagligi|epidemiyoloji|vital\s+bulgu)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Spor Bilimleri',
+      /(?<![a-z0-9])(spor\s+bilimleri|antrenorluk|beden\s+egitimi|egzersiz\s+fizyolojisi|spor\s+biyomekanigi|kinesiyoloji|motor\s+ogrenme|spor\s+psikolojisi|vo2\s*max|laktat|hipertrofi|periyotlama)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Ziraat & Tarım Bilimleri',
+      /(?<![a-z0-9])(ziraat|tarim|bitki\s+koruma|tarla\s+bitkileri|bahce\s+bitkileri|toprak\s+bilimi|zootekni|bitki\s+besleme|fitopatoloji|entomoloji|sulama|gubreleme|seracilik|tohumculuk)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Tarih & Siyaset Bilimi',
+      /(?<![a-z0-9])(tarih|osmanli|cumhuriyet|inkilap|padisah|tanzimat|mesrutiyet|iktisat\s+tarihi|merkantilizm|fizyokrasi|selcuklu|bizans|timar)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Sosyoloji, Psikoloji & Felsefe',
+      /(?<![a-z0-9])(sosyoloji|psikoloji|felsefe|antropoloji|epistemoloji|ontoloji|durkheim|weber|freud|kant|platon|aristoteles|anomi)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Fen-Edebiyat Bilimleri',
+      /(?<![a-z0-9])(edebiyat|siir|roman|edebi\s+akim|dilbilim|organik\s+kimya|analitik\s+kimya|kuantum|elektromanyetizma|molekuler\s+biyoloji|genetik|ekoloji)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'İktisat & Ekonometri',
+      /(?<![a-z0-9])(ekonometri|mikroekonomi|makroekonomi|enflasyon|gsyih|gsyh|elastikiyet|esneklik|merkez\s+bankasi|para\s+politikasi|maliye\s+politikasi|arz\s+ve\s+talep|arz\s+egrisi|talep\s+egrisi|marjinal\s+fayda|piyasa\s+dengesi|is-lm|solow|keynes|tcmb|iktisat|para\s+teorisi|deflasyon|stagflasyon|cari\s+acik|doviz\s+kuru)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Finans & İşletme',
+      /(?<![a-z0-9])(finans|isletme|bilanco|nakit\s+akisi|iskonto|npv|irr|capm|portfoy|hisse|tahvil|turev|opsiyon|pazarlama|muhasebe|stratejik\s+yonetim|insan\s+kaynaklari|tedarik\s+zinciri)[a-z]{0,7}(?![a-z0-9])/g,
+    ],
+    [
+      'Bilgisayar & Mühendislik',
+      /(?<![a-z0-9])(muhendislik|algoritma|veri\s+yapi|karmasik|big-o|python|java|sql|veritabani|makine\s+ogrenmesi|derin\s+ogrenme|devre|termodinamik|mukavemet|yazilim|akiskanlar\s+mekanigi|kontrol\s+sistemleri)[a-z]{0,7}(?![a-z0-9])/g,
     ],
   ];
 
@@ -239,7 +276,20 @@ export function classifyStudyDomain(
   course?: string,
   title?: string,
   explicitFaculty?: string,
-): { discipline: string; mode: AcademicDomainMode; examStyleHint: string } {
+): {
+  discipline: string;
+  detectedCourse: string | null;
+  confidence: 'high' | 'medium' | 'uncertain';
+  needsConfirmation: boolean;
+  mode: AcademicDomainMode;
+  examStyleHint: string;
+} {
+  const identity = detectCourseIdentity({
+    text: text || '',
+    fileNameOrTitle: title,
+    explicitCourse: !isGenericCoursePlaceholder(course) ? course : undefined,
+  });
+
   const fullCourse = [course, title].filter(Boolean).join(' ');
   const discipline = detectDiscipline(text, fullCourse, explicitFaculty);
   const facultyItem =
@@ -247,52 +297,20 @@ export function classifyStudyDomain(
       ? getFacultyCatalogItem(explicitFaculty)
       : FACULTY_CATALOG.find((f) => f.disciplineLabel === discipline) || FACULTY_CATALOG[0];
 
-  const sample = text.slice(0, 14_000);
-  const lowerHeader = `${fullCourse} ${sample.slice(0, 1400)}`.toLocaleLowerCase('tr-TR');
+  const resolvedHint = identity.course ? identity.examStyleHint : facultyItem.examStyleHint;
+  const resolvedMode =
+    explicitFaculty && explicitFaculty !== 'auto'
+      ? facultyItem.defaultMode
+      : identity.domainMode;
 
-  const mathSignals = (
-    sample.match(
-      /(\$\$[^$]+\$\$|\$[^$\n]+\$|\\frac|\\sum|\\int|\\partial|\b[a-zA-Z]\s*=\s*[-+0-9a-zA-Z(]|\d+\s*[*/=]\s*\d+|d[xy]\s*\/\s*d[xt])/g,
-    ) || []
-  ).length;
-
-  const strongVerbalTopic =
-    /\b(hukuk|anayasa|borçlar|ceza|medeni|idare|tarih|sosyoloji|psikoloji|felsefe|edebiyat|siyaset|uluslararası\s+ilişkiler|kamu\s+yönetimi|iktisat\s+tarihi|iktisadi\s+düşünceler|ekonomi\s+tarihi|kalkınma\s+iktisadı|kuram|doktrin|yönetim\s+ve\s+organizasyon|insan\s+kaynakları|pazarlama|eğitim|etik|iletişim)\b/.test(
-      lowerHeader,
-    );
-
-  if (
-    discipline === 'Hukuk & Kamu Yönetimi' ||
-    discipline === 'Siyaset Bilimi ve Kamu Yönetimi' ||
-    discipline === 'Uluslararası İlişkiler' ||
-    discipline === 'Eğitim Bilimleri' ||
-    discipline === 'Tarih & Siyaset Bilimi' ||
-    discipline === 'Sosyoloji, Psikoloji & Felsefe'
-  ) {
-    return {
-      discipline,
-      mode: mathSignals >= 8 ? 'hybrid' : 'verbal',
-      examStyleHint: facultyItem.examStyleHint,
-    };
-  }
-
-  if (strongVerbalTopic && mathSignals < 4) {
-    return { discipline, mode: 'verbal', examStyleHint: facultyItem.examStyleHint };
-  }
-
-  if (
-    discipline === 'Matematik & İstatistik' ||
-    discipline === 'Bilgisayar & Mühendislik' ||
-    mathSignals >= 6
-  ) {
-    return { discipline, mode: 'quantitative', examStyleHint: facultyItem.examStyleHint };
-  }
-
-  if (discipline === 'Üniversite Akademik Çalışma' && mathSignals === 0 && sample.length > 180) {
-    return { discipline, mode: 'verbal', examStyleHint: facultyItem.examStyleHint };
-  }
-
-  return { discipline, mode: 'hybrid', examStyleHint: facultyItem.examStyleHint };
+  return {
+    discipline,
+    detectedCourse: identity.course,
+    confidence: identity.confidence,
+    needsConfirmation: identity.needsConfirmation,
+    mode: resolvedMode,
+    examStyleHint: resolvedHint,
+  };
 }
 
 export function isLargeStudyBundle(bundle: Pick<ProcessedStudyBundle, 'totalWords' | 'totalPagesOrSlides' | 'sourceCount' | 'totalChars'>): boolean {
@@ -336,7 +354,8 @@ export function extractFullDocumentOutline(text: string, maxHeadings = 22): Full
       continue;
     }
 
-    const sourceMatch = line.match(/^===\s*KAYNAK\s+\d+:\s*(.+?)\s*===$/i);
+    const sourceMatch = line.match(/^===\s*KAYNAK\s+\d+(?:\s*\|[^|]*)*:\s*(.+?)\s*===$/i) ||
+      line.match(/^===\s*KAYNAK\s+\d+\s*\|\s*DERS:\s*[^|]+\|\s*BELGE:\s*(.+?)\s*===$/i);
     if (sourceMatch) {
       const heading = sourceMatch[1].trim();
       const key = heading.toLocaleLowerCase('tr-TR');
@@ -674,11 +693,22 @@ export async function extractUploadedSource(
 
     const bodyText =
       ocrText.trim() || `[Görsel Ders Notu: ${file.name} — Görsel Zekâ ile Doğrudan Analiz Edilecek]`;
+    const imgDetect = detectCourseIdentity({
+      text: bodyText,
+      fileNameOrTitle: cleanName,
+    });
     onProgress?.(98, 'Görsel kaynağı eklendi.');
     return {
       id: `file-${file.name}-${file.size}-${Date.now()}`,
       name: cleanName,
       kind: 'file',
+      course: imgDetect.course,
+      detectedCourse: imgDetect.course,
+      detectedDiscipline: imgDetect.discipline,
+      courseConfidence: imgDetect.confidence,
+      courseNeedsConfirmation: imgDetect.needsConfirmation,
+      courseCandidates: imgDetect.candidates,
+      courseEvidence: imgDetect.evidence,
       text: bodyText,
       pagesOrSlides: 1,
       wordCount: countWords(bodyText),
@@ -693,10 +723,21 @@ export async function extractUploadedSource(
       1,
       Math.round(file.size / (1024 * 1024)),
     )} MB) — Sunucu Transkripsiyon Motoruna Hazır]`;
+    const audioDetect = detectCourseIdentity({
+      text: bodyText,
+      fileNameOrTitle: cleanName,
+    });
     return {
       id: `file-${file.name}-${file.size}-${Date.now()}`,
       name: cleanName,
       kind: 'file',
+      course: audioDetect.course,
+      detectedCourse: audioDetect.course,
+      detectedDiscipline: audioDetect.discipline,
+      courseConfidence: audioDetect.confidence,
+      courseNeedsConfirmation: audioDetect.needsConfirmation,
+      courseCandidates: audioDetect.candidates,
+      courseEvidence: audioDetect.evidence,
       text: bodyText,
       pagesOrSlides: 1,
       wordCount: countWords(bodyText),
@@ -705,12 +746,27 @@ export async function extractUploadedSource(
     };
   }
 
+  const textDetect = detectCourseIdentity({
+    text: extracted.text,
+    fileNameOrTitle: cleanName,
+  });
+
   return {
     id: `file-${file.name}-${file.size}-${Date.now()}`,
     name: cleanName,
     kind: 'file',
+    course: textDetect.course,
+    detectedCourse: textDetect.course,
+    detectedDiscipline: textDetect.discipline,
+    courseConfidence: textDetect.confidence,
+    courseNeedsConfirmation: textDetect.needsConfirmation,
+    courseCandidates: textDetect.candidates,
+    courseEvidence: textDetect.evidence,
     text: extracted.text,
     pagesOrSlides: estimatePagesOrSlides(extracted.text, extracted.pages),
+    totalPagesInFile: extracted.totalPages,
+    unreadablePages: extracted.unreadablePages,
+    extractionWarnings: extracted.warnings,
     wordCount: countWords(extracted.text),
     charCount: extracted.text.length,
     isScannedOcr: extracted.isScannedOcr,
@@ -722,6 +778,11 @@ export function buildNoteSourceItem(
   note: NoteSourceOption,
   extraExtractedText?: string,
   extraImages?: ExtractedImagePage[],
+  extraMeta?: {
+    totalPages?: number;
+    unreadablePages?: number[];
+    warnings?: string[];
+  },
 ): ExtractedSourceItem {
   const baseParts = [
     note.title ? `Başlık: ${note.title}` : '',
@@ -734,15 +795,30 @@ export function buildNoteSourceItem(
     .filter(Boolean);
 
   const combined = baseParts.join('\n\n');
+  const detected = detectCourseIdentity({
+    text: combined,
+    fileNameOrTitle: note.title,
+    explicitCourse: !isGenericCoursePlaceholder(note.course) ? note.course : undefined,
+  });
+
   return {
     id: `note-${note.origin}-${note.id}`,
     name: note.title,
     kind: 'note',
     originNoteId: note.id,
     originType: note.origin,
-    course: note.course,
+    course: detected.course,
+    detectedCourse: detected.course,
+    detectedDiscipline: detected.discipline,
+    courseConfidence: detected.confidence,
+    courseNeedsConfirmation: detected.needsConfirmation,
+    courseCandidates: detected.candidates,
+    courseEvidence: detected.evidence,
     text: combined,
-    pagesOrSlides: estimatePagesOrSlides(combined),
+    pagesOrSlides: estimatePagesOrSlides(combined, extraMeta?.totalPages),
+    totalPagesInFile: extraMeta?.totalPages,
+    unreadablePages: extraMeta?.unreadablePages,
+    extractionWarnings: extraMeta?.warnings,
     wordCount: countWords(combined),
     charCount: combined.length,
     images: extraImages,
@@ -756,11 +832,22 @@ export function buildPastedSourceItem(
 ): ExtractedSourceItem {
   const clean = pastedText.trim();
   const label = title.trim() || 'Yapıştırılan Ders Metni';
+  const detected = detectCourseIdentity({
+    text: clean,
+    fileNameOrTitle: label,
+    explicitCourse: !isGenericCoursePlaceholder(course) ? course : undefined,
+  });
   return {
     id: `pasted-${Date.now()}`,
     name: label,
     kind: 'pasted',
-    course: course || null,
+    course: detected.course,
+    detectedCourse: detected.course,
+    detectedDiscipline: detected.discipline,
+    courseConfidence: detected.confidence,
+    courseNeedsConfirmation: detected.needsConfirmation,
+    courseCandidates: detected.candidates,
+    courseEvidence: detected.evidence,
     text: clean,
     pagesOrSlides: estimatePagesOrSlides(clean),
     wordCount: countWords(clean),
@@ -778,6 +865,11 @@ export function combineStudySources(
     return {
       title: explicitTitle?.trim() || 'Çalışma Seti',
       course: explicitCourse?.trim() || '',
+      detectedCourse: null,
+      courseConfidence: 'uncertain',
+      sourceCourses: [],
+      isMultiCourse: false,
+      extractionWarnings: [],
       combinedText: '',
       totalWords: 0,
       totalChars: 0,
@@ -791,48 +883,103 @@ export function combineStudySources(
     };
   }
 
+  // Evaluate EVERY source independently so earlier sources never contaminate newer sources
+  const enrichedItems = validItems.map((src) => {
+    const det = detectCourseIdentity({
+      text: src.text || '',
+      fileNameOrTitle: src.name,
+      explicitCourse: !isGenericCoursePlaceholder(src.course) ? src.course : undefined,
+      confirmedByUser: Boolean(src.courseConfirmedByUser),
+    });
+    return {
+      ...src,
+      course: src.courseConfirmedByUser && !isGenericCoursePlaceholder(src.course) ? src.course : det.course,
+      detectedCourse: det.course,
+      detectedDiscipline: det.discipline,
+      courseConfidence: src.courseConfirmedByUser ? ('high' as const) : det.confidence,
+      courseNeedsConfirmation: src.courseConfirmedByUser ? false : det.needsConfirmation,
+      courseCandidates: det.candidates,
+      courseEvidence: det.evidence,
+    };
+  });
+
+  const sourceCourses = Array.from(
+    new Set(
+      enrichedItems
+        .map((s) => s.course)
+        .filter((c): c is string => Boolean(c && !isGenericCoursePlaceholder(c))),
+    ),
+  );
+  const isMultiCourse = sourceCourses.length > 1;
+
   const combinedText =
-    validItems.length === 1
-      ? validItems[0].text
-      : validItems
+    enrichedItems.length === 1
+      ? enrichedItems[0].text
+      : enrichedItems
           .map(
             (src, idx) =>
-              `=== KAYNAK ${idx + 1}: ${src.name}${src.course ? ` (${src.course})` : ''} ===\n${src.text}`,
+              `=== KAYNAK ${idx + 1}: ${src.name}${src.course ? ` (Ders: ${src.course})` : ''} ===\n${src.text}`,
           )
           .join('\n\n');
 
-  const images = validItems
+  const images = enrichedItems
     .flatMap((s) => s.images || [])
-    .slice(0, 8);
-  const audio = validItems.find((s) => s.audio)?.audio;
+    .slice(0, 10);
+  const audio = enrichedItems.find((s) => s.audio)?.audio;
 
-  const inferredCourse =
-    explicitCourse?.trim() ||
-    validItems.find((s) => s.course && s.course.trim().length > 0)?.course?.trim() ||
-    '';
+  const inferredCourse = isMultiCourse
+    ? sourceCourses.join(' · ')
+    : sourceCourses[0] || (!isGenericCoursePlaceholder(explicitCourse) ? explicitCourse!.trim() : '');
 
   const inferredTitle =
     explicitTitle?.trim() ||
-    (validItems.length === 1
-      ? validItems[0].name
-      : `${validItems[0].name} + ${validItems.length - 1} Kaynak`);
+    (enrichedItems.length === 1
+      ? enrichedItems[0].name
+      : `${enrichedItems[0].name} + ${enrichedItems.length - 1} Kaynak`);
 
-  const totalWords = validItems.reduce((sum, s) => sum + s.wordCount, 0);
-  const totalPagesOrSlides = validItems.reduce((sum, s) => sum + s.pagesOrSlides, 0);
+  const totalWords = enrichedItems.reduce((sum, s) => sum + s.wordCount, 0);
+  const totalPagesOrSlides = enrichedItems.reduce((sum, s) => sum + s.pagesOrSlides, 0);
+  const extractionWarnings = Array.from(
+    new Set(enrichedItems.flatMap((s) => s.extractionWarnings || [])),
+  );
+
+  const distinctDisciplines = Array.from(
+    new Set(
+      enrichedItems
+        .map((s) => detectDiscipline(s.text, s.course || undefined))
+        .filter((d) => d && d !== 'Üniversite Akademik Çalışma'),
+    ),
+  );
+
+  const resolvedDetectedDiscipline =
+    distinctDisciplines.length === 1
+      ? distinctDisciplines[0]
+      : isMultiCourse
+      ? `Çoklu Ders (${sourceCourses.join(', ')})`
+      : detectDiscipline(combinedText, inferredCourse);
 
   return {
     title: inferredTitle,
     course: inferredCourse,
+    detectedCourse: inferredCourse || null,
+    courseConfidence: enrichedItems.some((s) => s.courseNeedsConfirmation)
+      ? 'uncertain'
+      : enrichedItems.every((s) => s.courseConfidence === 'high')
+      ? 'high'
+      : 'medium',
+    sourceCourses,
+    isMultiCourse,
+    extractionWarnings,
     combinedText,
     totalWords,
     totalChars: combinedText.length,
     totalPagesOrSlides,
-    sourceCount: validItems.length,
-    detectedDiscipline: detectDiscipline(combinedText, inferredCourse),
-    outlinePreview: extractOutlinePreview(combinedText, 14),
+    sourceCount: enrichedItems.length,
+    detectedDiscipline: resolvedDetectedDiscipline,
+    outlinePreview: extractOutlinePreview(combinedText, 20),
     images,
     audio,
-    sources: validItems,
-    hasScannedOcr: validItems.some((s) => Boolean(s.isScannedOcr)),
+    sources: enrichedItems,
+    hasScannedOcr: enrichedItems.some((s) => Boolean(s.isScannedOcr)),
   };
 }

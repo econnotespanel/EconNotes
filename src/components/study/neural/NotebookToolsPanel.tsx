@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowUpRight,
   Bookmark,
+  BookOpenCheck,
   CalendarClock,
   CheckCircle2,
   FileText,
@@ -43,6 +45,7 @@ import {
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
+import type { CanonicalSourceAnalysis } from '@/lib/studySourceAnalysis';
 import { cn } from '@/lib/utils';
 import type {
   DifficultyLevel,
@@ -57,6 +60,7 @@ import type {
 
 interface NotebookToolsPanelProps {
   activeSourceCount: number;
+  canonicalAnalysis: CanonicalSourceAnalysis;
   notebookMaterials: StudyMaterial[];
   allMaterials: StudyMaterial[];
   pinnedNotes: PinnedStudyNote[];
@@ -68,6 +72,7 @@ interface NotebookToolsPanelProps {
   generationPct: number;
   generationLabel: string;
   onGenerateType: (type: MaterialType) => void;
+  onRequestCourseConfirm?: () => void;
   onOpenMindMap: () => void;
   onOpenPlanner: () => void;
   onOpenExamSim: () => void;
@@ -110,6 +115,7 @@ const MATERIAL_META: Record<
 
 export function NotebookToolsPanel({
   activeSourceCount,
+  canonicalAnalysis,
   notebookMaterials,
   allMaterials,
   pinnedNotes,
@@ -121,6 +127,7 @@ export function NotebookToolsPanel({
   generationPct,
   generationLabel,
   onGenerateType,
+  onRequestCourseConfirm,
   onOpenMindMap,
   onOpenPlanner,
   onOpenExamSim,
@@ -240,16 +247,16 @@ export function NotebookToolsPanel({
   ];
 
   return (
-    <div className="flex h-full min-h-[540px] flex-col rounded-2xl border border-border/75 bg-card/95 shadow-xs lg:h-[calc(100vh-12.5rem)] lg:min-h-[620px]">
+    <div className="flex h-full min-h-[520px] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border/75 bg-card/95 shadow-xs xl:h-[calc(100vh-11.5rem)] xl:min-h-[600px]">
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3.5">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3.5 py-3">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/12 text-violet-600 dark:text-violet-400">
             <Sparkles className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-bold tracking-tight text-foreground">Stüdyo</h2>
-            <p className="text-[11px] text-muted-foreground">
+            <h2 className="truncate text-sm font-bold tracking-tight text-foreground">Stüdyo</h2>
+            <p className="truncate text-[11px] text-muted-foreground">
               Tek tıkla çalışma aracı üret
             </p>
           </div>
@@ -262,14 +269,14 @@ export function NotebookToolsPanel({
               type="button"
               variant="outline"
               size="sm"
-              className="h-8 gap-1 rounded-xl px-2.5 text-xs"
+              className="h-8 shrink-0 gap-1 rounded-xl px-2.5 text-xs"
               title="Üretim ve sınav ayarlarını özelleştir"
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Ayarlar
+              <span>Ayarlar</span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 space-y-3.5 rounded-2xl p-4">
+          <PopoverContent align="end" className="w-[min(20rem,calc(100vw-2rem))] space-y-3.5 rounded-2xl p-4">
             <div className="space-y-1">
               <h4 className="text-xs font-bold text-foreground">Stüdyo Üretim Tercihleri</h4>
               <p className="text-[11px] text-muted-foreground">
@@ -378,11 +385,51 @@ export function NotebookToolsPanel({
         </Popover>
       </div>
 
-      {/* Scrollable Studio Body */}
-      <ScrollArea className="flex-1 px-3.5 py-3.5">
-        <div className="space-y-4">
-          {/* 2x3 NotebookLM Studio Production Tiles */}
-          <div className="grid grid-cols-2 gap-2">
+      {/* Scrollable Studio Body (native overflow-x-hidden prevents right-edge clipping) */}
+      <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
+        <div className="min-w-0 space-y-3.5">
+          {/* Shared Canonical Analysis Status Pill */}
+          {activeSourceCount > 0 && (
+            <div className="rounded-xl border border-border/70 bg-muted/25 px-2.5 py-2 text-[11px]">
+              <div className="flex items-center justify-between gap-1.5">
+                <span className="flex min-w-0 items-center gap-1.5 font-semibold text-foreground">
+                  <BookOpenCheck className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                  <span className="truncate">
+                    {canonicalAnalysis.primaryCourseLabel
+                      ? canonicalAnalysis.isMultiCourse
+                        ? `${canonicalAnalysis.distinctCourses.length} Ayrı Ders Senkron`
+                        : canonicalAnalysis.primaryCourseLabel
+                      : 'Ders seçimi bekleniyor'}
+                  </span>
+                </span>
+                {canonicalAnalysis.syncedSummaryMaterial && (
+                  <span className="shrink-0 rounded-full bg-emerald-500/12 px-1.5 py-0.5 text-[9.5px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    Ortak Analiz
+                  </span>
+                )}
+              </div>
+              {canonicalAnalysis.isMultiCourse && (
+                <p className="mt-1 break-words text-[10px] leading-snug text-muted-foreground">
+                  {canonicalAnalysis.distinctCourses.join(' · ')} — tüm araçlar her dersi ayrı korur.
+                </p>
+              )}
+              {canonicalAnalysis.hasUnconfirmedCourses && onRequestCourseConfirm && (
+                <button
+                  type="button"
+                  onClick={onRequestCourseConfirm}
+                  className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10.5px] font-semibold text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-300"
+                >
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  <span className="truncate">
+                    {canonicalAnalysis.unconfirmedSources.length} kaynağın dersini seç
+                  </span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Responsive Studio Production Tiles — never overflows or clips horizontally */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2">
             {studioTiles.map((tile) => {
               const Icon = tile.icon;
               const disabled =
@@ -395,26 +442,26 @@ export function NotebookToolsPanel({
                   disabled={disabled}
                   onClick={tile.onClick}
                   className={cn(
-                    'group flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs disabled:pointer-events-none disabled:opacity-55',
+                    'group flex min-w-0 w-full flex-col justify-between overflow-hidden rounded-xl border p-2.5 text-left transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs disabled:pointer-events-none disabled:opacity-55',
                     tile.tone,
                   )}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1">
                     <span
                       className={cn(
-                        'flex h-7 w-7 items-center justify-center rounded-lg',
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg',
                         tile.iconTone,
                       )}
                     >
                       <Icon className="h-3.5 w-3.5" />
                     </span>
-                    <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                    <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                   </div>
-                  <div className="mt-2">
-                    <p className="text-xs font-bold leading-tight text-foreground">
+                  <div className="mt-2 min-w-0">
+                    <p className="break-words text-[11.5px] font-bold leading-snug text-foreground">
                       {tile.title}
                     </p>
-                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                    <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight text-muted-foreground">
                       {tile.subtitle}
                     </p>
                   </div>
@@ -433,30 +480,30 @@ export function NotebookToolsPanel({
           {isGenerating && (
             <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/[0.06] p-3">
               <div className="flex items-center justify-between gap-2 text-xs">
-                <span className="flex items-center gap-1.5 font-semibold text-primary">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Üretiliyor...
+                <span className="flex min-w-0 items-center gap-1.5 font-semibold text-primary">
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  <span className="truncate">Üretiliyor...</span>
                 </span>
-                <span className="font-mono text-[11px] font-bold text-primary tabular-nums">
+                <span className="shrink-0 font-mono text-[11px] font-bold text-primary tabular-nums">
                   {generationPct}%
                 </span>
               </div>
               <Progress value={generationPct} className="h-1.5" />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="break-words text-[11px] text-muted-foreground">
                 {generationLabel || 'Kaynaklar analiz ediliyor...'}
               </p>
             </div>
           )}
 
           {/* Generated Artifacts & Pinned Notes Section */}
-          <div className="space-y-2.5 border-t border-border/60 pt-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 rounded-lg bg-muted/40 p-0.5 text-[11px]">
+          <div className="min-w-0 space-y-2.5 border-t border-border/60 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <div className="flex flex-wrap items-center gap-0.5 rounded-lg bg-muted/40 p-0.5 text-[10.5px]">
                 {(
                   [
                     ['all', 'Tümü'],
-                    ['materials', `Üretilen (${visibleMaterials.length})`],
-                    ['notes', `Notlar (${pinnedNotes.length})`],
+                    ['materials', `Çıktı (${visibleMaterials.length})`],
+                    ['notes', `Not (${pinnedNotes.length})`],
                   ] as const
                 ).map(([id, label]) => (
                   <button
@@ -480,7 +527,7 @@ export function NotebookToolsPanel({
                 variant="ghost"
                 size="sm"
                 onClick={() => setManualNoteOpen(true)}
-                className="h-7 gap-1 rounded-lg px-2 text-[11px] text-primary hover:bg-primary/10"
+                className="h-7 shrink-0 gap-1 rounded-lg px-2 text-[11px] text-primary hover:bg-primary/10"
                 title="Deftere hızlı not yaz"
               >
                 <Plus className="h-3 w-3" />
@@ -582,14 +629,16 @@ export function NotebookToolsPanel({
                               {mat.title}
                             </p>
                             <p className="truncate text-[10.5px] text-muted-foreground">
-                              {meta.label} · {new Date(mat.created_at).toLocaleDateString('tr-TR')}
+                              {meta.label}
+                              {mat.course ? ` · ${mat.course}` : ''} ·{' '}
+                              {new Date(mat.created_at).toLocaleDateString('tr-TR')}
                             </p>
                           </div>
                         </button>
                         <button
                           type="button"
                           onClick={() => onDeleteMaterial(mat.id)}
-                          className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                          className="shrink-0 rounded-lg p-1.5 text-muted-foreground opacity-65 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
                           title="Materyali sil"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -602,16 +651,16 @@ export function NotebookToolsPanel({
             )}
           </div>
         </div>
-      </ScrollArea>
+      </div>
 
       {/* Bottom Astra AI Mastery & Exam Sim Quick Bar */}
-      <div className="border-t border-border/60 bg-gradient-to-r from-primary/[0.04] via-card to-emerald-500/[0.04] p-3">
-        <div className="mb-2 flex items-center justify-between text-[11px]">
-          <span className="flex items-center gap-1.5 font-semibold text-foreground">
-            <Target className="h-3.5 w-3.5 text-primary" />
-            Sınav Hazırlık Durumu
+      <div className="shrink-0 border-t border-border/60 bg-gradient-to-r from-primary/[0.04] via-card to-emerald-500/[0.04] p-3">
+        <div className="mb-2 flex items-center justify-between gap-2 text-[11px]">
+          <span className="flex min-w-0 items-center gap-1.5 font-semibold text-foreground">
+            <Target className="h-3.5 w-3.5 shrink-0 text-primary" />
+            <span className="truncate">Sınav Hazırlık</span>
           </span>
-          <span className="font-mono text-[11px] font-bold text-primary">
+          <span className="shrink-0 font-mono text-[11px] font-bold text-primary">
             {avgScore !== null ? `%${avgScore} başarı` : 'Hazır'}
           </span>
         </div>
@@ -621,20 +670,20 @@ export function NotebookToolsPanel({
             variant="outline"
             size="sm"
             onClick={onOpenPlanner}
-            className="h-8 gap-1 rounded-xl text-[11px]"
+            className="h-8 min-w-0 gap-1 rounded-xl px-2 text-[11px]"
           >
-            <Flame className="h-3.5 w-3.5 text-amber-500" />
-            SM-2 ({dueCardsCount})
+            <Flame className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+            <span className="truncate">SM-2 ({dueCardsCount})</span>
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onOpenExamSim}
-            className="h-8 gap-1 rounded-xl text-[11px]"
+            className="h-8 min-w-0 gap-1 rounded-xl px-2 text-[11px]"
           >
-            <Timer className="h-3.5 w-3.5 text-violet-500" />
-            Sınav Modu
+            <Timer className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+            <span className="truncate">Sınav Modu</span>
           </Button>
         </div>
       </div>
