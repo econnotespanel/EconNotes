@@ -24,6 +24,7 @@ const BadgesCard = () => {
         supabase.from('notes').select('id').eq('user_id', user.id),
       ]);
       const p: any = pts.data || {};
+      const triviaPerfectWins = Number((user.user_metadata as any)?.trivia_perfect_wins || 0);
       setBadges(buildBadges({
         points: p.points ?? 0,
         currentStreak: p.current_streak ?? 0,
@@ -32,10 +33,18 @@ const BadgesCard = () => {
         attempts: (attempts.data || []).length,
         goalsCompleted: ((goals.data as any[]) || []).filter(g => g.completed_at).length,
         notes: (notes.data || []).length,
+        triviaPerfectWins,
       }));
       setLoading(false);
     };
     void run();
+    const onRefresh = () => { void run(); };
+    window.addEventListener('econnotes:points-updated', onRefresh);
+    window.addEventListener('econnotes:trivia-updated', onRefresh);
+    return () => {
+      window.removeEventListener('econnotes:points-updated', onRefresh);
+      window.removeEventListener('econnotes:trivia-updated', onRefresh);
+    };
   }, [user]);
 
   const unlocked = badges.filter(b => b.value >= b.goal).length;

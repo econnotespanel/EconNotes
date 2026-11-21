@@ -45,6 +45,7 @@ const Kpss = lazy(() => import("./pages/Kpss"));
 const Welcome = lazy(() => import("./pages/Welcome"));
 const Points = lazy(() => import("./pages/Points"));
 const Support = lazy(() => import("./pages/Support"));
+const DailyTrivia = lazy(() => import("./pages/DailyTrivia"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -123,6 +124,8 @@ const App = () => {
                         <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
                         <Route path="/live-class" element={<PageGuard path="/live-class"><LiveClass /></PageGuard>} />
                         <Route path="/support" element={<Support />} />
+                        <Route path="/gunluk-yarisma" element={<DailyTrivia />} />
+                        <Route path="/daily-trivia" element={<DailyTrivia />} />
                         <Route path="/install" element={<Install />} />
                         <Route path="*" element={<NotFound />} />
                         </Routes>

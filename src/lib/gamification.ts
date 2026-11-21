@@ -24,6 +24,7 @@ export interface GamificationStats {
   attempts: number;
   goalsCompleted: number;
   notes: number;
+  triviaPerfectWins?: number;
 }
 
 /** Builds the badge list with progress from raw user stats. */
@@ -40,6 +41,7 @@ export const buildBadges = (s: GamificationStats): BadgeDef[] => [
   { key: 'note1', label: 'Paylaşımcı', description: 'Platforma bir ders notu yükle.', icon: BookOpen, tone: 'text-accent', value: s.notes, goal: 1 , requirement: "Notlar sayfasından bir ders notu yükle.", unit: "not" },
   { key: 'note5', label: 'Arşiv Dostu', description: '5 ders notu yükle.', icon: BookOpen, tone: 'text-success', value: s.notes, goal: 5 , requirement: "Notlar sayfasından toplam 5 ders notu yükle.", unit: "not" },
   { key: 'points500', label: 'Puan Ustası', description: '500 puana ulaş.', icon: Sparkles, tone: 'text-warning', value: s.points, goal: 500 , requirement: "Giriş, görev, not ve testlerden toplam 500 puan biriktir.", unit: "puan" },
+  { key: 'trivia_perfect', label: 'Genel Kültür Şampiyonu', description: 'Günlük Bilgi Yarışması’nda 15/15 yap.', icon: Trophy, tone: 'text-primary', value: s.triviaPerfectWins ?? 0, goal: 1, requirement: "Günlük Genel Kültür Bilgi Yarışması’nda 15 sorunun tamamını doğru bil.", unit: "zafer" },
 ];
 
 /** ISO-week key such as 2026-W32; missions rotate weekly with this value. */

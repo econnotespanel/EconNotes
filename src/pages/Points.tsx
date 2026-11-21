@@ -27,6 +27,7 @@ const normalizeReasonKey = (reason: string) => {
   if (reason.startsWith('mission_focus_')) return 'mission_focus';
   if (reason.startsWith('mission:')) return 'mission';
   if (reason.startsWith('monday_wheel')) return 'monday_wheel';
+  if (reason.startsWith('daily_trivia')) return 'daily_trivia';
   return reason;
 };
 
@@ -37,6 +38,7 @@ const labelFor = (reason: string) => {
   if (reason === 'mission_focus' || reason.startsWith('mission_focus_')) return 'Derin odak stüdyosu';
   if (reason === 'mission' || reason.startsWith('mission:')) return 'Mini görev bonusu';
   if (reason === 'monday_wheel' || reason.startsWith('monday_wheel')) return 'Pazartesi Şans Çarkı';
+  if (reason === 'daily_trivia' || reason.startsWith('daily_trivia')) return 'Günlük Bilgi Yarışması';
   return REASON_LABEL[reason] || reason;
 };
 

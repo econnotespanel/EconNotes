@@ -8,6 +8,7 @@ import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronU
 import { fetchNoteEngagementCounts, formatEngagementNumber, type NoteEngagementMap } from '@/lib/noteEngagement';
 import { getBirthdayStatus, getUserBirthDate } from '@/lib/birthdayPerk';
 import { getMondayWheelState } from '@/lib/mondayWheel';
+import { getTriviaUnlimitedRemainingLabel } from '@/lib/dailyTrivia';
 import { openMondayWheelModal, EconWheelMiniGraphic } from '@/components/MondayWheelPopup';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -194,7 +195,7 @@ const Dashboard = () => {
     },
     {
       label: 'İndirme Hakkım',
-      value: quota?.is_admin || quota?.is_birthday_unlimited || quota?.is_wheel_unlimited ? 'Sınırsız' : (quota?.remaining ?? '—'),
+      value: quota?.is_admin || quota?.is_birthday_unlimited || quota?.is_wheel_unlimited || quota?.is_trivia_unlimited ? 'Sınırsız' : (quota?.remaining ?? '—'),
       icon: Download,
       color: isNovember10 ? 'text-foreground' : 'text-emerald-500 dark:text-emerald-400',
       iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
@@ -522,7 +523,7 @@ const Dashboard = () => {
         </div>
 
         {quota && !quota.is_admin && (
-          <Card className={`glass-card ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
+          <Card className={`glass-card ${quota.is_birthday_unlimited || quota.is_wheel_unlimited || quota.is_trivia_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
             <CardContent className="p-5">
               {quota.is_birthday_unlimited ? (
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -561,6 +562,26 @@ const Dashboard = () => {
                     </p>
                   </div>
                   <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-[#003791] to-[#0070d1] text-white hover:opacity-95 shrink-0">
+                    Notları İncele
+                  </Button>
+                </div>
+              ) : quota.is_trivia_unlimited ? (
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20 shrink-0 w-fit">
+                    <Sparkles className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                      <h3 className="font-bold text-base text-foreground">Bilgi Yarışması 15/15 Ödülün: 2 Saat Sınırsız Not Erişimi!</h3>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full border border-amber-500/35 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
+                        {getTriviaUnlimitedRemainingLabel(user, profile as any)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Günlük Genel Kültür Bilgi Yarışması’nda 15/15 yaparak kazandığın 2 saatlik sınırsız not görüntüleme ve indirme hakkın aktif!
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-95 shrink-0">
                     Notları İncele
                   </Button>
                 </div>

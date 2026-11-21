@@ -29,6 +29,7 @@ import {
 } from '@/lib/noteEngagement';
 import { getBirthdayStatus, isBirthdayUnlimitedActive } from '@/lib/birthdayPerk';
 import { getMondayWheelState, getWheelBonusQuota, isWheelUnlimitedActive } from '@/lib/mondayWheel';
+import { getTriviaUnlimitedRemainingLabel, isTriviaUnlimitedActive } from '@/lib/dailyTrivia';
 import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark, prepareWatermarkedPreview } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -257,8 +258,9 @@ const Notes = () => {
     if (!user) return;
     const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
     const wheelUnlimited = isWheelUnlimitedActive(user);
+    const triviaUnlimited = isTriviaUnlimitedActive(user, profile as any);
     const wheelBonus = getWheelBonusQuota(user);
-    if (viewRestricted && !isAdmin && !birthdayUnlimited && !wheelUnlimited) {
+    if (viewRestricted && !isAdmin && !birthdayUnlimited && !wheelUnlimited && !triviaUnlimited) {
       const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
       const q = (data && data[0]) as typeof quota;
       const canAccess = q ? q.can_download || q.total_downloads < q.allowed_downloads + wheelBonus : true;
@@ -366,8 +368,9 @@ const Notes = () => {
     if (!user) return;
     const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
     const wheelUnlimited = isWheelUnlimitedActive(user);
+    const triviaUnlimited = isTriviaUnlimitedActive(user, profile as any);
     const wheelBonus = getWheelBonusQuota(user);
-    if (!isAdmin && !birthdayUnlimited && !wheelUnlimited) {
+    if (!isAdmin && !birthdayUnlimited && !wheelUnlimited && !triviaUnlimited) {
       // Re-fetch quota fresh to avoid race conditions
       const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
       const q = (data && data[0]) as typeof quota;
@@ -725,7 +728,7 @@ const Notes = () => {
       <ScreenshotProtection isPreviewOpen={Boolean(previewUrl)} viewerName={viewerDisplayName}>
       <div className="space-y-6 animate-fade-in">
         {quota && !quota.is_admin && (
-          <Card className={`glass-card border-2 ${quota.is_birthday_unlimited || quota.is_wheel_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : quota.can_download ? 'border-primary/30' : 'border-destructive/50'}`}>
+          <Card className={`glass-card border-2 ${quota.is_birthday_unlimited || quota.is_wheel_unlimited || quota.is_trivia_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : quota.can_download ? 'border-primary/30' : 'border-destructive/50'}`}>
             <CardContent className="p-4">
               {quota.is_birthday_unlimited ? (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -755,6 +758,22 @@ const Notes = () => {
                       </h3>
                       <p className="text-xs text-muted-foreground">
                         Şans çarkından kazandığın 24 saatlik sınırsız not görüntüleme, indirme ve yükleme hakkın aktif ({getMondayWheelState(user).wheelUnlimitedRemainingLabel}).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : quota.is_trivia_unlimited ? (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-sm">
+                      <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm text-foreground">
+                        Bilgi Yarışması 15/15 Büyük Ödülün Aktif: 2 Saat Sınırsız Not Erişimi!
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Günlük Genel Kültür Bilgi Yarışması’nda 15/15 yaparak kazandığın sınırsız not görüntüleme ve indirme hakkın aktif ({getTriviaUnlimitedRemainingLabel(user, profile as any)}). Süre bitince normal kotana otomatik dönülür.
                       </p>
                     </div>
                   </div>

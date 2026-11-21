@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { isBirthdayUnlimitedActive } from '@/lib/birthdayPerk';
 import { getWheelBonusQuota, isWheelUnlimitedActive } from '@/lib/mondayWheel';
+import { getTriviaUnlimitedUntil, isTriviaUnlimitedActive } from '@/lib/dailyTrivia';
 
 export interface DownloadQuota {
   approved_uploads: number;
@@ -13,6 +14,8 @@ export interface DownloadQuota {
   is_admin: boolean;
   is_birthday_unlimited?: boolean;
   is_wheel_unlimited?: boolean;
+  is_trivia_unlimited?: boolean;
+  trivia_unlimited_until?: number;
   wheel_bonus_quota?: number;
 }
 
@@ -29,6 +32,8 @@ export const useDownloadQuota = () => {
     }
     const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
     const wheelUnlimited = isWheelUnlimitedActive(user);
+    const triviaUnlimited = isTriviaUnlimitedActive(user, profile as { trivia_unlimited_until?: string | null } | null);
+    const triviaUntil = getTriviaUnlimitedUntil(user, profile as { trivia_unlimited_until?: string | null } | null);
     const wheelBonus = getWheelBonusQuota(user);
 
     const { data, error } = await supabase.rpc('get_download_quota', { _user_id: user.id });
@@ -41,6 +46,8 @@ export const useDownloadQuota = () => {
         allowed_downloads: totalAllowed,
         is_birthday_unlimited: birthdayUnlimited,
         is_wheel_unlimited: wheelUnlimited,
+        is_trivia_unlimited: triviaUnlimited,
+        trivia_unlimited_until: triviaUnlimited ? triviaUntil : 0,
         wheel_bonus_quota: wheelBonus,
       };
       normalized.remaining = Math.max(totalAllowed - normalized.total_downloads, 0);
@@ -48,9 +55,10 @@ export const useDownloadQuota = () => {
         normalized.is_admin ||
         birthdayUnlimited ||
         wheelUnlimited ||
+        triviaUnlimited ||
         normalized.total_downloads < totalAllowed;
       setQuota(normalized);
-    } else if (birthdayUnlimited || wheelUnlimited) {
+    } else if (birthdayUnlimited || wheelUnlimited || triviaUnlimited) {
       setQuota({
         approved_uploads: 0,
         total_downloads: 0,
@@ -60,6 +68,8 @@ export const useDownloadQuota = () => {
         is_admin: false,
         is_birthday_unlimited: birthdayUnlimited,
         is_wheel_unlimited: wheelUnlimited,
+        is_trivia_unlimited: triviaUnlimited,
+        trivia_unlimited_until: triviaUnlimited ? triviaUntil : 0,
         wheel_bonus_quota: wheelBonus,
       });
     }
@@ -70,11 +80,28 @@ export const useDownloadQuota = () => {
     refresh();
     window.addEventListener('econnotes:birthdate-updated', refresh);
     window.addEventListener('econnotes:wheel-updated', refresh);
+    window.addEventListener('econnotes:trivia-updated', refresh);
     return () => {
       window.removeEventListener('econnotes:birthdate-updated', refresh);
       window.removeEventListener('econnotes:wheel-updated', refresh);
+      window.removeEventListener('econnotes:trivia-updated', refresh);
     };
   }, [refresh]);
+
+  // Real-time auto-expiry timer: restore normal quota the exact moment the 2-hour trivia pass expires
+  useEffect(() => {
+    const until = quota?.trivia_unlimited_until || 0;
+    if (!until) return;
+    const msLeft = until - Date.now();
+    if (msLeft <= 0) {
+      void refresh();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, Math.min(msLeft + 300, 2_147_000_000));
+    return () => window.clearTimeout(timer);
+  }, [quota?.trivia_unlimited_until, refresh]);
 
   return { quota, loading, refresh };
 };
