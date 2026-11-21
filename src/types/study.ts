@@ -116,6 +116,7 @@ export interface SummaryContent {
 }
 
 export interface QuizQuestion {
+  id?: string;
   type: 'multiple_choice' | 'short_answer';
   question: string;
   options?: string[];
@@ -124,12 +125,31 @@ export interface QuizQuestion {
   rubric?: string[];
   explanation?: string;
   topic?: string;
+  sourceSection?: string;
+  sourcePage?: string;
+  conceptKey?: string;
+  sourceFingerprint?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   bloomLevel?: string;
 }
 
+export interface QuizQualityReport {
+  validatedCount: number;
+  rejectedCount: number;
+  regeneratedCount: number;
+  historyExcludedCount: number;
+  difficultyBreakdown: {
+    easy: number;
+    medium: number;
+    hard: number;
+  };
+  topicCoverageCount: number;
+}
+
 export interface QuizContent {
   questions: QuizQuestion[];
+  extractionNotices?: string[];
+  qualityReport?: QuizQualityReport;
   metadata?: {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
@@ -149,16 +169,21 @@ export interface OpenEndedGradeResult {
 }
 
 export interface FlashcardItem {
+  id?: string;
   front: string;
   back: string;
   hint?: string;
   topic?: string;
+  sourceSection?: string;
+  sourcePage?: string;
+  conceptKey?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
   examTip?: string;
 }
 
 export interface FlashcardsContent {
   cards: FlashcardItem[];
+  extractionNotices?: string[];
   metadata?: {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
@@ -171,9 +196,15 @@ export interface FlashcardsContent {
 export type StudyContentPayload = Partial<SummaryContent> &
   Partial<QuizContent> &
   Partial<FlashcardsContent> & {
+    videoTitle?: string;
+    outline?: string;
     videoScript?: string;
     totalEstimatedDurationSec?: number;
     scenes?: unknown[];
+    keyFacts?: string[];
+    matchingPairs?: unknown[];
+    examQuestions?: unknown[];
+    extractionNotices?: string[];
     metadata?: {
       sourceMode?: 'ai' | 'fallback' | 'local';
       deepResearch?: boolean;
@@ -184,6 +215,7 @@ export type StudyContentPayload = Partial<SummaryContent> &
       sourceFingerprint?: string;
       analyzedCourses?: string[];
       isMultiCourse?: boolean;
+      qualityVerified?: boolean;
       sourceStats?: {
         sourceCount: number;
         wordCount: number;
@@ -295,6 +327,10 @@ export interface StudioGenerationSettings {
   examFocus: string;
   faculty?: string;
   examMode?: ExamStudyMode;
+  userId?: string;
+  generationNonce?: string;
+  previousQuestions?: QuizQuestion[];
+  previousFlashcards?: FlashcardItem[];
 }
 
 export interface NotebookAttachmentImage {

@@ -843,9 +843,28 @@ export default function Study() {
 
     const bundle = buildBundleFromCanonicalAnalysis(freshAnalysis, activeNotebook.title);
 
+    // Collect prior questions & flashcards for the exact same sourceFingerprint so repeated runs never duplicate
+    const sameSourceMaterials = materials.filter((m) => {
+      const mFp =
+        m.content?.metadata?.sourceFingerprint ||
+        (m.exam_profile as Record<string, unknown> | null | undefined)?.sourceFingerprint;
+      if (mFp && freshAnalysis.fingerprint) return mFp === freshAnalysis.fingerprint;
+      return Boolean(bundle.course && m.course === bundle.course && m.title === bundle.title);
+    });
+    const priorQuestions = sameSourceMaterials
+      .filter((m) => m.material_type === 'quiz' && Array.isArray(m.content?.questions))
+      .flatMap((m) => m.content.questions || []);
+    const priorFlashcards = sameSourceMaterials
+      .filter((m) => m.material_type === 'flashcards' && Array.isArray(m.content?.cards))
+      .flatMap((m) => m.content.cards || []);
+
     const nextSettings: StudioGenerationSettings = {
       ...settings,
       materialType: targetType,
+      userId: user.id,
+      generationNonce: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      previousQuestions: targetType === 'quiz' ? priorQuestions : undefined,
+      previousFlashcards: targetType === 'flashcards' ? priorFlashcards : undefined,
     };
     setSettings(nextSettings);
     setIsGenerating(true);
@@ -982,7 +1001,32 @@ export default function Study() {
         };
         bundle = combineStudySources([source], activeMaterial.title, activeMaterial.course || '');
       }
-      const nextSettings: StudioGenerationSettings = { ...settings, materialType: targetType };
+      const targetFp = bundle.sourceFingerprint || (typeof matFp === 'string' ? matFp : undefined);
+      const sameSourceMats = materials.filter((m) => {
+        const mFp =
+          m.content?.metadata?.sourceFingerprint ||
+          (m.exam_profile as Record<string, unknown> | null | undefined)?.sourceFingerprint;
+        if (targetFp && mFp) return mFp === targetFp;
+        return m.title === activeMaterial.title && m.course === activeMaterial.course;
+      });
+      const nextSettings: StudioGenerationSettings = {
+        ...settings,
+        materialType: targetType,
+        userId: user.id,
+        generationNonce: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        previousQuestions:
+          targetType === 'quiz'
+            ? sameSourceMats
+                .filter((m) => m.material_type === 'quiz' && Array.isArray(m.content?.questions))
+                .flatMap((m) => m.content.questions || [])
+            : undefined,
+        previousFlashcards:
+          targetType === 'flashcards'
+            ? sameSourceMats
+                .filter((m) => m.material_type === 'flashcards' && Array.isArray(m.content?.cards))
+                .flatMap((m) => m.content.cards || [])
+            : undefined,
+      };
       const res = await routedGenerateMaterial(bundle, nextSettings);
 
       const { data, error } = await supabase

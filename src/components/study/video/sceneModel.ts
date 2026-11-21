@@ -783,8 +783,21 @@ function buildDiagram(
   const metric = isGreetingOrChatter(metricCandidate) ? `${title} analitik özeti` : metricCandidate;
   const rootBadge = cleanText(courseLabel) || 'AKADEMİK STÜDYO';
   const themeText = `${courseLabel} ${title} ${narration}`;
+  const ALL_VALID_THEMES: VisualTheme[] = [
+    'economics',
+    'history',
+    'law',
+    'politics',
+    'medicine',
+    'engineering',
+    'education',
+    'sports',
+    'agriculture',
+    'science',
+    'society',
+  ];
   const visualTheme: VisualTheme =
-    dd?.visualTheme && ['history', 'economics', 'law', 'science', 'society'].includes(dd.visualTheme)
+    dd?.visualTheme && ALL_VALID_THEMES.includes(dd.visualTheme)
       ? dd.visualTheme
       : inferVisualTheme(themeText);
 
@@ -946,20 +959,22 @@ function buildConversationalSentences(
       });
     });
 
-    // Eğer açık turlarda değinilmemiş kritik terim veya sınav uyarısı varsa organik biçimde ekle
-    const joinedLower = sentences.join(' ').toLocaleLowerCase('tr-TR');
-    const extraTerm = terms.find(
-      kt =>
-        kt.term &&
-        kt.definition &&
-        !joinedLower.includes(kt.term.toLocaleLowerCase('tr-TR')) &&
-        !joinedLower.includes(kt.definition.slice(0, 20).toLocaleLowerCase('tr-TR')),
-    );
-    if (extraTerm) {
-      sentences.push(`Deniz hocam, tam bu noktada ${extraTerm.term} kavramının mantığını ve işlevini de netleştirelim mi?`);
-      speakers.push('Barış');
-      sentences.push(`Çok iyi bir noktaya değindin Barış; ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
-      speakers.push('Deniz');
+    // Keep spoken turns and rendered subtitles strictly aligned 1:1 when turns are already substantive.
+    if (sentences.length < 3) {
+      const joinedLower = sentences.join(' ').toLocaleLowerCase('tr-TR');
+      const extraTerm = terms.find(
+        kt =>
+          kt.term &&
+          kt.definition &&
+          !joinedLower.includes(kt.term.toLocaleLowerCase('tr-TR')) &&
+          !joinedLower.includes(kt.definition.slice(0, 20).toLocaleLowerCase('tr-TR')),
+      );
+      if (extraTerm) {
+        sentences.push(`Deniz hocam, ${extraTerm.term} kavramının buradaki işlevini de özetler misiniz?`);
+        speakers.push('Barış');
+        sentences.push(`${extraTerm.term}: ${ensureSentenceEnd(lowerFirstIfNotProper(extraTerm.definition))}`);
+        speakers.push('Deniz');
+      }
     }
 
     return {
@@ -1891,7 +1906,13 @@ export function buildStudioContent(
     const diagram = buildDiagram(s, idx, courseLabel, sceneTitle, rawNarration, takeaways, terms);
 
     const diagramText = `${courseLabel} ${title} ${sceneTitle} ${rawNarration} ${terms.map(t => t.term).join(' ')}`;
-    if (usedDiagramTypes.has(diagram.type) || !s?.diagramData?.diagramType) {
+    const hasExplicitValidType = Boolean(
+      s?.diagramData?.diagramType && VALID_DIAGRAM_TYPES.includes(s.diagramData.diagramType),
+    );
+    const illegalGraphType =
+      (diagram.type === 'curve' && (diagram.visualTheme !== 'economics' || !isGraphDiagramAllowed(diagramText))) ||
+      (diagram.type === 'chart' && !isGraphDiagramAllowed(diagramText));
+    if (illegalGraphType || (!hasExplicitValidType && usedDiagramTypes.has(diagram.type))) {
       diagram.type = chooseDistinctDiagramType(diagram.type, diagramText, idx, usedDiagramTypes);
     }
     usedDiagramTypes.add(diagram.type);

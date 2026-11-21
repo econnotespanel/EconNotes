@@ -13,6 +13,19 @@ import {
   sliceContextForSection,
   type AcademicDomainMode,
 } from '@/lib/studySourceProcessor';
+import {
+  buildAvoidanceAndRotationPlan,
+  computeDifficultyQuota,
+  loadSourceFlashcardHistory,
+  loadSourceQuestionHistory,
+  recordValidatedFlashcardsToHistory,
+  recordValidatedQuestionsToHistory,
+  resolveVideoThemeForCourse,
+  validateAndRepairVideoContent,
+  validateFlashcardsBatch,
+  validateQuizBatch,
+  type DifficultyQuota,
+} from '@/lib/studyQualityEngine';
 import type {
   CoachMode,
   FlashcardItem,
@@ -383,66 +396,125 @@ YANITINI YALNIZCA AŞAĞIDAKİ GEÇERLİ JSON FORMATINDA DÖNDÜR (başka sohbet
 }`;
 }
 
-function buildStrictQuizPrompt(settings: StudioGenerationSettings, bundle?: ProcessedStudyBundle): string {
-  const count = Math.min(Math.max(settings.questionCount || 10, 4), 25);
+function buildStrictQuizPrompt(
+  settings: StudioGenerationSettings,
+  bundle?: ProcessedStudyBundle,
+  options?: {
+    targetCount?: number;
+    quota?: DifficultyQuota;
+    avoidSummaries?: string[];
+    priorityTopics?: string[];
+    generationNonce?: string;
+    isRepairPass?: boolean;
+  },
+): string {
+  const count = Math.min(Math.max(options?.targetCount ?? settings.questionCount ?? 10, 1), 25);
+  const quota = options?.quota ?? computeDifficultyQuota(count, settings.difficulty || 'mixed');
   const formatRule =
     settings.quizFormat === 'open_ended'
-      ? 'Tüm sorular klasik / açık uçlu (short_answer) olsun; her biri için net örnek cevap (sampleAnswer) yaz.'
+      ? 'Tüm sorular klasik / açık uçlu (short_answer) olsun; her biri için net örnek cevap (sampleAnswer) ve puanlama rubriği yaz.'
       : settings.quizFormat === 'mixed'
       ? 'Soruların yaklaşık %75i 4 şıklı çoktan seçmeli (multiple_choice), %25i açık uçlu (short_answer) olsun.'
-      : 'Tüm sorular 4 şıklı çoktan seçmeli (multiple_choice) olsun.';
+      : 'Tüm sorular TAM OLARAK 4 şıklı çoktan seçmeli (multiple_choice) olsun.';
+  const difficultyRule = `ZORLUK DAĞILIMI (BİLİŞSEL DÜZEYE GÖRE, KELİME SAYISINA GÖRE DEĞİL):
+- ${quota.easy} adet "easy" (Temel bilgi ve kavrama — doğrudan tanım, sınıflandırma, ilke tanıma)
+- ${quota.medium} adet "medium" (Yorumlama ve uygulama — mekanizma, neden-sonuç etkisi, örnek/senaryo veya kaynaktaki formül uygulaması)
+- ${quota.hard} adet "hard" (Analiz ve karşılaştırma — iki yaklaşım/teori karşılaştırması, varsayım bozulması, hangisi söylenemez / çıkarılamaz analizi)`;
   const multiRule =
     bundle?.isMultiCourse && bundle.sourceCourses?.length
-      ? `\nÇOKLU DERS KURALI: Seçili dersler (${bundle.sourceCourses.join(', ')}) birbirine karıştırılmamalı; her sorunun "topic" alanında "[Ders Adı] — Konu" biçimini kullan.`
+      ? `\nÇOKLU DERS İZOLASYONU: Seçili dersler (${bundle.sourceCourses.join(', ')}) birbirine ASLA karıştırılmamalı; her sorunun "topic" alanında "[Ders Adı] — Konu" biçimini kullan.`
       : '';
+  const priorityRule =
+    options?.priorityTopics && options.priorityTopics.length > 0
+      ? `\nÖNCELİKLİ KONU DÖNGÜSÜ (BU SINAVDA ÖZELLİKLE KAPSA): ${options.priorityTopics.slice(0, 10).join(' | ')}`
+      : '';
+  const avoidRule =
+    options?.avoidSummaries && options.avoidSummaries.length > 0
+      ? `\nKESİN TEKRAR YASAĞI — DAHA ÖNCE SORULMUŞ SORULAR VE KAVRAMLAR (BUNLARI, AYNI OLGUNUN FARKLI KELİMELERLE YENİDEN YAZIMINI VEYA AYNI CEVABI ÖLÇEN BENZER SORULARI ASLA ÜRETME):\n${options.avoidSummaries
+          .slice(0, 22)
+          .map((s, idx) => `${idx + 1}. ${s}`)
+          .join('\n')}`
+      : '';
+  const nonceHint = options?.generationNonce
+    ? `\nÜRETİM OTURUMU: ${options.generationNonce} (Önceki denemelerden farklı alt başlıklar, farklı kazanımlar ve farklı soru kurguları seç.)`
+    : '';
+  const repairHint = options?.isRepairPass
+    ? '\nONARIM TURU: Kalite kontrolünden geçemeyen veya tekrar eden soruları telafi etmek için YALNIZCA istenen eksik adet ve zorluklarda, yukarıdaki yasaklı listeden tamamen bağımsız yeni sorular üret.'
+    : '';
   const digestHint = bundle?.canonicalAnalysisDigest
-    ? `\nORTAK KAYNAK ANALİZİ (ÖZET VE DİĞER ARAÇLARLA %100 AYNI KAPSAM):\n${bundle.canonicalAnalysisDigest.slice(0, 3_200)}`
+    ? `\nORTAK KAYNAK ANALİZİ (ÖZET VE DİĞER ARAÇLARLA %100 AYNI KAPSAM):\n${bundle.canonicalAnalysisDigest.slice(0, 3_000)}`
     : '';
 
-  return `Görev: Yalnızca yüklenen ders notuna ve ortak kaynak analizine dayanarak tam ${count} adet net, anlaşılır, gerçek üniversite sınavı kalitesinde Türkçe soru üret.
-${formatRule}${multiRule}
+  return `Görev: Yalnızca yüklenen ders notuna ve ortak kaynak analizine dayanarak tam ${count} adet özgün, akademik açıdan kusursuz ve doğrulanmış Türkçe üniversite sınav sorusu üret.
+${formatRule}
+${difficultyRule}${multiRule}${priorityRule}${avoidRule}${nonceHint}${repairHint}
 ${settings.customPrompt?.trim() ? `Özel istek: ${settings.customPrompt.trim()}` : ''}${digestHint}
 
-KESİN KURALLAR:
-1. YALNIZCA bu ders notunda geçen gerçek dersin kavram, tanım, teori, formül ve olaylarından soru yaz. Başka bir dersin konularını ASLA karıştırma ve ekleme.
-2. Belgenin yalnızca ilk sayfalarından değil, başından sonuna tüm önemli başlıklarından dengeli soru üret.
-3. Her soru kökü dilbilgisi düzgün, açık ve tek bir net cevabı olacak şekilde yazılmalıdır.
-4. Çoktan seçmeli sorularda TAM OLARAK 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır. Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt.
-5. Her soru için doğru cevabın neden doğru olduğunu kaynağa dayanarak 2-3 sade cümleyle açıkla.
+KESİN AKADEMİK KALİTE VE DOĞRULAMA KURALLARI:
+1. %100 KAYNAK BAĞLILIĞI: Sorular doğrudan yüklenen belgedeki gerçek kavram, teori, model, formül ve örneklerden üretilmelidir. Kaynakta anlatılmayan konulardan veya başka derslerden rastgele soru ASLA üretme.
+2. TEKRAR VE BENZERLİK YASAĞI: Aynı kavramı, aynı tanımı veya aynı mekanizmayı kelimeleri hafifçe değiştirerek iki kez sorma. Soru sayısını doldurmak için varyasyon üretme; belgenin farklı başlık ve kazanımlarına yayıl.
+3. TEK VE KESİN DOĞRU CEVAP: Çoktan seçmeli sorularda TAM 4 şık olmalı; YALNIZCA 1 şık kaynak metne göre kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama akademik olarak mantıklı ve birbirinden farklı çeldiriciler olmalıdır. İki şıkkın aynı anda doğru olması, benzer/kopya şıklar, yarıda kesilmiş ("...") ifadeler ve anlamsız çeldiriciler kesinlikle yasaktır.
+4. CEVAP ANAHTARI VE AÇIKLAMA TUTARLILIĞI: "correctIndex" (0=A, 1=B, 2=C, 3=D) değerini bağımsız olarak doğrula; "explanation" alanındaki çözüm işaretlenen doğru şık ile birebir örtüşmeli ve kaynağa dayanmalıdır. Doğru şıkları 0, 1, 2, 3 arasında dengeli dağıt.
+5. KAYNAK REFERANSI: Her soruda "sourceSection" (ilgili konu başlığı), varsa "sourcePage" (örn. "Sayfa 4" / "Slayt 7") ve kısa benzersiz "conceptKey" belirt.
 
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 {
   "questions": [
     {
       "type": "multiple_choice",
-      "question": "Net ve anlaşılır soru metni?",
+      "question": "Net, eksiksiz ve akademik açıdan tutarlı soru kökü?",
       "options": ["Şık A", "Şık B", "Şık C", "Şık D"],
       "correctIndex": 1,
       "sampleAnswer": "",
       "rubric": [],
-      "explanation": "Doğru şıkkın nottaki dayanağıyla net açıklaması.",
+      "explanation": "Doğru şıkkın neden doğru olduğunu kaynak nottaki dayanağıyla açıklayan 2-3 cümle.",
       "topic": "Nottaki ilgili konu başlığı",
-      "difficulty": "medium",
-      "bloomLevel": "Anlama"
+      "sourceSection": "Belgedeki ilgili başlık",
+      "sourcePage": "Sayfa/Slayt no (varsa)",
+      "conceptKey": "kisa_kavram_anahtari",
+      "difficulty": "easy | medium | hard",
+      "bloomLevel": "Bilgi ve Kavrama | Yorumlama ve Uygulama | Analiz ve Karşılaştırma"
     }
   ]
 }`;
 }
 
-function buildStrictFlashcardsPrompt(settings: StudioGenerationSettings, bundle?: ProcessedStudyBundle): string {
-  const count = Math.min(Math.max(settings.cardCount || 14, 6), 30);
+function buildStrictFlashcardsPrompt(
+  settings: StudioGenerationSettings,
+  bundle?: ProcessedStudyBundle,
+  options?: {
+    targetCount?: number;
+    avoidFronts?: string[];
+    priorityTopics?: string[];
+    generationNonce?: string;
+  },
+): string {
+  const count = Math.min(Math.max(options?.targetCount ?? settings.cardCount ?? 14, 2), 30);
   const multiRule =
     bundle?.isMultiCourse && bundle.sourceCourses?.length
       ? `\nÇOKLU DERS KURALI: Her kartı kendi dersine ait tut ve "topic" alanında "[Ders Adı] — Konu" kullan (${bundle.sourceCourses.join(', ')}).`
       : '';
+  const priorityRule =
+    options?.priorityTopics && options.priorityTopics.length > 0
+      ? `\nÖNCELİKLİ BÖLÜMLER: ${options.priorityTopics.slice(0, 10).join(' | ')}`
+      : '';
+  const avoidRule =
+    options?.avoidFronts && options.avoidFronts.length > 0
+      ? `\nTEKRAR YASAĞI — DAHA ÖNCE ÜRETİLEN KARTLAR (AYNISINI VEYA BENZERİNİ ÜRETME):\n${options.avoidFronts
+          .slice(0, 20)
+          .map((f, i) => `${i + 1}. ${f}`)
+          .join('\n')}`
+      : '';
   const digestHint = bundle?.canonicalAnalysisDigest
     ? `\nORTAK KAYNAK ANALİZİ:\n${bundle.canonicalAnalysisDigest.slice(0, 3_000)}`
     : '';
-  return `Görev: Yalnızca yüklenen ders notuna ve ortak kaynak analizine dayanarak tam ${count} adet net, anlaşılır, sınav tekrarında gerçekten işe yarayan Türkçe çalışma kartı (flashcard) üret.${multiRule}${digestHint}
+  return `Görev: Yalnızca yüklenen ders notuna ve ortak kaynak analizine dayanarak tam ${count} adet özgün, tekrarsız, sınav tekrarında gerçekten işe yarayan Türkçe çalışma kartı (flashcard) üret.${multiRule}${priorityRule}${avoidRule}${
+    options?.generationNonce ? `\nOTURUM: ${options.generationNonce}` : ''
+  }${digestHint}
 KESİN KURALLAR:
-1. Sadece bu ders notunda yer alan gerçek dersin kavram, tanım, teori, formül ve ayrımlarını kullan; başka bir dersin bilgilerini ASLA karıştırma.
-2. Belgenin başından sonuna tüm önemli başlıkları kapsa.
-3. Ön yüz (front) kısa, açık bir soru veya kavram olsun; arka yüz (back) sade, doğru ve akılda kalıcı net bir cevap olsun.
+1. Sadece bu ders notunda yer alan gerçek dersin kavram, tanım, teori, formül, karşılaştırma ve mekanizmalarını kullan; başka bir dersin bilgilerini ASLA ekleme.
+2. Belgenin başından sonuna tüm önemli başlıkları kapsa; aynı kavramı iki kartta tekrarlama.
+3. Ön yüz (front) net, kesintisiz ("..." olmadan) bir soru veya kavram olsun; arka yüz (back) sade, doğru ve kaynakla birebir uyumlu bir cevap olsun.
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 {
   "cards": [
@@ -451,7 +523,9 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
       "back": "Anlaşılır, doğru ve net cevap.",
       "hint": "Kısa hatırlatıcı ipucu",
       "topic": "Nottaki ilgili başlık",
-      "difficulty": "medium"
+      "sourceSection": "Belgedeki başlık",
+      "sourcePage": "Sayfa/Slayt (varsa)",
+      "difficulty": "easy | medium | hard"
     }
   ]
 }`;
@@ -461,22 +535,54 @@ function buildStrictVideoPrompt(
   courseOrDisciplineLabel: string,
   customPrompt?: string,
   bundle?: ProcessedStudyBundle,
+  options?: {
+    partIndex?: number;
+    totalParts?: number;
+    sceneRangeHint?: string;
+  },
 ): string {
+  const lockedTheme = resolveVideoThemeForCourse(
+    courseOrDisciplineLabel,
+    bundle?.title || '',
+    bundle?.combinedText || '',
+  );
   const extra = customPrompt?.trim() ? `\nÖğrencinin özel isteği: ${customPrompt.trim()}` : '';
   const multiRule =
     bundle?.isMultiCourse && bundle.sourceCourses?.length
-      ? `\nÇOKLU DERS KURALI: Farklı derslerin (${bundle.sourceCourses.join(', ')}) sahnelerini ayrı tut ve her sahne başlığında [Ders Adı] belirt.`
+      ? `\nÇOKLU DERS İZOLASYONU: Farklı derslerin (${bundle.sourceCourses.join(', ')}) sahnelerini ayrı tut ve her sahne başlığında [Ders Adı] belirt.`
+      : '';
+  const partRule =
+    options?.totalParts && options.totalParts > 1
+      ? `\nPARÇALI BELGE AKIŞI (${(options.partIndex ?? 0) + 1}/${options.totalParts}. BÖLÜM): Bu parça ders notunun sıralı bir bölümüdür. Sadece bu parçadaki başlıkları sırasıyla ve atlamadan ${
+          options.sceneRangeHint || '2-3'
+        } sahne halinde işle.`
+      : `\nTAM BELGE AKIŞI: Belgenin başından sonuna tüm ana ve alt başlıkları mantıklı öğrenme sırasıyla (${
+          options?.sceneRangeHint || '5-8'
+        } sahne) kapsa; rastgele konu atlama veya yüzeysel geçiştirme yapma.`;
+  const warningRule =
+    bundle?.extractionWarnings && bundle.extractionWarnings.length > 0
+      ? `\nEKSİK/OKUNAMAYAN SAYFA BİLGİSİ: ${bundle.extractionWarnings.join(' | ')}`
       : '';
   const digestHint = bundle?.canonicalAnalysisDigest
-    ? `\nORTAK KAYNAK ANALİZİ (ÖZETLE %100 AYNI KAPSAM):\n${bundle.canonicalAnalysisDigest.slice(0, 3_000)}`
+    ? `\nORTAK KAYNAK ANALİZİ (ÖZET VE SINAVLA %100 AYNI KAPSAM):\n${bundle.canonicalAnalysisDigest.slice(0, 3_000)}`
     : '';
-  return `Görev: Yüklenen ders notundan ve ortak kaynak analizinden 5-8 sahneli, Dr. Deniz (anlatıcı) ve Barış (soru soran öğrenci) arasında geçen, ekranda çok rahat okunabilir ve %100 nota sadık Türkçe Video Ders JSON'u üret.${extra}${multiRule}${digestHint}
+  const curveChartRule =
+    lockedTheme === 'economics'
+      ? `4. GÖRSEL ŞEMA TİPİ: 'visual', 'table', 'comparison', 'timeline', 'scenario', 'structure', 'network', 'shapes' türlerini içeriğe uygun seç. 'curve' türünü YALNIZCA sahnede gerçekten arz-talep/para piyasası/faiz/eğri dengesi anlatılıyorsa, 'chart' türünü YALNIZCA sayısal oran/karşılaştırma varsa kullan.`
+      : `4. GÖRSEL ŞEMA TİPİ: Bu dersin alanı '${lockedTheme}' olduğundan ekonomik arz-talep eğrisi ('curve') ASLA kullanma. Yalnızca içeriğe uygun şemalar seç: 'visual', 'table', 'comparison', 'timeline', 'scenario', 'structure', 'network', 'shapes'${
+          lockedTheme === 'science' || lockedTheme === 'engineering'
+            ? " (ve yalnızca gerçek sayısal veri/dağılım varsa 'chart')"
+            : ''
+        }.`;
+
+  return `Görev: Yüklenen ders notundan ve ortak kaynak analizinden Dr. Deniz (anlatıcı akademisyen) ile Barış (soru soran öğrenci) arasında geçen, ekranda net okunabilir, ses-görsel-altyazı tam uyumlu ve %100 kaynağa sadık Türkçe Video Ders JSON'u üret.${partRule}${extra}${multiRule}${warningRule}${digestHint}
 KESİN KURALLAR:
-1. YALNIZCA yüklenen ders notunda geçen gerçek dersin kavram, teori, formül, süreç ve örneklerini anlat. Başka bir dersin kavramlarını veya klişe giriş cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda") KESİNLİKLE ekleme.
-2. Belgenin başından sonuna tüm önemli bölümleri sırayla kapsa.
-3. OKUNABİLİRLİK: Her sahnenin "diagramData.nodes" dizisinde 3-4 net kavram kartı üret. Her kartta "label" en fazla 34 karakter, "subtext" ise en fazla 125 karakterlik 1-2 sade cümle olsun.
-4. GÖRSEL TİPİ: Sadece metne uygun şemalar seç: "visual", "table", "comparison", "timeline", "scenario", "shapes". Yalnızca notta gerçek sayısal veriler varsa "chart" kullan.
-5. "visualTheme" değerini yalnızca bu dersin gerçek alanına göre seç: "medicine" | "engineering" | "science" | "law" | "politics" | "education" | "sports" | "agriculture" | "history" | "economics" | "society". (Tespit edilen ders/alan: ${courseOrDisciplineLabel})
+1. %100 KAYNAK VE DERS SADAKATİ: Yalnızca yüklenen ders notundaki gerçek kavram, teori, model, formül, tablo ve örnekleri anlat. Kaynakta bulunmayan veya başka bir derse ait terimleri ASLA ekleme. Klişe giriş/dolgu cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda", "Harika bir soru") KESİNLİKLE yazma.
+2. SES–GÖRSEL–ALTYAZI BİREBİR UYUMU: Her sahnedeki "diagramData.nodes" kartlarında yer alan 3-4 kavram, o sahnenin "turns" konuşmalarında BİZZAT anlatılan ve açıklanan kavramlarla birebir aynı olmalıdır. Ekranda konuşulmayan başlık veya kavram gösterilmemelidir.
+3. YÜKSEK OKUNABİLİRLİK: Her sahnenin "diagramData.nodes" dizisinde 3-4 net kart üret. "label" en fazla 34 karakter (üç nokta "..." olmadan), "subtext" en fazla 125 karakterlik tam ve sade cümle olsun.
+${curveChartRule}
+5. KİLİTLİ GÖRSEL TEMA: Tüm sahnelerde "visualTheme" değeri kesinlikle "${lockedTheme}" olsun (Tespit edilen ders: ${courseOrDisciplineLabel}).
+6. HER SAHNEDE DERİN VE DENGELİ ANLATIM: Dr. Deniz'in açıklamaları öğretici, kavramlar arası bağlantıyı ve gerekiyorsa kaynaktaki formülü/örneği net biçimde veren 45-85 kelimelik tam cümleler olsun.
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 {
   "videoTitle": "Yüklenen ders notunun gerçek ve net başlığı",
@@ -486,114 +592,31 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
     {
       "title": "Nottaki gerçek bölüm/konu başlığı",
       "turns": [
-        { "speaker": "Deniz", "text": "Nottaki kavramı net, anlaşılır ve doğru akademik dille açıkla..." },
-        { "speaker": "Barış", "text": "Deniz hocam, bu kavramın işleyişi veya ayırt edici noktası nedir?" },
-        { "speaker": "Deniz", "text": "Nottaki gerçek mekanizma, koşul veya örnekle net yanıt..." }
+        { "speaker": "Deniz", "text": "Nottaki kavramı, teoriyi veya mekanizmayı net akademik dille açıkla..." },
+        { "speaker": "Barış", "text": "Deniz hocam, bu mekanizmanın temel koşulu veya ayırt edici sonucu nedir?" },
+        { "speaker": "Deniz", "text": "Nottaki gerçek mekanizma, formül, tablo veya örnekle net yanıt..." }
       ],
       "diagramData": {
         "diagramType": "visual",
-        "visualTheme": "society",
+        "visualTheme": "${lockedTheme}",
         "mainTitle": "Slayt başlığı",
         "highlightMetric": "Nottaki en kritik sınav çıkarımı",
         "nodes": [
-          { "label": "Nottan Gerçek Kavram 1", "subtext": "Kısa, net ve ekranda kolayca okunabilir açıklama.", "badge": "Temel Kavram" },
-          { "label": "Nottan Gerçek Kavram 2", "subtext": "İkinci bileşenin işleyişi veya ayırt edici yönü.", "badge": "Mekanizma" },
-          { "label": "Nottan Gerçek Kavram 3", "subtext": "Üçüncü unsur, koşul veya sonuç.", "badge": "Sonuç" }
+          { "label": "Sahnede Anlatılan Kavram 1", "subtext": "Kısa, net ve ekranda kolayca okunabilir açıklama.", "badge": "Temel Kavram" },
+          { "label": "Sahnede Anlatılan Kavram 2", "subtext": "İkinci bileşenin işleyişi veya ayırt edici yönü.", "badge": "Mekanizma" },
+          { "label": "Sahnede Anlatılan Kavram 3", "subtext": "Üçüncü unsur, koşul veya sonuç.", "badge": "Sonuç" }
         ]
       },
-      "keyTakeaways": ["Net çıkarım 1", "Net çıkarım 2"],
+      "keyTakeaways": ["Net çıkarım 1", "Net çıkarım 2", "Net çıkarım 3"],
       "keyTerms": [{ "term": "Nottaki terim", "definition": "Kısa ve net tanım" }],
       "examTip": "Bu konuya özgü gerçek sınav ipucu veya kavram ayrımı"
     }
   ],
   "matchingPairs": [{ "term": "Nottaki terim", "definition": "Kısa tanım" }],
   "examQuestions": [
-    { "question": "Nottan net soru?", "options": ["Şık A", "Şık B", "Şık C", "Şık D"], "correctIndex": 1, "explanation": "Nottaki dayanağıyla kısa açıklama." }
+    { "question": "Nottan tek doğru cevaplı net soru?", "options": ["Şık A", "Şık B", "Şık C", "Şık D"], "correctIndex": 1, "explanation": "Nottaki dayanağıyla net açıklama.", "difficulty": "medium" }
   ]
 }`;
-}
-
-function sanitizeAiQuizQuestions(raw: unknown): QuizQuestion[] {
-  if (!Array.isArray(raw)) return [];
-  const cleaned: QuizQuestion[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const rec = item as Record<string, unknown>;
-    const question = String(rec.question || '').trim();
-    if (question.length < 10) continue;
-
-    const rawType = String(rec.type || 'multiple_choice').toLowerCase();
-    const isShort = rawType === 'short_answer' || rawType === 'open_ended' || rawType === 'classic';
-    const rawDifficulty = String(rec.difficulty || 'medium').toLowerCase();
-    const difficulty: 'easy' | 'medium' | 'hard' =
-      rawDifficulty === 'easy' || rawDifficulty === 'kolay'
-        ? 'easy'
-        : rawDifficulty === 'hard' || rawDifficulty === 'zor'
-        ? 'hard'
-        : 'medium';
-
-    if (isShort) {
-      const sampleAnswer = String(rec.sampleAnswer || rec.explanation || '').trim();
-      if (!sampleAnswer) continue;
-      cleaned.push({
-        type: 'short_answer',
-        question,
-        options: [],
-        sampleAnswer,
-        rubric: Array.isArray(rec.rubric) ? rec.rubric.map(String).filter(Boolean).slice(0, 5) : [],
-        explanation: String(rec.explanation || sampleAnswer).trim(),
-        topic: String(rec.topic || 'Ders Notu').trim(),
-        difficulty,
-        bloomLevel: String(rec.bloomLevel || 'Analiz').trim(),
-      });
-      continue;
-    }
-
-    const opts = Array.isArray(rec.options)
-      ? rec.options.map((o) => String(o || '').trim()).filter(Boolean)
-      : [];
-    if (opts.length < 2) continue;
-    const rawIdx = Number(rec.correctIndex);
-    const correctIndex = Number.isFinite(rawIdx)
-      ? Math.max(0, Math.min(opts.length - 1, Math.round(rawIdx)))
-      : 0;
-
-    cleaned.push({
-      type: 'multiple_choice',
-      question,
-      options: opts.slice(0, 5),
-      correctIndex,
-      explanation: String(rec.explanation || '').trim(),
-      topic: String(rec.topic || 'Ders Notu').trim(),
-      difficulty,
-      bloomLevel: String(rec.bloomLevel || 'Anlama').trim(),
-    });
-  }
-  return cleaned;
-}
-
-function sanitizeAiFlashcards(raw: unknown): FlashcardItem[] {
-  if (!Array.isArray(raw)) return [];
-  const cleaned: FlashcardItem[] = [];
-  for (const item of raw) {
-    if (!item || typeof item !== 'object') continue;
-    const rec = item as Record<string, unknown>;
-    const front = String(rec.front || '').trim();
-    const back = String(rec.back || '').trim();
-    if (front.length < 3 || back.length < 3) continue;
-    const rawDiff = String(rec.difficulty || 'medium').toLowerCase();
-    const difficulty: 'easy' | 'medium' | 'hard' =
-      rawDiff === 'easy' ? 'easy' : rawDiff === 'hard' ? 'hard' : 'medium';
-    cleaned.push({
-      front,
-      back,
-      hint: rec.hint ? String(rec.hint).trim() : undefined,
-      topic: rec.topic ? String(rec.topic).trim() : undefined,
-      difficulty,
-      examTip: rec.examTip ? String(rec.examTip).trim() : undefined,
-    });
-  }
-  return cleaned;
 }
 
 function sanitizeAiSummarySections(raw: unknown): SummarySection[] {
@@ -974,6 +997,7 @@ async function postPublicJsonAttempt(
   systemPrompt: string,
   userPrompt: string,
   useResponseFormat: boolean,
+  temperature = 0.28,
 ): Promise<Record<string, unknown> | null> {
   try {
     const controller = new AbortController();
@@ -984,7 +1008,7 @@ async function postPublicJsonAttempt(
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt.slice(0, 15_500) },
       ],
-      temperature: 0.28,
+      temperature,
     };
     if (useResponseFormat) {
       bodyPayload.response_format = { type: 'json_object' };
@@ -1009,14 +1033,16 @@ async function postPublicJsonAttempt(
 async function invokePublicJsonFallback(
   systemPrompt: string,
   userPrompt: string,
+  temperature = 0.28,
 ): Promise<Record<string, unknown> | null> {
-  const first = await postPublicJsonAttempt(systemPrompt, userPrompt, true);
+  const first = await postPublicJsonAttempt(systemPrompt, userPrompt, true, temperature);
   if (first) return first;
   // Bazı genel uç noktalar response_format: json_object ile 400 döndürür; kısıtsız JSON istemiyle tekrar dene
   return postPublicJsonAttempt(
     `${systemPrompt}\n\nKRİTİK: Yalnızca ham JSON nesnesi ({...}) döndür, ek sohbet veya markdown açıklaması yazma.`,
     userPrompt,
     false,
+    temperature,
   );
 }
 
@@ -1918,12 +1944,12 @@ export async function generateMaterialWithOrchestration(
   }
 
   onProgress?.(
-    25,
+    20,
     settings.materialType === 'quiz'
-      ? 'Ortak kaynak analizinden sınav soruları oluşturuluyor...'
+      ? 'Ortak kaynak analizi ve soru geçmişi taranıyor...'
       : settings.materialType === 'flashcards'
-      ? 'Ortak kaynak analizinden aktif hatırlama kartları sentezleniyor...'
-      : 'Ortak kaynak analizinden video ders sahneleri hazırlanıyor...',
+      ? 'Ortak kaynak analizinden tekrarsız çalışma kartları planlanıyor...'
+      : 'Ortak kaynak analizinden kaynak odaklı video ders kurgulanıyor...',
   );
 
   const domain = classifyStudyDomain(bundle.combinedText, bundle.course, bundle.title, settings.faculty);
@@ -1932,6 +1958,12 @@ export async function generateMaterialWithOrchestration(
     bundle.detectedCourse?.trim() ||
     domain.detectedCourse ||
     bundle.title;
+  const outlineHeadings =
+    bundle.outlinePreview && bundle.outlinePreview.length > 0
+      ? bundle.outlinePreview
+      : extractFullDocumentOutline(bundle.combinedText, 24).map((a) => a.heading);
+  const generationNonce =
+    settings.generationNonce || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
   const sharedMeta = {
     sourceMode: 'ai' as const,
@@ -1939,10 +1971,488 @@ export async function generateMaterialWithOrchestration(
     sourceFingerprint: bundle.sourceFingerprint,
     analyzedCourses: bundle.sourceCourses,
     isMultiCourse: bundle.isMultiCourse,
+    qualityVerified: true,
   };
 
-  const edgeRes = await invokeEdgeGenerate({
-    materialType: settings.materialType,
+  // ==================== QUIZ PIPELINE (7-Point Validation + Anti-Repetition + Targeted Repair) ====================
+  if (settings.materialType === 'quiz') {
+    const requestedCount = Math.min(Math.max(settings.questionCount || 10, 4), 25);
+    const difficultyQuota = computeDifficultyQuota(requestedCount, settings.difficulty || 'mixed');
+    const historyEntries = loadSourceQuestionHistory({
+      userId: settings.userId,
+      sourceFingerprint: bundle.sourceFingerprint,
+      course: resolvedCourse,
+      previousQuestions: settings.previousQuestions,
+    });
+    const avoidancePlan = buildAvoidanceAndRotationPlan({
+      outlineHeadings,
+      historyEntries,
+      requestedCount,
+      generationNonce,
+    });
+
+    const finalizeValidatedQuiz = async (
+      rawCandidates: unknown[],
+      usedModel: string,
+      tier: 'edge' | 'live' | 'public' | 'local',
+    ): Promise<OrchestrationResult | null> => {
+      const firstPass = validateQuizBatch(rawCandidates, {
+        sourceText: bundle.combinedText,
+        course: resolvedCourse,
+        title: bundle.title,
+        outlineHeadings,
+        requestedCount,
+        requestedDifficulty: settings.difficulty || 'mixed',
+        sourceFingerprint: bundle.sourceFingerprint,
+        historyEntries,
+      });
+
+      let accepted = [...firstPass.accepted];
+      let totalRejected = firstPass.rejected.length;
+      let regeneratedCount = 0;
+      let historyExcluded = firstPass.historyExcludedCount;
+
+      // Single cost-efficient targeted regeneration pass ONLY for rejected/missing slots
+      if (
+        tier !== 'local' &&
+        firstPass.missingCount > 0 &&
+        (bundle.combinedText.trim().length >= 60 || bundle.images.length > 0)
+      ) {
+        onProgress?.(
+          76,
+          `Kalite doğrulaması: ${firstPass.missingCount} eksik/elenen soru yeniden üretiliyor...`,
+        );
+        const repairAvoid = [
+          ...avoidancePlan.avoidSummaries,
+          ...accepted.map((q) => `[${q.topic || resolvedCourse}] ${q.question.slice(0, 110)}`),
+        ].slice(0, 28);
+        const repairTopics =
+          firstPass.uncoveredTopics.length > 0
+            ? firstPass.uncoveredTopics
+            : avoidancePlan.priorityTopics;
+        const repairPrompt = buildStrictQuizPrompt(settings, bundle, {
+          targetCount: Math.min(requestedCount, firstPass.missingCount + 2),
+          quota: firstPass.missingDifficulties,
+          avoidSummaries: repairAvoid,
+          priorityTopics: repairTopics,
+          generationNonce: `${generationNonce}-repair`,
+          isRepairPass: true,
+        });
+
+        let repairRaw: unknown[] = [];
+        if (tier === 'edge' || tier === 'live') {
+          const liveRepair = await invokeLiveServerAiText({
+            materialType: 'quiz',
+            title: bundle.title,
+            course: resolvedCourse,
+            noteContext: sampleUniformContext(bundle.combinedText, 52_000),
+            taskPrompt: repairPrompt,
+            preferPro: true,
+            images: bundle.images,
+          });
+          const parsedRepair = liveRepair ? extractJsonLoose(liveRepair.text) : null;
+          if (Array.isArray(parsedRepair?.questions)) repairRaw = parsedRepair.questions;
+        } else {
+          const pubRepair = await invokePublicJsonFallback(
+            repairPrompt,
+            `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK:\n${sampleUniformContext(
+              bundle.combinedText,
+              14_500,
+            )}`,
+            0.52,
+          );
+          if (Array.isArray(pubRepair?.questions)) repairRaw = pubRepair.questions;
+        }
+
+        if (repairRaw.length > 0) {
+          const beforeLen = accepted.length;
+          const repairPass = validateQuizBatch(repairRaw, {
+            sourceText: bundle.combinedText,
+            course: resolvedCourse,
+            title: bundle.title,
+            outlineHeadings,
+            requestedCount,
+            requestedDifficulty: settings.difficulty || 'mixed',
+            sourceFingerprint: bundle.sourceFingerprint,
+            historyEntries,
+            alreadyAccepted: accepted,
+          });
+          accepted = repairPass.accepted;
+          regeneratedCount = Math.max(0, accepted.length - beforeLen);
+          totalRejected += repairPass.rejected.length;
+          historyExcluded += repairPass.historyExcludedCount;
+        }
+      }
+
+      // If AI failed to supply enough valid non-duplicate questions, top up ONLY the missing slots cleanly locally
+      if (accepted.length < requestedCount && tier !== 'local' && accepted.length > 0) {
+        const localSupplement = generateClientStudyMaterial({
+          materialType: 'quiz',
+          noteTitle: bundle.title,
+          course: resolvedCourse,
+          noteContext: bundle.combinedText,
+          questionCount: Math.max(4, requestedCount - accepted.length + 2),
+          difficulty: settings.difficulty,
+          quizFormat: settings.quizFormat,
+          sourceFingerprint: bundle.sourceFingerprint,
+          generationNonce: `${generationNonce}-sup`,
+          avoidHistory: historyEntries,
+          preferredTopics: firstPass.uncoveredTopics.length > 0 ? firstPass.uncoveredTopics : avoidancePlan.priorityTopics,
+        });
+        const supRaw = Array.isArray(localSupplement.questions) ? localSupplement.questions : [];
+        if (supRaw.length > 0) {
+          const supPass = validateQuizBatch(supRaw, {
+            sourceText: bundle.combinedText,
+            course: resolvedCourse,
+            title: bundle.title,
+            outlineHeadings,
+            requestedCount,
+            requestedDifficulty: settings.difficulty || 'mixed',
+            sourceFingerprint: bundle.sourceFingerprint,
+            historyEntries,
+            alreadyAccepted: accepted,
+          });
+          accepted = supPass.accepted;
+        }
+      }
+
+      if (accepted.length === 0) return null;
+
+      recordValidatedQuestionsToHistory({
+        userId: settings.userId,
+        sourceFingerprint: bundle.sourceFingerprint,
+        course: resolvedCourse,
+        questions: accepted,
+      });
+
+      const breakdown = { easy: 0, medium: 0, hard: 0 };
+      const coveredTopics = new Set<string>();
+      for (const q of accepted) {
+        breakdown[q.difficulty || 'medium']++;
+        if (q.sourceSection || q.topic) coveredTopics.add((q.sourceSection || q.topic || '').toLowerCase());
+      }
+
+      onProgress?.(96, 'Doğrulanmış deneme sınavı hazırlandı.');
+      return {
+        content: {
+          questions: accepted,
+          extractionNotices: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
+          qualityReport: {
+            validatedCount: accepted.length,
+            rejectedCount: totalRejected,
+            regeneratedCount,
+            historyExcludedCount: historyExcluded,
+            difficultyBreakdown: breakdown,
+            topicCoverageCount: coveredTopics.size,
+          },
+          metadata: {
+            ...sharedMeta,
+            sourceMode: tier === 'local' ? 'local' : 'ai',
+          },
+        },
+        model: usedModel,
+        sourceMode: tier === 'local' ? 'local' : 'ai',
+      };
+    };
+
+    // Tier 1: Edge Function
+    const edgeRes = await invokeEdgeGenerate({
+      materialType: 'quiz',
+      stage: 'single',
+      noteTitle: bundle.title,
+      course: resolvedCourse,
+      faculty: settings.faculty && settings.faculty !== 'auto' ? domain.discipline : undefined,
+      examMode: settings.examMode || undefined,
+      isMultiCourse: bundle.isMultiCourse || undefined,
+      sourceCourses: bundle.sourceCourses?.length ? bundle.sourceCourses : undefined,
+      canonicalAnalysisDigest: bundle.canonicalAnalysisDigest || undefined,
+      extractionWarnings: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
+      noteContext: sampleUniformContext(bundle.combinedText, 85_000),
+      questionCount: requestedCount,
+      difficulty: settings.difficulty,
+      difficultyQuota,
+      quizFormat: settings.quizFormat,
+      deepResearch: settings.deepResearch,
+      pedagogicalStyle: settings.pedagogicalStyle,
+      customPrompt: settings.customPrompt || undefined,
+      examFocus: settings.examFocus || undefined,
+      avoidQuestions: avoidancePlan.avoidSummaries.slice(0, 22),
+      priorityTopics: avoidancePlan.priorityTopics.slice(0, 10),
+      generationNonce,
+      sourceFingerprint: bundle.sourceFingerprint,
+      images: bundle.images.length > 0 ? bundle.images : undefined,
+      audio: bundle.audio,
+    });
+
+    if (edgeRes && edgeRes.sourceMode === 'ai' && Array.isArray(edgeRes.content?.questions)) {
+      const checked = await finalizeValidatedQuiz(edgeRes.content.questions, edgeRes.model, 'edge');
+      if (checked) return checked;
+    }
+
+    // Tier 1.5: Live Server AI Bridge
+    if (bundle.combinedText.trim().length >= 30 || bundle.images.length > 0) {
+      onProgress?.(48, 'Ders notunuzdan tekrarsız, zorluk dengeli sınav soruları hazırlanıyor...');
+      const liveQuiz = await invokeLiveServerAiText({
+        materialType: 'quiz',
+        title: bundle.title,
+        course: resolvedCourse,
+        noteContext: sampleUniformContext(bundle.combinedText, 56_000),
+        taskPrompt: buildStrictQuizPrompt(settings, bundle, {
+          targetCount: requestedCount,
+          quota: difficultyQuota,
+          avoidSummaries: avoidancePlan.avoidSummaries,
+          priorityTopics: avoidancePlan.priorityTopics,
+          generationNonce,
+        }),
+        preferPro: true,
+        images: bundle.images,
+      });
+      if (liveQuiz) {
+        const parsed = extractJsonLoose(liveQuiz.text);
+        if (Array.isArray(parsed?.questions) && parsed.questions.length > 0) {
+          const checked = await finalizeValidatedQuiz(parsed.questions, liveQuiz.model, 'live');
+          if (checked) return checked;
+        }
+      }
+    }
+
+    // Tier 2: Public Cloud AI
+    if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
+      onProgress?.(68, 'Bulut yapay zekâ üzerinden sınav soruları doğrulanıyor...');
+      const system = buildStrictQuizPrompt(settings, bundle, {
+        targetCount: requestedCount,
+        quota: difficultyQuota,
+        avoidSummaries: avoidancePlan.avoidSummaries,
+        priorityTopics: avoidancePlan.priorityTopics,
+        generationNonce,
+      });
+      const user = `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
+        bundle.combinedText,
+        14_500,
+      )}`;
+      const pub = await invokePublicJsonFallback(system, user, 0.46);
+      if (Array.isArray(pub?.questions) && pub.questions.length > 0) {
+        const checked = await finalizeValidatedQuiz(pub.questions, 'EconNotes Cloud Academic AI', 'public');
+        if (checked) return checked;
+      }
+    }
+
+    // Tier 3: Overhauled History-Aware Local Quiz Synthesizer
+    onProgress?.(90, 'Yerel akademik soru motoru ile hazırlanıyor...');
+    const localQuiz = generateClientStudyMaterial({
+      materialType: 'quiz',
+      noteTitle: bundle.title,
+      course: resolvedCourse,
+      noteContext: bundle.combinedText,
+      questionCount: requestedCount,
+      difficulty: settings.difficulty,
+      quizFormat: settings.quizFormat,
+      deepResearch: settings.deepResearch,
+      pedagogicalStyle: settings.pedagogicalStyle,
+      customPrompt: settings.customPrompt,
+      examFocus: settings.examFocus,
+      extractionWarnings: bundle.extractionWarnings,
+      sourceFingerprint: bundle.sourceFingerprint,
+      generationNonce,
+      avoidHistory: historyEntries,
+      preferredTopics: avoidancePlan.priorityTopics,
+    });
+    const localQs = Array.isArray(localQuiz.questions) ? (localQuiz.questions as QuizQuestion[]) : [];
+    if (localQs.length > 0) {
+      recordValidatedQuestionsToHistory({
+        userId: settings.userId,
+        sourceFingerprint: bundle.sourceFingerprint,
+        course: resolvedCourse,
+        questions: localQs,
+      });
+    }
+    return {
+      content: localQuiz as StudyContentPayload,
+      model: 'EconNotes Yerel Yapısal Ayrıştırıcı',
+      sourceMode: 'local',
+    };
+  }
+
+  // ==================== FLASHCARDS PIPELINE (Deduplicated + History-Aware) ====================
+  if (settings.materialType === 'flashcards') {
+    const requestedCards = Math.min(Math.max(settings.cardCount || 14, 4), 30);
+    const fcHistory = loadSourceFlashcardHistory({
+      userId: settings.userId,
+      sourceFingerprint: bundle.sourceFingerprint,
+      previousFlashcards: settings.previousFlashcards,
+    });
+    const avoidFronts = fcHistory.slice(0, 20).map((h) => `[${h.topic}] ${h.frontPreview}`);
+
+    const finalizeValidatedCards = (
+      rawCards: unknown[],
+      usedModel: string,
+      isLocal = false,
+    ): OrchestrationResult | null => {
+      const checked = validateFlashcardsBatch(rawCards, {
+        sourceText: bundle.combinedText,
+        course: resolvedCourse,
+        title: bundle.title,
+        outlineHeadings,
+        requestedCount: requestedCards,
+        sourceFingerprint: bundle.sourceFingerprint,
+        historyEntries: fcHistory,
+      });
+      if (checked.accepted.length === 0) return null;
+      recordValidatedFlashcardsToHistory({
+        userId: settings.userId,
+        sourceFingerprint: bundle.sourceFingerprint,
+        cards: checked.accepted,
+      });
+      onProgress?.(95, 'Çalışma kartları doğrulandı ve hazırlandı.');
+      return {
+        content: {
+          cards: checked.accepted,
+          extractionNotices: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
+          metadata: { ...sharedMeta, sourceMode: isLocal ? 'local' : 'ai' },
+        },
+        model: usedModel,
+        sourceMode: isLocal ? 'local' : 'ai',
+      };
+    };
+
+    const edgeRes = await invokeEdgeGenerate({
+      materialType: 'flashcards',
+      stage: 'single',
+      noteTitle: bundle.title,
+      course: resolvedCourse,
+      faculty: settings.faculty && settings.faculty !== 'auto' ? domain.discipline : undefined,
+      examMode: settings.examMode || undefined,
+      isMultiCourse: bundle.isMultiCourse || undefined,
+      sourceCourses: bundle.sourceCourses?.length ? bundle.sourceCourses : undefined,
+      canonicalAnalysisDigest: bundle.canonicalAnalysisDigest || undefined,
+      extractionWarnings: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
+      noteContext: sampleUniformContext(bundle.combinedText, 85_000),
+      cardCount: requestedCards,
+      difficulty: settings.difficulty,
+      deepResearch: settings.deepResearch,
+      pedagogicalStyle: settings.pedagogicalStyle,
+      customPrompt: settings.customPrompt || undefined,
+      avoidQuestions: avoidFronts,
+      priorityTopics: outlineHeadings.slice(0, 10),
+      generationNonce,
+      sourceFingerprint: bundle.sourceFingerprint,
+      images: bundle.images.length > 0 ? bundle.images : undefined,
+      audio: bundle.audio,
+    });
+    if (edgeRes && edgeRes.sourceMode === 'ai' && Array.isArray(edgeRes.content?.cards)) {
+      const ok = finalizeValidatedCards(edgeRes.content.cards, edgeRes.model);
+      if (ok) return ok;
+    }
+
+    if (bundle.combinedText.trim().length >= 30 || bundle.images.length > 0) {
+      onProgress?.(52, 'Ders notunuzdaki temel kavramlardan tekrarsız çalışma kartları hazırlanıyor...');
+      const liveCards = await invokeLiveServerAiText({
+        materialType: 'flashcards',
+        title: bundle.title,
+        course: resolvedCourse,
+        noteContext: sampleUniformContext(bundle.combinedText, 52_000),
+        taskPrompt: buildStrictFlashcardsPrompt(settings, bundle, {
+          targetCount: requestedCards,
+          avoidFronts,
+          priorityTopics: outlineHeadings.slice(0, 10),
+          generationNonce,
+        }),
+        preferPro: false,
+        images: bundle.images,
+      });
+      if (liveCards) {
+        const parsed = extractJsonLoose(liveCards.text);
+        if (Array.isArray(parsed?.cards)) {
+          const ok = finalizeValidatedCards(parsed.cards, liveCards.model);
+          if (ok) return ok;
+        }
+      }
+    }
+
+    if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
+      onProgress?.(72, 'Bulut yapay zekâ üzerinden çalışma kartları hazırlanıyor...');
+      const pub = await invokePublicJsonFallback(
+        buildStrictFlashcardsPrompt(settings, bundle, {
+          targetCount: requestedCards,
+          avoidFronts,
+          priorityTopics: outlineHeadings.slice(0, 10),
+          generationNonce,
+        }),
+        `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK:\n${sampleUniformContext(
+          bundle.combinedText,
+          14_500,
+        )}`,
+        0.44,
+      );
+      if (Array.isArray(pub?.cards)) {
+        const ok = finalizeValidatedCards(pub.cards, 'EconNotes Cloud Academic AI');
+        if (ok) return ok;
+      }
+    }
+
+    onProgress?.(90, 'Yerel ayrıştırıcı ile çalışma kartları hazırlanıyor...');
+    const localCards = generateClientStudyMaterial({
+      materialType: 'flashcards',
+      noteTitle: bundle.title,
+      course: resolvedCourse,
+      noteContext: bundle.combinedText,
+      cardCount: requestedCards,
+      difficulty: settings.difficulty,
+      extractionWarnings: bundle.extractionWarnings,
+      sourceFingerprint: bundle.sourceFingerprint,
+      generationNonce,
+      avoidFlashcardHistory: fcHistory,
+    });
+    const finalLocalCards = Array.isArray(localCards.cards) ? (localCards.cards as FlashcardItem[]) : [];
+    if (finalLocalCards.length > 0) {
+      recordValidatedFlashcardsToHistory({
+        userId: settings.userId,
+        sourceFingerprint: bundle.sourceFingerprint,
+        cards: finalLocalCards,
+      });
+    }
+    return {
+      content: localCards as StudyContentPayload,
+      model: 'EconNotes Yerel Yapısal Ayrıştırıcı',
+      sourceMode: 'local',
+    };
+  }
+
+  // ==================== VIDEO LESSON PIPELINE (Chunked Coverage + Course-Locked Alignment Gate) ====================
+  const validateVideoCandidate = (
+    rawCandidate: Record<string, unknown> | null | undefined,
+    usedModel: string,
+    isLocal = false,
+  ): OrchestrationResult | null => {
+    if (!rawCandidate) return null;
+    const repaired = validateAndRepairVideoContent(rawCandidate, {
+      sourceText: bundle.combinedText,
+      course: resolvedCourse,
+      title: bundle.title,
+      outlineHeadings,
+      extractionWarnings: bundle.extractionWarnings,
+      sourceFingerprint: bundle.sourceFingerprint,
+      analyzedCourses: bundle.sourceCourses,
+      isMultiCourse: bundle.isMultiCourse,
+    });
+    if (!repaired) return null;
+    onProgress?.(96, 'Ses, görsel ve altyazı uyumlu video ders hazırlandı.');
+    return {
+      content: {
+        ...repaired,
+        metadata: {
+          ...sharedMeta,
+          sourceMode: isLocal ? 'local' : 'ai',
+        },
+      } as StudyContentPayload,
+      model: usedModel,
+      sourceMode: isLocal ? 'local' : 'ai',
+    };
+  };
+
+  // Tier 1: Edge Function
+  const edgeVideoRes = await invokeEdgeGenerate({
+    materialType: 'video',
     stage: 'single',
     noteTitle: bundle.title,
     course: resolvedCourse,
@@ -1953,186 +2463,129 @@ export async function generateMaterialWithOrchestration(
     canonicalAnalysisDigest: bundle.canonicalAnalysisDigest || undefined,
     extractionWarnings: bundle.extractionWarnings?.length ? bundle.extractionWarnings : undefined,
     noteContext: sampleUniformContext(bundle.combinedText, 85_000),
-    questionCount: settings.questionCount,
-    cardCount: settings.cardCount,
-    difficulty: settings.difficulty,
-    quizFormat: settings.quizFormat,
     deepResearch: settings.deepResearch,
     pedagogicalStyle: settings.pedagogicalStyle,
     customPrompt: settings.customPrompt || undefined,
     examFocus: settings.examFocus || undefined,
+    sourceFingerprint: bundle.sourceFingerprint,
     images: bundle.images.length > 0 ? bundle.images : undefined,
     audio: bundle.audio,
   });
 
-  if (edgeRes && edgeRes.sourceMode === 'ai') {
-    onProgress?.(95, 'Materyal hazırlandı.');
-    return {
-      content: {
-        ...edgeRes.content,
-        metadata: sharedMeta,
-      },
-      model: edgeRes.model,
-      sourceMode: 'ai',
-    };
+  if (edgeVideoRes && edgeVideoRes.sourceMode === 'ai') {
+    const validatedEdgeVideo = validateVideoCandidate(
+      edgeVideoRes.content as Record<string, unknown>,
+      edgeVideoRes.model,
+    );
+    if (validatedEdgeVideo) return validatedEdgeVideo;
   }
 
-  // Tier-1.5 Live Server AI Bridge (GPT-4o / Gemini 2.5 Pro / GPT-4o-mini via live Edge functions)
+  // Tier 1.5: Live Server AI (Sequential Chunked Coverage for Long Documents > 20k chars!)
   if (bundle.combinedText.trim().length >= 30 || bundle.images.length > 0) {
-    onProgress?.(
-      52,
-      settings.materialType === 'quiz'
-        ? 'Ders notunuzdan sınav kalitesinde anlaşılır sorular hazırlanıyor...'
-        : settings.materialType === 'flashcards'
-        ? 'Ders notunuzdaki temel kavramlardan tekrar kartları hazırlanıyor...'
-        : 'Ders notunuza birebir sadık video ders sahneleri hazırlanıyor...',
-    );
+    if (bundle.combinedText.length > 20_000) {
+      const videoChunks = splitNoteIntoSequentialChunks(bundle.combinedText, 19_000, 3);
+      const stitchedScenes: unknown[] = [];
+      const stitchedFacts: string[] = [];
+      const stitchedTerms: unknown[] = [];
+      const stitchedPairs: unknown[] = [];
+      const stitchedExamQs: unknown[] = [];
+      let usedModel = 'EconNotes Akademik AI';
+      let firstOutline = '';
 
-    if (settings.materialType === 'quiz') {
-      const liveQuiz = await invokeLiveServerAiText({
-        materialType: 'quiz',
-        title: bundle.title,
-        course: resolvedCourse,
-        noteContext: sampleUniformContext(bundle.combinedText, 56_000),
-        taskPrompt: buildStrictQuizPrompt(settings, bundle),
-        preferPro: true,
-        images: bundle.images,
-      });
-      if (liveQuiz) {
-        const parsed = extractJsonLoose(liveQuiz.text);
-        const questions = sanitizeAiQuizQuestions(parsed?.questions);
-        if (questions.length > 0) {
-          onProgress?.(95, 'Deneme sınavı hazırlandı.');
-          return {
-            content: {
-              questions,
-              metadata: sharedMeta,
-            },
-            model: liveQuiz.model,
-            sourceMode: 'ai',
-          };
-        }
+      for (let c = 0; c < videoChunks.length; c++) {
+        const pct = Math.min(88, Math.round(35 + ((c + 1) / videoChunks.length) * 50));
+        onProgress?.(pct, `Uzun ders notu bölüm bölüm video derse dönüştürülüyor (${c + 1}/${videoChunks.length})...`);
+        const livePart = await invokeLiveServerAiText({
+          materialType: 'video',
+          title: `${bundle.title} (${c + 1}/${videoChunks.length})`,
+          course: resolvedCourse,
+          noteContext: videoChunks[c],
+          taskPrompt: buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle, {
+            partIndex: c,
+            totalParts: videoChunks.length,
+            sceneRangeHint: '2-3',
+          }),
+          preferPro: true,
+          images: c === 0 ? bundle.images : undefined,
+        });
+        if (!livePart) continue;
+        usedModel = livePart.model;
+        const parsed = extractJsonLoose(livePart.text);
+        if (!parsed) continue;
+        if (!firstOutline && typeof parsed.outline === 'string') firstOutline = parsed.outline;
+        if (Array.isArray(parsed.scenes)) stitchedScenes.push(...parsed.scenes);
+        if (Array.isArray(parsed.keyFacts)) stitchedFacts.push(...parsed.keyFacts.map(String));
+        if (Array.isArray(parsed.keyTerms)) stitchedTerms.push(...parsed.keyTerms);
+        if (Array.isArray(parsed.matchingPairs)) stitchedPairs.push(...parsed.matchingPairs);
+        if (Array.isArray(parsed.examQuestions)) stitchedExamQs.push(...parsed.examQuestions);
       }
-    } else if (settings.materialType === 'flashcards') {
-      const liveCards = await invokeLiveServerAiText({
-        materialType: 'flashcards',
-        title: bundle.title,
-        course: resolvedCourse,
-        noteContext: sampleUniformContext(bundle.combinedText, 52_000),
-        taskPrompt: buildStrictFlashcardsPrompt(settings, bundle),
-        preferPro: false,
-        images: bundle.images,
-      });
-      if (liveCards) {
-        const parsed = extractJsonLoose(liveCards.text);
-        const cards = sanitizeAiFlashcards(parsed?.cards);
-        if (cards.length > 0) {
-          onProgress?.(95, 'Çalışma kartları hazırlandı.');
-          return {
-            content: {
-              cards,
-              metadata: sharedMeta,
-            },
-            model: liveCards.model,
-            sourceMode: 'ai',
-          };
-        }
+
+      if (stitchedScenes.length > 0) {
+        const validatedChunked = validateVideoCandidate(
+          {
+            videoTitle: bundle.title,
+            outline: firstOutline,
+            overview: firstOutline,
+            scenes: stitchedScenes,
+            keyFacts: stitchedFacts,
+            keyTerms: stitchedTerms,
+            matchingPairs: stitchedPairs,
+            examQuestions: stitchedExamQs,
+          },
+          usedModel,
+        );
+        if (validatedChunked) return validatedChunked;
       }
-    } else if (settings.materialType === 'video') {
+    } else {
+      onProgress?.(52, 'Ders notunuza birebir sadık, görsel-anlatım uyumlu video ders hazırlanıyor...');
       const liveVideo = await invokeLiveServerAiText({
         materialType: 'video',
         title: bundle.title,
         course: resolvedCourse,
-        noteContext: sampleUniformContext(bundle.combinedText, 48_000),
+        noteContext: bundle.combinedText,
         taskPrompt: buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle),
         preferPro: true,
         images: bundle.images,
       });
       if (liveVideo) {
         const parsed = extractJsonLoose(liveVideo.text);
-        if (Array.isArray(parsed?.scenes) && parsed.scenes.length > 0) {
-          onProgress?.(95, 'Videolu özet hazırlandı.');
-          return {
-            content: {
-              ...parsed,
-              metadata: sharedMeta,
-            },
-            model: liveVideo.model,
-            sourceMode: 'ai',
-          };
-        }
+        const validatedLiveVideo = validateVideoCandidate(parsed, liveVideo.model);
+        if (validatedLiveVideo) return validatedLiveVideo;
       }
     }
   }
 
-  // Tier-2 Public Cloud AI fallback (quiz / flashcards / interactive video)
+  // Tier 2: Public Cloud AI Video
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
-    onProgress?.(72, 'Bulut yapay zekâ üzerinden tamamlanıyor...');
-    if (settings.materialType === 'video') {
-      const videoSys = buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle);
-      const videoUser = `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
-        bundle.combinedText,
-        14_000,
-      )}`;
-      const pubVideo = await invokePublicJsonFallback(videoSys, videoUser);
-      if (Array.isArray(pubVideo?.scenes) && pubVideo.scenes.length > 0) {
-        return {
-          content: { ...pubVideo, metadata: sharedMeta },
-          model: 'EconNotes Cloud Academic AI',
-          sourceMode: 'ai',
-        };
-      }
-    } else {
-      const isQuiz = settings.materialType === 'quiz';
-      const system = isQuiz
-        ? buildStrictQuizPrompt(settings, bundle)
-        : buildStrictFlashcardsPrompt(settings, bundle);
-      const user = `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
+    onProgress?.(74, 'Bulut yapay zekâ üzerinden video ders sahneleri doğrulanıyor...');
+    const pubVideo = await invokePublicJsonFallback(
+      buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle),
+      `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
         bundle.combinedText,
         14_500,
-      )}`;
-
-      const pub = await invokePublicJsonFallback(system, user);
-      if (isQuiz) {
-        const questions = sanitizeAiQuizQuestions(pub?.questions);
-        if (questions.length > 0) {
-          return {
-            content: { questions, metadata: sharedMeta },
-            model: 'EconNotes Cloud Academic AI',
-            sourceMode: 'ai',
-          };
-        }
-      } else {
-        const cards = sanitizeAiFlashcards(pub?.cards);
-        if (cards.length > 0) {
-          return {
-            content: { cards, metadata: sharedMeta },
-            model: 'EconNotes Cloud Academic AI',
-            sourceMode: 'ai',
-          };
-        }
-      }
-    }
+      )}`,
+      0.32,
+    );
+    const validatedPubVideo = validateVideoCandidate(pubVideo, 'EconNotes Cloud Academic AI');
+    if (validatedPubVideo) return validatedPubVideo;
   }
 
-  onProgress?.(90, 'Yerel ayrıştırıcı ile hazırlanıyor...');
-  const payload: GeneratePayload = {
-    materialType: settings.materialType,
+  // Tier 3: Overhauled Grounded Local Video Synthesizer
+  onProgress?.(90, 'Yerel video ders ayrıştırıcısı ile hazırlanıyor...');
+  const localVideo = generateClientStudyMaterial({
+    materialType: 'video',
     noteTitle: bundle.title,
     course: resolvedCourse,
     noteContext: bundle.combinedText,
-    questionCount: settings.questionCount,
-    cardCount: settings.cardCount,
-    difficulty: settings.difficulty,
-    quizFormat: settings.quizFormat,
     deepResearch: settings.deepResearch,
     pedagogicalStyle: settings.pedagogicalStyle,
     customPrompt: settings.customPrompt,
     examFocus: settings.examFocus,
-  };
-  const localContent = generateClientStudyMaterial(payload);
+    extractionWarnings: bundle.extractionWarnings,
+    sourceFingerprint: bundle.sourceFingerprint,
+  });
   return {
-    content: localContent,
+    content: localVideo as StudyContentPayload,
     model: 'EconNotes Yerel Yapısal Ayrıştırıcı',
     sourceMode: 'local',
   };

@@ -139,9 +139,30 @@ export function NeuralQuizWorkspace({
               {q.topic}
             </Badge>
           )}
+          {q.difficulty && (
+            <Badge
+              variant="outline"
+              className={cn(
+                'text-[11px]',
+                q.difficulty === 'easy'
+                  ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                  : q.difficulty === 'hard'
+                  ? 'border-rose-500/40 text-rose-600 dark:text-rose-400'
+                  : 'border-amber-500/40 text-amber-600 dark:text-amber-400',
+              )}
+            >
+              {q.difficulty === 'easy' ? 'Kolay' : q.difficulty === 'hard' ? 'Zor' : 'Orta'}
+            </Badge>
+          )}
           {q.bloomLevel && (
             <Badge variant="outline" className="text-[11px] text-cyan-500">
               {q.bloomLevel}
+            </Badge>
+          )}
+          {(q.sourceSection || q.sourcePage) && (
+            <Badge variant="outline" className="max-w-[220px] truncate text-[11px] text-muted-foreground">
+              {q.sourceSection || 'Kaynak'}
+              {q.sourcePage ? ` · ${q.sourcePage}` : ''}
             </Badge>
           )}
           <span className="flex items-center gap-1 text-xs font-mono text-muted-foreground">
@@ -347,8 +368,16 @@ export function NeuralQuizWorkspace({
 
         {/* Instant Explanation + Coach Action */}
         {showInstantFeedback && q.explanation && (
-          <div className="rounded-xl border border-cyan-500/35 bg-cyan-500/10 p-3.5 text-xs">
-            <p className="mb-1 font-bold text-cyan-600 dark:text-cyan-300">Akademik Çözüm & Açıklama</p>
+          <div className="rounded-xl border border-cyan-500/35 bg-cyan-500/10 p-3.5 text-xs space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-bold text-cyan-600 dark:text-cyan-300">Akademik Çözüm & Açıklama</p>
+              {(q.sourceSection || q.sourcePage) && (
+                <span className="text-[11px] text-muted-foreground">
+                  Kaynak: {q.sourceSection || q.topic || 'Ders Notu'}
+                  {q.sourcePage ? ` (${q.sourcePage})` : ''}
+                </span>
+              )}
+            </div>
             <AcademicMarkdown content={q.explanation} className="text-xs leading-relaxed" />
           </div>
         )}

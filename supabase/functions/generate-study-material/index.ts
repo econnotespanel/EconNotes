@@ -43,6 +43,7 @@ interface GenerateReq {
   questionCount?: number;
   cardCount?: number;
   difficulty?: 'easy' | 'medium' | 'hard' | 'mixed';
+  difficultyQuota?: { easy: number; medium: number; hard: number };
   quizFormat?: 'multiple_choice' | 'open_ended' | 'mixed';
   examFocus?: string;
   faculty?: string;
@@ -52,6 +53,10 @@ interface GenerateReq {
   sourceCourses?: string[];
   canonicalAnalysisDigest?: string;
   extractionWarnings?: string[];
+  avoidQuestions?: string[];
+  priorityTopics?: string[];
+  generationNonce?: string;
+  sourceFingerprint?: string;
   sectionTargets?: SectionTarget[];
   globalOutline?: {
     overview?: string;
@@ -588,17 +593,28 @@ Tam ${secCount} kapsamlı bölüm üret ve belgenin ilk sayfasından son sayfas�
   // --- FLASHCARDS ---
   if (req.materialType === 'flashcards') {
     const cardCount = Math.min(Math.max(req.cardCount || 18, 6), 40);
+    const avoidBlock =
+      Array.isArray(req.avoidQuestions) && req.avoidQuestions.length > 0
+        ? `\nTEKRAR YASAĞI — ÖNCEKİ KARTLAR (AYNISINI VEYA BENZERİNİ ÜRETME):\n${req.avoidQuestions
+            .slice(0, 20)
+            .map((a, i) => `${i + 1}. ${a}`)
+            .join('\n')}`
+        : '';
+    const priorityBlock =
+      Array.isArray(req.priorityTopics) && req.priorityTopics.length > 0
+        ? `\nÖNCELİKLİ BÖLÜMLER: ${req.priorityTopics.slice(0, 10).join(' | ')}`
+        : '';
     const system = `Sen aktif hatırlama (Active Recall) ve aralıklı tekrar (Spaced Repetition) pedagojisinde uzman bir üniversite hocasısın.
-Verilen kaynak materyali ve ortak kaynak analizini temel alarak tam ${cardCount} adet yüksek kalitede, %100 kaynağa sadık Türkçe bilgi kartı üret.
+Verilen kaynak materyali ve ortak kaynak analizini temel alarak tam ${cardCount} adet yüksek kalitede, özgün, tekrarsız ve %100 kaynağa sadık Türkçe bilgi kartı üret.
 ${multiCourseDirective}
 ${styleInstruction}
 ${researchInstruction}
-${customDirective}
+${customDirective}${priorityBlock}${avoidBlock}
 
 KURALLAR:
 1. YALNIZCA bu kaynaktaki gerçek dersin kavram, tanım, teori, formül ve ayrımlarından kart üret; başka bir dersin bilgilerini KESİNLİKLE karıştırma.
 2. Kartların yarısı kavramsal derinlik/karşılaştırma ("Neden?", "Farkı nedir?", "Koşulu/unsuru nedir?"), kalanı kaynaktaki formül ($...$), mekanizma ve sınav tuzağı sormalıdır (sözel derslerde uydurma formül ekleme).
-3. Belgenin başından sonuna tüm önemli başlıkları dengeli dağıt; yalnızca ilk sayfalardan kart üretme.
+3. Belgenin başından sonuna tüm önemli başlıkları dengeli dağıt; aynı kavramı farklı kelimelerle iki kez sorma ve "..." ile kesik ön yüz yazma.
 4. YALNIZCA geçerli JSON döndür:
 {
   "cards": [
@@ -607,6 +623,8 @@ KURALLAR:
       "back": "Kapsamlı, net, kaynağa sadık cevap + varsa kaynaktaki formül veya ayırt edici mekanizma",
       "hint": "Cevabı hatırlamayı tetikleyen 1 kısa ipucu",
       "topic": "Kaynaktaki alt konu (çoklu derste [Ders Adı] — Konu)",
+      "sourceSection": "Belgedeki ilgili başlık",
+      "sourcePage": "Sayfa/Slayt no (varsa)",
       "difficulty": "easy" | "medium" | "hard",
       "examTip": "Sınavda sorulursa dikkat edilecek kritik tuzak veya püf noktası"
     }
@@ -615,11 +633,11 @@ KURALLAR:
 
     const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}\nZORLUK: ${
       req.difficulty || 'mixed'
-    }\nADET: ${cardCount}${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(
+    }\nADET: ${cardCount}${req.generationNonce ? `\nOTURUM: ${req.generationNonce}` : ''}${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(
       enrichedContext,
       85_000,
     )}`;
-    return { system, userText, maxTokens: 10_000, temperature: 0.25 };
+    return { system, userText, maxTokens: 10_000, temperature: 0.44 };
   }
 
   // --- QUIZ ---
@@ -631,20 +649,42 @@ KURALLAR:
         ? 'Tüm sorular klasik/açık uçlu (short_answer) formatında olsun; her biri için net örnek cevap (sampleAnswer) ve puanlama rubriği yaz.'
         : fmt === 'mixed'
         ? 'Soruların yaklaşık %75i 4 şıklı çoktan seçmeli (multiple_choice), %25i ise analiz gerektiren açık uçlu (short_answer) olsun.'
-        : 'Tüm sorular 4 şıklı çoktan seçmeli (multiple_choice) formatında olsun.';
+        : 'Tüm sorular TAM 4 şıklı çoktan seçmeli (multiple_choice) formatında olsun.';
+    const easyQuota =
+      req.difficultyQuota?.easy ??
+      (req.difficulty === 'easy' ? qCount : req.difficulty === 'medium' || req.difficulty === 'hard' ? 0 : Math.max(1, Math.round(qCount * 0.3)));
+    const hardQuota =
+      req.difficultyQuota?.hard ??
+      (req.difficulty === 'hard' ? qCount : req.difficulty === 'easy' || req.difficulty === 'medium' ? 0 : Math.max(1, Math.round(qCount * 0.3)));
+    const mediumQuota =
+      req.difficultyQuota?.medium ?? Math.max(0, qCount - easyQuota - hardQuota);
+    const avoidBlock =
+      Array.isArray(req.avoidQuestions) && req.avoidQuestions.length > 0
+        ? `\nKESİN TEKRAR YASAĞI — DAHA ÖNCE SORULMUŞ SORULAR / KAVRAMLAR (BUNLARI VE BENZER VARYASYONLARINI KESİNLİKLE TEKRAR ÜRETME):\n${req.avoidQuestions
+            .slice(0, 22)
+            .map((a, i) => `${i + 1}. ${a}`)
+            .join('\n')}`
+        : '';
+    const priorityBlock =
+      Array.isArray(req.priorityTopics) && req.priorityTopics.length > 0
+        ? `\nÖNCELİKLİ KONULAR (BU SINAVDA ÖZELLİKLE KAPSA): ${req.priorityTopics.slice(0, 10).join(' | ')}`
+        : '';
 
-    const system = `Sen üniversite düzeyinde çok net, adil ve anlaşılır sınav soruları hazırlayan uzman bir öğretim üyesisin.
+    const system = `Sen üniversite düzeyinde çok net, özgün, tekrarsız ve akademik açıdan kusursuz sınav soruları hazırlayan uzman bir öğretim üyesisin.
 Kullanıcının yüklediği ders notuna ve ortak kaynak analizine %100 sadık kalarak tam ${qCount} soruluk gerçek vize/final deneme testi üret.
 ${formatInstruction}
-ZORLUK SEVİYESİ: ${req.difficulty || 'mixed'}${multiCourseDirective}
-${customDirective}
+BİLİŞSEL ZORLUK DAĞILIMI (kelime uzunluğuna göre değil, bilişsel talebe göre):
+- ${easyQuota} adet "easy" (Bilgi ve Kavrama)
+- ${mediumQuota} adet "medium" (Yorumlama ve Uygulama)
+- ${hardQuota} adet "hard" (Analiz ve Karşılaştırma)${multiCourseDirective}
+${customDirective}${priorityBlock}${avoidBlock}
 
 KESİN KURALLAR:
 1. %100 KAYNAK VE DERS SADAKATİ: Her soru YALNIZCA kullanıcının yüklediği ders notundaki gerçek bilgilerden ve aynı kaynak analizindeki konulardan üretilmelidir. Başka bir dersin veya alanın kavramlarını KESİNLİKLE sorma ve karıştırma.
-2. TÜM BELGE KAPSAMI: Soruları belgenin başından sonuna (tüm sayfa/slayt ve ana başlıklara) dengeli dağıt; sadece ilk sayfalardan soru üretme.
-3. ANLAŞILIR VE NET SORU KÖKÜ: Her soru açık, dilbilgisi düzgün, tek bir doğru cevabı olan gerçek bir üniversite sınav sorusu olsun.
-4. GERÇEK ÇELDİRİCİLER & ŞIK DENGESİ: Çoktan seçmeli sorularda YALNIZCA 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır. Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt.
-5. SADE AÇIKLAMA: Her soru için doğru cevabın neden doğru olduğunu kaynağa dayanarak 2-3 anlaşılır cümleyle açıkla. Formül yalnızca derste gerçekten denklem varsa LaTeX ($...$) ile yaz.
+2. TEKRAR VE BENZERLİK YASAĞI: Aynı olguyu veya kavramı kelimeleri hafifçe değiştirerek iki kez sorma. Soru sayısını doldurmak için varyasyon üretme; belgenin başından sonuna farklı alt başlıklara ve kazanımlara yayıl.
+3. ANLAŞILIR VE EKSİKSİZ SORU KÖKÜ: Her soru açık, dilbilgisi düzgün, kesik ("...") olmayan ve tek bir net cevabı olan gerçek bir üniversite sınav sorusu olsun.
+4. TEK DOĞRU CEVAP & GERÇEK ÇELDİRİCİLER: Çoktan seçmeli sorularda TAM 4 farklı şık bulunmalı; YALNIZCA 1 şık kesinlikle doğru, diğer 3 şık ise açıkça yanlış ama mantıklı çeldiriciler olmalıdır. Doğru şıkkın sırasını (0, 1, 2, 3) dengeli dağıt.
+5. CEVAP ANAHTARI DOĞRULAMASI: "correctIndex" değerini "explanation" açıklamasıyla birebir doğrula. Her soruda "sourceSection", varsa "sourcePage" ve benzersiz "conceptKey" döndür.
 6. YALNIZCA geçerli JSON döndür:
 {
   "questions": [
@@ -657,33 +697,36 @@ KESİN KURALLAR:
       "rubric": ["Puanlama kriteri 1", "Puanlama kriteri 2"],
       "explanation": "Doğru cevabın nota dayalı anlaşılır açıklaması",
       "topic": "Nottaki ilgili alt konu (çoklu derste [Ders Adı] — Konu)",
+      "sourceSection": "Belgedeki konu başlığı",
+      "sourcePage": "Sayfa/Slayt no (varsa)",
+      "conceptKey": "kisa_kavram_anahtari",
       "difficulty": "easy" | "medium" | "hard",
-      "bloomLevel": "Anlama" | "Uygulama" | "Analiz"
+      "bloomLevel": "Bilgi ve Kavrama" | "Yorumlama ve Uygulama" | "Analiz ve Karşılaştırma"
     }
   ]
 }`;
 
     const userText = `DERS: ${courseName}\nBAŞLIK: ${noteTitle}\nSINAV ODAĞI: ${
       req.examFocus || 'Vize/Final kapsamlı akademik değerlendirme'
-    }${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(
+    }${req.generationNonce ? `\nÜRETİM OTURUMU: ${req.generationNonce}` : ''}${canonicalDigestBlock}${warningsBlock}\n\nKAYNAK MATERYAL:\n${sampleBalancedContext(
       enrichedContext,
       85_000,
     )}`;
-    return { system, userText, maxTokens: 11_000, temperature: 0.25 };
+    return { system, userText, maxTokens: 11_500, temperature: 0.45 };
   }
 
-  // --- VIDEO (High-readability, strictly source-faithful, aligned with canonical source analysis) ---
-  const system = `Sen tüm üniversite dersleri için ders notlarını yüksek okunabilirlikli, %100 konuya ve ortak kaynak analizine sadık etkileşimli video derslere dönüştüren akademik senaristsin.
+  // --- VIDEO (High-readability, strictly source-faithful, visual-narration-subtitle synchronized) ---
+  const system = `Sen tüm üniversite dersleri için ders notlarını yüksek okunabilirlikli, %100 konuya ve ortak kaynak analizine sadık, ses-görsel-altyazı birebir uyumlu etkileşimli video derslere dönüştüren akademik senaristsin.
 Verilen ders materyalinden 5-8 sahneli, Dr. Deniz (anlatıcı akademisyen) ile Barış (meraklı öğrenci) arasında geçen doğal, akıcı ve %100 not içeriğine bağlı Türkçe Video Ders paketi oluştur.
 ${multiCourseDirective}
 ${styleInstruction}
 ${customDirective}
 
 KESİN KURALLAR:
-1. KONU DIŞI BİLGİ KESİNLİKLE YASAKTIR: Yalnızca kullanıcının yüklediği ders notundaki gerçek dersin kavram, süreç, teori, formül ve bilgilerini anlat. Başka bir dersin terimlerini, uydurma istatistikleri ve klişe sohbet cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda") kesinlikle EKLEME.
-2. BELGENİN TAMAMINI KAPSA: Sahneler belgenin başından sonuna tüm ana başlıkları sırayla işlemelidir.
-3. YÜKSEK OKUNABİLİRLİK: Her sahnenin 'diagramData.nodes' dizisinde 3-4 net ve kısa kavram kartı üret. 'label' en fazla 36 karakter; 'subtext' ise 1-2 sade cümle (en fazla 130 karakter) olsun.
-4. DOĞRU GÖRSEL ŞEMA: Görsel türü olarak 'visual', 'table', 'comparison', 'timeline', 'scenario', 'shapes' türlerini dengeli kullan. 'curve' türünü YALNIZCA arz-talep/faiz/eğri dengesi içeren dersteyse kullan; 'chart' türünü YALNIZCA ders notunda gerçek sayısal veriler varsa kullan.
+1. KONU DIŞI BİLGİ KESİNLİKLE YASAKTIR: Yalnızca kullanıcının yüklediği ders notundaki gerçek dersin kavram, süreç, teori, formül ve bilgilerini anlat. Başka bir dersin terimlerini, uydurma istatistikleri ve klişe sohbet cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda", "Harika bir soru") kesinlikle EKLEME.
+2. BELGENİN TAMAMINI SIRAYLA KAPSA: Sahneler belgenin başından sonuna tüm ana ve alt başlıkları mantıklı öğrenme sırasıyla işlemelidir; konu atlama yapma.
+3. SES–GÖRSEL–ALTYAZI BİREBİR UYUMU: Her sahnedeki 'diagramData.nodes' kartlarındaki 3-4 kavram, o sahnenin 'turns' konuşmalarında BİZZAT anlatılan kavramlar olmalıdır. Konuşulmayan başlığı veya genel dolgu etiketini ("Temel Kavram 1") ekrana koyma. 'label' en fazla 34 karakter (üç noktasız); 'subtext' en fazla 125 karakter tam cümle olsun.
+4. DOĞRU GÖRSEL ŞEMA: Görsel türü olarak 'visual', 'table', 'comparison', 'timeline', 'scenario', 'structure', 'network', 'shapes' türlerini içeriğe uygun kullan. 'curve' türünü YALNIZCA iktisat dersi arz-talep/faiz/eğri dengesi içeriyorsa kullan; 'chart' türünü YALNIZCA ders notunda gerçek sayısal veriler varsa kullan.
 5. 'examTip' alanı o sahneye özgü gerçek sınav tuzağını veya kavram ayrımını yazsın.
 6. 'visualTheme' değerini dersin gerçek alanına göre seç: "economics" | "history" | "law" | "politics" | "medicine" | "engineering" | "education" | "sports" | "agriculture" | "science" | "society".
 
@@ -842,47 +885,103 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
   }
 
   if (materialType === 'flashcards') {
+    const seenFronts = new Set<string>();
     const cards = Array.isArray(raw.cards)
       ? raw.cards
-          .filter((c: any) => c?.front && c?.back)
+          .filter((c: any) => {
+            const front = String(c?.front || '').trim();
+            const back = String(c?.back || '').trim();
+            if (front.length < 6 || back.length < 10) return false;
+            const norm = front.toLocaleLowerCase('tr-TR').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+            if (!norm || seenFronts.has(norm)) return false;
+            seenFronts.add(norm);
+            return true;
+          })
           .map((c: any) => ({
-            front: String(c.front),
-            back: String(c.back),
-            hint: c.hint ? String(c.hint) : undefined,
-            topic: c.topic ? String(c.topic) : req.course || 'Genel',
+            front: String(c.front).trim(),
+            back: String(c.back).trim(),
+            hint: c.hint ? String(c.hint).trim() : undefined,
+            topic: c.topic ? String(c.topic).trim() : req.course || 'Genel',
+            sourceSection: c.sourceSection ? String(c.sourceSection).trim() : undefined,
+            sourcePage: c.sourcePage ? String(c.sourcePage).trim() : undefined,
             difficulty: ['easy', 'medium', 'hard'].includes(c.difficulty) ? c.difficulty : 'medium',
-            examTip: c.examTip ? String(c.examTip) : undefined,
+            examTip: c.examTip ? String(c.examTip).trim() : undefined,
           }))
       : [];
     return cards.length > 0 ? { cards } : null;
   }
 
   if (materialType === 'quiz') {
+    const seenStems = new Set<string>();
     const questions = Array.isArray(raw.questions)
       ? raw.questions
-          .filter((q: any) => q?.question)
-          .map((q: any, idx: number) => {
-            const isOpen = q.type === 'short_answer' || !Array.isArray(q.options) || q.options.length < 2;
-            const opts = isOpen ? [] : q.options.slice(0, 4).map(String);
+          .map((q: any) => {
+            const stem = String(q?.question || '').replace(/\s+/g, ' ').trim();
+            if (stem.length < 18 || /(?:\.\.\.|…)/.test(stem)) return null;
+            const normStem = stem.toLocaleLowerCase('tr-TR').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+            if (!normStem || seenStems.has(normStem)) return null;
+
+            const isOpen = q.type === 'short_answer' || q.type === 'open_ended';
+            if (isOpen) {
+              const sampleAnswer = String(q.sampleAnswer || q.explanation || '').trim();
+              if (sampleAnswer.length < 14) return null;
+              seenStems.add(normStem);
+              return {
+                type: 'short_answer',
+                question: stem,
+                options: [],
+                correctIndex: 0,
+                sampleAnswer,
+                rubric: Array.isArray(q.rubric) ? q.rubric.map(String).filter(Boolean).slice(0, 5) : undefined,
+                explanation: String(q.explanation || sampleAnswer).trim(),
+                topic: q.topic ? String(q.topic).trim() : req.course || 'Genel',
+                sourceSection: q.sourceSection ? String(q.sourceSection).trim() : undefined,
+                sourcePage: q.sourcePage ? String(q.sourcePage).trim() : undefined,
+                conceptKey: q.conceptKey ? String(q.conceptKey).trim() : undefined,
+                difficulty: ['easy', 'medium', 'hard'].includes(q.difficulty) ? q.difficulty : 'medium',
+                bloomLevel: q.bloomLevel ? String(q.bloomLevel).trim() : 'Analiz ve Karşılaştırma',
+              };
+            }
+
+            if (!Array.isArray(q.options)) return null;
+            const opts = q.options
+              .map((o: unknown) => String(o || '').replace(/^[A-Da-d]\s*[).:\-]\s*/, '').trim())
+              .filter(Boolean)
+              .slice(0, 4);
+            // Require strictly 4 unique options and an explicit valid correctIndex (never corrupt answer key!)
+            if (opts.length !== 4) return null;
+            const uniqOpts = new Set(opts.map((o: string) => o.toLocaleLowerCase('tr-TR')));
+            if (uniqOpts.size < 4) return null;
+
             const rawCorrect = Number(q.correctIndex);
-            const correctIndex = isOpen
-              ? 0
-              : Number.isFinite(rawCorrect) && rawCorrect >= 0 && rawCorrect < opts.length
-              ? rawCorrect
-              : idx % Math.max(1, opts.length);
+            if (
+              q.correctIndex === undefined ||
+              q.correctIndex === null ||
+              !Number.isInteger(rawCorrect) ||
+              rawCorrect < 0 ||
+              rawCorrect >= 4
+            ) {
+              return null;
+            }
+            const explanation = String(q.explanation || '').trim();
+            if (explanation.length < 16) return null;
+
+            seenStems.add(normStem);
             return {
-              type: isOpen ? 'short_answer' : 'multiple_choice',
-              question: String(q.question),
+              type: 'multiple_choice',
+              question: stem,
               options: opts,
-              correctIndex,
-              sampleAnswer: q.sampleAnswer ? String(q.sampleAnswer) : undefined,
-              rubric: Array.isArray(q.rubric) ? q.rubric.map(String) : undefined,
-              explanation: String(q.explanation || ''),
-              topic: q.topic ? String(q.topic) : req.course || 'Genel',
+              correctIndex: rawCorrect,
+              explanation,
+              topic: q.topic ? String(q.topic).trim() : req.course || 'Genel',
+              sourceSection: q.sourceSection ? String(q.sourceSection).trim() : undefined,
+              sourcePage: q.sourcePage ? String(q.sourcePage).trim() : undefined,
+              conceptKey: q.conceptKey ? String(q.conceptKey).trim() : undefined,
               difficulty: ['easy', 'medium', 'hard'].includes(q.difficulty) ? q.difficulty : 'medium',
-              bloomLevel: q.bloomLevel ? String(q.bloomLevel) : 'Anlama',
+              bloomLevel: q.bloomLevel ? String(q.bloomLevel).trim() : 'Yorumlama ve Uygulama',
             };
           })
+          .filter(Boolean)
       : [];
     return questions.length > 0 ? { questions } : null;
   }
@@ -891,15 +990,24 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
     const rawScenes = Array.isArray(raw.scenes) ? raw.scenes : [];
     if (rawScenes.length === 0) return null;
     const scenes = rawScenes.map((sc: any, idx: number) => {
-      const turns = Array.isArray(sc?.turns) ? sc.turns : [];
+      const turns = Array.isArray(sc?.turns)
+        ? sc.turns
+            .map((t: any) => ({
+              speaker: String(t?.speaker || '').toLocaleLowerCase('tr-TR').includes('bar') ? 'Barış' : 'Deniz',
+              text: String(t?.text || '').replace(/\s+/g, ' ').trim(),
+            }))
+            .filter((t: { text: string }) => t.text.length >= 12)
+        : [];
+      // Strictly synchronize narration with concatenated turns so TTS and subtitles always match
       const narration =
-        String(sc?.narration || '').trim() ||
-        turns.map((t: any) => String(t?.text || '').trim()).filter(Boolean).join(' ');
+        turns.length > 0
+          ? turns.map((t: { text: string }) => t.text).join(' ')
+          : String(sc?.narration || '').replace(/\s+/g, ' ').trim();
       return {
         ...sc,
         id: String(sc?.id || `scene-${idx + 1}`),
         order: Number(sc?.order || idx + 1),
-        title: String(sc?.title || `Bölüm ${idx + 1}`),
+        title: String(sc?.title || `Bölüm ${idx + 1}`).trim(),
         narration,
         turns,
       };
@@ -908,13 +1016,14 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
       videoTitle: String(raw.videoTitle || req.noteTitle || ''),
       overview: String(raw.overview || raw.outline || ''),
       outline: String(raw.outline || raw.overview || ''),
-      videoScript: String(raw.videoScript || scenes.map((s: any) => s.narration || '').join('\n\n')),
+      videoScript: scenes.map((s: any) => s.narration || '').join('\n\n'),
       totalEstimatedDurationSec: Number(raw.totalEstimatedDurationSec || scenes.length * 60),
       scenes,
       keyFacts: Array.isArray(raw.keyFacts) ? raw.keyFacts : [],
       matchingPairs: Array.isArray(raw.matchingPairs) ? raw.matchingPairs : [],
       examQuestions: Array.isArray(raw.examQuestions) ? raw.examQuestions : [],
       keyTerms: Array.isArray(raw.keyTerms) ? raw.keyTerms : [],
+      extractionNotices: req.extractionWarnings?.length ? req.extractionWarnings : undefined,
     };
   }
 
@@ -1025,9 +1134,13 @@ function buildServerFallback(req: GenerateReq, cleanText: string): any {
     return {
       cards: Array.from({ length: count }, (_, idx) => {
         const s = sentences[idx % Math.max(1, sentences.length)] || `${title} ana ilkesi`;
-        const hint = s.split(' ').slice(0, 5).join(' ');
+        const colon = s.split(/[:–—]/);
+        const subject =
+          colon.length >= 2 && colon[0].trim().length <= 44
+            ? colon[0].trim()
+            : s.split(/\s+/).slice(0, 4).join(' ').replace(/[,.;:!?]$/, '');
         return {
-          front: `${title} (#${idx + 1}): "${hint}..." bağlamındaki temel çıkarım nedir?`,
+          front: `${subject} kavramının ${course} kapsamındaki temel tanımı veya işlevi nedir?`,
           back: s,
           topic: course,
           difficulty: idx % 3 === 0 ? 'hard' : idx % 2 === 0 ? 'medium' : 'easy',
@@ -1037,29 +1150,57 @@ function buildServerFallback(req: GenerateReq, cleanText: string): any {
   }
 
   if (req.materialType === 'quiz') {
+    // Clean, valid server fallback using open-ended or distinct concept-pinned items (never broken all-true distractors!)
     const count = Math.min(req.questionCount || 6, Math.max(3, sentences.length));
+    const conceptPairs = sentences
+      .map((s, idx) => {
+        const colon = s.split(/[:–—]/);
+        const term =
+          colon.length >= 2 && colon[0].trim().length >= 4 && colon[0].trim().length <= 42
+            ? colon[0].trim()
+            : s.split(/\s+/).slice(0, 3).join(' ').replace(/[,.;:!?]$/, '');
+        const predicate =
+          colon.length >= 2 && colon.slice(1).join(':').trim().length >= 20
+            ? colon.slice(1).join(':').trim()
+            : s;
+        return { term, predicate, full: s, idx };
+      })
+      .filter((p) => p.term.length >= 4 && p.predicate.length >= 20);
+
     return {
       questions: Array.from({ length: count }, (_, idx) => {
-        const correct = sentences[idx % Math.max(1, sentences.length)] || `${title} temel kavramı`;
-        const distractors = sentences
-          .filter((_, j) => j !== idx)
-          .slice(0, 3)
-          .map((d) => `${d.slice(0, 120)} (farklı bağlam)`);
-        while (distractors.length < 3) {
-          distractors.push(`Alternatif yorum ${distractors.length + 1}`);
+        const item = conceptPairs[idx % Math.max(1, conceptPairs.length)];
+        const others = conceptPairs.filter((o) => o.term.toLowerCase() !== item?.term.toLowerCase());
+        if (!item || others.length < 3 || req.quizFormat === 'open_ended') {
+          const sent = sentences[idx % Math.max(1, sentences.length)] || `${title} temel kavramı`;
+          return {
+            type: 'short_answer',
+            question: `${title} kapsamında "${item?.term || course}" kavramının işlevini ve kaynak metindeki temel sonucunu açıklayınız.`,
+            options: [],
+            correctIndex: 0,
+            sampleAnswer: sent,
+            rubric: ['Kavramın doğru tanımlanması', 'Kaynak metindeki neden-sonuç ilişkisinin açıklanması'],
+            explanation: `Kaynak metne göre: ${sent}`,
+            topic: course,
+            difficulty: idx % 3 === 0 ? 'hard' : idx % 2 === 0 ? 'medium' : 'easy',
+            bloomLevel: 'Yorumlama ve Uygulama',
+          };
         }
+
+        const distractors = others.slice(0, 3).map((o) => o.predicate.slice(0, 155));
         const correctIndex = idx % 4;
         const options = [...distractors];
-        options.splice(correctIndex, 0, correct.slice(0, 150));
+        options.splice(correctIndex, 0, item.predicate.slice(0, 155));
         return {
           type: 'multiple_choice',
-          question: `${title} içeriğine göre aşağıdaki ifadelerden hangisi metinle doğrulanır? (Soru ${idx + 1})`,
+          question: `${title} ders notuna göre "${item.term}" kavramı için aşağıdakilerden hangisi doğrudur?`,
           options: options.slice(0, 4),
           correctIndex,
-          explanation: `Kaynak metin doğrultusunda doğru ifade: "${correct.slice(0, 180)}"`,
+          explanation: `Kaynak metne göre ${item.term}: ${item.full}`,
           topic: course,
-          difficulty: 'medium',
-          bloomLevel: 'Anlama',
+          sourceSection: title,
+          difficulty: idx % 3 === 0 ? 'hard' : idx % 2 === 0 ? 'medium' : 'easy',
+          bloomLevel: idx % 3 === 0 ? 'Analiz ve Karşılaştırma' : idx % 2 === 0 ? 'Yorumlama ve Uygulama' : 'Bilgi ve Kavrama',
         };
       }),
     };

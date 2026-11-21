@@ -151,11 +151,26 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
 
   const isEconomicsStudio = useMemo(() => {
     const hay = `${material.course || ''} ${material.title || ''}`.toLocaleLowerCase('tr-TR');
+    const econSceneCount = scenes.filter((s) => s.diagram.visualTheme === 'economics').length;
+    const isMajorityEcon = scenes.length > 0 && econSceneCount >= Math.ceil(scenes.length * 0.6);
+    const explicitNonEcon = /\b(hukuk|anayasa|borçlar|ceza|medeni|tarih|istatistik|tıp|anatomi|mühendislik|eğitim|psikoloji|sosyoloji)\b/i.test(
+      hay,
+    );
+    if (explicitNonEcon && !/\b(iktisat|ekonomi|para\s+teorisi|makro|mikro)\b/i.test(hay)) {
+      return false;
+    }
     return (
-      scenes.some((s) => s.diagram.visualTheme === 'economics') ||
-      /\b(iktisat|ekonomi|para\s+teorisi|makro|mikro|ekonometri|maliye|merkez\s+bankası|enflasyon)\b/i.test(hay)
+      isMajorityEcon ||
+      /\b(iktisat|ekonomi|para\s+teorisi|makroekonomi|mikroekonomi|ekonometri|maliye\s+politikası|merkez\s+bankası|enflasyon)\b/i.test(
+        hay,
+      )
     );
   }, [material.course, material.title, scenes]);
+
+  const extractionNotices = useMemo<string[]>(() => {
+    const raw = (material.content as { extractionNotices?: unknown } | null)?.extractionNotices;
+    return Array.isArray(raw) ? raw.map(String).filter(Boolean) : [];
+  }, [material.content]);
 
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
   const [completedScenes, setCompletedScenes] = useState<Set<number>>(() => {
@@ -917,6 +932,16 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
             <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
               {drawerTab === 'chapters' && (
                 <>
+                  {extractionNotices.length > 0 && (
+                    <div className="rounded-xl border border-amber-400/35 bg-amber-500/10 p-3 text-[11px] text-amber-200 space-y-1">
+                      <p className="font-semibold text-amber-300">Kaynak İnceleme Notu</p>
+                      {extractionNotices.slice(0, 3).map((notice, nIdx) => (
+                        <p key={nIdx} className="leading-relaxed text-amber-100/90">
+                          • {notice}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-300">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-semibold text-white">Tamamlanma İlerlemesi</span>

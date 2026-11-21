@@ -263,17 +263,47 @@ export function buildCanonicalSourceAnalysis(params: {
   const totalWords = profiles.reduce((sum, p) => sum + (p.source.wordCount || 0), 0);
   const totalPagesOrSlides = profiles.reduce((sum, p) => sum + (p.source.pagesOrSlides || 0), 0);
 
-  // Locate an already-generated Summary matching the exact active source fingerprint
-  const syncedSummaryMaterial =
+  // Locate an already-generated AI Summary matching the exact active source fingerprint.
+  // Never reuse local/fallback or low-grounding summaries so a faulty tool output cannot poison sibling tools.
+  const rawSourceTokenSet = new Set(
+    profiles
+      .flatMap((p) =>
+        `${p.source.name} ${p.source.text.slice(0, 12_000)}`
+          .toLocaleLowerCase('tr-TR')
+          .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+          .split(/\s+/),
+      )
+      .filter((w) => w.length >= 4),
+  );
+
+  const candidateSummary =
     (params.allMaterials || []).find(
       (m) =>
         m.material_type === 'summary' &&
+        m.content?.metadata?.sourceMode !== 'local' &&
         (m.content?.metadata?.sourceFingerprint === fingerprint ||
           (m.exam_profile as Record<string, unknown> | null | undefined)?.sourceFingerprint ===
             fingerprint),
     ) || null;
 
-  // Build shared canonical analysis digest for all sibling tools
+  const isSummaryGroundedInSource = (mat: StudyMaterial | null): boolean => {
+    if (!mat?.content?.sections || mat.content.sections.length === 0) return false;
+    if (rawSourceTokenSet.size < 10) return true;
+    const summaryHeadingWords = mat.content.sections
+      .map((s) => String(s.heading || ''))
+      .join(' ')
+      .toLocaleLowerCase('tr-TR')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length >= 4);
+    if (summaryHeadingWords.length === 0) return false;
+    const matched = summaryHeadingWords.filter((w) => rawSourceTokenSet.has(w)).length;
+    return matched / summaryHeadingWords.length >= 0.35;
+  };
+
+  const syncedSummaryMaterial = isSummaryGroundedInSource(candidateSummary) ? candidateSummary : null;
+
+  // Build shared canonical analysis digest for all sibling tools (raw source truth is ALWAYS primary)
   const digestLines: string[] = [];
   if (profiles.length > 0) {
     digestLines.push(
@@ -332,7 +362,7 @@ export function buildCanonicalSourceAnalysis(params: {
       .filter(Boolean)
       .slice(0, 16);
     digestLines.push(
-      `ORTAK ÖZET ANALİZİ İLE EŞİTLENMİŞ ÇEKİRDEK KONULAR:\n- Ana Bölümler: ${summaryHeadings.join(
+      `DOĞRULANMIŞ ÖZET İLE EŞLENEN ÇEKİRDEK BAŞLIKLAR (YALNIZCA HAM KAYNAKLA ÖRTÜŞTÜĞÜ ÖLÇÜDE):\n- Ana Bölümler: ${summaryHeadings.join(
         ' | ',
       )}${summaryTerms.length > 0 ? `\n- Anahtar Terimler: ${summaryTerms.join(', ')}` : ''}`,
     );

@@ -9,7 +9,19 @@ import {
   classifyStudyDomain,
   type AcademicDomainMode,
 } from './studySourceProcessor';
-import type { SummarySection } from '@/types/study';
+import {
+  computeDifficultyQuota,
+  hashCompact,
+  normalizeForComparison,
+  resolveVideoThemeForCourse,
+  validateAndRepairVideoContent,
+  validateFlashcardsBatch,
+  validateQuizBatch,
+  type DifficultyQuota,
+  type FlashcardHistoryEntry,
+  type QuestionHistoryEntry,
+} from './studyQualityEngine';
+import type { FlashcardItem, QuizQuestion, SummarySection } from '@/types/study';
 
 export interface GeneratePayload {
   materialType: 'flashcards' | 'quiz' | 'summary' | 'video';
@@ -27,6 +39,12 @@ export interface GeneratePayload {
   difficulty?: 'easy' | 'medium' | 'hard' | 'mixed';
   quizFormat?: 'multiple_choice' | 'open_ended' | 'mixed';
   examFocus?: string;
+  sourceFingerprint?: string;
+  generationNonce?: string;
+  avoidHistory?: QuestionHistoryEntry[];
+  avoidFlashcardHistory?: FlashcardHistoryEntry[];
+  preferredTopics?: string[];
+  preferredDifficultyQuota?: DifficultyQuota;
 }
 
 interface ParsedUnit {
@@ -407,29 +425,434 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
   });
 }
 
-function buildSectionQuizDistractors(
-  correctSentence: string,
-  allSentences: string[],
-  idx: number,
-): string[] {
-  const candidates = allSentences
-    .filter((s, j) => j !== idx && s.toLowerCase() !== correctSentence.toLowerCase())
-    .slice(0, 6);
+function cleanCompleteSentence(raw: string, maxLen = 175): string {
+  const cleaned = String(raw || '')
+    .replace(/…|\.{3,}/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  if (cleaned.length <= maxLen) {
+    return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
+  }
+  const firstSent = cleaned.split(/(?<=[.!?])\s+/)[0] || cleaned;
+  if (firstSent.length >= 28 && firstSent.length <= maxLen + 15) {
+    return /[.!?]$/.test(firstSent) ? firstSent : `${firstSent}.`;
+  }
+  const words = cleaned.slice(0, maxLen - 4).split(' ');
+  words.pop();
+  const joined = words.join(' ').replace(/[,;:\-–—]+$/, '').trim();
+  return joined ? `${joined}.` : `${cleaned.slice(0, maxLen)}.`;
+}
 
-  const distractors: string[] = [];
-  for (const cand of candidates) {
-    if (distractors.length >= 3) break;
-    distractors.push(cand.slice(0, 145));
+function stripTermSubjectToPredicate(sentence: string, term: string): string {
+  const clean = cleanCompleteSentence(sentence, 165);
+  const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Remove leading "Term, ..." or "Term: ..." or "Term kavramı ..." so the predicate does not leak the term name
+  const stripped = clean
+    .replace(new RegExp(`^${esc}(?:[a-zçğıöşü']*)?(?:\\s+(?:kavramı|ilkesi|teorisi|kuramı|sistemi|yaklaşımı))?\\s*[,:\\-–—]?\\s*`, 'iu'), '')
+    .trim();
+  if (stripped.length >= 24) {
+    return stripped.charAt(0).toLocaleUpperCase('tr-TR') + stripped.slice(1);
   }
-  const fallbackDistractors = [
-    'Bu süreçte temel mekanizma yalnızca tek bir dış faktöre indirgenir ve ders notundaki koşullar geçersiz sayılır.',
-    'İlgili kavram metinde açıklanan ilke ile çelişecek biçimde ters yönlü bir sonuç doğurur.',
-    'Bu durum ders notunun kapsamı dışında olup metinde belirtilen temel varsayımlarla örtüşmez.',
-  ];
-  while (distractors.length < 3) {
-    distractors.push(fallbackDistractors[distractors.length % fallbackDistractors.length]);
+  return clean;
+}
+
+function maskConceptInText(sentence: string, term: string): { masked: string; didMask: boolean } {
+  const clean = cleanCompleteSentence(sentence, 210);
+  const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?<![\\p{L}\\p{N}])${esc}[a-zçğıöşü']*(?![\\p{L}\\p{N}])`, 'giu');
+  if (!re.test(clean)) return { masked: clean, didMask: false };
+  return { masked: clean.replace(re, '_____'), didMask: true };
+}
+
+const LOGICAL_INVERSION_PAIRS: Array<[RegExp, string]> = [
+  [/\bartırır\b/gi, 'azaltır'],
+  [/\bazaltır\b/gi, 'artırır'],
+  [/\bartar\b/gi, 'azalır'],
+  [/\bazalır\b/gi, 'artar'],
+  [/\byükselir\b/gi, 'düşer'],
+  [/\bdüşer\b/gi, 'yükselir'],
+  [/\bteşvik\s+edilir/gi, 'yasaklanır'],
+  [/\bsınırlandırılmıştır/gi, 'tamamen serbest bırakılmıştır'],
+  [/\bzorunludur\b/gi, 'gereksiz ve geçersizdir'],
+  [/\bserbest\s+dış\s+ticareti\b/gi, 'ağır gümrük korumacılığını'],
+  [/\bpozitif\b/gi, 'negatif'],
+  [/\bnegatif\b/gi, 'pozitif'],
+  [/\bkısa\s+dönemde\b/gi, 'yalnızca uzun dönemde sabit kalarak'],
+  [/\buzun\s+dönemde\b/gi, 'yalnızca kısa dönemde geçici olarak'],
+  [/\breddedilir\b/gi, 'koşulsuz kabul edilir'],
+  [/\bkabul\s+edilir\b/gi, 'kesin olarak reddedilir'],
+  [/\bgeçerlidir\b/gi, 'hükümsüzdür'],
+  [/\bsorumludur\b/gi, 'hiçbir sorumluluk taşımaz'],
+  [/\bdoğrudan\s+belirler\b/gi, 'hiçbir biçimde etkilemez'],
+  [/\bsavunur\b/gi, 'tümüyle reddeder'],
+  [/\bkarşı\s+çıkmış/gi, 'koşulsuz desteklemiş'],
+  [/\bdışsal\b/gi, 'tamamen içsel'],
+  [/\biçsel\b/gi, 'tamamen dışsal'],
+  [/\bpasif\s+kalemidir\b/gi, 'aktif kalemidir'],
+  [/\baktif\s+kalemidir\b/gi, 'pasif kalemidir'],
+  [/\balacaklı\b/gi, 'borçlu'],
+  [/\bborçlu\b/gi, 'alacaklı'],
+];
+
+function createLogicalInversion(
+  sentence: string,
+  otherTerm?: { term: string; definition: string },
+  subjectTerm?: string,
+): { statement: string; reason: string } | null {
+  const clean = cleanCompleteSentence(sentence, 160);
+  for (const [pattern, replacement] of LOGICAL_INVERSION_PAIRS) {
+    pattern.lastIndex = 0;
+    if (pattern.test(clean)) {
+      pattern.lastIndex = 0;
+      const inverted = clean.replace(pattern, replacement);
+      if (inverted !== clean) {
+        return {
+          statement: inverted,
+          reason: `Kaynak metindeki gerçek ilişki tersine çevrilmiştir. Doğrusu: "${clean}"`,
+        };
+      }
+    }
   }
-  return distractors;
+  if (subjectTerm && otherTerm && normalizeForComparison(subjectTerm) !== normalizeForComparison(otherTerm.term)) {
+    const wrongPred = stripTermSubjectToPredicate(otherTerm.definition, otherTerm.term);
+    if (wrongPred.length >= 24) {
+      const lowerPred = wrongPred.charAt(0).toLocaleLowerCase('tr-TR') + wrongPred.slice(1);
+      return {
+        statement: `${subjectTerm}, ${lowerPred}`,
+        reason: `Bu tanım/özellik "${subjectTerm}" kavramına değil, kaynak metindeki "${otherTerm.term}" kavramına aittir.`,
+      };
+    }
+  }
+  return null;
+}
+
+function rotateArrayBySeed<T>(items: T[], seedStr: string): T[] {
+  if (items.length <= 1) return [...items];
+  const offset = parseInt(hashCompact(seedStr).slice(0, 4), 36) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
+}
+
+/**
+ * Builds a single academically valid concept-pinned multiple-choice question
+ * with strictly 1 correct answer and 3 genuinely wrong, plausible domain distractors.
+ */
+function buildValidConceptPinnedQuestion(params: {
+  term: string;
+  definition: string;
+  sectionHeading: string;
+  pageRange?: string;
+  otherTerms: Array<{ term: string; definition: string }>;
+  seedIndex: number;
+}): {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+} | null {
+  const correctPred = stripTermSubjectToPredicate(params.definition, params.term);
+  if (correctPred.length < 22) return null;
+
+  const wrongPreds: string[] = [];
+  const seenNorm = new Set<string>([normalizeForComparison(correctPred)]);
+  for (const ot of params.otherTerms) {
+    if (normalizeForComparison(ot.term) === normalizeForComparison(params.term)) continue;
+    const pred = stripTermSubjectToPredicate(ot.definition, ot.term);
+    const norm = normalizeForComparison(pred);
+    if (pred.length >= 22 && !seenNorm.has(norm) && !norm.includes(normalizeForComparison(params.term))) {
+      seenNorm.add(norm);
+      wrongPreds.push(pred);
+    }
+    if (wrongPreds.length >= 3) break;
+  }
+
+  // If the document is very short and has fewer than 3 other terms, create a clean logical inversion as distractor
+  if (wrongPreds.length < 3) {
+    const inv = createLogicalInversion(params.definition);
+    if (inv) {
+      const invPred = stripTermSubjectToPredicate(inv.statement, params.term);
+      const norm = normalizeForComparison(invPred);
+      if (invPred.length >= 22 && !seenNorm.has(norm)) {
+        seenNorm.add(norm);
+        wrongPreds.push(invPred);
+      }
+    }
+  }
+
+  if (wrongPreds.length < 3) return null;
+
+  const correctIndex = params.seedIndex % 4;
+  const options = wrongPreds.slice(0, 3);
+  options.splice(correctIndex, 0, correctPred);
+
+  return {
+    question: `${params.sectionHeading} bağlamında "${params.term}" kavramı için aşağıdakilerden hangisi doğrudur?`,
+    options,
+    correctIndex,
+    explanation: `Kaynak metne (${params.sectionHeading}${params.pageRange ? `, ${params.pageRange}` : ''}) göre ${params.term}: ${correctPred}`,
+  };
+}
+
+/**
+ * Generates a rich, diverse, non-repeating candidate quiz bank across all document sections
+ * spanning 4 cognitive archetypes (Bilgi/Kavrama, Yorumlama/Uygulama, Analiz/Karşılaştırma)
+ * with strictly 1 correct answer per multiple-choice question.
+ */
+function buildLocalQuizCandidates(params: {
+  units: ParsedUnit[];
+  keyTerms: Array<{ term: string; definition: string; formula?: string }>;
+  sentences: string[];
+  title: string;
+  course: string;
+  quizFormat: 'multiple_choice' | 'open_ended' | 'mixed';
+  generationNonce?: string;
+  preferredTopics?: string[];
+  requestedCount: number;
+}): QuizQuestion[] {
+  const { units, keyTerms, sentences, title, course, quizFormat } = params;
+  const nonce = params.generationNonce || 'default';
+
+  // Augment term pool with clean heading/subject concepts if keyTerms is small
+  const enrichedTerms: Array<{ term: string; definition: string; section: string; pageRange?: string }> = [];
+  const seenTermKey = new Set<string>();
+
+  const findUnitForText = (text: string): ParsedUnit | undefined => {
+    const lower = text.toLocaleLowerCase('tr-TR');
+    return units.find(
+      (u) =>
+        u.heading.toLocaleLowerCase('tr-TR').includes(lower.slice(0, 20)) ||
+        u.sentences.some((s) => s.toLocaleLowerCase('tr-TR').includes(lower.slice(0, 24))),
+    );
+  };
+
+  for (const kt of keyTerms) {
+    const k = normalizeForComparison(kt.term);
+    if (!k || seenTermKey.has(k)) continue;
+    seenTermKey.add(k);
+    const hostUnit = findUnitForText(kt.term) || findUnitForText(kt.definition) || units[0];
+    enrichedTerms.push({
+      term: kt.term,
+      definition: cleanCompleteSentence(kt.definition, 180),
+      section: hostUnit?.heading || title,
+      pageRange: hostUnit?.pageRange,
+    });
+  }
+
+  // Also extract section-level concepts from colon or capitalized subjects in each unit
+  for (const u of units) {
+    for (const s of u.sentences) {
+      const m = s.match(/^([A-ZÇĞİÖŞÜ][A-Za-zÇĞİÖŞÜçğıöşü\s-]{2,36}?)(?:\s*[:–—]|,\s+)/);
+      if (m) {
+        const candTerm = m[1].trim();
+        const k = normalizeForComparison(candTerm);
+        if (candTerm.length >= 4 && !seenTermKey.has(k) && !STOPWORDS.has(candTerm.toLocaleLowerCase('tr-TR'))) {
+          seenTermKey.add(k);
+          enrichedTerms.push({
+            term: candTerm,
+            definition: cleanCompleteSentence(s, 180),
+            section: u.heading,
+            pageRange: u.pageRange,
+          });
+        }
+      }
+    }
+  }
+
+  // Prioritize sections in preferredTopics (least tested in prior runs) + nonce rotation
+  const preferredSet = new Set((params.preferredTopics || []).map(normalizeForComparison));
+  const orderedUnits = [...units].sort((a, b) => {
+    const aPref = preferredSet.has(normalizeForComparison(a.heading)) ? 0 : 1;
+    const bPref = preferredSet.has(normalizeForComparison(b.heading)) ? 0 : 1;
+    return aPref - bPref;
+  });
+  const rotatedUnits = rotateArrayBySeed(orderedUnits, `${nonce}:units`);
+  const rotatedTerms = rotateArrayBySeed(enrichedTerms, `${nonce}:terms`);
+
+  const candidates: QuizQuestion[] = [];
+
+  // Open-ended questions if requested
+  if (quizFormat === 'open_ended' || quizFormat === 'mixed') {
+    const openTarget = quizFormat === 'open_ended' ? params.requestedCount + 4 : Math.max(2, Math.ceil(params.requestedCount * 0.25));
+    for (let i = 0; i < Math.min(openTarget, rotatedTerms.length); i++) {
+      const t = rotatedTerms[i];
+      candidates.push({
+        type: 'short_answer',
+        question: `"${t.term}" kavramının ${t.section} kapsamındaki rolünü, temel mekanizmasını ve sonuçlarını kaynak notlara dayanarak açıklayınız.`,
+        options: [],
+        sampleAnswer: t.definition,
+        rubric: [
+          `${t.term} kavramının doğru ve eksiksiz tanımlanması`,
+          `${t.section} bağlamındaki mekanizma veya neden-sonuç ilişkisinin kurulması`,
+        ],
+        explanation: `Kaynak metne (${t.section}) göre: ${t.definition}`,
+        topic: t.section,
+        sourceSection: t.section,
+        sourcePage: t.pageRange,
+        difficulty: i % 2 === 0 ? 'hard' : 'medium',
+        bloomLevel: i % 2 === 0 ? 'Analiz ve Karşılaştırma' : 'Yorumlama ve Uygulama',
+      });
+    }
+    if (quizFormat === 'open_ended') return candidates;
+  }
+
+  // ARCHETYPE 1 (EASY — Bilgi ve Kavrama): Masked Concept Identification (Definition -> Term)
+  if (rotatedTerms.length >= 4) {
+    for (let i = 0; i < rotatedTerms.length; i++) {
+      const target = rotatedTerms[i];
+      const { masked, didMask } = maskConceptInText(target.definition, target.term);
+      const otherNames = rotatedTerms
+        .filter((ot) => normalizeForComparison(ot.term) !== normalizeForComparison(target.term))
+        .map((ot) => ot.term);
+      const distinctDistractors = Array.from(new Set(otherNames)).slice(0, 3);
+      if (distinctDistractors.length < 3) continue;
+
+      const correctIndex = (i + 1) % 4;
+      const options = [...distinctDistractors];
+      options.splice(correctIndex, 0, target.term);
+
+      const stem = didMask
+        ? `"${masked}" ifadesinde boş bırakılan yere ders notuna göre hangi kavram getirilmelidir?`
+        : `${target.section} konusunda "${stripTermSubjectToPredicate(target.definition, target.term)}" biçiminde açıklanan kavram aşağıdakilerden hangisidir?`;
+
+      candidates.push({
+        type: 'multiple_choice',
+        question: stem,
+        options,
+        correctIndex,
+        explanation: `Kaynak notun "${target.section}" bölümünde bu tanım doğrudan "${target.term}" kavramını ifade eder: ${target.definition}`,
+        topic: target.section,
+        sourceSection: target.section,
+        sourcePage: target.pageRange,
+        difficulty: 'easy',
+        bloomLevel: 'Bilgi ve Kavrama',
+      });
+    }
+  }
+
+  // ARCHETYPE 2 (MEDIUM — Yorumlama ve Uygulama): Concept-Pinned Attribute / Role Matching
+  for (let i = 0; i < rotatedTerms.length; i++) {
+    const target = rotatedTerms[i];
+    const others = rotateArrayBySeed(
+      rotatedTerms.filter((ot) => normalizeForComparison(ot.term) !== normalizeForComparison(target.term)),
+      `${nonce}:pin:${i}`,
+    );
+    const built = buildValidConceptPinnedQuestion({
+      term: target.term,
+      definition: target.definition,
+      sectionHeading: target.section,
+      pageRange: target.pageRange,
+      otherTerms: others,
+      seedIndex: i + 2,
+    });
+    if (!built) continue;
+    candidates.push({
+      type: 'multiple_choice',
+      question: built.question,
+      options: built.options,
+      correctIndex: built.correctIndex,
+      explanation: built.explanation,
+      topic: target.section,
+      sourceSection: target.section,
+      sourcePage: target.pageRange,
+      difficulty: 'medium',
+      bloomLevel: 'Yorumlama ve Uygulama',
+    });
+  }
+
+  // ARCHETYPE 3 (HARD — Analiz ve Karşılaştırma): Logical Inversion / "Hangisi Söylenemez?"
+  for (let uIdx = 0; uIdx < rotatedUnits.length; uIdx++) {
+    const u = rotatedUnits[uIdx];
+    const cleanSents = u.sentences
+      .filter((s) => !GREETING_RE.test(s) && s.length >= 30)
+      .map((s) => cleanCompleteSentence(s, 155));
+    const poolTrue = Array.from(
+      new Set([
+        ...cleanSents,
+        ...sentences.filter((s) => !GREETING_RE.test(s) && s.length >= 30).map((s) => cleanCompleteSentence(s, 155)),
+      ]),
+    );
+    if (poolTrue.length < 4) continue;
+
+    // Pick a sentence to invert logically so strictly 1 option is FALSE and 3 options are TRUE
+    const targetSentIdx = uIdx % Math.min(cleanSents.length || 1, poolTrue.length);
+    const sentenceToInvert = cleanSents[targetSentIdx] || poolTrue[targetSentIdx];
+    const hostTerm = rotatedTerms.find((t) => normalizeForComparison(t.section) === normalizeForComparison(u.heading)) || rotatedTerms[uIdx % Math.max(1, rotatedTerms.length)];
+    const otherTerm = rotatedTerms.find((t) => hostTerm && normalizeForComparison(t.term) !== normalizeForComparison(hostTerm.term));
+    const inverted = createLogicalInversion(sentenceToInvert, otherTerm, hostTerm?.term);
+    if (!inverted) continue;
+
+    const trueOptions = poolTrue
+      .filter((s) => normalizeForComparison(s) !== normalizeForComparison(sentenceToInvert) && normalizeForComparison(s) !== normalizeForComparison(inverted.statement))
+      .slice(0, 3);
+    if (trueOptions.length < 3) continue;
+
+    const correctIndex = (uIdx + 3) % 4;
+    const options = [...trueOptions];
+    options.splice(correctIndex, 0, inverted.statement);
+
+    candidates.push({
+      type: 'multiple_choice',
+      question: `Ders notunun "${u.heading}" bölümü ve ilişkili ilkeler birlikte değerlendirildiğinde aşağıdaki yargılardan hangisi söylenemez?`,
+      options,
+      correctIndex,
+      explanation: `${inverted.reason} Diğer üç seçenek kaynak metinle tutarlıdır.`,
+      topic: u.heading,
+      sourceSection: u.heading,
+      sourcePage: u.pageRange,
+      difficulty: 'hard',
+      bloomLevel: 'Analiz ve Karşılaştırma',
+    });
+  }
+
+  // ARCHETYPE 4 (HARD — Analiz ve Karşılaştırma): Cross-Term Distinction (Comparing two concepts from the note)
+  if (rotatedTerms.length >= 4) {
+    for (let i = 0; i < Math.min(rotatedTerms.length, 6); i++) {
+      const termA = rotatedTerms[i];
+      const termB = rotatedTerms[(i + 1) % rotatedTerms.length];
+      if (normalizeForComparison(termA.term) === normalizeForComparison(termB.term)) continue;
+
+      const predA = stripTermSubjectToPredicate(termA.definition, termA.term);
+      const predB = stripTermSubjectToPredicate(termB.definition, termB.term);
+      if (predA.length < 22 || predB.length < 22) continue;
+
+      const invA = createLogicalInversion(termA.definition, termB, termA.term);
+      const otherC = rotatedTerms[(i + 2) % rotatedTerms.length];
+      const otherD = rotatedTerms[(i + 3) % rotatedTerms.length];
+      const predC = stripTermSubjectToPredicate(otherC.definition, otherC.term);
+      const predD = stripTermSubjectToPredicate(otherD.definition, otherD.term);
+
+      const truePair = `${termA.term} kavramı ${predA.charAt(0).toLocaleLowerCase('tr-TR') + predA.slice(1)}`;
+      const wrong1 = `${termA.term} kavramı ${predB.charAt(0).toLocaleLowerCase('tr-TR') + predB.slice(1)}`;
+      const wrong2 = `${termB.term} kavramı ${predA.charAt(0).toLocaleLowerCase('tr-TR') + predA.slice(1)}`;
+      const wrong3 = invA
+        ? invA.statement
+        : `${termA.term} kavramı ${predC.charAt(0).toLocaleLowerCase('tr-TR') + predC.slice(1)}`;
+
+      const uniq = new Set([truePair, wrong1, wrong2, wrong3].map(normalizeForComparison));
+      if (uniq.size < 4 || predD.length < 10) continue;
+
+      const correctIndex = i % 4;
+      const options = [wrong1, wrong2, wrong3];
+      options.splice(correctIndex, 0, truePair);
+
+      candidates.push({
+        type: 'multiple_choice',
+        question: `"${termA.term}" ve "${termB.term}" kavramları karşılaştırıldığında ders notuna göre aşağıdaki eşleştirmelerden hangisi doğrudur?`,
+        options,
+        correctIndex,
+        explanation: `Kaynak metinde "${termA.term}" kavramı şu şekilde açıklanır: ${termA.definition} Oysa "${termB.term}" farklı bir işlevi tanımlar.`,
+        topic: `${termA.section}`,
+        sourceSection: termA.section,
+        sourcePage: termA.pageRange,
+        difficulty: 'hard',
+        bloomLevel: 'Analiz ve Karşılaştırma',
+      });
+    }
+  }
+
+  // Rotate final candidate pool lightly by nonce so repeated calls sample different archetypes first
+  return rotateArrayBySeed(candidates, `${nonce}:${course}:final`);
 }
 
 const CAUSAL_CONTRAST_RE =
@@ -555,9 +978,17 @@ function buildRichSummarySection(params: {
     .map((t) => t.trim().slice(0, 165));
 
   const qSentence = unit.sentences[0] || unit.paragraphs[0] || '';
-  const checkpointOpts = buildSectionQuizDistractors(qSentence, allSentences, index);
-  const correctIndex = index % 4;
-  checkpointOpts.splice(correctIndex, 0, qSentence.slice(0, 130) || `${heading} temel bulgusu`);
+  const primarySectionTerm = sectionTerms[0] || keyTerms[index % Math.max(1, keyTerms.length)];
+  const builtCheckpoint = primarySectionTerm
+    ? buildValidConceptPinnedQuestion({
+        term: primarySectionTerm.term,
+        definition: primarySectionTerm.definition,
+        sectionHeading: heading,
+        pageRange,
+        otherTerms: keyTerms.filter((k) => k.term !== primarySectionTerm.term),
+        seedIndex: index,
+      })
+    : null;
 
   const commonPitfalls: string[] = [];
   if (sectionTerms.length >= 2) {
@@ -586,15 +1017,7 @@ function buildRichSummarySection(params: {
     takeaways,
     deepResearchNote,
     commonPitfalls: commonPitfalls.slice(0, 2),
-    checkpointQuestion:
-      qSentence.length > 20
-        ? {
-            question: `${heading} bölümüne göre aşağıdaki çıkarımlardan hangisi geçerlidir?`,
-            options: checkpointOpts.slice(0, 4),
-            correctIndex,
-            explanation: `Doğrudan kaynak metinden: "${qSentence.slice(0, 180)}"`,
-          }
-        : undefined,
+    checkpointQuestion: builtCheckpoint || undefined,
   };
 }
 
@@ -670,100 +1093,186 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
   // ---------------- QUIZ ----------------
   if (req.materialType === 'quiz') {
     const requested = Math.min(Math.max(req.questionCount || 6, 3), 25);
-    const pool = sentences.length > 0 ? sentences : [`${title} — ${course} temel kavramı.`];
     const fmt = req.quizFormat || 'multiple_choice';
+    const units = splitDocumentIntoUnits(cleanText, title, Math.max(4, Math.min(12, Math.ceil(sentences.length / 2))));
+    const outlineHeadings = units.map((u) => u.heading);
 
-    const questions = Array.from({ length: requested }, (_, idx) => {
-      const targetSentence = pool[idx % pool.length];
-      const hostTerm = keyTerms[idx % Math.max(1, keyTerms.length)]?.term || title;
-      const isOpen = fmt === 'open_ended' || (fmt === 'mixed' && idx % 4 === 3);
-
-      if (isOpen) {
-        return {
-          type: 'short_answer' as const,
-          question: `"${hostTerm}" kavramının ${title} kapsamındaki rolünü, temel varsayımını veya sonucunu açıklayınız.`,
-          options: [],
-          sampleAnswer: targetSentence,
-          rubric: [
-            `${hostTerm} kavramının doğru tanımlanması`,
-            'Kaynak metindeki neden-sonuç veya mekanizmanın açıklanması',
-          ],
-          explanation: `Kaynak metne göre: ${targetSentence}`,
-          topic: hostTerm,
-          difficulty: idx % 3 === 0 ? 'hard' : 'medium',
-          bloomLevel: 'Analiz',
-        };
-      }
-
-      const distractors = buildSectionQuizDistractors(targetSentence, pool, idx % pool.length);
-      const correctIndex = idx % 4;
-      const options = [...distractors];
-      options.splice(correctIndex, 0, targetSentence.slice(0, 150));
-
-      return {
-        type: 'multiple_choice' as const,
-        question: `${title} metnine göre "${hostTerm}" veya ilgili süreç hakkında aşağıdaki ifadelerden hangisi doğrudur? (Soru ${
-          idx + 1
-        })`,
-        options: options.slice(0, 4),
-        correctIndex,
-        explanation: `Kaynak metinde doğrudan yer alan ifade: "${targetSentence}"`,
-        topic: hostTerm,
-        difficulty: idx % 3 === 0 ? 'hard' : idx % 2 === 0 ? 'medium' : 'easy',
-        bloomLevel: idx % 2 === 0 ? 'Uygulama' : 'Anlama',
-      };
+    const rawCandidates = buildLocalQuizCandidates({
+      units,
+      keyTerms,
+      sentences,
+      title,
+      course,
+      quizFormat: fmt,
+      generationNonce: req.generationNonce,
+      preferredTopics: req.preferredTopics,
+      requestedCount: requested,
     });
 
+    const validated = validateQuizBatch(rawCandidates, {
+      sourceText: cleanText,
+      course,
+      title,
+      outlineHeadings,
+      requestedCount: requested,
+      requestedDifficulty: req.difficulty || 'mixed',
+      sourceFingerprint: req.sourceFingerprint,
+      historyEntries: req.avoidHistory,
+    });
+
+    const finalQuestions = [...validated.accepted];
+
+    // If a very tiny source has fewer than `requested` unique MC items after history exclusion,
+    // add distinct open-ended analytical questions (never repeating or fabricating broken options)
+    if (finalQuestions.length < requested) {
+      const rotatedUnits = rotateArrayBySeed(units, `${req.generationNonce || 'fill'}:open`);
+      for (let i = 0; i < rotatedUnits.length && finalQuestions.length < requested; i++) {
+        const u = rotatedUnits[i];
+        const refSent = u.sentences[0] || sentences[i % Math.max(1, sentences.length)] || title;
+        const candidateOpen: QuizQuestion = {
+          type: 'short_answer',
+          question: `"${u.heading}" bölümündeki temel ilkeyi ve bu mekanizmanın ${course} açısından doğurduğu sonucu açıklayınız.`,
+          options: [],
+          sampleAnswer: cleanCompleteSentence(refSent, 220),
+          rubric: [
+            `${u.heading} kavramının doğru biçimde tanımlanması`,
+            'Kaynak nottaki neden-sonuç veya uygulama ilişkisinin belirtilmesi',
+          ],
+          explanation: `Kaynak metne (${u.heading}${u.pageRange ? `, ${u.pageRange}` : ''}) göre: ${cleanCompleteSentence(refSent, 220)}`,
+          topic: u.heading,
+          sourceSection: u.heading,
+          sourcePage: u.pageRange,
+          difficulty: 'medium',
+          bloomLevel: 'Yorumlama ve Uygulama',
+        };
+        const check = validateQuizBatch([candidateOpen], {
+          sourceText: cleanText,
+          course,
+          title,
+          outlineHeadings,
+          requestedCount: requested,
+          requestedDifficulty: req.difficulty || 'mixed',
+          sourceFingerprint: req.sourceFingerprint,
+          historyEntries: req.avoidHistory,
+          alreadyAccepted: finalQuestions,
+          strictSourceGrounding: false,
+        });
+        if (check.accepted.length > finalQuestions.length) {
+          finalQuestions.push(check.accepted[check.accepted.length - 1]);
+        }
+      }
+    }
+
+    const quotaUsed = computeDifficultyQuota(finalQuestions.length || 1, req.difficulty || 'mixed');
     return {
-      questions,
-      metadata: { sourceMode: 'local', deepResearch: Boolean(req.deepResearch) },
+      questions: finalQuestions.slice(0, requested),
+      extractionNotices: req.extractionWarnings?.length ? req.extractionWarnings : undefined,
+      qualityReport: {
+        ...validated.qualityReport,
+        validatedCount: finalQuestions.slice(0, requested).length,
+      },
+      metadata: {
+        sourceMode: 'local',
+        deepResearch: Boolean(req.deepResearch),
+        sourceFingerprint: req.sourceFingerprint,
+        difficultyQuotaTarget: quotaUsed,
+      },
     };
   }
 
   // ---------------- FLASHCARDS ----------------
   if (req.materialType === 'flashcards') {
     const requested = Math.min(Math.max(req.cardCount || 6, 4), 32);
-    const termCards = keyTerms.map((kt, idx) => ({
-      front: `${kt.term} nedir ve ${title} içinde hangi mekanizmayı veya olguyu ifade eder?`,
-      back: kt.formula ? `${kt.definition}\n\nFormül: $${kt.formula}$` : kt.definition,
-      hint: `${kt.term} anahtar terimi`,
-      topic: kt.term,
-      difficulty: idx % 3 === 0 ? ('hard' as const) : ('medium' as const),
-    }));
+    const units = splitDocumentIntoUnits(cleanText, title, Math.max(4, Math.min(12, Math.ceil(sentences.length / 2))));
+    const outlineHeadings = units.map((u) => u.heading);
+    const nonce = req.generationNonce || 'default';
 
-    const sentenceCards = sentences.map((s, idx) => {
-      const cue = s.split(/\s+/).slice(0, 6).join(' ');
-      return {
-        front: `${title} (#${idx + 1}): "${cue}..." ile ifade edilen temel ilke nedir?`,
-        back: s,
-        hint: 'Kaynak nottaki doğrudan tespit',
-        topic: course,
-        difficulty: idx % 2 === 0 ? ('medium' as const) : ('easy' as const),
-      };
-    });
+    const rawCards: FlashcardItem[] = [];
+    const rotatedTerms = rotateArrayBySeed(keyTerms, `${nonce}:fc-terms`);
+    const rotatedUnits = rotateArrayBySeed(units, `${nonce}:fc-units`);
 
-    const merged = [...termCards, ...sentenceCards].slice(0, requested);
-    if (merged.length === 0) {
-      merged.push({
-        front: `${title} ana odak noktası nedir?`,
-        back: cleanText.slice(0, 260) || `${course} çalışma notu.`,
-        hint: title,
-        topic: course,
-        difficulty: 'medium',
+    for (let i = 0; i < rotatedTerms.length; i++) {
+      const kt = rotatedTerms[i];
+      const hostUnit = units.find((u) =>
+        u.sentences.some((s) => s.toLocaleLowerCase('tr-TR').includes(kt.term.toLocaleLowerCase('tr-TR'))),
+      );
+      rawCards.push({
+        front: `${kt.term} kavramının temel tanımı ve ${hostUnit?.heading || title} kapsamındaki işlevi nedir?`,
+        back: kt.formula ? `${cleanCompleteSentence(kt.definition, 210)}\n\nFormül: $${kt.formula}$` : cleanCompleteSentence(kt.definition, 210),
+        hint: `${kt.term} anahtar kavramı`,
+        topic: hostUnit?.heading || kt.term,
+        sourceSection: hostUnit?.heading,
+        sourcePage: hostUnit?.pageRange,
+        difficulty: i % 3 === 0 ? 'easy' : i % 3 === 1 ? 'medium' : 'hard',
       });
     }
 
+    // Add comparative & mechanism cards across units (zero ugly "(#1): ..." raw truncation fronts!)
+    if (rotatedTerms.length >= 2) {
+      for (let i = 0; i < Math.min(4, rotatedTerms.length - 1); i++) {
+        const a = rotatedTerms[i];
+        const b = rotatedTerms[i + 1];
+        rawCards.push({
+          front: `"${a.term}" ile "${b.term}" kavramları hangi temel yönlerden ayrılır?`,
+          back: `${a.term}: ${cleanCompleteSentence(a.definition, 120)} Buna karşılık ${b.term}: ${cleanCompleteSentence(b.definition, 120)}`,
+          hint: 'Kavram karşılaştırması',
+          topic: course,
+          difficulty: 'hard',
+        });
+      }
+    }
+
+    for (let i = 0; i < rotatedUnits.length; i++) {
+      const u = rotatedUnits[i];
+      const coreSent = u.sentences.find((s) => !GREETING_RE.test(s) && s.length >= 28);
+      if (!coreSent) continue;
+      rawCards.push({
+        front: `"${u.heading}" konusunda kaynak notun vurguladığı temel mekanizma veya ilke nedir?`,
+        back: cleanCompleteSentence(coreSent, 220),
+        hint: u.pageRange ? `${u.heading} (${u.pageRange})` : u.heading,
+        topic: u.heading,
+        sourceSection: u.heading,
+        sourcePage: u.pageRange,
+        difficulty: i % 2 === 0 ? 'medium' : 'easy',
+      });
+    }
+
+    const validatedCards = validateFlashcardsBatch(rawCards, {
+      sourceText: cleanText,
+      course,
+      title,
+      outlineHeadings,
+      requestedCount: requested,
+      sourceFingerprint: req.sourceFingerprint,
+      historyEntries: req.avoidFlashcardHistory,
+    });
+
+    const cards = [...validatedCards.accepted];
+    if (cards.length < requested) {
+      for (const fallbackCard of rawCards) {
+        if (cards.length >= requested) break;
+        if (!cards.some((c) => normalizeForComparison(c.front) === normalizeForComparison(fallbackCard.front))) {
+          cards.push(fallbackCard);
+        }
+      }
+    }
+
     return {
-      cards: merged,
-      metadata: { sourceMode: 'local', deepResearch: Boolean(req.deepResearch) },
+      cards: cards.slice(0, requested),
+      extractionNotices: req.extractionWarnings?.length ? req.extractionWarnings : undefined,
+      metadata: {
+        sourceMode: 'local',
+        deepResearch: Boolean(req.deepResearch),
+        sourceFingerprint: req.sourceFingerprint,
+      },
     };
   }
 
   // ---------------- VIDEO ----------------
   if (req.materialType === 'video') {
-    let units = splitDocumentIntoUnits(cleanText, title, 6).filter(
+    let units = splitDocumentIntoUnits(cleanText, title, 7).filter(
       (u) =>
-        u.sentences.some((st) => !/^\s*(?:merhaba|hoş\s+geldiniz|selam|günaydın)\b/i.test(st)) ||
+        u.sentences.some((st) => !GREETING_RE.test(st)) ||
         u.bullets.length > 0,
     );
     if (units.length < 4 && sentences.length >= 6) {
@@ -782,64 +1291,78 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
         };
       });
     }
-    const isEconDoc =
-      /(?<![a-zçğıöşü])(iktisat|makroekonomi|mikroekonomi|ekonometri|para\s+teorisi|para\s+politikası|para\s+arzı|para\s+talebi|merkez\s+bankası|enflasyon|politika\s+faizi|arz\s+ve\s+talep|arz\s+eğrisi|talep\s+eğrisi|maliye\s+politikası|is-lm|phillips|gsyih|likidite|emisyon)(?![a-zçğıöşü])/i.test(
-        `${course} ${title} ${cleanText.slice(0, 1200)}`,
-      );
-    const diagramPalette = isEconDoc
-      ? (['visual', 'curve', 'table', 'shapes', 'scenario', 'comparison'] as const)
-      : (['visual', 'table', 'timeline', 'comparison', 'shapes', 'scenario'] as const);
-    const badges = ['Temel İlke', 'Mekanizma', 'Kritik Koşul', 'Sonuç / Çıktı'];
 
-    const scenes = units.slice(0, 7).map((u, idx) => {
-      const nonGreetingUnitSents = u.sentences.filter(
-        (st) => !/^\s*(?:merhaba|hoş\s+geldiniz|selam|günaydın)\b/i.test(st),
-      );
+    const lockedTheme = resolveVideoThemeForCourse(course, title, cleanText);
+    const diagramPalette =
+      lockedTheme === 'economics'
+        ? (['visual', 'curve', 'table', 'shapes', 'scenario', 'comparison', 'network'] as const)
+        : (['visual', 'table', 'timeline', 'comparison', 'structure', 'scenario', 'shapes'] as const);
+    const badges = ['Temel Kavram', 'Mekanizma', 'Kritik Koşul', 'Sonuç'];
+
+    const rawScenes = units.slice(0, 7).map((u, idx) => {
+      const nonGreetingUnitSents = u.sentences.filter((st) => !GREETING_RE.test(st));
       const unitSents =
         nonGreetingUnitSents.length > 0
           ? nonGreetingUnitSents
           : u.sentences.length > 0
           ? u.sentences
           : [`${u.heading} bölümü incelenmektedir.`];
-      const hostTerm = keyTerms[idx % Math.max(1, keyTerms.length)]?.term || u.heading;
-      const facetSources = [...(u.bullets.length > 0 ? u.bullets : []), ...unitSents, ...sentences].filter(
-        (st) => st && !/^\s*(?:merhaba|hoş\s+geldiniz|selam|günaydın)\b/i.test(st),
-      );
-      const nodes = Array.from({ length: Math.min(4, Math.max(3, facetSources.length)) }, (_, ni) => {
-        const rawSent = facetSources[ni % facetSources.length] || u.heading;
-        const colonParts = rawSent.split(/[:–-]/);
-        const labelCandidate =
-          colonParts.length >= 2 && colonParts[0].trim().length <= 36
-            ? colonParts[0].trim()
-            : rawSent.split(/\s+/).slice(0, 4).join(' ').replace(/[,.;:!?]$/, '');
-        return {
-          label: labelCandidate || `${u.heading.slice(0, 24)} ${ni + 1}`,
-          subtext: rawSent.slice(0, 145),
-          badge: badges[ni % badges.length],
-        };
-      });
+      const hostTermObj =
+        keyTerms.find((k) =>
+          unitSents.some((s) => s.toLocaleLowerCase('tr-TR').includes(k.term.toLocaleLowerCase('tr-TR'))),
+        ) || keyTerms[idx % Math.max(1, keyTerms.length)];
+      const hostTerm = hostTermObj?.term || u.heading;
 
-      const leadTurn = unitSents[0] || `${u.heading} temel çerçevesini oluşturur.`;
-      const deepTurn = unitSents.slice(1, 3).join(' ') || `${hostTerm} üzerinden neden-sonuç ilişkisi bu mekanizmada belirleyicidir.`;
+      const leadTurn = cleanCompleteSentence(unitSents[0] || `${u.heading} temel çerçevesini oluşturur.`, 240);
+      const deepTurn = cleanCompleteSentence(
+        unitSents.slice(1, 3).join(' ') ||
+          (hostTermObj ? hostTermObj.definition : `${hostTerm} üzerinden neden-sonuç ilişkisi bu mekanizmada belirleyicidir.`),
+        260,
+      );
       const turns = [
         { speaker: 'Deniz' as const, text: leadTurn },
         {
           speaker: 'Barış' as const,
-          text: `Deniz hocam, ${u.heading} kapsamında "${nodes[0]?.label || hostTerm}" kavramı pratikte hangi mekanizmayı tetikliyor?`,
+          text: `Deniz hocam, ${u.heading} kapsamında "${hostTerm}" kavramı nasıl bir mekanizma veya sonuç ortaya çıkarıyor?`,
         },
         { speaker: 'Deniz' as const, text: deepTurn },
       ];
       const narration = turns.map((t) => t.text).join(' ');
-      const correctOption = unitSents[0]?.slice(0, 130) || `${u.heading} ile doğrudan ilişkilidir.`;
-      const wrongOpts = buildSectionQuizDistractors(correctOption, sentences, idx).map((d) => d.slice(0, 115));
-      const correctIndex = idx % 4;
-      const opts = [...wrongOpts];
-      opts.splice(correctIndex, 0, correctOption);
-      const examTip =
-        (unitSents.length > 1 ? unitSents[1] : `${u.heading} konusunda ${nodes[0]?.label} ve sonucu arasındaki ayrımı netleştirin.`).slice(
-          0,
-          175,
-        );
+
+      const facetSources = [...unitSents, ...(u.bullets.length > 0 ? u.bullets : []), ...sentences].filter(
+        (st) => st && !GREETING_RE.test(st),
+      );
+      const nodes = Array.from({ length: Math.min(4, Math.max(3, facetSources.length)) }, (_, ni) => {
+        const rawSent = cleanCompleteSentence(facetSources[ni % facetSources.length] || u.heading, 128);
+        const colonParts = rawSent.split(/[:–—]/);
+        const labelCandidate =
+          colonParts.length >= 2 && colonParts[0].trim().length <= 34
+            ? colonParts[0].trim()
+            : rawSent.split(/\s+/).slice(0, 3).join(' ').replace(/[,.;:!?]$/, '');
+        return {
+          label: labelCandidate || `${u.heading.slice(0, 24)} ${ni + 1}`,
+          subtext: rawSent,
+          badge: badges[ni % badges.length],
+        };
+      });
+
+      const examTip = cleanCompleteSentence(
+        unitSents.length > 1
+          ? unitSents[1]
+          : `${u.heading} konusunda ${nodes[0]?.label || hostTerm} ile sonucu arasındaki ayrımı netleştirin.`,
+        170,
+      );
+
+      const validCp = hostTermObj
+        ? buildValidConceptPinnedQuestion({
+            term: hostTermObj.term,
+            definition: hostTermObj.definition,
+            sectionHeading: u.heading,
+            pageRange: u.pageRange,
+            otherTerms: keyTerms.filter((k) => k.term !== hostTermObj.term),
+            seedIndex: idx,
+          })
+        : null;
 
       return {
         id: `scene-${idx + 1}`,
@@ -849,32 +1372,44 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
         narration,
         diagramData: {
           diagramType: diagramPalette[idx % diagramPalette.length],
+          visualTheme: lockedTheme,
           mainTitle: u.heading,
           highlightMetric: examTip,
           nodes,
         },
-        keyTakeaways: nodes.slice(0, 3).map((nd) => `${nd.label}: ${nd.subtext.slice(0, 110)}`),
+        keyTakeaways: nodes.slice(0, 3).map((nd) => `${nd.label}: ${nd.subtext}`),
         keyTerms: keyTerms.slice(idx, idx + 3).map((k) => ({ term: k.term, definition: k.definition })),
         examTip,
-        checkpointQuestion: {
-          question: `"${u.heading}" bölümü kapsamında hangisi doğrudur?`,
-          options: opts.slice(0, 4),
-          correctIndex,
-          explanation: correctOption,
-        },
+        checkpointQuestion: validCp || undefined,
       };
     });
 
-    return {
+    const rawVideoPayload = {
       videoTitle: title,
       outline: sentences.slice(0, 3).join(' ') || `${course} — ${title} etkileşimli video dersi.`,
       overview: sentences.slice(0, 2).join(' ') || `${course} — ${title} etkileşimli video dersi.`,
-      videoScript: scenes.map((s) => s.narration).join('\n\n'),
-      totalEstimatedDurationSec: scenes.length * 60,
-      scenes,
+      videoScript: rawScenes.map((s) => s.narration).join('\n\n'),
+      totalEstimatedDurationSec: rawScenes.length * 60,
+      scenes: rawScenes,
       keyFacts: sentences.slice(0, 5),
       keyTerms: keyTerms.slice(0, 8),
+      extractionNotices: req.extractionWarnings?.length ? req.extractionWarnings : undefined,
+      metadata: {
+        sourceMode: 'local',
+        sourceFingerprint: req.sourceFingerprint,
+      },
     };
+
+    return (
+      validateAndRepairVideoContent(rawVideoPayload, {
+        sourceText: cleanText,
+        course,
+        title,
+        outlineHeadings: units.map((u) => u.heading),
+        extractionWarnings: req.extractionWarnings,
+        sourceFingerprint: req.sourceFingerprint,
+      }) || rawVideoPayload
+    );
   }
 
   // ---------------- SUMMARY ----------------
