@@ -160,16 +160,16 @@ const DashboardLeaderboardCard = ({
   return (
     <div
       className={cn(
-        'flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)]',
+        'flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-4 sm:p-5 shadow-[0_6px_24px_rgba(15,23,42,0.035)]',
         className,
       )}
     >
       <div>
         {/* Header */}
-        <div className="mb-3.5 flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <ListOrdered className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
-            <h2 className="truncate text-[16px] font-bold tracking-tight text-foreground sm:text-[17px]">
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5">
+          <div className="flex items-center gap-2">
+            <ListOrdered className="h-[18px] w-[18px] shrink-0 text-primary" strokeWidth={2} />
+            <h2 className="whitespace-nowrap text-[15.5px] font-bold leading-snug tracking-tight text-foreground sm:text-[16px]">
               Liderlik Tablosu
             </h2>
           </div>
@@ -177,7 +177,7 @@ const DashboardLeaderboardCard = ({
           <button
             type="button"
             onClick={onViewAll}
-            className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary/80"
+            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 -mr-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
           >
             <span>Tümünü Gör</span>
             <ArrowRight className="h-3.5 w-3.5" />

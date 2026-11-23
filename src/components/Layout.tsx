@@ -46,7 +46,7 @@ const Layout = ({ children, wide = false }: { children: React.ReactNode; wide?: 
       <Sidebar />
 
       {/* Right Main Column: Header + Content + Footer */}
-      <div className="relative z-10 flex min-h-[100dvh] flex-col md:pl-[16rem]">
+      <div className="relative z-10 flex min-h-[100dvh] flex-col md:pl-[16.5rem]">
         <Header />
 
         <main

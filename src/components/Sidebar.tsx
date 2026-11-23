@@ -11,8 +11,6 @@ import {
   Home,
   FileText,
   Megaphone,
-  User,
-  Shield,
   MessageSquare,
   X,
   Bot,
@@ -131,7 +129,7 @@ const Sidebar = () => {
 
   useEffect(() => {
     setOpen(false);
-  }, [location.pathname]);
+  }, [location.pathname, location.hash]);
 
   useEffect(() => {
     const handleToggle = () => setOpen((v) => !v);
@@ -184,10 +182,8 @@ const Sidebar = () => {
   ];
 
   const account: LinkItem[] = [
-    { label: 'Profilim', icon: User, path: '/profile' },
     { label: 'Puan Geçmişim', icon: Sparkles, path: '/points', isNew: true },
     { label: 'Destek Merkezi', icon: LifeBuoy, path: '/support', isBeta: true, badge: unreadSupport },
-    ...(isAdmin ? [{ label: 'Yönetici Paneli', icon: Shield, path: '/admin' } as LinkItem] : []),
   ];
 
   const visible = (items: LinkItem[]) => items.filter((l) => isAdmin || isPageEnabled(l.path));
@@ -212,30 +208,32 @@ const Sidebar = () => {
             ? isNovember10
               ? 'border-zinc-900 bg-zinc-900 text-white font-semibold shadow-sm dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950'
               : 'border-transparent bg-gradient-to-r from-[#174ec4] via-[#1f62e8] to-[#3b82f6] text-white font-semibold shadow-[0_8px_20px_-6px_rgba(29,99,237,0.55)]'
-            : 'border-transparent bg-slate-100/55 dark:bg-slate-800/35 text-slate-600 dark:text-slate-300 font-medium hover:border-blue-200/75 hover:bg-blue-50/90 hover:text-slate-950 dark:hover:border-blue-500/25 dark:hover:bg-blue-500/15 dark:hover:text-white',
+            : 'border-slate-200/80 bg-slate-50/90 text-slate-700 font-medium shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:border-blue-200 hover:bg-blue-50/90 hover:text-slate-950 dark:border-slate-800/90 dark:bg-slate-900/65 dark:text-slate-300 dark:hover:border-blue-500/35 dark:hover:bg-blue-500/15 dark:hover:text-white',
         )}
       >
-        <Icon
-          className={cn(
-            'h-[17px] w-[17px] shrink-0 transition-colors duration-200',
-            active
-              ? isNovember10
-                ? 'text-white dark:text-zinc-950'
-                : 'text-white'
-              : 'text-slate-500 dark:text-slate-400 group-hover:text-primary dark:group-hover:text-blue-400',
-          )}
-          strokeWidth={active ? 2.15 : 1.85}
-        />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+          <Icon
+            className={cn(
+              'h-[17px] w-[17px] transition-colors duration-200',
+              active
+                ? isNovember10
+                  ? 'text-white dark:text-zinc-950'
+                  : 'text-white'
+                : 'text-slate-500 dark:text-slate-400 group-hover:text-primary dark:group-hover:text-blue-400',
+            )}
+            strokeWidth={active ? 2.15 : 1.85}
+          />
+        </span>
 
-        <span className="flex-1 truncate text-left tracking-[-0.01em]">{link.label}</span>
+        <span className="flex-1 truncate text-left leading-none tracking-[-0.01em]">{link.label}</span>
 
         {link.isNew && (
           <span
             className={cn(
-              'rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none',
+              'inline-flex h-5 shrink-0 items-center justify-center rounded-full px-2 text-[10px] font-semibold leading-none',
               active
                 ? 'bg-white/20 text-white'
-                : 'bg-blue-50 text-blue-600 border border-blue-200/70 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/25',
+                : 'bg-blue-50 text-blue-600 border border-blue-200/75 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-400/25',
             )}
           >
             Yeni
@@ -244,10 +242,10 @@ const Sidebar = () => {
         {link.tagLabel && (
           <span
             className={cn(
-              'rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none',
+              'inline-flex h-5 shrink-0 items-center justify-center rounded-full px-2 text-[10px] font-semibold leading-none',
               active
                 ? 'bg-white/20 text-white'
-                : 'bg-sky-50 text-sky-700 border border-sky-200/70 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-400/25',
+                : 'bg-sky-50 text-sky-700 border border-sky-200/75 dark:bg-sky-500/15 dark:text-sky-300 dark:border-sky-400/25',
             )}
           >
             {link.tagLabel}
@@ -256,7 +254,7 @@ const Sidebar = () => {
         {link.isBeta && (
           <span
             className={cn(
-              'rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none',
+              'inline-flex h-5 shrink-0 items-center justify-center rounded-full px-2 text-[10px] font-semibold leading-none',
               active
                 ? 'bg-white/20 text-white'
                 : 'bg-amber-50 text-amber-600 border border-amber-200/80 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-400/25',
@@ -268,7 +266,7 @@ const Sidebar = () => {
         {link.badge && link.badge > 0 ? (
           <span
             className={cn(
-              'inline-flex h-[19px] min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none',
+              'inline-flex h-5 min-w-[20px] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none',
               active ? 'bg-white text-blue-700' : 'bg-rose-500 text-white',
             )}
           >
@@ -294,21 +292,23 @@ const Sidebar = () => {
     return (
       <div
         className={cn(
-          'flex flex-col gap-1.5',
-          !isFirstSection && 'mt-3.5 border-t border-slate-200/70 dark:border-slate-800/75 pt-3.5',
+          'flex flex-col gap-2',
+          !isFirstSection && 'mt-4 border-t border-slate-200/65 dark:border-slate-800/70 pt-3.5',
         )}
       >
         {showHeading && (
-          <div className="px-3.5 pb-0.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+          <div className="px-3.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
             {title}
           </div>
         )}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           {items.map((l, i) => renderItem(l, isFirstSection && i === 0))}
         </div>
       </div>
     );
   };
+
+  const isSettingsActive = location.pathname === '/profile' && location.hash === '#ayarlar';
 
   return (
     <>
@@ -327,23 +327,23 @@ const Sidebar = () => {
         role="navigation"
         aria-label="Ana menü"
         className={cn(
-          'fixed inset-y-0 left-0 z-[70] md:z-40 flex h-[100dvh] w-[284px] max-w-[85vw] flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-[#091224] text-foreground',
-          'shadow-[12px_0_40px_rgba(2,8,24,0.35)] md:w-[16rem] md:max-w-none md:shadow-[4px_0_24px_rgba(15,23,42,0.03)] dark:md:shadow-[4px_0_24px_rgba(0,6,20,0.4)]',
+          'fixed inset-y-0 left-0 z-[70] md:z-40 flex h-[100dvh] w-[286px] max-w-[85vw] flex-col overflow-hidden rounded-r-[28px] border-r border-slate-200/85 dark:border-slate-800/90 bg-white dark:bg-[#091224] text-foreground',
+          'shadow-[12px_0_40px_rgba(2,8,24,0.35)] md:inset-y-2.5 md:left-2.5 md:h-[calc(100dvh-1.25rem)] md:w-[15.25rem] md:max-w-none md:rounded-[24px] md:border md:shadow-[0_10px_30px_-10px_rgba(15,23,42,0.08)] dark:md:shadow-[0_12px_36px_-10px_rgba(0,6,20,0.55)]',
           'transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:translate-x-0',
           open ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none md:pointer-events-auto',
         )}
         style={{
           paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px))',
-          paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
         }}
       >
         {/* Top Logo Header Aligned to Left Menu + Aligned Close Button on Mobile */}
-        <div className="flex h-[68px] sm:h-[72px] shrink-0 items-center justify-between border-b border-slate-200/70 dark:border-slate-800/70 px-5">
+        <div className="flex h-[66px] sm:h-[68px] shrink-0 items-center justify-between border-b border-slate-200/60 dark:border-slate-800/70 px-5">
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="flex min-w-0 items-center gap-2 rounded-xl py-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            className="flex min-w-0 items-center gap-2 rounded-full py-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
             <EconLogo className="h-[23px] w-auto sm:h-[25px]" />
             {isNovember10 && (
@@ -365,7 +365,7 @@ const Sidebar = () => {
         </div>
 
         {/* Scrollable Navigation Sections */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-4 pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3.5 pt-4 pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <nav className="flex flex-col" aria-label="Sol navigasyon">
             <Section title="Panel" items={visible(primary)} showHeading={false} isFirstSection />
             <Section title="Araçlar" items={visible(tools)} />
@@ -373,8 +373,8 @@ const Sidebar = () => {
           </nav>
         </div>
 
-        {/* Bottom Dock: EconNotes Pro + Ayarlar / Versiyon (Hesap işlemleri üst profil menüsünde) */}
-        <div className="shrink-0 space-y-2.5 border-t border-slate-200/75 dark:border-slate-800/80 px-3 pt-3 pb-3">
+        {/* Bottom Dock: EconNotes Pro + Ayarlar / Versiyon */}
+        <div className="shrink-0 space-y-2.5 border-t border-slate-200/65 dark:border-slate-800/75 px-3.5 pt-3 pb-3.5">
           {/* EconNotes Pro Pill */}
           <button
             type="button"
@@ -399,13 +399,24 @@ const Sidebar = () => {
           </button>
 
           {/* Footer Settings Pill + Version */}
-          <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+          <div className="flex items-center justify-between gap-2 pt-0.5">
             <button
               type="button"
-              onClick={() => navigate('/profile')}
-              className="inline-flex h-8 items-center gap-2 rounded-full border border-slate-200/75 dark:border-slate-800 bg-slate-50/85 dark:bg-slate-900/60 px-3 text-xs font-medium text-slate-600 transition-colors hover:border-blue-200/80 hover:bg-blue-50/80 hover:text-slate-900 dark:text-slate-300 dark:hover:border-blue-500/30 dark:hover:bg-blue-500/15 dark:hover:text-white"
+              onClick={() => {
+                setOpen(false);
+                navigate('/profile#ayarlar');
+              }}
+              aria-current={isSettingsActive ? 'page' : undefined}
+              className={cn(
+                'inline-flex h-9 items-center gap-2 rounded-full border px-3.5 text-xs font-medium transition-all',
+                isSettingsActive
+                  ? isNovember10
+                    ? 'border-zinc-900 bg-zinc-900 text-white font-semibold dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950'
+                    : 'border-transparent bg-primary text-white font-semibold shadow-sm'
+                  : 'border-slate-200/80 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/65 text-slate-600 hover:border-blue-200 hover:bg-blue-50/85 hover:text-slate-950 dark:text-slate-300 dark:hover:border-blue-500/35 dark:hover:bg-blue-500/15 dark:hover:text-white',
+              )}
             >
-              <Settings className="h-3.5 w-3.5" strokeWidth={1.85} />
+              <Settings className="h-3.5 w-3.5 shrink-0" strokeWidth={1.85} />
               <span>Ayarlar</span>
             </button>
             <span className="font-mono text-[11px] font-medium text-slate-400 dark:text-slate-500 pr-1.5">

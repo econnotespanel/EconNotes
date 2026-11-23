@@ -8,12 +8,10 @@ import {
   BellRing,
   User,
   MessageSquare,
-  Sparkles,
   Megaphone,
   Search,
   Zap,
   Shield,
-  LifeBuoy,
   Info,
   X,
 } from 'lucide-react';
@@ -373,9 +371,9 @@ const Header = () => {
               </PopoverTrigger>
               <PopoverContent
                 align="end"
-                className="z-[70] w-72 rounded-2xl border-slate-200/90 dark:border-slate-800 bg-card p-3 shadow-xl"
+                className="z-[70] w-72 rounded-[22px] border-slate-200/90 dark:border-slate-800 bg-card p-2.5 shadow-[0_18px_44px_-12px_rgba(15,23,42,0.18)] dark:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.65)]"
               >
-                <div className="mb-2 flex items-center justify-between px-1">
+                <div className="mb-2 flex items-center justify-between px-2.5 pt-0.5">
                   <span className="text-xs font-bold text-foreground">Bildirimler</span>
                   {totalUnread > 0 && (
                     <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
@@ -383,21 +381,21 @@ const Header = () => {
                     </span>
                   )}
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   <button
                     type="button"
                     onClick={() => {
                       setNotificationsOpen(false);
                       navigate('/announcements');
                     }}
-                    className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
+                    className="flex h-10 w-full items-center justify-between rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-left text-xs font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50/85 dark:hover:border-blue-500/35 dark:hover:bg-blue-500/15"
                   >
-                    <span className="flex items-center gap-2">
-                      <Megaphone className="h-4 w-4 text-primary" />
+                    <span className="flex items-center gap-2.5">
+                      <Megaphone className="h-4 w-4 shrink-0 text-primary" />
                       <span>Duyurular</span>
                     </span>
                     {unreadAnnouncements > 0 ? (
-                      <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
                         {unreadAnnouncements}
                       </span>
                     ) : (
@@ -411,14 +409,14 @@ const Header = () => {
                       setNotificationsOpen(false);
                       navigate('/messages');
                     }}
-                    className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
+                    className="flex h-10 w-full items-center justify-between rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-left text-xs font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50/85 dark:hover:border-blue-500/35 dark:hover:bg-blue-500/15"
                   >
-                    <span className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-primary" />
+                    <span className="flex items-center gap-2.5">
+                      <MessageSquare className="h-4 w-4 shrink-0 text-primary" />
                       <span>Mesajlar</span>
                     </span>
                     {unreadMessages > 0 ? (
-                      <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
                         {unreadMessages}
                       </span>
                     ) : (
@@ -432,10 +430,10 @@ const Header = () => {
                       onClick={() => {
                         void handleBellClick();
                       }}
-                      className="mt-1 flex w-full items-center justify-between rounded-xl border border-border/70 bg-muted/40 px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted/80"
+                      className="flex h-10 w-full items-center justify-between rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-left text-xs font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50/85 dark:hover:border-blue-500/35 dark:hover:bg-blue-500/15"
                     >
-                      <span className="flex items-center gap-2">
-                        <BellRing className="h-4 w-4 text-primary" />
+                      <span className="flex items-center gap-2.5">
+                        <BellRing className="h-4 w-4 shrink-0 text-primary" />
                         <span>Cihaz Bildirimleri</span>
                       </span>
                       <span
@@ -494,59 +492,47 @@ const Header = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="z-[70] w-56 rounded-2xl border-slate-200/90 dark:border-slate-800 p-1.5"
+                className="z-[70] w-60 rounded-[22px] border-slate-200/90 dark:border-slate-800 bg-card p-2 shadow-[0_18px_44px_-12px_rgba(15,23,42,0.18)] dark:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.65)]"
               >
-                <DropdownMenuLabel className="px-2.5 py-1.5">
-                  <p className="truncate text-xs font-bold text-foreground">{displayName}</p>
+                <DropdownMenuLabel className="px-3 py-2">
+                  <p className="truncate text-[13px] font-bold text-foreground">{displayName}</p>
                   <p className="truncate text-[11px] font-normal text-muted-foreground">
                     {user?.email || 'Öğrenci Hesabı'}
                   </p>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => navigate('/profile')}
-                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
-                >
-                  <User className="h-3.5 w-3.5" />
-                  Profilim & Ayarlar
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate('/points')}
-                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Puan Geçmişim &amp; Sıralama
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate('/support')}
-                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
-                >
-                  <LifeBuoy className="h-3.5 w-3.5" />
-                  Destek Merkezi
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => navigate('/about')}
-                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
-                >
-                  <Info className="h-3.5 w-3.5" />
-                  EconNotes Hakkında
-                </DropdownMenuItem>
-                {isAdmin && (
+                <DropdownMenuSeparator className="my-1.5 bg-slate-200/70 dark:bg-slate-800/80" />
+                <div className="space-y-1.5">
                   <DropdownMenuItem
-                    onClick={() => navigate('/admin')}
-                    className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
+                    onClick={() => navigate('/profile')}
+                    className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-[13px] font-medium text-foreground focus:border-blue-200 focus:bg-blue-50/90 focus:text-slate-950 dark:focus:border-blue-500/35 dark:focus:bg-blue-500/15 dark:focus:text-white"
                   >
-                    <Shield className="h-3.5 w-3.5" />
-                    Yönetici Paneli
+                    <User className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                    <span>Profilim</span>
                   </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => navigate('/about')}
+                    className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-[13px] font-medium text-foreground focus:border-blue-200 focus:bg-blue-50/90 focus:text-slate-950 dark:focus:border-blue-500/35 dark:focus:bg-blue-500/15 dark:focus:text-white"
+                  >
+                    <Info className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                    <span>EconNotes Hakkında</span>
+                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem
+                      onClick={() => navigate('/admin')}
+                      className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-[13px] font-medium text-foreground focus:border-blue-200 focus:bg-blue-50/90 focus:text-slate-950 dark:focus:border-blue-500/35 dark:focus:bg-blue-500/15 dark:focus:text-white"
+                    >
+                      <Shield className="h-4 w-4 shrink-0 text-primary" />
+                      <span>Yönetici Paneli</span>
+                    </DropdownMenuItem>
+                  )}
+                </div>
+                <DropdownMenuSeparator className="my-1.5 bg-slate-200/70 dark:bg-slate-800/80" />
                 <DropdownMenuItem
                   onClick={() => setLogoutDialogOpen(true)}
-                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium text-destructive focus:text-destructive"
+                  className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full border border-transparent px-3.5 text-[13px] font-medium text-destructive focus:border-destructive/20 focus:bg-destructive/10 focus:text-destructive"
                 >
-                  <LogOut className="h-3.5 w-3.5" />
-                  Çıkış Yap
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  <span>Oturumu Kapat</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

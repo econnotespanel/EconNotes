@@ -1,7 +1,7 @@
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert, Cake } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import BadgesCard from '@/components/BadgesCard';
 import { TwoFactorCard } from '@/components/TwoFactor';
 import { Switch } from '@/components/ui/switch';
@@ -22,7 +22,19 @@ import { openBirthdayCelebrationModal } from '@/components/BirthdayCelebrationPo
 const Profile = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (location.hash === '#ayarlar') {
+      const target = document.getElementById('ayarlar');
+      if (target) {
+        window.setTimeout(() => {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+      }
+    }
+  }, [location.hash]);
   const currentBirthDate = getUserBirthDate(user, profile) || '';
   const birthdayStatus = getBirthdayStatus(user, profile);
   const [form, setForm] = useState({
@@ -305,7 +317,10 @@ const Profile = () => {
                     )}
                   </div>
 
-                  <div className="flex items-start justify-between gap-4 rounded-2xl border border-border/70 bg-muted/40 p-3.5">
+                  <div
+                    id="ayarlar"
+                    className="scroll-mt-24 flex items-start justify-between gap-4 rounded-2xl border border-border/70 bg-muted/40 p-3.5"
+                  >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground">Soyadımı listelerde gizle</p>
                       <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
