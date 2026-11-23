@@ -293,7 +293,7 @@ const Sidebar = () => {
           'fixed inset-x-3 sm:inset-x-3.5 mx-auto md:inset-x-auto md:left-4 md:mx-0 z-50 w-[calc(100vw-1.5rem)] sm:w-[calc(100vw-1.75rem)] max-w-[430px] md:w-[244px] md:max-w-none',
           'flex flex-col overflow-hidden',
           'rounded-[22px] md:rounded-[24px]',
-          'max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-10.25rem)] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-6.25rem)]',
+          'max-h-[calc(100dvh-env(safe-area-inset-top,0px)-var(--ios-pwa-top-buffer,0px)-env(safe-area-inset-bottom,0px)-10.25rem)] md:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-var(--ios-pwa-top-buffer,0px)-6.25rem)]',
           'bg-card/95 dark:bg-[#0a1324]/95 text-foreground',
           'border border-border/80 dark:border-primary/25',
           'shadow-[0_20px_50px_rgba(0,24,69,0.14)] dark:shadow-[0_24px_60px_rgba(0,8,24,0.88)]',
@@ -305,7 +305,7 @@ const Sidebar = () => {
             : '-translate-y-2 scale-[0.98] opacity-0 pointer-events-none md:opacity-100',
         )}
         style={{
-          top: 'calc(env(safe-area-inset-top, 0px) + 5.25rem)',
+          top: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 5.25rem)',
         }}
       >
         {/* Üst ince EconNotes vurgu çizgisi (Üst bar ile tam uyumlu) */}

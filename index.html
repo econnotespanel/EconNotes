@@ -54,8 +54,18 @@
       });
     })();
 
-    // iOS Standalone PWA Persistent Fullscreen Engine
+    // iOS Standalone PWA Persistent Fullscreen Engine & Top-Edge Compositor Flag
     (function() {
+      var ua = navigator.userAgent || '';
+      var isIos = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+      var isStandalone =
+        (('standalone' in window.navigator) && window.navigator.standalone === true) ||
+        (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+      if (isIos && isStandalone) {
+        document.documentElement.dataset.iosStandalone = 'true';
+      }
+
       if (('standalone' in window.navigator) && window.navigator.standalone) {
         var curnode, location = document.location;
         document.addEventListener('click', function(e) {

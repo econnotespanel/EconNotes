@@ -893,65 +893,72 @@ export default function DailyTrivia() {
         <div className="absolute bottom-0 right-0 h-[360px] w-[500px] rounded-full bg-gradient-to-tl from-amber-500/15 via-cyan-500/10 to-transparent blur-[120px]" />
       </div>
 
-      {/* iPhone Safe-Area Aware Standalone Header (Dynamic Island + Landscape + Narrow-Screen Proof) */}
-      <header
-        className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur-2xl"
-        style={{
-          paddingTop: 'env(safe-area-inset-top, 0px)',
-          paddingLeft: 'env(safe-area-inset-left, 0px)',
-          paddingRight: 'env(safe-area-inset-right, 0px)',
-        }}
-      >
-        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3.5 py-2.5 sm:h-16 sm:flex-nowrap sm:px-4 sm:py-0">
-          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-            <EconLogo className="h-[22px] w-[99px] shrink-0 justify-center -translate-y-[2px] sm:h-[26px] sm:w-[117px] sm:-translate-y-[3px]" />
-            <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border sm:h-5" />
-            <span className="whitespace-nowrap text-xs font-bold leading-none tracking-tight text-foreground sm:text-sm sm:leading-none">
-              Günlük Bilgi Yarışması
-            </span>
-          </div>
+      {/* iPhone Safe-Area Aware Standalone Header (Solid Surface to Prevent iOS 26 PWA Top-Edge Blur) */}
+      <header className="sticky top-0 z-30 w-full">
+        <div
+          className="border-b border-border/80 bg-background"
+          style={{
+            paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px))',
+            paddingLeft: 'env(safe-area-inset-left, 0px)',
+            paddingRight: 'env(safe-area-inset-right, 0px)',
+          }}
+        >
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-x-3 gap-y-2.5 px-3.5 py-2.5 sm:h-16 sm:flex-nowrap sm:px-4 sm:py-0">
+            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+              <EconLogo className="h-[22px] w-[99px] shrink-0 justify-center -translate-y-[2px] sm:h-[26px] sm:w-[117px] sm:-translate-y-[3px]" />
+              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border sm:h-5" />
+              <span className="whitespace-nowrap text-xs font-bold leading-none tracking-tight text-foreground sm:text-sm sm:leading-none">
+                Günlük Bilgi Yarışması
+              </span>
+            </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <TriviaAudioControls prefs={audioPrefs} onChange={handleAudioPrefsChange} compact />
-            {isInProgress ? (
-              <div
-                role="timer"
-                aria-live="off"
-                className={cn(
-                  'inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 font-mono text-sm font-black tabular-nums transition-colors sm:h-10 sm:rounded-2xl sm:px-3.5 sm:text-lg',
-                  warnTime
-                    ? 'animate-pulse border-rose-500/60 bg-rose-500/15 text-rose-600 dark:text-rose-400'
-                    : 'border-primary/35 bg-primary/10 text-primary',
-                )}
-              >
-                <Timer className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
-                <span>{formatTriviaClock(remainingMs)}</span>
-              </div>
-            ) : (
-              <>
-                <span className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary tabular-nums">
-                  <Sparkles className="h-3.5 w-3.5 shrink-0" />
-                  <span>{userPoints.toLocaleString('tr-TR')} XP</span>
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate('/')}
-                  className="h-8 shrink-0 gap-1.5 whitespace-nowrap rounded-xl px-2.5 text-xs"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
-                  <span>Ana Sayfa</span>
-                </Button>
-              </>
-            )}
+            <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
+              {isInProgress ? (
+                <>
+                  <TriviaAudioControls prefs={audioPrefs} onChange={handleAudioPrefsChange} compact />
+                  <div
+                    role="timer"
+                    aria-live="off"
+                    className={cn(
+                      'inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 font-mono text-sm font-black tabular-nums transition-colors sm:h-10 sm:rounded-2xl sm:px-3.5 sm:text-lg',
+                      warnTime
+                        ? 'animate-pulse border-rose-500/60 bg-rose-500/15 text-rose-600 dark:text-rose-400'
+                        : 'border-primary/35 bg-primary/10 text-primary',
+                    )}
+                  >
+                    <Timer className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+                    <span>{formatTriviaClock(remainingMs)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <TriviaAudioControls prefs={audioPrefs} onChange={handleAudioPrefsChange} compact />
+                    <span className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary tabular-nums">
+                      <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                      <span>{userPoints.toLocaleString('tr-TR')} XP</span>
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/')}
+                    className="h-8 shrink-0 gap-1.5 whitespace-nowrap rounded-xl px-2.5 text-xs"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+                    <span>Ana Sayfa</span>
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
+          {warnTime && (
+            <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-1.5 text-center text-xs font-bold text-rose-600 dark:text-rose-400">
+              Son 2 dakika! Süre dolduğunda yarışma otomatik olarak sonuçlanır.
+            </div>
+          )}
         </div>
-        {warnTime && (
-          <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-1.5 text-center text-xs font-bold text-rose-600 dark:text-rose-400">
-            Son 2 dakika! Süre dolduğunda yarışma otomatik olarak sonuçlanır.
-          </div>
-        )}
       </header>
 
       {/* Main Standalone Arena */}

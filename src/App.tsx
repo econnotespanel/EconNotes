@@ -23,6 +23,7 @@ import SystemGate from "@/components/SystemGate";
 import ApprovalGate from "@/components/ApprovalGate";
 import BirthDatePromptModal from "@/components/BirthDatePromptModal";
 import DailyWelcomePosterModal from "@/components/DailyWelcomePosterModal";
+import IosPwaTopBarFix from "@/components/IosPwaTopBarFix";
 import ScrollToTop from "@/components/ScrollToTop";
 
 const Index = lazy(() => import("./pages/Index"));
@@ -94,6 +95,7 @@ const App = () => {
               <OfflineBanner />
               {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
               <BrowserRouter>
+                <IosPwaTopBarFix />
                 <ScrollToTop />
                 <Suspense fallback={<RouteLoader />}>
                   <SystemGate>

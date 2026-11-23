@@ -70,6 +70,7 @@
   * { @apply border-border; }
 
   html {
+    background-color: hsl(var(--background));
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -1204,6 +1205,56 @@ math mtd.math-cell-divider-left {
 /* ============================================================================
    iPhone / iOS Safe-Area & Daily Trivia Premium Motion Primitives
    ============================================================================ */
+:root {
+  --ios-pwa-top-buffer: 0px;
+}
+
+.ios-pwa-top-anchor {
+  display: none;
+}
+
+html[data-ios-standalone="true"] {
+  --ios-pwa-top-buffer: 1rem;
+}
+
+html[data-ios-standalone="true"] .ios-pwa-top-anchor {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: max(12px, env(safe-area-inset-top, 0px));
+  background-color: hsl(var(--background));
+  pointer-events: none;
+  z-index: 60;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    :root {
+      --ios-pwa-top-buffer: 1rem;
+    }
+
+    .ios-pwa-top-anchor {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      height: max(12px, env(safe-area-inset-top, 0px));
+      background-color: hsl(var(--background));
+      pointer-events: none;
+      z-index: 60;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+    }
+  }
+}
+
 .safe-area-screen {
   min-height: 100vh;
   min-height: 100dvh;

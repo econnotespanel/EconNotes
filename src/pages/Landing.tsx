@@ -117,7 +117,7 @@ const Landing = () => {
     <div
       className="relative min-h-[100dvh] overflow-x-clip bg-background text-foreground antialiased selection:bg-cyan-500/30 selection:text-cyan-200"
       style={{
-        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.75rem)',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 0.75rem)',
         paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
