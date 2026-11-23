@@ -1,6 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { Button } from '@/components/ui/button';
 import {
   LogOut,
   Sun,
@@ -10,15 +9,16 @@ import {
   User,
   MessageSquare,
   Sparkles,
-  Flame,
   Megaphone,
-  Menu,
+  Search,
+  Zap,
+  Shield,
+  LifeBuoy,
   X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
-import EconLogoLightning from '@/components/EconLogoLightning';
 import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
 import AtaturkPortrait from '@/components/AtaturkPortrait';
 import { cn } from '@/lib/utils';
@@ -31,9 +31,17 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useState, useEffect, useCallback } from 'react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useState, useEffect, useCallback, useRef, type FormEvent } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePoints } from '@/hooks/usePoints';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
@@ -52,50 +60,66 @@ const Header = () => {
   const { theme, toggleTheme } = useTheme();
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
-  const flagThemeIds = new Set(['march18', 'october29', 'april23', 'may19']);
-  const displayName = profile?.full_name?.trim()
-    || String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim()
-    || user?.email?.split('@')[0]
-    || 'Öğrenci';
+  const isNovember10 = seasonalTheme?.id === 'november10';
+  const displayName =
+    profile?.full_name?.trim() ||
+    String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim() ||
+    user?.email?.split('@')[0] ||
+    'Öğrenci';
+  const userInitial = (displayName[0] || 'Ö').toLocaleUpperCase('tr-TR');
+
   const navigate = useNavigate();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
-  const [logoHovered, setLogoHovered] = useState(false);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { points } = usePoints(3);
 
+  // Global Cmd+K / Ctrl+K shortcut to focus search bar
   useEffect(() => {
-    const handleSidebarState = (e: Event) => {
-      const customEvent = e as CustomEvent<{ open: boolean }>;
-      if (customEvent.detail && typeof customEvent.detail.open === 'boolean') {
-        setIsSidebarOpen(customEvent.detail.open);
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (window.innerWidth < 768) {
+          setMobileSearchOpen(true);
+          window.setTimeout(() => mobileSearchInputRef.current?.focus(), 60);
+        } else {
+          searchInputRef.current?.focus();
+          searchInputRef.current?.select();
+        }
       }
     };
-    window.addEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
-    return () => window.removeEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
 
-    // Count distinct senders with unread messages
     const { data: unreadMsgs } = await supabase
       .from('messages')
       .select('sender_id')
       .eq('receiver_id', user.id)
       .eq('is_read', false)
       .not('content', 'like', `${SUPPORT_MESSAGE_PREFIX}%`);
-    
+
     if (unreadMsgs) {
       const uniqueSenders = new Set(unreadMsgs.map((m: any) => m.sender_id));
       setUnreadMessages(uniqueSenders.size);
     }
 
     const { data: announcements } = await supabase.from('announcements').select('id');
-    const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
+    const { data: views } = await supabase
+      .from('announcement_views')
+      .select('announcement_id')
+      .eq('user_id', user.id);
     const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
-    setUnreadAnnouncements((announcements || []).filter(a => !viewedIds.has(a.id)).length);
+    setUnreadAnnouncements((announcements || []).filter((a) => !viewedIds.has(a.id)).length);
   }, [user]);
 
   useEffect(() => {
@@ -110,31 +134,47 @@ const Header = () => {
 
   useEffect(() => {
     const syncNotificationPreference = () => {
-      setDeviceNotificationsEnabled(Boolean(user && isDeviceNotificationEnabled(user.id) && 'Notification' in window && Notification.permission === 'granted'));
+      setDeviceNotificationsEnabled(
+        Boolean(
+          user &&
+            isDeviceNotificationEnabled(user.id) &&
+            'Notification' in window &&
+            Notification.permission === 'granted',
+        ),
+      );
     };
     syncNotificationPreference();
     window.addEventListener('econnotes-device-notification-preference', syncNotificationPreference);
-    return () => window.removeEventListener('econnotes-device-notification-preference', syncNotificationPreference);
+    return () =>
+      window.removeEventListener('econnotes-device-notification-preference', syncNotificationPreference);
   }, [user]);
 
-  // Subscribe to realtime message changes
   useEffect(() => {
     if (!user) return;
     const channel = supabase
       .channel('header-messages')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` }, () => {
-        fetchUnread();
-      })
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
+        () => {
+          fetchUnread();
+        },
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, fetchUnread]);
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour >= 6 && hour <= 11) return 'Günaydın';
-    if (hour >= 12 && hour <= 16) return 'İyi Günler';
-    if (hour >= 17 && hour <= 20) return 'İyi Akşamlar';
-    return 'İyi Geceler';
+  const handleSearchSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    setMobileSearchOpen(false);
+    if (trimmed) {
+      navigate(`/notes?q=${encodeURIComponent(trimmed)}`);
+    } else {
+      navigate('/notes');
+    }
   };
 
   const handleLogout = async () => {
@@ -145,9 +185,7 @@ const Header = () => {
 
   const sendTestNotification = async () => {
     playChime();
-
-    // In-app visual notification banner
-    toast('🔔 EconNotes Test Bildirimi', {
+    toast('EconNotes Test Bildirimi', {
       description: 'Cihaz bildirimleriniz başarıyla aktif! Yeni duyurular bu cihaza anında düşecektir.',
       duration: 8000,
     });
@@ -155,7 +193,7 @@ const Header = () => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (Notification.permission !== 'granted') return;
 
-    await displayDeviceNotification('EconNotes Test Bildirimi 🔔', {
+    await displayDeviceNotification('EconNotes Test Bildirimi', {
       body: 'Cihaz bildirimleriniz başarıyla aktif! Yeni duyurular bu cihaza anında düşecektir.',
       data: { url: '/announcements' },
       tag: `econnotes-test-${Date.now()}`,
@@ -166,11 +204,14 @@ const Header = () => {
     if (!user) return;
 
     if (typeof window === 'undefined' || !('Notification' in window)) {
-      const isIOS = typeof navigator !== 'undefined' && (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+      const isIOS =
+        typeof navigator !== 'undefined' &&
+        (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
       if (isIOS) {
         toast.info(
-          'iPhone Bildirim Kurulumu: Safari Paylaş (kare ve yukarı ok) > "Ana Ekrana Ekle" dedikten sonra uygulamayı ana ekrandan açın. Bildirimler cihazınıza anında düşecektir.',
-          { duration: 9000 }
+          'iPhone Bildirim Kurulumu: Safari Paylaş > "Ana Ekrana Ekle" dedikten sonra uygulamayı ana ekrandan açın. Bildirimler cihazınıza anında düşecektir.',
+          { duration: 9000 },
         );
       } else {
         toast.error('Bu cihaz veya tarayıcı bildirimleri desteklemiyor.');
@@ -178,7 +219,6 @@ const Header = () => {
       return;
     }
 
-    // 1. If currently enabled, clicking toggles it off
     if (deviceNotificationsEnabled) {
       setDeviceNotificationEnabled(user.id, false);
       setDeviceNotificationsEnabled(false);
@@ -187,15 +227,14 @@ const Header = () => {
       return;
     }
 
-    // 2. If previously blocked in browser settings
     if (Notification.permission === 'denied') {
-      toast.error('Bildirim izni cihazınızda/tarayıcınızda engelli. Açmak için: Adres çubuğundaki (URL yanındaki) 🔒 kilit veya ayar simgesine tıklayıp Bildirimler\'i "İzin Ver" yapın.', {
-        duration: 9000,
-      });
+      toast.error(
+        'Bildirim izni cihazınızda/tarayıcınızda engelli. Açmak için adres çubuğundaki kilit/ayar simgesinden Bildirimler seçeneğini "İzin Ver" yapın.',
+        { duration: 9000 },
+      );
       return;
     }
 
-    // 3. OneSignal / Native Browser Permission Prompt
     try {
       const granted = await requestOneSignalPermission(user.id);
 
@@ -205,7 +244,7 @@ const Header = () => {
         localStorage.setItem(getNotificationCursorKey(user.id, 'notes'), now);
         localStorage.setItem(getNotificationCursorKey(user.id, 'announcements'), now);
         setDeviceNotificationsEnabled(true);
-        toast.success('Bildirim izni verildi! Cihaz bildirimleri açıldı 🔔');
+        toast.success('Bildirim izni verildi! Cihaz bildirimleri açıldı.');
         await sendTestNotification();
       } else {
         toast.error('Bildirim izni onaylanmadı.');
@@ -216,231 +255,339 @@ const Header = () => {
     }
   };
 
-  const formatLastLogin = () => {
-    if (!profile?.last_login) return '';
-    const date = new Date(profile.last_login);
-    return date.toLocaleDateString('tr-TR') + ' ' + date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-  };
+  const totalUnread = unreadAnnouncements + unreadMessages;
+  const formattedPoints = (points?.points ?? 0).toLocaleString('tr-TR');
 
   return (
-    <header className="sticky top-0 z-50 w-full">
+    <header className="sticky top-0 z-30 w-full">
+      {/* Solid opaque top surface prevents iOS 26 Standalone PWA native progressive blur over header controls */}
       <div
-        className="w-full bg-background pb-2 px-3 sm:px-3.5 md:px-4"
+        className="w-full border-b border-slate-200/70 dark:border-slate-800/80 bg-background"
         style={{
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 0.5rem)',
-          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px))',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
       >
-        <div className="relative flex h-[4rem] sm:h-[4.25rem] min-w-0 items-center justify-between gap-2 overflow-hidden rounded-[22px] md:rounded-[24px] border border-border/80 dark:border-primary/25 bg-card dark:bg-[#0a1324] px-2.5 sm:px-4 md:px-5 shadow-[0_14px_38px_rgba(0,24,69,0.08)] dark:shadow-[0_20px_48px_rgba(0,8,24,0.75)]">
-        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-        {seasonalTheme?.id === 'november10' && (
-          <div className="pointer-events-none absolute inset-x-8 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-foreground/30 to-transparent opacity-80" />
-        )}
-        <div
-          className={cn(
-            'relative flex h-11 min-w-0 cursor-pointer items-center justify-center rounded-2xl px-1.5 sm:px-3 transition-transform active:scale-95',
-            !seasonalTheme && 'md:w-[172px]',
-          )}
-          onMouseEnter={() => setLogoHovered(true)}
-          onMouseLeave={() => setLogoHovered(false)}
-          onClick={() => navigate('/')}
-        >
-          <div className="relative z-10 flex items-center justify-center gap-2 sm:gap-2.5">
-            <div className="relative inline-flex items-center">
-              <EconLogo
+        <div className="mx-auto flex h-[60px] sm:h-[68px] w-full max-w-[1440px] items-center justify-between gap-2.5 px-3.5 sm:px-6 lg:px-8">
+          {/* Mobile Brand Logo (desktop displays logo at top of left sidebar) */}
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl py-1 focus:outline-none md:hidden"
+          >
+            <EconLogo className="h-[22px] w-auto sm:h-6" />
+            {isNovember10 && (
+              <span className="inline-flex items-center gap-1 border-l border-border/80 pl-1.5">
+                <AtaturkPortrait className="h-5 w-auto" />
+                <Ataturk10KasimEmblem className="h-4 w-4" />
+              </span>
+            )}
+          </button>
+
+          {/* Desktop & Tablet Pill Search Bar */}
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative hidden flex-1 max-w-[540px] items-center md:flex"
+            role="search"
+            aria-label="Ders, not veya konu ara"
+          >
+            <Search
+              className="pointer-events-none absolute left-4 h-4 w-4 text-slate-400 dark:text-slate-500"
+              strokeWidth={1.9}
+            />
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Ders, not veya konu ara..."
+              className="h-11 w-full rounded-full border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#0d182d] pl-11 pr-16 text-[13.5px] text-foreground placeholder:text-slate-400 dark:placeholder:text-slate-500 shadow-[0_2px_10px_rgba(15,23,42,0.03)] transition-all focus:border-blue-500/60 focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+            />
+            <span className="pointer-events-none absolute right-3.5 inline-flex items-center gap-0.5 rounded-lg border border-slate-200/90 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/90 px-2 py-0.5 font-mono text-[11px] font-medium text-slate-400 dark:text-slate-400">
+              ⌘ K
+            </span>
+          </form>
+
+          {/* Right Utility Controls — Uniform Height & Vertical Alignment */}
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+            {/* Mobile Search Toggle */}
+            <button
+              type="button"
+              aria-label="Ara"
+              title="Ders, not veya konu ara"
+              onClick={() => {
+                setMobileSearchOpen((v) => !v);
+                window.setTimeout(() => mobileSearchInputRef.current?.focus(), 60);
+              }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white md:hidden"
+            >
+              {mobileSearchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[18px] w-[18px]" />}
+            </button>
+
+            {/* Points Pill Button */}
+            <button
+              type="button"
+              onClick={() => navigate('/points')}
+              title={`${formattedPoints} Puan${points?.current_streak ? ` • ${points.current_streak} günlük seri` : ''}`}
+              className={cn(
+                'inline-flex h-9 sm:h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 sm:px-4 text-xs sm:text-[13px] font-bold transition-all duration-200 hover:brightness-105 active:scale-95',
+                isNovember10
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 shadow-sm'
+                  : 'bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-[0_8px_18px_-6px_rgba(37,99,235,0.55)]',
+              )}
+            >
+              <Zap
                 className={cn(
-                  'h-6 w-auto sm:h-7 -translate-y-[2px] transition-all duration-200',
-                  logoHovered &&
-                    seasonalTheme?.id !== 'november10' &&
-                    'econ-logo-electrified',
+                  'h-3.5 w-3.5 shrink-0',
+                  isNovember10 ? 'fill-current' : 'fill-amber-300 text-amber-300',
                 )}
               />
-              {seasonalTheme?.id !== 'november10' && (
-                <EconLogoLightning active={logoHovered} isDark={theme === 'dark'} />
-              )}
-            </div>
-            {seasonalTheme?.id === 'november10' ? (
-              <div
-                className="flex items-center gap-1.5 sm:gap-2.5 border-l border-border/80 pl-2 sm:pl-2.5 transition-transform hover:scale-105"
-                title="Ulu Önder Mustafa Kemal Atatürk'ü saygı ve özlemle anıyoruz (1881-193∞)"
+              <span className="tabular-nums">{formattedPoints} Puan</span>
+            </button>
+
+            <span aria-hidden="true" className="hidden h-5 w-px bg-slate-200 dark:bg-slate-800 sm:block" />
+
+            {/* Notifications Popover */}
+            <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Bildirimler"
+                  title="Bildirimler"
+                  className="relative flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                >
+                  {deviceNotificationsEnabled ? (
+                    <BellRing className="h-[19px] w-[19px] text-primary" strokeWidth={1.85} />
+                  ) : (
+                    <Bell className="h-[19px] w-[19px]" strokeWidth={1.85} />
+                  )}
+                  {totalUnread > 0 && (
+                    <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-background" />
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                className="z-[70] w-72 rounded-2xl border-slate-200/90 dark:border-slate-800 bg-card p-3 shadow-xl"
               >
-                <AtaturkPortrait className="h-7 w-auto sm:h-8" />
-                <Ataturk10KasimEmblem className="h-6 w-6 sm:h-7 sm:w-7" />
-                <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold tracking-wide text-foreground/85 whitespace-nowrap">
-                  <span>Saygıyla anıyoruz</span>
-                  <span className="font-sans font-bold text-muted-foreground text-xs">1881 - 193&infin;</span>
-                </span>
-              </div>
-            ) : seasonalTheme ? (
-              <span className="ml-2 hidden items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary lg:inline-flex">
-                {flagThemeIds.has(seasonalTheme.id) ? (
-                  <span className="seasonal-flag" title={`${seasonalTheme.label} teması`} aria-label={`${seasonalTheme.label} teması`}>🇹🇷</span>
-                ) : (
-                  seasonalTheme.emoji
-                )}
-                <span>{seasonalTheme.label}</span>
-              </span>
-            ) : null}
-          </div>
-        </div>
+                <div className="mb-2 flex items-center justify-between px-1">
+                  <span className="text-xs font-bold text-foreground">Bildirimler</span>
+                  {totalUnread > 0 && (
+                    <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                      {totalUnread} yeni
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      navigate('/announcements');
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Megaphone className="h-4 w-4 text-primary" />
+                      <span>Duyurular</span>
+                    </span>
+                    {unreadAnnouncements > 0 ? (
+                      <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        {unreadAnnouncements}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">Güncel</span>
+                    )}
+                  </button>
 
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {user && (
-            <div
-              onClick={() => navigate('/profile')}
-              className="mr-1 hidden h-9 rounded-full border border-border/70 bg-card/75 px-4 py-1 text-right backdrop-blur-md md:flex md:flex-col justify-center shadow-xs cursor-pointer hover:border-primary/50 hover:bg-card/95 transition-all duration-200"
-            >
-              <div className="flex items-center justify-end gap-1.5">
-                <span className="text-[12px] font-semibold leading-tight text-foreground whitespace-nowrap">
-                  {getGreeting()}, {displayName}
-                </span>
-                <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" title="Aktif" />
-              </div>
-              {profile?.last_login && (
-                <span className="text-[10px] text-muted-foreground leading-tight">Son Giriş: {formatLastLogin()}</span>
-              )}
-            </div>
-          )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotificationsOpen(false);
+                      navigate('/messages');
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted/70"
+                  >
+                    <span className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                      <span>Mesajlar</span>
+                    </span>
+                    {unreadMessages > 0 ? (
+                      <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                        {unreadMessages}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">Okunmuş</span>
+                    )}
+                  </button>
 
-          {points && (
-            <button
-              onClick={() => navigate('/points')}
-              title={`${points.points} Puan • ${points.current_streak} günlük seri`}
-              className={cn(
-                "hidden h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold shadow-xs backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 lg:inline-flex",
-                seasonalTheme?.id === 'november10'
-                  ? "border border-border/80 bg-card/85 text-foreground hover:bg-muted/70 hover:border-foreground/30 shadow-none"
-                  : "border border-primary/35 bg-gradient-to-r from-primary/15 via-primary/10 to-transparent text-primary hover:border-primary/60 hover:shadow-[0_0_15px_rgba(0,112,209,0.3)]"
-              )}
-            >
-              <Sparkles className={cn("h-3.5 w-3.5", seasonalTheme?.id === 'november10' ? "text-foreground/80" : "text-primary")} />
-              <span>{points.points} Puan</span>
-              {points.current_streak > 0 && (
-                <span className={cn(
-                  "inline-flex items-center gap-0.5 font-bold border-l pl-1.5 ml-0.5",
-                  seasonalTheme?.id === 'november10'
-                    ? "border-border/80 text-foreground/80"
-                    : "border-primary/20 text-warning"
-                )}>
-                  <Flame className="h-3.5 w-3.5" />{points.current_streak}
-                </span>
-              )}
-            </button>
-          )}
+                  {user && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleBellClick();
+                      }}
+                      className="mt-1 flex w-full items-center justify-between rounded-xl border border-border/70 bg-muted/40 px-2.5 py-2 text-left text-xs font-medium text-foreground transition-colors hover:bg-muted/80"
+                    >
+                      <span className="flex items-center gap-2">
+                        <BellRing className="h-4 w-4 text-primary" />
+                        <span>Cihaz Bildirimleri</span>
+                      </span>
+                      <span
+                        className={cn(
+                          'rounded-full px-2 py-0.5 text-[10px] font-bold',
+                          deviceNotificationsEnabled
+                            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-slate-200/80 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+                        )}
+                      >
+                        {deviceNotificationsEnabled ? 'Açık' : 'Kapalı'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
 
-          {/* Unified horizontal capsule toolbar collecting all icons together */}
-          <div className="flex items-center gap-0.5 sm:gap-1 rounded-full border border-border/70 bg-card/75 p-1 shadow-xs backdrop-blur-md">
-            <button
-              type="button"
-              title="Mesajlar"
-              aria-label="Mesajlar"
-              onClick={() => navigate('/messages')}
-              className="relative hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-primary/15 hover:text-primary active:scale-90 sm:inline-flex"
-            >
-              <MessageSquare className="h-4 w-4" />
-              {unreadMessages > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-card">
-                  {unreadMessages}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              title="Duyurular"
-              aria-label="Duyurular"
-              onClick={() => navigate('/announcements')}
-              className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-primary/15 hover:text-primary active:scale-90"
-            >
-              <Megaphone className="h-4 w-4" />
-              {unreadAnnouncements > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground ring-2 ring-card">
-                  {unreadAnnouncements}
-                </span>
-              )}
-            </button>
-
-            {user && (
-              <button
-                type="button"
-                aria-label={deviceNotificationsEnabled ? 'Cihaz bildirimlerini kapat' : 'Cihaz bildirimlerini aç'}
-                title={deviceNotificationsEnabled ? 'Cihaz bildirimleri açık (kapatmak için tıklayın)' : 'Cihaz bildirimlerini aç'}
-                onClick={() => void handleBellClick()}
-                className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-200 active:scale-90 ${
-                  deviceNotificationsEnabled
-                    ? 'bg-primary/20 text-primary shadow-xs'
-                    : 'text-muted-foreground hover:bg-primary/15 hover:text-primary'
-                }`}
-              >
-                {deviceNotificationsEnabled ? (
-                  <BellRing className="h-4 w-4 text-primary animate-pulse" />
-                ) : (
-                  <Bell className="h-4 w-4" />
-                )}
-              </button>
-            )}
-
+            {/* Theme Switcher */}
             <button
               type="button"
               title={theme === 'light' ? 'Karanlık moda geç' : 'Aydınlık moda geç'}
               aria-label="Tema değiştir"
               onClick={toggleTheme}
-              className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-primary/15 hover:text-primary active:scale-90"
+              className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
             >
-              {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+              {theme === 'light' ? (
+                <Moon className="h-[19px] w-[19px]" strokeWidth={1.85} />
+              ) : (
+                <Sun className="h-[19px] w-[19px]" strokeWidth={1.85} />
+              )}
             </button>
 
-            <button
-              type="button"
-              title="Profilim"
-              aria-label="Profilim"
-              onClick={() => navigate('/profile')}
-              className="relative hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-primary/15 hover:text-primary active:scale-90 sm:inline-flex"
-            >
-              <User className="h-4 w-4" />
-            </button>
-
-            {/* Subtle separator before logout */}
-            <div className="mx-0.5 h-4 w-px bg-border/80" />
-
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+            {/* Profile Avatar Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  title="Çıkış Yap"
-                  aria-label="Çıkış Yap"
-                  className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 hover:bg-destructive/15 hover:text-destructive active:scale-90"
+                  aria-label="Profil menüsü"
+                  title={displayName}
+                  className={cn(
+                    'flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs sm:text-sm font-bold text-white shadow-sm ring-2 ring-white/80 dark:ring-slate-800 transition-transform active:scale-95 focus:outline-none focus-visible:ring-primary/50',
+                    isNovember10 ? 'bg-zinc-900 dark:bg-zinc-700' : 'bg-[#132b5e] dark:bg-blue-600',
+                  )}
                 >
-                  <LogOut className="h-4 w-4" />
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt={displayName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span>{userInitial}</span>
+                  )}
                 </button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="rounded-2xl border-border/80 bg-card/95 backdrop-blur-xl">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-lg font-bold text-foreground">
-                    EconNotes'tan Çıkış Yapılsın mı?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription className="text-sm text-muted-foreground leading-relaxed">
-                    EconNotes hesabınızdan güvenli bir şekilde çıkış yapılacaktır. Oturumunuzu sonlandırmak istediğinizi onaylıyor musunuz?
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="gap-2 sm:gap-0">
-                  <AlertDialogCancel className="rounded-xl border-border/70 hover:bg-muted font-medium">
-                    Vazgeç
-                  </AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleLogout}
-                    className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 font-medium"
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="z-[70] w-56 rounded-2xl border-slate-200/90 dark:border-slate-800 p-1.5"
+              >
+                <DropdownMenuLabel className="px-2.5 py-1.5">
+                  <p className="truncate text-xs font-bold text-foreground">{displayName}</p>
+                  <p className="truncate text-[11px] font-normal text-muted-foreground">
+                    {user?.email || 'Öğrenci Hesabı'}
+                  </p>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => navigate('/profile')}
+                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
+                >
+                  <User className="h-3.5 w-3.5" />
+                  Profilim & Ayarlar
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => navigate('/points')}
+                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Puan Geçmişim
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => navigate('/support')}
+                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
+                >
+                  <LifeBuoy className="h-3.5 w-3.5" />
+                  Destek Merkezi
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem
+                    onClick={() => navigate('/admin')}
+                    className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
                   >
-                    Onaylıyorum, Çıkış Yap
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <Shield className="h-3.5 w-3.5" />
+                    Yönetici Paneli
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setLogoutDialogOpen(true)}
+                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium text-destructive focus:text-destructive"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Çıkış Yap
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-        </div>
+
+        {/* Expandable Mobile Search Bar */}
+        {mobileSearchOpen && (
+          <form
+            onSubmit={handleSearchSubmit}
+            className="border-t border-slate-200/70 dark:border-slate-800/80 px-3.5 py-2.5 md:hidden"
+            role="search"
+          >
+            <div className="relative flex items-center">
+              <Search className="pointer-events-none absolute left-3.5 h-4 w-4 text-slate-400" />
+              <input
+                ref={mobileSearchInputRef}
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Ders, not veya konu ara..."
+                className="h-10 w-full rounded-full border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#0d182d] pl-10 pr-4 text-sm text-foreground placeholder:text-slate-400 focus:border-blue-500/60 focus:outline-none"
+              />
+            </div>
+          </form>
+        )}
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+        <AlertDialogContent className="rounded-2xl border-border/80 bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-bold text-foreground">
+              EconNotes&apos;tan Çıkış Yapılsın mı?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">
+              EconNotes hesabınızdan güvenli bir şekilde çıkış yapılacaktır. Oturumunuzu sonlandırmak istediğinizi onaylıyor musunuz?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel className="rounded-xl border-border/70 hover:bg-muted font-medium">
+              Vazgeç
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLogout}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 font-medium"
+            >
+              Onaylıyorum, Çıkış Yap
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 };

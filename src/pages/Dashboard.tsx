@@ -1,36 +1,91 @@
-import Layout from '@/components/Layout';
-import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { NOTE_SELECT } from '@/lib/noteColumns';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Megaphone, Users, Clock, GraduationCap, ChevronDown, ChevronUp, X, ShieldCheck, Download, Upload, ArrowRight, BookOpen, Brain, Target, MessageSquare, Sparkles, Video, Headphones, Cake, Gift, Lock } from 'lucide-react';
-import { getBirthdayStatus, getUserBirthDate } from '@/lib/birthdayPerk';
-import { getMondayWheelState } from '@/lib/mondayWheel';
-import { getTriviaUnlimitedRemainingLabel } from '@/lib/dailyTrivia';
-import { openMondayWheelModal, EconWheelMiniGraphic } from '@/components/MondayWheelPopup';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  ArrowRight,
+  BarChart2,
+  BarChart3,
+  Bookmark,
+  BookOpen,
+  Cake,
+  ChevronRight,
+  ClipboardList,
+  Clock,
+  FileText,
+  Flame,
+  Gift,
+  GraduationCap,
+  Megaphone,
+  Play,
+  Sparkles,
+  Star,
+  TrendingUp,
+  Trophy,
+  X,
+} from 'lucide-react';
+import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/contexts/AuthContext';
+import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
-import LeaderboardCard from '@/components/LeaderboardCard';
-import DailyMissions from '@/components/DailyMissions';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { APP_VERSION } from '@/lib/version';
-import LoadingMessage from '@/components/ui/loading-message';
+import { usePoints } from '@/hooks/usePoints';
+import { supabase } from '@/integrations/supabase/client';
+import { getBirthdayStatus } from '@/lib/birthdayPerk';
+import {
+  getDailyRenewalInfo,
+  getTriviaUnlimitedRemainingLabel,
+  invokeDailyTrivia,
+  type TriviaAttemptSummary,
+  type TriviaStatusResponse,
+} from '@/lib/dailyTrivia';
+import {
+  computeWeeklyStudySeries,
+  detectNoteFileBadge,
+  formatTurkishShortDate,
+  resolveAcademicCalendarDisplay,
+  resolveContinueStudyingItem,
+  type PointEventInput,
+  type SimpleTimestampRow,
+} from '@/lib/dashboardMetrics';
+import { getMondayWheelState } from '@/lib/mondayWheel';
+import { loadUserNotebooks } from '@/lib/neural/notebookStore';
+import { NOTE_SELECT } from '@/lib/noteColumns';
+import { ARENA_UPDATED_EVENT, getCheckInCycleInfo, loadArenaState } from '@/lib/studyArenaState';
 import { cn } from '@/lib/utils';
-import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
+import type { StudyMaterial, StudyProgressRow } from '@/types/study';
 
+interface DashboardNoteRow {
+  id: string;
+  title: string;
+  course?: string | null;
+  semester?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
+  uploader_name?: string | null;
+  created_at: string;
+}
 
 const BannerContent = ({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
-  const isLong = content.length > 100;
+  const isLong = content.length > 120;
   return (
     <div className="min-w-0">
-      <p className={`text-sm leading-relaxed text-muted-foreground ${!expanded && isLong ? 'line-clamp-2' : ''}`}>{content}</p>
+      <p
+        className={cn(
+          'text-xs sm:text-sm leading-relaxed text-muted-foreground',
+          !expanded && isLong && 'line-clamp-2',
+        )}
+      >
+        {content}
+      </p>
       {isLong && (
-        <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="mt-1 text-sm font-medium text-primary transition-colors hover:text-primary/80 hover:underline">
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          aria-expanded={expanded}
+          className="mt-1 text-xs font-semibold text-primary hover:underline"
+        >
           {expanded ? 'Daha az göster' : 'Devamını oku'}
         </button>
       )}
@@ -38,185 +93,438 @@ const BannerContent = ({ content }: { content: string }) => {
   );
 };
 
+/** Subtle decorative vector sparkline wave inside KPI stat cards (pure crisp SVG, zero raster art). */
+const StatSparkline = ({
+  id,
+  stroke,
+  fillTop,
+  path,
+  area,
+}: {
+  id: string;
+  stroke: string;
+  fillTop: string;
+  path: string;
+  area: string;
+}) => (
+  <svg
+    viewBox="0 0 120 36"
+    fill="none"
+    aria-hidden="true"
+    className="pointer-events-none absolute bottom-0 right-0 h-11 w-28 opacity-80 dark:opacity-55"
+    preserveAspectRatio="none"
+  >
+    <defs>
+      <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={fillTop} stopOpacity="0.32" />
+        <stop offset="100%" stopColor={fillTop} stopOpacity="0.02" />
+      </linearGradient>
+    </defs>
+    <path d={area} fill={`url(#${id})`} />
+    <path d={path} stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const FILE_BADGE_CLASSES: Record<'blue' | 'orange' | 'indigo' | 'teal' | 'slate', string> = {
+  blue: 'bg-[#2563eb] text-white shadow-[0_6px_14px_-4px_rgba(37,99,235,0.45)]',
+  orange: 'bg-[#ea580c] text-white shadow-[0_6px_14px_-4px_rgba(234,88,12,0.45)]',
+  indigo: 'bg-[#4f46e5] text-white shadow-[0_6px_14px_-4px_rgba(79,70,229,0.45)]',
+  teal: 'bg-[#0d9488] text-white shadow-[0_6px_14px_-4px_rgba(13,148,136,0.45)]',
+  slate: 'bg-slate-700 text-white shadow-[0_6px_14px_-4px_rgba(51,65,85,0.4)]',
+};
+
 const Dashboard = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const { quota } = useDownloadQuota();
+  const { points } = usePoints(3);
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
-  const [stats, setStats] = useState({ notes: 0, announcements: 0 });
-  const [recentNotes, setRecentNotes] = useState<any[]>([]);
-  const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([]);
-  const [syncTime] = useState(new Date().toLocaleString('tr-TR'));
-  const [academicWeek, setAcademicWeek] = useState<{ week: number | null; label: string | null; semester: string | null }>({ week: null, label: null, semester: null });
-  const [showAllNotes, setShowAllNotes] = useState(false);
-  const [showAllAnnouncements, setShowAllAnnouncements] = useState(false);
-  const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [showStudioUpdateModal, setShowStudioUpdateModal] = useState(false);
-  const [sessionWarning, setSessionWarning] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [totalNotesCount, setTotalNotesCount] = useState(0);
+  const [recentNotes, setRecentNotes] = useState<DashboardNoteRow[]>([]);
+  const [notesAddedLast7Days, setNotesAddedLast7Days] = useState(0);
+  const [studyMaterials, setStudyMaterials] = useState<StudyMaterial[]>([]);
+  const [studyProgress, setStudyProgress] = useState<StudyProgressRow[]>([]);
+  const [kpssMaterialsCount, setKpssMaterialsCount] = useState(0);
+  const [kpssMaterialsRecent7, setKpssMaterialsRecent7] = useState(0);
+  const [downloadedNotesCount, setDownloadedNotesCount] = useState(0);
+  const [pointEvents, setPointEvents] = useState<PointEventInput[]>([]);
+  const [noteViews, setNoteViews] = useState<SimpleTimestampRow[]>([]);
+  const [academicWeek, setAcademicWeek] = useState<{
+    week: number | null;
+    label: string | null;
+    semester: string | null;
+  }>({ week: null, label: null, semester: null });
+  const [triviaAttempt, setTriviaAttempt] = useState<TriviaAttemptSummary | null>(null);
   const [banners, setBanners] = useState<any[]>([]);
   const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [sessionWarning, setSessionWarning] = useState(false);
+  const [weekPeriod, setWeekPeriod] = useState<'current' | 'previous'>('current');
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [arenaTick, setArenaTick] = useState(0);
   const [, setBirthdayTick] = useState(0);
+
   const birthdayStatus = getBirthdayStatus(user, profile);
   const isBirthdayToday = birthdayStatus.isBirthdayToday;
-  const displayName = profile?.full_name?.trim()
-    || String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim()
-    || user?.email?.split('@')[0]
-    || 'öğrenci';
+  const displayName =
+    profile?.full_name?.trim() ||
+    String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim() ||
+    user?.email?.split('@')[0] ||
+    'Öğrenci';
+  const firstName = displayName.split(' ')[0] || 'Öğrenci';
 
   useEffect(() => {
     const onBdayChange = () => setBirthdayTick((t) => t + 1);
+    const onArenaChange = () => setArenaTick((t) => t + 1);
     window.addEventListener('econnotes:birthdate-updated', onBdayChange);
-    return () => window.removeEventListener('econnotes:birthdate-updated', onBdayChange);
+    window.addEventListener(ARENA_UPDATED_EVENT, onArenaChange);
+    return () => {
+      window.removeEventListener('econnotes:birthdate-updated', onBdayChange);
+      window.removeEventListener(ARENA_UPDATED_EVENT, onArenaChange);
+    };
   }, []);
+
+  // Keep daily trivia renewal countdown ticking cleanly
   useEffect(() => {
-    const fetchData = async () => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fourteenDaysAgoIso = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const fetchDashboardData = async () => {
       try {
-        const results = await Promise.allSettled([
-          supabase.from('notes').select(NOTE_SELECT, { count: 'exact' }).order('created_at', { ascending: false }),
-          supabase.from('announcements').select('*', { count: 'exact' }).order('created_at', { ascending: false }),
+        const queries: PromiseLike<any>[] = [
+          supabase
+            .from('notes')
+            .select(NOTE_SELECT, { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .limit(40),
           supabase.from('public_system_status').select('*').limit(1).maybeSingle(),
-          supabase.from('banners').select('*').eq('is_active', true).order('created_at', { ascending: false }),
-        ]);
+          supabase
+            .from('banners')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false }),
+        ];
 
-        const notesRes = results[0].status === 'fulfilled' ? results[0].value : { count: 0, data: [] };
-        const announcementsRes = results[1].status === 'fulfilled' ? results[1].value : { count: 0, data: [] };
-        const settingsRes = results[2].status === 'fulfilled' ? results[2].value : { data: null };
-        const bannersRes = results[3].status === 'fulfilled' ? results[3].value : { data: [] };
+        if (user) {
+          queries.push(
+            supabase
+              .from('study_materials')
+              .select('id, user_id, source_type, source_note_id, material_type, title, course, created_at')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(100),
+            supabase
+              .from('study_progress')
+              .select('id, user_id, material_id, score, total_questions, attempts, completed_at')
+              .eq('user_id', user.id)
+              .order('completed_at', { ascending: false })
+              .limit(60),
+            supabase
+              .from('kpss_materials')
+              .select('id, created_at', { count: 'exact' })
+              .eq('user_id', user.id),
+            supabase
+              .from('point_events')
+              .select('amount, reason, created_at')
+              .eq('user_id', user.id)
+              .gte('created_at', fourteenDaysAgoIso)
+              .order('created_at', { ascending: false })
+              .limit(400),
+            supabase
+              .from('note_views')
+              .select('note_id, created_at')
+              .eq('user_id', user.id)
+              .gte('created_at', fourteenDaysAgoIso)
+              .order('created_at', { ascending: false })
+              .limit(200),
+            supabase
+              .from('note_downloads')
+              .select('note_id, created_at')
+              .eq('user_id', user.id)
+              .limit(300),
+          );
+        }
 
-        setStats({ notes: (notesRes as any).count || 0, announcements: (announcementsRes as any).count || 0 });
-        setRecentNotes((notesRes as any).data || []);
-        setRecentAnnouncements((announcementsRes as any).data || []);
-        setBanners((bannersRes as any).data || []);
-        if (settingsRes && (settingsRes as any).data) {
+        const results = await Promise.allSettled(queries);
+        if (cancelled) return;
+
+        const notesRes = results[0]?.status === 'fulfilled' ? results[0].value : null;
+        const statusRes = results[1]?.status === 'fulfilled' ? results[1].value : null;
+        const bannersRes = results[2]?.status === 'fulfilled' ? results[2].value : null;
+
+        const notesList: DashboardNoteRow[] = Array.isArray(notesRes?.data) ? notesRes.data : [];
+        setTotalNotesCount(typeof notesRes?.count === 'number' ? notesRes.count : notesList.length);
+        setRecentNotes(notesList);
+        setNotesAddedLast7Days(
+          notesList.filter((n) => new Date(n.created_at).getTime() >= sevenDaysAgoMs).length,
+        );
+
+        setBanners(Array.isArray(bannersRes?.data) ? bannersRes.data : []);
+        if (statusRes?.data) {
           setAcademicWeek({
-            week: ((settingsRes as any).data as any).academic_week,
-            label: ((settingsRes as any).data as any).academic_week_label,
-            semester: ((settingsRes as any).data as any).academic_semester,
+            week: statusRes.data.academic_week ?? null,
+            label: statusRes.data.academic_week_label ?? null,
+            semester: statusRes.data.academic_semester ?? null,
           });
+        }
+
+        if (user) {
+          const matRes = results[3]?.status === 'fulfilled' ? results[3].value : null;
+          const progRes = results[4]?.status === 'fulfilled' ? results[4].value : null;
+          const kpssRes = results[5]?.status === 'fulfilled' ? results[5].value : null;
+          const evRes = results[6]?.status === 'fulfilled' ? results[6].value : null;
+          const viewRes = results[7]?.status === 'fulfilled' ? results[7].value : null;
+          const dlRes = results[8]?.status === 'fulfilled' ? results[8].value : null;
+
+          setStudyMaterials(
+            Array.isArray(matRes?.data) ? (matRes.data as unknown as StudyMaterial[]) : [],
+          );
+          setStudyProgress(
+            Array.isArray(progRes?.data) ? (progRes.data as unknown as StudyProgressRow[]) : [],
+          );
+          const kpssRows: Array<{ id: string; created_at: string }> = Array.isArray(kpssRes?.data)
+            ? kpssRes.data
+            : [];
+          setKpssMaterialsCount(typeof kpssRes?.count === 'number' ? kpssRes.count : kpssRows.length);
+          setKpssMaterialsRecent7(
+            kpssRows.filter((k) => new Date(k.created_at).getTime() >= sevenDaysAgoMs).length,
+          );
+          setPointEvents(Array.isArray(evRes?.data) ? (evRes.data as PointEventInput[]) : []);
+          setNoteViews(Array.isArray(viewRes?.data) ? (viewRes.data as SimpleTimestampRow[]) : []);
+
+          const dlRows: SimpleTimestampRow[] = Array.isArray(dlRes?.data) ? dlRes.data : [];
+          const uniqueDl = new Set(dlRows.map((d) => d.note_id).filter(Boolean));
+          setDownloadedNotesCount(uniqueDl.size);
+
+          // Fetch today's trivia status non-blockingly
+          void invokeDailyTrivia<TriviaStatusResponse>({ action: 'status' })
+            .then((res) => {
+              if (!cancelled && res.data) {
+                setTriviaAttempt(res.data.attempt ?? null);
+              }
+            })
+            .catch(() => {});
         }
       } catch (err) {
         console.error('Dashboard verileri yüklenirken hata:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
-    const checkUnreadAnnouncements = async () => {
-      if (!user) return;
-      const { data: announcements } = await supabase.from('announcements').select('id');
-      const { data: views } = await supabase.from('announcement_views').select('announcement_id').eq('user_id', user.id);
-      const viewedIds = new Set((views || []).map((v: any) => v.announcement_id));
-      const unread = (announcements || []).filter(a => !viewedIds.has(a.id)).length;
-      setUnreadAnnouncements(unread);
-    };
-
-    const checkFirstLogin = () => {
-      if (user) {
-        const key = `econotes_welcomed_${user.id}`;
-        if (!localStorage.getItem(key)) {
-          setShowWelcome(true);
-          localStorage.setItem(key, 'true');
-        }
+    if (user) {
+      const welcomeKey = `econotes_welcomed_${user.id}`;
+      if (!localStorage.getItem(welcomeKey)) {
+        setShowWelcome(true);
+        localStorage.setItem(welcomeKey, 'true');
       }
-    };
+    }
 
-    const checkStudioUpdateAnnouncement = () => {
-      if (user) {
-        const updateKey = 'econnotes_studio_showcase_' + APP_VERSION + '_' + user.id;
-        if (!localStorage.getItem(updateKey)) {
-          setShowStudioUpdateModal(true);
-        }
-      }
-    };
-
-    fetchData();
-    checkUnreadAnnouncements();
-    checkFirstLogin();
+    void fetchDashboardData();
 
     const sessionStart = Date.now();
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       if (Date.now() - sessionStart > 3600000) {
         setSessionWarning(true);
-        clearInterval(interval);
+        window.clearInterval(interval);
       }
     }, 60000);
-    return () => clearInterval(interval);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [user]);
 
-  const handleDismissStudioUpdate = (redirect = false) => {
-    if (user) {
-      const updateKey = 'econnotes_studio_showcase_' + APP_VERSION + '_' + user.id;
-      localStorage.setItem(updateKey, '1');
-    }
-    setShowStudioUpdateModal(false);
-    if (redirect) {
-      navigate('/study');
-    }
-  };
+  const arenaState = useMemo(() => {
+    void arenaTick;
+    return loadArenaState(user);
+  }, [user, arenaTick]);
 
-  const formatDateTime = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return `${d.toLocaleDateString('tr-TR')} ${d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}`;
-  };
+  const arenaCycle = useMemo(() => getCheckInCycleInfo(arenaState), [arenaState]);
+  const notebooks = useMemo(() => (user ? loadUserNotebooks(user.id) : []), [user]);
+
+  const nowDate = useMemo(() => new Date(nowTick), [nowTick]);
+  const academicDisplay = useMemo(
+    () => resolveAcademicCalendarDisplay(academicWeek, nowDate),
+    [academicWeek, nowDate],
+  );
+  const renewal = useMemo(() => getDailyRenewalInfo(nowDate), [nowDate]);
+
+  const displayStreak = Math.max(points?.current_streak ?? 0, arenaCycle.activeStreak);
+  const totalXp = points?.points ?? 0;
+
+  // Recent XP gained over the last 7 days
+  const recentXpGain = useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return pointEvents
+      .filter((e) => new Date(e.created_at).getTime() >= cutoff && e.amount > 0)
+      .reduce((sum, e) => sum + e.amount, 0);
+  }, [pointEvents]);
+
+  // Saved materials = Study Studio materials + KPSS materials + unique downloaded notes
+  const savedMaterialsTotal = useMemo(
+    () => studyMaterials.length + kpssMaterialsCount + downloadedNotesCount,
+    [studyMaterials.length, kpssMaterialsCount, downloadedNotesCount],
+  );
+
+  const savedMaterialsDelta7 = useMemo(() => {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recentStudio = studyMaterials.filter(
+      (m) => new Date(m.created_at).getTime() >= cutoff,
+    ).length;
+    return recentStudio + kpssMaterialsRecent7;
+  }, [studyMaterials, kpssMaterialsRecent7]);
+
+  const continueItem = useMemo(
+    () =>
+      resolveContinueStudyingItem({
+        progress: studyProgress,
+        materials: studyMaterials,
+        notebooks,
+        recentNotes,
+        lastViewedNoteId: noteViews[0]?.note_id ?? null,
+      }),
+    [studyProgress, studyMaterials, notebooks, recentNotes, noteViews],
+  );
+
+  const weeklySeries = useMemo(
+    () =>
+      computeWeeklyStudySeries({
+        pointEvents,
+        studyProgress,
+        studyMaterials,
+        noteViews,
+        focusMinutesToday: arenaState.focusMinutesToday,
+        weekOffset: weekPeriod === 'current' ? 0 : -1,
+        now: nowDate,
+      }),
+    [
+      pointEvents,
+      studyProgress,
+      studyMaterials,
+      noteViews,
+      arenaState.focusMinutesToday,
+      weekPeriod,
+      nowDate,
+    ],
+  );
+
+  const highlightedDayIndex = useMemo(() => {
+    if (selectedDayIndex !== null && selectedDayIndex >= 0 && selectedDayIndex < 7) {
+      return selectedDayIndex;
+    }
+    if (weeklySeries.peakIndex >= 0) return weeklySeries.peakIndex;
+    const todayIdx = weeklySeries.days.findIndex((d) => d.isToday);
+    return todayIdx >= 0 ? todayIdx : 0;
+  }, [selectedDayIndex, weeklySeries]);
 
   const statCards = [
     {
-      label: 'Paylaşılan Ders Notları',
-      value: stats.notes,
-      icon: FileText,
-      color: isNovember10 ? 'text-foreground' : 'text-blue-500 dark:text-blue-400',
-      iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-blue-500/10 text-blue-500 dark:text-blue-400 border border-blue-500/20',
-      lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-blue-600 via-blue-500 to-cyan-400',
-      borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-blue-500/50 hover:shadow-[0_8px_24px_rgba(59,130,246,0.15)]',
+      label: 'Toplam Not',
+      value: totalNotesCount.toLocaleString('tr-TR'),
+      delta: notesAddedLast7Days > 0 ? `+${notesAddedLast7Days}` : null,
+      icon: BookOpen,
+      iconTile: isNovember10
+        ? 'bg-muted text-foreground'
+        : 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400',
+      sparkStroke: isNovember10 ? '#52525b' : '#60a5fa',
+      sparkFill: isNovember10 ? '#a1a1aa' : '#93c5fd',
+      sparkPath: 'M4 28 C22 25, 36 16, 56 20 C76 24, 92 10, 116 14',
+      sparkArea: 'M4 36 L4 28 C22 25, 36 16, 56 20 C76 24, 92 10, 116 14 L116 36 Z',
+      onClick: () => navigate('/notes'),
     },
     {
-      label: 'Duyurular',
-      value: stats.announcements,
-      icon: Megaphone,
-      color: isNovember10 ? 'text-foreground' : 'text-amber-500 dark:text-amber-400',
-      iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-amber-500/10 text-amber-500 dark:text-amber-400 border border-amber-500/20',
-      lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-amber-600 via-amber-500 to-orange-400',
-      borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-amber-500/50 hover:shadow-[0_8px_24px_rgba(245,158,11,0.15)]',
+      label: 'Toplam XP',
+      value: totalXp.toLocaleString('tr-TR'),
+      delta: recentXpGain > 0 ? `+${recentXpGain}` : null,
+      icon: Star,
+      iconTile: isNovember10
+        ? 'bg-muted text-foreground'
+        : 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400',
+      sparkStroke: isNovember10 ? '#52525b' : '#818cf8',
+      sparkFill: isNovember10 ? '#a1a1aa' : '#c7d2fe',
+      sparkPath: 'M4 30 C24 27, 42 22, 62 17 C82 12, 98 18, 116 8',
+      sparkArea: 'M4 36 L4 30 C24 27, 42 22, 62 17 C82 12, 98 18, 116 8 L116 36 Z',
+      onClick: () => navigate('/points'),
     },
     {
-      label: 'İndirme Hakkım',
-      value: quota?.is_admin || quota?.is_birthday_unlimited || quota?.is_wheel_unlimited || quota?.is_trivia_unlimited ? 'Sınırsız' : (quota?.remaining ?? '—'),
-      icon: Download,
-      color: isNovember10 ? 'text-foreground' : 'text-emerald-500 dark:text-emerald-400',
-      iconBg: isNovember10 ? 'bg-muted text-foreground border border-border' : 'bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20',
-      lineGradient: isNovember10 ? 'from-neutral-700 via-neutral-500 to-neutral-400 dark:from-neutral-400 dark:via-neutral-500 dark:to-neutral-600' : 'from-emerald-600 via-emerald-500 to-teal-400',
-      borderHover: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-emerald-500/50 hover:shadow-[0_8px_24px_rgba(16,185,129,0.15)]',
+      label: 'Çalışma Serisi',
+      value: `${displayStreak} gün`,
+      delta: displayStreak > 0 ? (arenaCycle.claimedToday ? '+1' : `Rekor ${Math.max(displayStreak, points?.longest_streak ?? 0)}`) : null,
+      icon: Flame,
+      iconTile: isNovember10
+        ? 'bg-muted text-foreground'
+        : 'bg-orange-50 text-orange-500 dark:bg-orange-500/15 dark:text-orange-400',
+      sparkStroke: isNovember10 ? '#52525b' : '#fb923c',
+      sparkFill: isNovember10 ? '#a1a1aa' : '#fed7aa',
+      sparkPath: 'M4 29 C26 24, 44 26, 64 16 C84 10, 98 20, 116 12',
+      sparkArea: 'M4 36 L4 29 C26 24, 44 26, 64 16 C84 10, 98 20, 116 12 L116 36 Z',
+      onClick: () => navigate('/points'),
+    },
+    {
+      label: 'Kaydedilen Materyal',
+      value: savedMaterialsTotal.toLocaleString('tr-TR'),
+      delta: savedMaterialsDelta7 > 0 ? `+${savedMaterialsDelta7}` : null,
+      icon: Bookmark,
+      iconTile: isNovember10
+        ? 'bg-muted text-foreground'
+        : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
+      sparkStroke: isNovember10 ? '#52525b' : '#34d399',
+      sparkFill: isNovember10 ? '#a1a1aa' : '#a7f3d0',
+      sparkPath: 'M4 28 C26 26, 46 18, 66 22 C86 24, 100 12, 116 10',
+      sparkArea: 'M4 36 L4 28 C26 26, 46 18, 66 22 C86 24, 100 12, 116 10 L116 36 Z',
+      onClick: () => navigate('/study'),
     },
   ];
 
-  const displayedNotes = showAllNotes ? recentNotes : recentNotes.slice(0, 5);
-  const displayedAnnouncements = showAllAnnouncements ? recentAnnouncements : recentAnnouncements.slice(0, 5);
+  const activeBanners = banners.filter((b) => !dismissedBanners.has(b.id));
+  const hasActiveUnlimitedPerk = Boolean(
+    quota &&
+      !quota.is_admin &&
+      (quota.is_birthday_unlimited || quota.is_wheel_unlimited || quota.is_trivia_unlimited),
+  );
+  const topNotes = recentNotes.slice(0, 4);
+  const barScaleMax = Math.max(weeklySeries.peakMinutes, 30);
 
   return (
     <Layout>
-      <div className="relative z-10 space-y-6 opacity-100 visible text-foreground">
-        {/* Banners */}
-        {banners.filter(b => !dismissedBanners.has(b.id)).map(banner => (
-          <Card key={banner.id} role="status" className="group relative isolate overflow-hidden border-primary/25 bg-gradient-to-r from-primary/[0.07] via-card to-accent/30 shadow-sm transition-shadow hover:shadow-md">
-            <div className="pointer-events-none absolute -right-10 -top-14 -z-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl" />
-            <CardContent className="flex items-start gap-3 p-4 sm:items-center sm:gap-4 sm:px-5">
-              <div className="mt-0.5 shrink-0 text-primary sm:mt-0">
-                <Megaphone className="h-5 w-5" />
+      <div className="space-y-5 opacity-100 visible text-foreground">
+        {/* Conditional Admin Announcement Banners (hidden when none active) */}
+        {activeBanners.map((banner) => (
+          <Card
+            key={banner.id}
+            role="status"
+            className="relative overflow-hidden rounded-[20px] border-primary/20 bg-card shadow-sm"
+          >
+            <CardContent className="flex items-start gap-3 p-4 sm:items-center sm:px-5">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:mt-0">
+                <Megaphone className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="mb-1 break-words text-sm font-semibold leading-snug text-foreground sm:text-base">{banner.title}</p>
+                <p className="mb-0.5 break-words text-sm font-semibold text-foreground">
+                  {banner.title}
+                </p>
                 <BannerContent content={banner.content} />
               </div>
               <Button
+                type="button"
                 variant="ghost"
                 size="icon"
                 aria-label="Duyuruyu kapat"
-                className="-mr-2 -mt-2 h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground sm:mr-0 sm:mt-0"
-                onClick={() => setDismissedBanners(prev => new Set(prev).add(banner.id))}
+                className="-mr-1 h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+                onClick={() => setDismissedBanners((prev) => new Set(prev).add(banner.id))}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -224,535 +532,679 @@ const Dashboard = () => {
           </Card>
         ))}
 
+        {/* Conditional First-Login Welcome & Eye-Rest Notices */}
         {showWelcome && (
-          <Card className="glass-card border-primary/30 bg-primary/5">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🎉</span>
-                <div>
-                  <p className="font-semibold">EconNotes'a Hoş Geldiniz!</p>
-                  <p className="text-sm text-muted-foreground">Kaydınız başarıyla tamamlandı. Ders notlarınızı paylaşmaya ve keşfetmeye başlayabilirsiniz!</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setShowWelcome(false)}>✕</Button>
-            </CardContent>
-          </Card>
+          <div className="flex items-center justify-between gap-3 rounded-[20px] border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
+            <div className="flex items-center gap-3 min-w-0">
+              <Sparkles className="h-4 w-4 shrink-0 text-primary" />
+              <p className="truncate font-medium text-foreground">
+                EconNotes&apos;a hoş geldin! Ders notlarını keşfedip Çalışma Stüdyosu ile hemen başlayabilirsin.
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Kapat"
+              onClick={() => setShowWelcome(false)}
+              className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         )}
 
         {sessionWarning && (
-          <Card className="glass-card border-warning/30 bg-warning/5">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-warning" />
-                <div>
-                  <p className="font-semibold text-warning">Uzun Süredir Aktifsiniz</p>
-                  <p className="text-sm text-muted-foreground">1 saattir panelde aktifsiniz. Gözlerinizi dinlendirmeyi unutmayın! 😊</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setSessionWarning(false)}>✕</Button>
-            </CardContent>
-          </Card>
+          <div className="flex items-center justify-between gap-3 rounded-[20px] border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+            <div className="flex items-center gap-3 min-w-0">
+              <Clock className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="truncate font-medium text-foreground">
+                1 saattir aktifsin. Kısa bir mola verip gözlerini dinlendirmeyi unutma.
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Kapat"
+              onClick={() => setSessionWarning(false)}
+              className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         )}
 
-        {/* 1 Defaya Mahsus Çalışma Stüdyosu Güncelleme Modal & Yönlendirmesi */}
-        <Dialog open={showStudioUpdateModal} onOpenChange={(open) => {
-          if (!open) handleDismissStudioUpdate(false);
-        }}>
-          <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg max-h-[86dvh] flex flex-col rounded-2xl p-4 sm:p-6 border border-primary/20 bg-card shadow-2xl backdrop-blur-xl overflow-hidden my-auto">
-            <DialogHeader className="space-y-2 text-left shrink-0">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-cyan-500/15 via-blue-500/15 to-purple-500/15 text-primary border border-primary/25 w-fit">
-                <Sparkles className="h-3.5 w-3.5 animate-pulse text-cyan-400" />
-                <span>Yeni Büyük Güncelleme</span>
-                <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono">{APP_VERSION}</span>
-              </div>
-              
-              <DialogTitle className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">
-                Çalışma Stüdyosu Baştan Aşağı Yenilendi! 🚀
-              </DialogTitle>
-              
-              <DialogDescription className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                Ders çalışma ve sınavlara hazırlanma deneyiminizi üst seviyeye taşıyan video stüdyosu ve interaktif çalışma özellikleri yayında:
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-2 py-2 overflow-y-auto flex-1 pr-1 [scrollbar-width:thin]">
-              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-accent/40 border border-border/50">
-                <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500 shrink-0">
-                  <Video className="h-4 w-4" />
-                </div>
-                <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-xs sm:text-sm">İnteraktif İkili Video Dersi</p>
-                  <p className="text-muted-foreground text-[11px] sm:text-xs">Dr. Deniz ve Barış eşliğinde ezber kalıplardan uzak, soru-cevaplı derin akademik konu anlatımı.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-accent/40 border border-border/50">
-                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500 shrink-0">
-                  <Headphones className="h-4 w-4" />
-                </div>
-                <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-xs sm:text-sm">Stüdyo Kalitesinde Doğal Seslendirme</p>
-                  <p className="text-muted-foreground text-[11px] sm:text-xs">Robotik olmayan, pürüzsüz diksiyon ve akıcı üniversite semineri doğallığında ses akışı.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-accent/40 border border-border/50">
-                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500 shrink-0">
-                  <Target className="h-4 w-4" />
-                </div>
-                <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-xs sm:text-sm">Akıllı Tahta, Sınav Tüyoları & Eşleştirme</p>
-                  <p className="text-muted-foreground text-[11px] sm:text-xs">Karşılaştırma tabloları, analitik grafikler, hocanın sorabileceği sorular ve interaktif kartlar.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-accent/40 border border-border/50">
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
-                  <FileText className="h-4 w-4" />
-                </div>
-                <div className="text-xs space-y-0.5">
-                  <p className="font-semibold text-foreground text-xs sm:text-sm">Yapılandırılmış PDF & HTML Not İndirme</p>
-                  <p className="text-muted-foreground text-[11px] sm:text-xs">Video dersindeki tüm kavram ve özetleri tek tıkla şık akademik formatta bilgisayara kaydetme.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse sm:flex-row gap-2 pt-2 border-t border-border/40 shrink-0">
-              <Button
-                variant="outline"
-                className="w-full sm:w-auto text-xs h-9"
-                onClick={() => handleDismissStudioUpdate(false)}
-              >
-                Daha Sonra İncele
-              </Button>
-              <Button
-                className={cn(
-                  "w-full sm:flex-1 gap-2 font-medium text-xs sm:text-sm h-9 text-white shadow-lg",
-                  isNovember10
-                    ? "bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white dark:text-zinc-950 shadow-none"
-                    : "bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 shadow-cyan-500/20"
+        {/* Conditional Compact Active Unlimited Access Reward Strip */}
+        {hasActiveUnlimitedPerk && quota && (
+          <div className="flex flex-col gap-3 rounded-[20px] border border-blue-200/90 dark:border-blue-500/30 bg-card px-4 py-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#0b2763] to-[#1d63ed] text-white">
+                {quota.is_birthday_unlimited ? (
+                  <Cake className="h-5 w-5" />
+                ) : quota.is_wheel_unlimited ? (
+                  <Gift className="h-5 w-5" />
+                ) : (
+                  <Sparkles className="h-5 w-5" />
                 )}
-                onClick={() => handleDismissStudioUpdate(true)}
-              >
-                <span>Çalışma Stüdyosuna Git</span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-bold text-foreground">
+                    {quota.is_birthday_unlimited
+                      ? 'Doğum Günü Hediyen: 1 Gün Sınırsız Not Erişimi Aktif'
+                      : quota.is_wheel_unlimited
+                        ? 'Şans Çarkı Ödülün: 24 Saat Sınırsız Not Erişimi Aktif'
+                        : 'Bilgi Yarışması 15/15 Ödülün: 2 Saat Sınırsız Not Erişimi Aktif'}
+                  </p>
+                  <span className="rounded-full bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+                    {quota.is_birthday_unlimited
+                      ? birthdayStatus.remainingLabel
+                      : quota.is_wheel_unlimited
+                        ? getMondayWheelState(user).wheelUnlimitedRemainingLabel
+                        : getTriviaUnlimitedRemainingLabel(user, profile as any)}
+                  </span>
+                </div>
+              </div>
             </div>
-          </DialogContent>
-        </Dialog>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => navigate('/notes')}
+              className="rounded-full bg-[#1d63ed] px-4 text-white hover:bg-[#1652cc] shrink-0"
+            >
+              Notları İncele
+            </Button>
+          </div>
+        )}
 
-        {/* Hero Header */}
-        <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-r from-card via-card to-primary/10 p-5 sm:p-7 shadow-sm">
-          <div className={cn("pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full blur-2xl", isNovember10 ? "bg-gradient-to-br from-neutral-600/15 via-neutral-500/10 to-transparent" : "bg-gradient-to-br from-[#003791]/20 via-[#0070d1]/15 to-transparent")} />
+        {/* 1. HERO WELCOME BANNER + COMPACT HORIZONTAL ACADEMIC CALENDAR CARD */}
+        <section
+          aria-label="Karşılama alanı"
+          className={cn(
+            'relative overflow-hidden rounded-[24px] px-5 py-6 sm:px-7 sm:py-7 text-white shadow-[0_16px_40px_-14px_rgba(7,26,66,0.45)]',
+            isNovember10
+              ? 'bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-800'
+              : 'bg-gradient-to-r from-[#06183d] via-[#0b2a6e] to-[#0f3a8f]',
+          )}
+        >
+          {/* Subtle vector light-arc geometry (pure SVG, zero raster/AI images) */}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 960 220"
+            fill="none"
+            preserveAspectRatio="none"
+            className="pointer-events-none absolute inset-0 h-full w-full opacity-35"
+          >
+            <path
+              d="M360 230 C490 120, 620 40, 810 -15"
+              stroke="url(#heroArc1)"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M520 245 C655 130, 775 55, 975 20"
+              stroke="url(#heroArc2)"
+              strokeWidth="1.2"
+            />
+            <defs>
+              <linearGradient id="heroArc1" x1="360" y1="230" x2="810" y2="-15" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#60a5fa" stopOpacity="0" />
+                <stop offset="0.5" stopColor="#93c5fd" stopOpacity="0.8" />
+                <stop offset="1" stopColor="#60a5fa" stopOpacity="0" />
+              </linearGradient>
+              <linearGradient id="heroArc2" x1="520" y1="245" x2="975" y2="20" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#38bdf8" stopOpacity="0" />
+                <stop offset="0.5" stopColor="#bae6fd" stopOpacity="0.55" />
+                <stop offset="1" stopColor="#38bdf8" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full bg-sky-400/20 blur-3xl"
+          />
 
-          <div className="relative z-10 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="space-y-1">
-              <h1 className="text-2xl font-bold sm:text-3xl text-foreground tracking-tight">
-                {isBirthdayToday
-                  ? `Doğum günün kutlu olsun, ${displayName.split(' ')[0]}! 🎂`
-                  : `Merhaba, ${displayName.split(' ')[0]}`}
+          <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            {/* Greeting Text */}
+            <div className="min-w-0 space-y-2">
+              <h1 className="text-2xl font-extrabold tracking-tight sm:text-[32px] sm:leading-[1.15]">
+                {isBirthdayToday ? (
+                  <>
+                    Doğum günün kutlu olsun,{' '}
+                    <span className={isNovember10 ? 'text-zinc-300' : 'text-[#6cb2ff]'}>
+                      {firstName}!
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Merhaba,{' '}
+                    <span className={isNovember10 ? 'text-zinc-300' : 'text-[#6cb2ff]'}>
+                      {firstName}!
+                    </span>
+                  </>
+                )}
               </h1>
-              <p className="text-sm text-muted-foreground max-w-xl">
-                {isBirthdayToday
-                  ? 'Sağlıklı, mutlu, huzurlu ve başarılarla dolu nice güzel yaşlara! Bugün sana özel tüm ders notlarını sınırsız görüntüleyebilir ve indirebilirsin.'
-                  : 'Bugün küçük bir adım, hedeflerine büyük bir katkı. Notlarını keşfet ve verimli çalışmaya devam et.'}
+              <p className="flex items-center gap-2 text-sm text-blue-100/90 sm:text-[15px]">
+                <span>
+                  {isBirthdayToday
+                    ? 'Bugün sana özel tüm ders notlarını sınırsız görüntüleyebilir ve indirebilirsin.'
+                    : 'Bugünün hedefi: Bir adım daha ileriye gitmek.'}
+                </span>
+                <TrendingUp
+                  className={cn(
+                    'h-4 w-4 shrink-0',
+                    isNovember10 ? 'text-zinc-300' : 'text-amber-300',
+                  )}
+                  strokeWidth={2.2}
+                />
               </p>
             </div>
 
-            {academicWeek.week && (
-              <div className="flex items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-2.5 backdrop-blur-sm">
-                <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                  <GraduationCap className="h-5 w-5" />
+            {/* Compact Horizontal Academic Calendar Card (Top-Right of Hero Banner) */}
+            <div
+              aria-label="Akademik Takvim"
+              className={cn(
+                'inline-flex w-fit max-w-full shrink-0 items-center gap-3 rounded-2xl border px-3.5 py-2.5 backdrop-blur-md self-start lg:self-center',
+                isNovember10
+                  ? 'border-white/15 bg-white/10'
+                  : 'border-sky-200/25 bg-sky-300/15',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
+                  isNovember10
+                    ? 'border-white/15 bg-white/10 text-zinc-100'
+                    : 'border-sky-200/25 bg-sky-200/15 text-sky-100',
+                )}
+              >
+                <GraduationCap className="h-5 w-5" strokeWidth={1.9} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold leading-none',
+                      isNovember10
+                        ? 'border-white/20 bg-white/15 text-white'
+                        : 'border-sky-200/30 bg-sky-200/20 text-sky-100',
+                    )}
+                  >
+                    {academicDisplay.semester}
+                  </span>
+                  <span className="text-sm font-bold leading-none text-white">
+                    {academicDisplay.weekLabel}
+                  </span>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-foreground">{academicWeek.week}. Hafta</p>
-                  <div className="flex items-center gap-1.5 justify-end">
-                    {academicWeek.semester && <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">{academicWeek.semester}</span>}
-                    {academicWeek.label && <span className="text-[10px] text-muted-foreground">{academicWeek.label}</span>}
+                <p className="mt-1 text-[11.5px] font-medium leading-snug text-sky-100/85">
+                  {academicDisplay.yearLabel}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 2. FOUR KPI STAT CARDS */}
+        <section
+          aria-label="Özet istatistikler"
+          className="grid grid-cols-2 gap-3.5 sm:gap-4 xl:grid-cols-4"
+        >
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-[20px] border border-slate-200/80 dark:border-slate-800 bg-card p-4 sm:p-5 shadow-[0_4px_18px_rgba(15,23,42,0.03)]"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <Skeleton className="h-11 w-11 rounded-2xl shrink-0" />
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <Skeleton className="h-3.5 w-20" />
+                      <Skeleton className="h-7 w-16" />
+                    </div>
                   </div>
+                </div>
+              ))
+            : statCards.map((stat, idx) => {
+                const Icon = stat.icon;
+                return (
+                  <button
+                    key={stat.label}
+                    type="button"
+                    onClick={stat.onClick}
+                    className="group relative flex min-w-0 flex-col justify-between overflow-hidden rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-4 sm:p-5 text-left shadow-[0_4px_20px_rgba(15,23,42,0.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300/80 dark:hover:border-blue-500/40 hover:shadow-[0_12px_28px_-10px_rgba(37,99,235,0.14)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  >
+                    <div className="relative z-10 flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-3 sm:gap-3.5">
+                        <span
+                          className={cn(
+                            'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-transform duration-200 group-hover:scale-105',
+                            stat.iconTile,
+                          )}
+                        >
+                          <Icon className="h-5 w-5" strokeWidth={1.9} />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {stat.label}
+                          </p>
+                          <p className="mt-0.5 truncate text-xl font-extrabold tracking-tight text-foreground sm:text-[26px] sm:leading-tight tabular-nums">
+                            {stat.value}
+                          </p>
+                        </div>
+                      </div>
+
+                      {stat.delta && (
+                        <span className="shrink-0 text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                          {stat.delta}
+                        </span>
+                      )}
+                    </div>
+
+                    <StatSparkline
+                      id={`dash-spark-${idx}`}
+                      stroke={stat.sparkStroke}
+                      fillTop={stat.sparkFill}
+                      path={stat.sparkPath}
+                      area={stat.sparkArea}
+                    />
+                  </button>
+                );
+              })}
+        </section>
+
+        {/* 3. MIDDLE FEATURE ROW: CONTINUE STUDYING + DAILY TRIVIA */}
+        <section
+          aria-label="Çalışma ve Günlük Bilgi Yarışması"
+          className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-12"
+        >
+          {/* Left: Kaldığın yerden devam et */}
+          <div className="flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <BarChart2 className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
+                <h2 className="truncate text-[16px] font-bold tracking-tight text-foreground sm:text-[17px]">
+                  Kaldığın yerden devam et
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/study')}
+                className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary/80"
+              >
+                <span>Tümünü Gör</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <Skeleton className="h-[116px] w-full rounded-2xl sm:w-[148px] shrink-0" />
+                <div className="flex-1 space-y-3">
+                  <Skeleton className="h-5 w-40" />
+                  <Skeleton className="h-3.5 w-32" />
+                  <Skeleton className="h-2 w-full rounded-full" />
+                  <Skeleton className="h-10 w-full rounded-full" />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
+                {/* Clean navy vector thumbnail (no 3D/AI raster images) */}
+                <div
+                  aria-hidden="true"
+                  className={cn(
+                    'relative flex h-[112px] w-full shrink-0 items-center justify-center overflow-hidden rounded-2xl sm:h-[124px] sm:w-[152px]',
+                    isNovember10
+                      ? 'bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-700'
+                      : 'bg-gradient-to-br from-[#071c4a] via-[#113a8f] to-[#1e60d5]',
+                  )}
+                >
+                  <div className="pointer-events-none absolute -bottom-8 -right-8 h-24 w-24 rounded-full bg-sky-300/20 blur-xl" />
+                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-sm">
+                    <ClipboardList className="h-7 w-7" strokeWidth={1.65} />
+                  </div>
+                </div>
+
+                {/* Real course/topic progress & action */}
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-lg font-extrabold tracking-tight text-foreground">
+                      {continueItem.title}
+                    </h3>
+                    <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
+                      {continueItem.subtitle}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all duration-500',
+                          isNovember10
+                            ? 'bg-zinc-900 dark:bg-zinc-200'
+                            : 'bg-gradient-to-r from-[#1d63ed] to-[#5ba0ff]',
+                        )}
+                        style={{ width: `${Math.max(continueItem.progressPct, continueItem.hasRealHistory ? 8 : 0)}%` }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-xs font-extrabold text-foreground tabular-nums">
+                      %{continueItem.progressPct}
+                    </span>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={() => navigate(continueItem.targetPath)}
+                    className={cn(
+                      'h-10 w-full gap-2 rounded-full text-sm font-semibold text-white transition-all hover:brightness-105 active:scale-[0.99]',
+                      isNovember10
+                        ? 'bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950'
+                        : 'bg-gradient-to-r from-[#174ec4] via-[#1f62e8] to-[#2e78f6] shadow-[0_10px_22px_-8px_rgba(29,99,237,0.6)]',
+                    )}
+                  >
+                    <Play className="h-3.5 w-3.5 fill-current" />
+                    <span>{continueItem.ctaLabel}</span>
+                  </Button>
                 </div>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Quick Access Cards */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              label: 'Notları Keşfet',
-              detail: 'Dersine uygun kaynaklara göz at.',
-              icon: BookOpen,
-              path: '/notes',
-              externalUrl: undefined as string | undefined,
-              badge: undefined as string | undefined,
-              iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-primary/10 text-primary',
-              hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-primary/40 hover:shadow-[0_8px_24px_hsl(var(--primary)/0.12)]',
-            },
-            {
-              label: 'Çalışma Stüdyosu',
-              detail: 'Notlarından yeni çalışma araçları üret.',
-              icon: Brain,
-              path: '/study',
-              externalUrl: undefined as string | undefined,
-              badge: undefined as string | undefined,
-              iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
-              hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-cyan-500/40 hover:shadow-[0_8px_24px_rgba(6,182,212,0.12)]',
-            },
-            {
-              label: 'KPSS Merkezi',
-              detail: 'KPSS Merkezi artık EconKPSS’e taşındı. KPSS hazırlıklarına EconKPSS üzerinden devam edebilirsin.',
-              icon: Target,
-              path: '/kpss',
-              externalUrl: 'https://econkpss.online',
-              badge: 'EconKPSS',
-              iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
-              hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-indigo-500/40 hover:shadow-[0_8px_24px_rgba(99,102,241,0.12)]',
-            },
-            {
-              label: 'Mesajlar',
-              detail: 'Arkadaşlarınla iletişimde kal.',
-              icon: MessageSquare,
-              path: '/messages',
-              externalUrl: undefined as string | undefined,
-              badge: undefined as string | undefined,
-              iconClass: isNovember10 ? 'bg-muted text-foreground' : 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-              hoverGlow: isNovember10 ? 'hover:border-foreground/30 hover:shadow-md' : 'hover:border-sky-500/40 hover:shadow-[0_8px_24px_rgba(14,165,233,0.12)]',
-            },
-          ].map((item) => (
+          {/* Right: Günlük Bilgi Yarışması */}
+          <div
+            className={cn(
+              'relative flex flex-col justify-between overflow-hidden rounded-[22px] p-5 sm:p-6 text-white shadow-[0_14px_34px_-10px_rgba(12,46,115,0.45)] lg:col-span-6',
+              isNovember10
+                ? 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-800'
+                : 'bg-gradient-to-br from-[#071a42] via-[#0e3682] to-[#1d63ed]',
+            )}
+          >
+            {/* Subtle vector ring + thin-stroke Trophy icon watermark (strictly line icon, zero 3D/AI art) */}
             <div
-              key={item.path}
-              onClick={() => {
-                if (item.externalUrl) {
-                  window.open(item.externalUrl, '_blank', 'noopener,noreferrer');
-                } else {
-                  navigate(item.path);
-                }
-              }}
-              className={cn(
-                'group relative flex flex-col justify-between gap-3 p-5 rounded-xl border border-border/70 bg-gradient-to-br from-card via-card to-card/90 cursor-pointer transition-all duration-200',
-                item.hoverGlow,
-                'hover:-translate-y-0.5'
-              )}
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-5 top-1/2 hidden -translate-y-1/2 sm:flex h-40 w-40 items-center justify-center rounded-full border border-sky-200/15 bg-sky-300/10"
             >
-              <div className="flex items-center justify-between">
-                <span className={cn('p-2.5 rounded-lg transition-transform duration-200 group-hover:scale-105', item.iconClass)}>
-                  <item.icon className="h-5 w-5" />
-                </span>
-                <div className="flex items-center gap-1.5">
-                  {item.badge && (
-                    <span className="rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
-                      {item.badge}
+              <div className="flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/20">
+                <Trophy className="h-14 w-14 text-sky-200/45" strokeWidth={1.35} />
+              </div>
+            </div>
+
+            <div className="relative z-10 flex flex-col justify-between gap-4 h-full">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 text-sm font-bold text-white">
+                    <Trophy
+                      className={cn(
+                        'h-4 w-4 shrink-0',
+                        isNovember10 ? 'text-zinc-300' : 'text-amber-300',
+                      )}
+                      strokeWidth={2}
+                    />
+                    <span>Günlük Bilgi Yarışması</span>
+                  </span>
+                  {triviaAttempt?.status === 'completed' && (
+                    <span className="rounded-full border border-emerald-300/35 bg-emerald-400/20 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-100">
+                      Bugün: {triviaAttempt.correctCount}/15
                     </span>
                   )}
-                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-hover:translate-x-1 group-hover:text-foreground" />
                 </div>
+
+                <h2 className="text-2xl font-extrabold tracking-tight text-white sm:text-[27px] sm:leading-tight">
+                  15 soru • 15 dakika
+                </h2>
+                <p className="text-sm text-blue-100/90">
+                  Bilgini test et, ödülleri kazan!
+                </p>
               </div>
 
-              <div>
-                <h3 className="font-bold text-foreground group-hover:text-primary transition-colors text-sm sm:text-base">
-                  {item.label}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                  {item.detail}
+              <div className="space-y-3 sm:max-w-[290px]">
+                <Button
+                  type="button"
+                  onClick={() => navigate('/gunluk-yarisma')}
+                  className="h-11 w-full gap-2 rounded-full bg-white px-6 text-sm font-bold text-[#0c265c] shadow-[0_8px_20px_-6px_rgba(0,0,0,0.28)] transition-all hover:bg-blue-50 active:scale-[0.99]"
+                >
+                  <Play className="h-4 w-4 fill-current" />
+                  <span>
+                    {triviaAttempt?.status === 'in_progress'
+                      ? 'Yarışmaya Devam Et'
+                      : triviaAttempt?.status === 'completed'
+                        ? 'Sonucu Görüntüle'
+                        : 'Yarışmaya Katıl'}
+                  </span>
+                </Button>
+
+                <p className="flex items-center gap-1.5 text-xs font-medium text-blue-100/85">
+                  <Clock className="h-3.5 w-3.5 shrink-0 text-sky-200" />
+                  <span>Yarışmaya kalan süre:</span>
+                  <strong className="font-semibold text-white tabular-nums">
+                    {renewal.compactTime}
+                  </strong>
                 </p>
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        </section>
 
-        {/* PlayStation Gradient Stat Cards */}
-        <div className="grid gap-4 sm:grid-cols-3">
-          {loading
-            ? (
-              <>
-                <LoadingMessage className="sm:col-span-3" />
+        {/* 4. BOTTOM BALANCED 2-COLUMN SECTION (NO QUOTE / MOTIVATION CARD, ZERO EMPTY GAP) */}
+        <section
+          aria-label="Son eklenen notlar ve haftalık çalışma istatistikleri"
+          className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-12"
+        >
+          {/* Left: Son Eklenen Notlar */}
+          <div className="flex flex-col rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <FileText className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
+                <h2 className="truncate text-[16px] font-bold tracking-tight text-foreground sm:text-[17px]">
+                  Son Eklenen Notlar
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/notes')}
+                className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary/80"
+              >
+                <span>Tüm Notları Gör</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-stretch min-w-0">
-                    <Card className="glass-card flex-1">
-                      <CardContent className="p-4 flex items-center gap-4">
-                        <Skeleton className="h-12 w-12 rounded-xl" />
-                        <div className="space-y-2 flex-1">
-                          <Skeleton className="h-6 w-12" />
-                          <Skeleton className="h-3 w-24" />
-                        </div>
-                      </CardContent>
-                    </Card>
+                  <div key={i} className="flex items-center gap-3.5 rounded-2xl p-2.5">
+                    <Skeleton className="h-11 w-11 rounded-xl shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
+                    </div>
                   </div>
                 ))}
-              </>
-            )
-            : statCards.map((stat, i) => (
-            <div key={stat.label} className="flex items-stretch min-w-0">
+              </div>
+            ) : topNotes.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 px-4 py-10 text-center">
+                <FileText className="mb-2 h-7 w-7 text-muted-foreground/60" />
+                <p className="text-sm font-semibold text-foreground">Henüz ders notu bulunmuyor</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  İlk notu paylaşarak veya mevcut derslere göz atarak başlayabilirsin.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {topNotes.map((note) => {
+                  const badge = detectNoteFileBadge(note.file_type, note.file_name);
+                  const dateLabel = formatTurkishShortDate(note.created_at);
+                  const metaSecondary = note.course?.trim() || note.semester?.trim() || note.uploader_name?.trim() || '';
+                  return (
+                    <button
+                      key={note.id}
+                      type="button"
+                      onClick={() => navigate(`/notes?q=${encodeURIComponent(note.title)}`)}
+                      className="group flex w-full items-center gap-3.5 py-3 first:pt-1 last:pb-1 text-left transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 rounded-xl px-2 -mx-2"
+                    >
+                      <span
+                        className={cn(
+                          'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-[11px] font-extrabold tracking-wide',
+                          isNovember10
+                            ? 'bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-950'
+                            : FILE_BADGE_CLASSES[badge.tone],
+                        )}
+                      >
+                        {badge.label}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {note.title}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {dateLabel}
+                          {metaSecondary ? ` • ${metaSecondary}` : ''}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-primary" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Haftalık Çalışma İstatistikleri */}
+          <div className="flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <BarChart3 className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
+                <h2 className="truncate text-[16px] font-bold tracking-tight text-foreground sm:text-[17px]">
+                  Haftalık Çalışma İstatistikleri
+                </h2>
+              </div>
+
               <div
-                onClick={() => i === 1 ? navigate('/announcements') : navigate('/notes')}
-                className={cn(
-                  'group relative flex-1 p-5 pt-6 rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-card/90 cursor-pointer transition-all duration-200 overflow-hidden shadow-xs',
-                  stat.borderHover,
-                  'hover:-translate-y-0.5'
-                )}
+                role="group"
+                aria-label="Hafta seçimi"
+                className="inline-flex items-center rounded-full border border-slate-200/90 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/70 p-0.5"
               >
-                {/* Üst Vurgu Çizgisi (Top Accent Line) */}
-                <span className={cn('absolute top-0 inset-x-0 h-1 bg-gradient-to-r transition-all duration-300 group-hover:h-1.5', stat.lineGradient)} />
-
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-muted-foreground">{stat.label}</span>
-                  <div className={cn('p-2 rounded-xl transition-transform duration-200 group-hover:scale-110', stat.iconBg)}>
-                    <stat.icon className="h-4 w-4" />
-                  </div>
-                </div>
-
-                {/* Şık ayırıcı çizgi */}
-                <div className="my-2.5 h-px bg-gradient-to-r from-border/80 via-border/40 to-transparent" />
-
-                <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">{stat.value}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekPeriod('current');
+                    setSelectedDayIndex(null);
+                  }}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-xs font-semibold transition-all',
+                    weekPeriod === 'current'
+                      ? 'bg-white dark:bg-slate-800 text-foreground shadow-sm'
+                      : 'text-slate-500 hover:text-foreground dark:text-slate-400',
+                  )}
+                >
+                  Bu Hafta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWeekPeriod('previous');
+                    setSelectedDayIndex(null);
+                  }}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-xs font-semibold transition-all',
+                    weekPeriod === 'previous'
+                      ? 'bg-white dark:bg-slate-800 text-foreground shadow-sm'
+                      : 'text-slate-500 hover:text-foreground dark:text-slate-400',
+                  )}
+                >
+                  Geçen Hafta
+                </button>
               </div>
             </div>
-          ))}
-        </div>
 
-        {quota && !quota.is_admin && (
-          <Card className={`glass-card ${quota.is_birthday_unlimited || quota.is_wheel_unlimited || quota.is_trivia_unlimited ? 'border-primary/40 bg-gradient-to-r from-primary/[0.08] via-card to-cyan-500/[0.06]' : !quota.can_download ? 'border-destructive/50' : ''}`}>
-            <CardContent className="p-5">
-              {quota.is_birthday_unlimited ? (
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#003791] to-[#0070d1] text-white shadow-md shadow-blue-600/20 shrink-0 w-fit">
-                    <Cake className="h-7 w-7" />
+            {loading ? (
+              <div className="flex h-[186px] items-end justify-between gap-2.5 pt-8">
+                {[42, 65, 92, 54, 72, 48, 80].map((h, i) => (
+                  <div key={i} className="flex flex-1 flex-col items-center gap-2">
+                    <Skeleton className="w-full max-w-[38px] rounded-t-xl" style={{ height: `${h}px` }} />
+                    <Skeleton className="h-3 w-7" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                      <h3 className="font-bold text-base text-foreground">Doğum Günü Hediyen: 1 Gün Sınırsız Not Erişimi!</h3>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary font-bold">
-                        {getBirthdayStatus(user, profile).remainingLabel}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      İyi ki doğdun, {displayName.split(' ')[0]}! EconNotes doğum günü hediyen olarak bugün tüm ders notlarını kota sınırı olmadan görüntüleyebilir ve indirebilirsin.
-                    </p>
-                  </div>
-                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-[#003791] to-[#0070d1] text-white hover:opacity-95 shrink-0">
-                    Notları İncele
-                  </Button>
-                </div>
-              ) : quota.is_wheel_unlimited ? (
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-[#003791] to-[#0070d1] text-white shadow-md shadow-blue-600/20 shrink-0 w-fit">
-                    <Gift className="h-7 w-7" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                      <h3 className="font-bold text-base text-foreground">Şans Çarkı Ödülün: 1 Gün Sınırsız İndirme & Yükleme!</h3>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary font-bold">
-                        {getMondayWheelState(user).wheelUnlimitedRemainingLabel}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Pazartesi Şans Çarkından kazandığın 24 saatlik sınırsız not görüntüleme, indirme ve yükleme hakkın aktif!
-                    </p>
-                  </div>
-                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-[#003791] to-[#0070d1] text-white hover:opacity-95 shrink-0">
-                    Notları İncele
-                  </Button>
-                </div>
-              ) : quota.is_trivia_unlimited ? (
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="p-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20 shrink-0 w-fit">
-                    <Sparkles className="h-7 w-7" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                      <h3 className="font-bold text-base text-foreground">Bilgi Yarışması 15/15 Ödülün: 2 Saat Sınırsız Not Erişimi!</h3>
-                      <span className="text-xs px-2.5 py-0.5 rounded-full border border-amber-500/35 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold">
-                        {getTriviaUnlimitedRemainingLabel(user, profile as any)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Günlük Genel Kültür Bilgi Yarışması’nda 15/15 yaparak kazandığın 2 saatlik sınırsız not görüntüleme ve indirme hakkın aktif!
-                    </p>
-                  </div>
-                  <Button size="sm" onClick={() => navigate('/notes')} className="bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-95 shrink-0">
-                    Notları İncele
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className={`p-3 rounded-2xl ${quota.can_download ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
-                    <ShieldCheck className="h-7 w-7" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                      <h3 className="font-semibold text-base">İndirme Kotanız</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${quota.can_download ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                        {quota.can_download ? `${quota.remaining} hak kaldı` : 'Hak doldu'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Yeni kullanıcılar 2 indirme hakkı ile başlar. Kotalarınızı açmak için onaylanan en az 1 ders notu yüklemeniz gerekir.
-                    </p>
-                    <Progress
-                      value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
-                      className="h-2"
-                    />
-                    <div className="flex flex-wrap items-center justify-between mt-2 gap-2 text-xs">
-                      <span className="flex items-center gap-1 text-muted-foreground"><Upload className="h-3 w-3" /> {quota.approved_uploads} onaylı yükleme</span>
-                      {!getUserBirthDate(user, profile) && (
-                        <button
-                          type="button"
-                          onClick={() => navigate('/profile')}
-                          className="text-primary font-medium hover:underline"
-                        >
-                          Doğum gününde 1 gün sınırsız hak için doğum tarihini ekle →
-                        </button>
-                      )}
-                      <span className="flex items-center gap-1 text-muted-foreground"><Download className="h-3 w-3" /> {quota.total_downloads} / {quota.allowed_downloads} indirme</span>
-                    </div>
-                  </div>
-                  <Button size="sm" onClick={() => navigate('/notes')} className="gradient-primary text-primary-foreground shrink-0">
-                    {quota.can_download ? 'Notlara Git' : 'Not Yükle'}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        <LeaderboardCard />
-
-        <DailyMissions />
-
-
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card className="glass-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="h-5 w-5 text-primary" /> Son Yüklenen Notlar
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {loading ? (
-                <>
-                  <LoadingMessage className="mb-1" />
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-accent/30">
-                      <div className="flex items-center gap-2 flex-1">
-                        <Skeleton className="h-3 w-4" />
-                        <div className="space-y-2 flex-1">
-                          <Skeleton className="h-3 w-1/2" />
-                          <Skeleton className="h-2 w-3/4" />
-                        </div>
-                      </div>
-                      <Skeleton className="h-3 w-20" />
-                    </div>
-                  ))}
-                </>
-              ) : recentNotes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Henüz not paylaşılmamış.</p>
-              ) : (
-                <>
-                  {displayedNotes.map((note, idx) => (
-                    <div key={note.id} className="flex min-w-0 flex-col gap-2 p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer sm:flex-row sm:items-center sm:justify-between" onClick={() => navigate('/notes')}>
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
-                        <div className="min-w-0">
-                          <p className="break-words text-sm font-medium sm:truncate">{note.title}</p>
-                          <p className="break-words text-xs text-muted-foreground sm:truncate">{note.uploader_name} • {note.course} • {note.semester}</p>
-                        </div>
-                      </div>
-                      <span className="pl-7 text-[11px] text-muted-foreground sm:pl-0 sm:text-xs shrink-0">{formatDateTime(note.created_at)}</span>
-                    </div>
-                  ))}
-                  {recentNotes.length > 5 && (
-                    <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowAllNotes(!showAllNotes)}>
-                      {showAllNotes ? <><ChevronUp className="h-3 w-3 mr-1" /> Daha az göster</> : <><ChevronDown className="h-3 w-3 mr-1" /> Tümünü göster ({recentNotes.length})</>}
-                    </Button>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Megaphone className="h-5 w-5 text-warning" /> Son Duyurular
-                {unreadAnnouncements > 0 && (
-                  <span className="ml-2 h-5 w-5 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">{unreadAnnouncements}</span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {loading ? (
-                <>
-                  <LoadingMessage className="mb-1" />
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="p-3 rounded-lg bg-accent/30">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-3 w-4" />
-                        <div className="space-y-2 flex-1">
-                          <Skeleton className="h-3 w-2/3" />
-                          <Skeleton className="h-2 w-1/2" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              ) : recentAnnouncements.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Henüz duyuru yok.</p>
-              ) : (
-                <>
-                  {displayedAnnouncements.map((a, idx) => (
-                    <div key={a.id} className="p-3 rounded-lg bg-accent/50 hover:bg-accent transition-colors cursor-pointer" onClick={() => navigate('/announcements')}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground font-mono w-5">{idx + 1}.</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="break-words text-sm font-medium">{a.title}</p>
-                          <p className="break-words text-xs text-muted-foreground">{a.author_name} • {formatDateTime(a.created_at)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {recentAnnouncements.length > 5 && (
-                    <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowAllAnnouncements(!showAllAnnouncements)}>
-                      {showAllAnnouncements ? <><ChevronUp className="h-3 w-3 mr-1" /> Daha az göster</> : <><ChevronDown className="h-3 w-3 mr-1" /> Tümünü göster ({recentAnnouncements.length})</>}
-                    </Button>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Instagram Follow Banner */}
-        <Card className="glass-card border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-[hsl(340,75%,55%)] via-[hsl(25,90%,55%)] to-[hsl(45,95%,55%)]">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 text-white fill-current" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                </svg>
+                ))}
               </div>
+            ) : (
               <div>
-                <p className="text-sm font-semibold text-foreground">EconNotes'u takip edin!</p>
-                <p className="text-xs text-muted-foreground">Güncellemeler ve duyurular için Instagram'da bizi takip edin.</p>
-              </div>
-            </div>
-            <a
-              href="https://instagram.com/econnotess"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button size="sm" variant="outline" className="gap-2 border-primary/30 hover:bg-primary/10">
-                <span className="text-xs">@econnotess</span>
-              </Button>
-            </a>
-          </CardContent>
-        </Card>
+                <div className="grid h-[188px] grid-cols-7 items-end gap-2 sm:gap-3 pt-9">
+                  {weeklySeries.days.map((day, idx) => {
+                    const isHighlighted = idx === highlightedDayIndex;
+                    const heightPct =
+                      day.minutes > 0
+                        ? Math.min(100, Math.max(14, Math.round((day.minutes / barScaleMax) * 100)))
+                        : 7;
 
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          <span>Son senkronizasyon: {syncTime}</span>
-        </div>
+                    return (
+                      <button
+                        key={day.dateKey}
+                        type="button"
+                        onMouseEnter={() => setSelectedDayIndex(idx)}
+                        onFocus={() => setSelectedDayIndex(idx)}
+                        onClick={() => setSelectedDayIndex(idx)}
+                        aria-label={`${day.fullLabel}: ${day.minutes} dakika`}
+                        className="group relative flex h-full flex-col items-center justify-end gap-2 focus:outline-none"
+                      >
+                        <div className="relative flex w-full flex-1 items-end justify-center">
+                          <div
+                            className={cn(
+                              'relative w-full max-w-[40px] rounded-t-xl transition-all duration-300',
+                              day.minutes === 0
+                                ? 'bg-slate-100 dark:bg-slate-800/80'
+                                : isNovember10
+                                  ? isHighlighted
+                                    ? 'bg-zinc-900 dark:bg-zinc-200'
+                                    : 'bg-zinc-500/70 dark:bg-zinc-600'
+                                  : isHighlighted
+                                    ? 'bg-gradient-to-t from-[#60a5fa] via-[#2563eb] to-[#1d4ed8] shadow-[0_8px_18px_-6px_rgba(37,99,235,0.55)]'
+                                    : 'bg-gradient-to-t from-[#bfdbfe] via-[#60a5fa] to-[#3b82f6] opacity-85 group-hover:opacity-100',
+                            )}
+                            style={{ height: `${heightPct}%` }}
+                          >
+                            {/* Floating duration pill anchored cleanly above the highlighted / peak bar */}
+                            {isHighlighted && (
+                              <span
+                                className={cn(
+                                  'pointer-events-none absolute -top-8 z-10 whitespace-nowrap rounded-full border border-slate-200/90 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-0.5 text-[11px] font-bold text-foreground shadow-sm tabular-nums',
+                                  idx === 0
+                                    ? 'left-0 sm:left-1/2 sm:-translate-x-1/2'
+                                    : idx === 6
+                                      ? 'right-0 sm:left-1/2 sm:right-auto sm:-translate-x-1/2'
+                                      : 'left-1/2 -translate-x-1/2',
+                                )}
+                              >
+                                {day.minutes} dk
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <span
+                          className={cn(
+                            'text-xs leading-none transition-colors',
+                            isHighlighted
+                              ? 'font-bold text-foreground'
+                              : 'font-medium text-slate-500 dark:text-slate-400',
+                          )}
+                        >
+                          {day.shortLabel}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-3 text-xs text-muted-foreground">
+                  <span>
+                    {weeklySeries.totalMinutes > 0
+                      ? 'Odak seansları, çalışma stüdyosu ve yarışmalardan hesaplanır.'
+                      : 'Bu hafta henüz çalışma kaydı yok — Çalışma Stüdyosu veya yarışma ile başla.'}
+                  </span>
+                  <span className="shrink-0 pl-3 font-bold text-foreground tabular-nums">
+                    Toplam {weeklySeries.totalMinutes} dk
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </Layout>
   );

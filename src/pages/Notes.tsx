@@ -25,7 +25,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Plus, FileText, Download, Trash2, Edit, Share2, Eye, Search, SortAsc, SortDesc, FolderOpen, ChevronLeft, Lock, MessageSquare, Smile, Pencil, ShieldCheck, Building2, GraduationCap, Sparkles, X, Loader2, Upload, Cake, Gift, Clock } from 'lucide-react';
 import {
@@ -129,6 +129,8 @@ const RevisionTimer = ({ deadline }: { deadline: string | null }) => {
 
 const Notes = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get('q') || '';
   const { theme } = useTheme();
   const { user, profile, isAdmin } = useAuth();
   const { quota, refresh: refreshQuota } = useDownloadQuota();
@@ -138,7 +140,7 @@ const Notes = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<any>(null);
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialQuery);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<string | null>(null);
   const [previewNote, setPreviewNote] = useState<any | null>(null);
@@ -170,6 +172,14 @@ const Notes = () => {
   const [showUploadRules, setShowUploadRules] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q !== null) {
+      setSearchTerm(q);
+      setSelectedCourse(null);
+    }
+  }, [searchParams]);
 
   const NOTE_UPLOAD_RULES = [
     'Yüklenen notlar telif hakkına uygun olmalıdır. Başkasının notunu paylaşmadan önce izin alınmalıdır.',
