@@ -137,7 +137,7 @@ const DailyHabitHub = () => {
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold shadow-xs',
+                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold shadow-sm',
                   isNovember10
                     ? 'bg-muted text-foreground border border-border'
                     : 'bg-gradient-to-r from-[#003791] via-[#0070d1] to-[#00a8ff] text-white',

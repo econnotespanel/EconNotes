@@ -489,7 +489,7 @@ const Login = () => {
                 key={i}
                 className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 transition-all duration-300 hover:bg-white/15 hover:border-white/25 hover:translate-x-1 shadow-sm"
               >
-                <div className="p-2.5 rounded-xl bg-white/10 text-white shadow-xs shrink-0">
+                <div className="p-2.5 rounded-xl bg-white/10 text-white shadow-sm shrink-0">
                   <f.icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">

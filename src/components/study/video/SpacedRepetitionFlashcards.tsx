@@ -392,7 +392,7 @@ export const SpacedRepetitionFlashcards: React.FC<SpacedRepetitionFlashcardsProp
               </p>
               <Button
                 onClick={() => setFilterBox('all')}
-                className="mt-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-xs text-white"
+                className="mt-4 rounded-full bg-primary hover:bg-primary/90 text-xs text-white"
               >
                 Tüm Kartları Göster
               </Button>

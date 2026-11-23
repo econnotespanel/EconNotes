@@ -503,7 +503,7 @@ const StudyArena = () => {
           <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#003791] via-[#0070d1] to-[#00a8ff] px-3 py-1 text-xs font-bold text-white shadow-xs">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#003791] via-[#0070d1] to-[#00a8ff] px-3 py-1 text-xs font-bold text-white shadow-sm">
                   <span>{rank.current.emoji}</span>
                   <span>{rank.current.title}</span>
                 </span>
@@ -1116,7 +1116,7 @@ const StudyArena = () => {
                         className={cn(
                           'rounded-xl border px-2.5 py-2 text-center transition-all',
                           focus.preset.id === p.id
-                            ? 'border-primary bg-primary/15 text-primary shadow-xs'
+                            ? 'border-primary bg-primary/15 text-primary shadow-sm'
                             : 'border-border/70 bg-background/60 text-muted-foreground hover:text-foreground',
                         )}
                       >
@@ -1260,7 +1260,7 @@ const StudyArena = () => {
                           className={cn(
                             'flex flex-col items-center justify-center rounded-xl border p-2.5 text-center transition-all',
                             focus.ambientSound === s.id
-                              ? 'border-primary bg-primary/15 text-foreground shadow-xs'
+                              ? 'border-primary bg-primary/15 text-foreground shadow-sm'
                               : 'border-border/70 bg-background/60 text-muted-foreground hover:border-border hover:text-foreground',
                           )}
                         >
@@ -1518,7 +1518,7 @@ const StudyArena = () => {
                         className={cn(
                           'flex items-center gap-3 rounded-xl border p-3 transition-all',
                           isCurrent
-                            ? 'border-primary bg-primary/10 shadow-xs'
+                            ? 'border-primary bg-primary/10 shadow-sm'
                             : unlocked
                               ? 'border-emerald-500/35 bg-emerald-500/[0.06]'
                               : 'border-border/60 bg-background/40 opacity-70',

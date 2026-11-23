@@ -379,7 +379,7 @@ export function NeuralCreateView({
                 className={cn(
                   'rounded-xl border p-3 text-left transition-all',
                   active
-                    ? 'border-primary bg-primary/10 shadow-xs'
+                    ? 'border-primary bg-primary/10 shadow-sm'
                     : 'border-border/60 bg-background/60 hover:border-primary/40 hover:bg-muted/40',
                 )}
               >

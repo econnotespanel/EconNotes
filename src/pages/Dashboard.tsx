@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import Layout from '@/components/Layout';
+import DashboardLeaderboardCard from '@/components/DashboardLeaderboardCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -137,7 +138,7 @@ const Dashboard = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const { quota } = useDownloadQuota();
-  const { points } = usePoints(3);
+  const { points, leaderboard, loading: pointsLoading } = usePoints(100);
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
@@ -983,13 +984,13 @@ const Dashboard = () => {
           </div>
         </section>
 
-        {/* 4. BOTTOM BALANCED 2-COLUMN SECTION (NO QUOTE / MOTIVATION CARD, ZERO EMPTY GAP) */}
+        {/* 4. BOTTOM BALANCED SECTION: SON EKLENEN NOTLAR + HAFTALIK İSTATİSTİKLER + LİDERLİK TABLOSU */}
         <section
-          aria-label="Son eklenen notlar ve haftalık çalışma istatistikleri"
+          aria-label="Son eklenen notlar, haftalık çalışma istatistikleri ve liderlik tablosu"
           className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-12"
         >
           {/* Left: Son Eklenen Notlar */}
-          <div className="flex flex-col rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6">
+          <div className="flex flex-col rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6 xl:col-span-4">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
                 <FileText className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
@@ -1067,8 +1068,8 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Right: Haftalık Çalışma İstatistikleri */}
-          <div className="flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6">
+          {/* Center: Haftalık Çalışma İstatistikleri */}
+          <div className="flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6 xl:col-span-4">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
                 <BarChart3 className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
@@ -1126,7 +1127,7 @@ const Dashboard = () => {
               </div>
             ) : (
               <div>
-                <div className="grid h-[188px] grid-cols-7 items-end gap-2 sm:gap-3 pt-9">
+                <div className="grid h-[188px] grid-cols-7 items-end gap-1.5 sm:gap-2 pt-9">
                   {weeklySeries.days.map((day, idx) => {
                     const isHighlighted = idx === highlightedDayIndex;
                     const heightPct =
@@ -1194,10 +1195,10 @@ const Dashboard = () => {
                 </div>
 
                 <div className="mt-4 flex items-center justify-between border-t border-slate-100 dark:border-slate-800/80 pt-3 text-xs text-muted-foreground">
-                  <span>
+                  <span className="truncate">
                     {weeklySeries.totalMinutes > 0
-                      ? 'Odak seansları, çalışma stüdyosu ve yarışmalardan hesaplanır.'
-                      : 'Bu hafta henüz çalışma kaydı yok — Çalışma Stüdyosu veya yarışma ile başla.'}
+                      ? 'Odak, stüdyo ve yarışmalardan hesaplanır.'
+                      : 'Bu hafta henüz çalışma kaydı yok.'}
                   </span>
                   <span className="shrink-0 pl-3 font-bold text-foreground tabular-nums">
                     Toplam {weeklySeries.totalMinutes} dk
@@ -1206,6 +1207,19 @@ const Dashboard = () => {
               </div>
             )}
           </div>
+
+          {/* Right: Liderlik Tablosu (Gerçek Veritabanı XP Sıralaması) */}
+          <DashboardLeaderboardCard
+            leaderboard={leaderboard}
+            currentUserId={user?.id}
+            currentUserName={displayName}
+            currentUserAvatar={profile?.avatar_url}
+            currentUserPoints={points?.points ?? 0}
+            loading={pointsLoading}
+            isNovember10={isNovember10}
+            onViewAll={() => navigate('/points?tab=leaderboard')}
+            className="lg:col-span-12 xl:col-span-4"
+          />
         </section>
       </div>
     </Layout>

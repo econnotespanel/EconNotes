@@ -1155,7 +1155,7 @@ const AdminPanel = () => {
                             <Button
                               size="sm"
                               onClick={() => approveUser(u.user_id, u.full_name || '')}
-                              className="flex-1 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs gap-1.5 shadow-xs"
+                              className="flex-1 h-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs gap-1.5 shadow-sm"
                             >
                               <Check className="h-3.5 w-3.5" />
                               <span>Onayla ve Aç</span>
@@ -1585,7 +1585,7 @@ const AdminPanel = () => {
                             return (
                               <div
                                 key={n.id}
-                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-amber-500/30 shadow-xs hover:border-amber-500/60 transition-colors"
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-amber-500/30 shadow-sm hover:border-amber-500/60 transition-colors"
                               >
                                 <div className="flex-1 min-w-0 space-y-1">
                                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -1697,7 +1697,7 @@ const AdminPanel = () => {
                             return (
                               <div
                                 key={n.id}
-                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-cyan-500/30 shadow-xs"
+                                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-cyan-500/30 shadow-sm"
                               >
                                 <div className="flex-1 min-w-0 space-y-1">
                                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -1812,7 +1812,7 @@ const AdminPanel = () => {
                         {notes.filter(n => n.status === 'archived').map((n) => (
                           <div
                             key={n.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-border/70 shadow-xs"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-border/70 shadow-sm"
                           >
                             <div className="min-w-0 flex-1 space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">

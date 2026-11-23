@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -21,16 +21,24 @@ export interface LeaderboardRow {
   rank: number;
 }
 
-/** Reads the signed-in user's point balance and the global leaderboard. */
+/** Reads the signed-in user's point balance and the live global leaderboard from Supabase. */
 export const usePoints = (leaderboardLimit = 10) => {
   const { user } = useAuth();
   const [points, setPoints] = useState<PointsState | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasLoadedRef = useRef(false);
 
   const refresh = useCallback(async () => {
-    if (!user) { setLoading(false); return; }
-    setLoading(true);
+    if (!user) {
+      setPoints(null);
+      setLeaderboard([]);
+      setLoading(false);
+      return;
+    }
+    if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
     try {
       const [own, board] = await Promise.all([
         supabase.from('user_points' as any).select('*').eq('user_id', user.id).maybeSingle(),
@@ -38,24 +46,50 @@ export const usePoints = (leaderboardLimit = 10) => {
       ]);
       if (own.error) console.error('Puan bilgisi yüklenemedi:', own.error);
       if (board.error) console.error('Liderlik tablosu yüklenemedi:', board.error);
-      setPoints(own.data ? own.data as unknown as PointsState : null);
-      setLeaderboard(board.data || []);
+      setPoints(own.data ? (own.data as unknown as PointsState) : null);
+      setLeaderboard(Array.isArray(board.data) ? (board.data as LeaderboardRow[]) : []);
     } catch (error) {
       console.error('Puan verileri alınamadı:', error);
       setPoints(null);
       setLeaderboard([]);
     } finally {
+      hasLoadedRef.current = true;
       setLoading(false);
     }
   }, [user, leaderboardLimit]);
 
   useEffect(() => {
-    refresh();
-    window.addEventListener('econnotes:points-updated', refresh);
+    hasLoadedRef.current = false;
+    void refresh();
+    const onPointsEvent = () => {
+      void refresh();
+    };
+    window.addEventListener('econnotes:points-updated', onPointsEvent);
+    window.addEventListener('econnotes:trivia-updated', onPointsEvent);
+    window.addEventListener('econnotes:wheel-updated', onPointsEvent);
     return () => {
-      window.removeEventListener('econnotes:points-updated', refresh);
+      window.removeEventListener('econnotes:points-updated', onPointsEvent);
+      window.removeEventListener('econnotes:trivia-updated', onPointsEvent);
+      window.removeEventListener('econnotes:wheel-updated', onPointsEvent);
     };
   }, [refresh]);
+
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`user-points-sync-${user.id}-${leaderboardLimit}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_points', filter: `user_id=eq.${user.id}` },
+        () => {
+          void refresh();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, leaderboardLimit, refresh]);
 
   return { points, leaderboard, loading, refresh };
 };

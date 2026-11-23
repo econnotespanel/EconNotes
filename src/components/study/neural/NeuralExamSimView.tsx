@@ -153,7 +153,7 @@ export function NeuralExamSimView({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="flex items-center gap-2 text-base font-bold">
-              <Timer className="h-5 w-5 text-violet-500" />
+              <Timer className="h-5 w-5 text-primary" />
               Zamanlı Karma Sınav Simülatörü
             </h2>
             <p className="text-xs text-muted-foreground">

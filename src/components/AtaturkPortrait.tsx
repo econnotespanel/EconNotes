@@ -28,7 +28,7 @@ export const AtaturkPortrait: React.FC<AtaturkPortraitProps> = ({
         src={ataturkPortrait}
         alt="Mustafa Kemal Atatürk"
         className={cn(
-          'h-full w-auto object-contain filter drop-shadow-xs transition-transform hover:scale-105',
+          'h-full w-auto object-contain filter drop-shadow-sm transition-transform hover:scale-105',
           imageClassName
         )}
         loading="eager"

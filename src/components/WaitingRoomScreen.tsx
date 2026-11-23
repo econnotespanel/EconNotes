@@ -121,7 +121,7 @@ export const WaitingRoomScreen: React.FC = () => {
 
             {/* Badge & Title */}
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-semibold shadow-xs border">
+              <div className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-semibold shadow-sm border">
                 {isRejected ? (
                   <Badge variant="destructive" className="rounded-full px-3 py-0.5 gap-1">
                     <AlertTriangle className="h-3 w-3" />

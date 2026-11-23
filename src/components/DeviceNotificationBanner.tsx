@@ -166,7 +166,7 @@ const DeviceNotificationBanner = () => {
             <button
               type="button"
               onClick={handleIOSHelp}
-              className="h-8 px-3 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-xs flex items-center justify-center cursor-pointer transition-all active:scale-95"
+              className="h-8 px-3 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl shadow-sm flex items-center justify-center cursor-pointer transition-all active:scale-95"
             >
               <span>Nasıl Yapılır?</span>
             </button>
@@ -175,7 +175,7 @@ const DeviceNotificationBanner = () => {
               type="button"
               disabled={loading}
               onClick={handleRequestPermission}
-              className="h-8 px-3 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 gap-1 rounded-xl shadow-xs flex items-center justify-center cursor-pointer transition-all active:scale-95 disabled:opacity-50"
+              className="h-8 px-3 text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 gap-1 rounded-xl shadow-sm flex items-center justify-center cursor-pointer transition-all active:scale-95 disabled:opacity-50"
             >
               <Bell className="h-3 w-3" />
               <span>{loading ? 'Açılıyor...' : 'İzin Ver'}</span>

@@ -1,30 +1,12 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Home,
   FileText,
@@ -33,17 +15,14 @@ import {
   Shield,
   MessageSquare,
   X,
-  Info,
   Bot,
   Video,
   GraduationCap,
   Target,
   Sparkles,
-  LogOut,
   LifeBuoy,
   Crown,
   ChevronRight,
-  ChevronDown,
   Settings,
   Trophy,
   Gift,
@@ -58,7 +37,6 @@ import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import EconLogo from '@/components/EconLogo';
 import Ataturk10KasimEmblem from '@/components/Ataturk10KasimEmblem';
 import AtaturkPortrait from '@/components/AtaturkPortrait';
-import { toast } from 'sonner';
 import { parseSupportMessage, SUPPORT_MESSAGE_PREFIX } from '@/lib/support';
 
 type LinkItem = {
@@ -72,7 +50,7 @@ type LinkItem = {
 };
 
 const Sidebar = () => {
-  const { isAdmin, user, profile, signOut } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { isPageEnabled, config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
@@ -80,17 +58,10 @@ const Sidebar = () => {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [proModalOpen, setProModalOpen] = useState(false);
-  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadSupport, setUnreadSupport] = useState(0);
   const [unreadAnnouncements, setUnreadAnnouncements] = useState(0);
   const firstItemRef = useRef<HTMLButtonElement>(null);
-
-  const displayName =
-    profile?.full_name?.trim() ||
-    String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim() ||
-    user?.email?.split('@')[0] ||
-    'Öğrenci';
 
   const fetchUnread = useCallback(async () => {
     if (!user) return;
@@ -221,12 +192,6 @@ const Sidebar = () => {
 
   const visible = (items: LinkItem[]) => items.filter((l) => isAdmin || isPageEnabled(l.path));
 
-  const handleLogout = async () => {
-    await signOut();
-    toast.success('Çıkış başarılı!');
-    navigate('/login');
-  };
-
   const renderItem = (link: LinkItem, isFirst = false) => {
     const Icon = link.icon;
     const active =
@@ -242,12 +207,12 @@ const Sidebar = () => {
         onClick={() => navigate(link.path)}
         aria-current={active ? 'page' : undefined}
         className={cn(
-          'group relative flex h-10 w-full items-center gap-3 rounded-full px-3.5 text-[13.5px] select-none transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+          'group relative flex h-[42px] w-full items-center gap-3 rounded-full border px-3.5 text-[13.5px] select-none transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           active
             ? isNovember10
-              ? 'bg-zinc-900 text-white font-semibold shadow-sm dark:bg-zinc-100 dark:text-zinc-950'
-              : 'bg-gradient-to-r from-[#1b5ce5] via-[#2b73f5] to-[#5ba0ff] text-white font-semibold shadow-[0_8px_20px_-6px_rgba(27,92,229,0.55)]'
-            : 'text-slate-600 dark:text-slate-300 font-medium hover:bg-blue-50/90 dark:hover:bg-primary/10 hover:text-slate-900 dark:hover:text-white',
+              ? 'border-zinc-900 bg-zinc-900 text-white font-semibold shadow-sm dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950'
+              : 'border-transparent bg-gradient-to-r from-[#174ec4] via-[#1f62e8] to-[#3b82f6] text-white font-semibold shadow-[0_8px_20px_-6px_rgba(29,99,237,0.55)]'
+            : 'border-transparent bg-slate-100/55 dark:bg-slate-800/35 text-slate-600 dark:text-slate-300 font-medium hover:border-blue-200/75 hover:bg-blue-50/90 hover:text-slate-950 dark:hover:border-blue-500/25 dark:hover:bg-blue-500/15 dark:hover:text-white',
         )}
       >
         <Icon
@@ -327,13 +292,18 @@ const Sidebar = () => {
   }) => {
     if (items.length === 0) return null;
     return (
-      <div className={cn('flex flex-col gap-1', !isFirstSection && 'mt-4')}>
+      <div
+        className={cn(
+          'flex flex-col gap-1.5',
+          !isFirstSection && 'mt-3.5 border-t border-slate-200/70 dark:border-slate-800/75 pt-3.5',
+        )}
+      >
         {showHeading && (
-          <div className="px-3.5 pb-1 text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
+          <div className="px-3.5 pb-0.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500">
             {title}
           </div>
         )}
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1.5">
           {items.map((l, i) => renderItem(l, isFirstSection && i === 0))}
         </div>
       </div>
@@ -369,7 +339,7 @@ const Sidebar = () => {
         }}
       >
         {/* Top Logo Header Aligned to Left Menu + Aligned Close Button on Mobile */}
-        <div className="flex h-[62px] sm:h-[68px] shrink-0 items-center justify-between border-b border-slate-200/70 dark:border-slate-800/70 px-5 md:border-b-0">
+        <div className="flex h-[68px] sm:h-[72px] shrink-0 items-center justify-between border-b border-slate-200/70 dark:border-slate-800/70 px-5">
           <button
             type="button"
             onClick={() => navigate('/')}
@@ -395,7 +365,7 @@ const Sidebar = () => {
         </div>
 
         {/* Scrollable Navigation Sections */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-4 pb-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <nav className="flex flex-col" aria-label="Sol navigasyon">
             <Section title="Panel" items={visible(primary)} showHeading={false} isFirstSection />
             <Section title="Araçlar" items={visible(tools)} />
@@ -403,8 +373,8 @@ const Sidebar = () => {
           </nav>
         </div>
 
-        {/* Bottom Dock: EconNotes Pro + Öğrenci Hesabı + Ayarlar / Versiyon */}
-        <div className="shrink-0 space-y-2.5 border-t border-slate-200/75 dark:border-slate-800/80 px-3 pt-3 pb-3.5">
+        {/* Bottom Dock: EconNotes Pro + Ayarlar / Versiyon (Hesap işlemleri üst profil menüsünde) */}
+        <div className="shrink-0 space-y-2.5 border-t border-slate-200/75 dark:border-slate-800/80 px-3 pt-3 pb-3">
           {/* EconNotes Pro Pill */}
           <button
             type="button"
@@ -428,87 +398,17 @@ const Sidebar = () => {
             <ChevronRight className="h-4 w-4 shrink-0 text-blue-100/85 transition-transform duration-200 group-hover:translate-x-0.5" />
           </button>
 
-          {/* Öğrenci Hesabı Pill Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2.5 rounded-full border border-slate-200/90 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/70 px-3 py-2 text-left transition-colors hover:bg-slate-100/90 dark:hover:bg-slate-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
-                  {profile?.avatar_url ? (
-                    <img
-                      src={profile.avatar_url}
-                      alt={displayName}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-3.5 w-3.5" strokeWidth={2} />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
-                  Öğrenci Hesabı
-                </span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              side="top"
-              align="start"
-              className="z-[80] w-[228px] rounded-2xl border-slate-200/90 dark:border-slate-800 p-1.5"
-            >
-              <DropdownMenuLabel className="px-2.5 py-1.5">
-                <p className="truncate text-xs font-bold text-foreground">{displayName}</p>
-                <p className="truncate text-[11px] font-normal text-muted-foreground">
-                  {isAdmin ? 'Yönetici & Öğrenci' : user?.email || 'EconNotes Üyesi'}
-                </p>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => navigate('/profile')}
-                className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
-              >
-                <User className="h-3.5 w-3.5" />
-                Profilim & Hesap Bilgileri
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => navigate('/about')}
-                className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
-              >
-                <Info className="h-3.5 w-3.5" />
-                EconNotes Hakkında
-              </DropdownMenuItem>
-              {isAdmin && (
-                <DropdownMenuItem
-                  onClick={() => navigate('/admin')}
-                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
-                >
-                  <Shield className="h-3.5 w-3.5" />
-                  Yönetici Paneli
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => setLogoutDialogOpen(true)}
-                className="cursor-pointer gap-2 rounded-xl text-xs font-medium text-destructive focus:text-destructive"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                Çıkış Yap
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Footer Settings + Version */}
-          <div className="flex items-center justify-between px-2 pt-0.5">
+          {/* Footer Settings Pill + Version */}
+          <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
             <button
               type="button"
               onClick={() => navigate('/profile')}
-              className="inline-flex items-center gap-2 rounded-full px-1.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              className="inline-flex h-8 items-center gap-2 rounded-full border border-slate-200/75 dark:border-slate-800 bg-slate-50/85 dark:bg-slate-900/60 px-3 text-xs font-medium text-slate-600 transition-colors hover:border-blue-200/80 hover:bg-blue-50/80 hover:text-slate-900 dark:text-slate-300 dark:hover:border-blue-500/30 dark:hover:bg-blue-500/15 dark:hover:text-white"
             >
               <Settings className="h-3.5 w-3.5" strokeWidth={1.85} />
               <span>Ayarlar</span>
             </button>
-            <span className="font-mono text-[11px] font-medium text-slate-400 dark:text-slate-500">
+            <span className="font-mono text-[11px] font-medium text-slate-400 dark:text-slate-500 pr-1.5">
               {APP_VERSION}
             </span>
           </div>
@@ -594,31 +494,6 @@ const Sidebar = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Safe Logout Confirmation */}
-      <AlertDialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
-        <AlertDialogContent className="rounded-2xl border-border/80 bg-card">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-lg font-bold text-foreground">
-              EconNotes&apos;tan Çıkış Yapılsın mı?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">
-              EconNotes hesabınızdan güvenli bir şekilde çıkış yapılacaktır. Oturumunuzu sonlandırmak istediğinizi onaylıyor musunuz?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 sm:gap-0">
-            <AlertDialogCancel className="rounded-xl border-border/70 hover:bg-muted font-medium">
-              Vazgeç
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleLogout}
-              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 font-medium"
-            >
-              Onaylıyorum, Çıkış Yap
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 };

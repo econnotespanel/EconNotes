@@ -931,35 +931,30 @@
   .neural-card {
     position: relative;
     overflow: hidden;
-    border-radius: 1.15rem;
-    border: 1px solid hsl(var(--border) / 0.75);
-    background: hsl(var(--card) / 0.86);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    border-radius: 20px;
+    border: 1px solid hsl(var(--border) / 0.85);
+    background: hsl(var(--card));
     box-shadow: var(--panel-shadow);
-    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.22s ease, box-shadow 0.22s ease;
-    will-change: transform;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   .dark .neural-card {
-    border-color: hsl(217 34% 22% / 0.75);
-    background: linear-gradient(155deg, hsl(224 38% 12% / 0.88), hsl(225 42% 8% / 0.92));
+    border-color: hsl(217 32% 18% / 0.9);
+    background: hsl(var(--card));
   }
   .neural-card:hover {
-    transform: translateY(-2px);
-    border-color: hsl(var(--primary) / 0.45);
+    border-color: hsl(var(--primary) / 0.35);
     box-shadow: var(--panel-shadow-hover);
   }
 
   .neural-rail {
-    border-radius: 1.15rem;
-    border: 1px solid hsl(var(--border) / 0.75);
-    background: hsl(var(--card) / 0.82);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    border-radius: 20px;
+    border: 1px solid hsl(var(--border) / 0.85);
+    background: hsl(var(--card));
+    box-shadow: var(--panel-shadow);
   }
   .dark .neural-rail {
-    border-color: hsl(217 36% 20% / 0.78);
-    background: hsl(224 44% 8% / 0.88);
+    border-color: hsl(217 32% 18% / 0.9);
+    background: hsl(var(--card));
   }
 
   .neural-glow-pill {

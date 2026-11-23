@@ -153,7 +153,7 @@ export function NeuralPlannerView({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="flex items-center gap-2 text-base font-bold">
-              <CalendarClock className="h-5 w-5 text-cyan-500" />
+              <CalendarClock className="h-5 w-5 text-primary" />
               Akıllı Çalışma Planlayıcı & SM-2 Aralıklı Tekrar
             </h2>
             <p className="text-xs text-muted-foreground">

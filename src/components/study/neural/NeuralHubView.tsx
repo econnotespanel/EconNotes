@@ -140,7 +140,7 @@ export function NeuralHubView({
   return (
     <div className="space-y-5">
       {/* Hızlı Başlangıç: Tek Tıkla Format Seçimi */}
-      <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 shadow-xs">
+      <div className="rounded-2xl border border-border/70 bg-card p-5 sm:p-6 shadow-sm">
         <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-lg font-bold tracking-tight sm:text-xl text-foreground">
@@ -204,7 +204,7 @@ export function NeuralHubView({
       </div>
 
       {/* Sınav Dönemi Verimli Çalışma Stili (4 Adımda Vize & Final) */}
-      <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.05] via-card to-violet-500/[0.04] p-5 shadow-xs space-y-4">
+      <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/[0.05] via-card to-violet-500/[0.04] p-5 shadow-sm space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">

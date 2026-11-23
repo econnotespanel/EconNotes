@@ -963,7 +963,7 @@ const Notes = () => {
               {myRevisionNotes.map((n) => (
                 <div
                   key={n.id}
-                  className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-amber-500/30 shadow-xs"
+                  className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-amber-500/30 shadow-sm"
                 >
                   <div className="space-y-1.5 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1698,7 +1698,7 @@ const Notes = () => {
             }}
           >
             <DialogContent className="flex h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
-              <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between gap-2.5 border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-3 py-2.5 text-left sm:gap-4 sm:px-6 sm:py-3">
+              <DialogHeader className="relative flex min-h-[68px] shrink-0 flex-row items-center justify-between gap-2.5 border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-3 pr-3 py-2.5 text-left sm:gap-4 sm:px-6 sm:pr-6 sm:py-3">
                 <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
                   <EconLogo allWhite className="hidden h-8 w-28 shrink-0 sm:block sm:h-9 sm:w-36" />
                   <span className="hidden h-8 w-px shrink-0 bg-white/15 sm:block" />
@@ -1736,7 +1736,7 @@ const Notes = () => {
                       size="sm"
                       disabled={downloadingNoteId === previewNote.id}
                       onClick={() => void handleDownloadClick(previewNote)}
-                      className="h-9 sm:h-10 gap-1.5 rounded-xl bg-gradient-to-r from-[#0055b8] via-[#0070d1] to-[#0ea5e9] px-3 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-lg shadow-primary/30 border border-cyan-300/30 transition-all hover:brightness-110 active:scale-95"
+                      className="h-9 sm:h-10 gap-1.5 rounded-full bg-gradient-to-r from-[#174ec4] via-[#1f62e8] to-[#2e78f6] px-3.5 sm:px-4 text-xs sm:text-sm font-bold text-white shadow-lg shadow-primary/30 border border-sky-300/30 transition-all hover:brightness-110 active:scale-95"
                     >
                       {downloadingNoteId === previewNote.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1748,7 +1748,7 @@ const Notes = () => {
                   )}
 
                   <DialogClose
-                    className="inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60"
+                    className="inline-flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full bg-white/15 p-0 text-white opacity-100 transition-colors hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/60"
                     aria-label="Önizlemeyi kapat"
                   >
                     <X className="h-5 w-5" aria-hidden="true" />

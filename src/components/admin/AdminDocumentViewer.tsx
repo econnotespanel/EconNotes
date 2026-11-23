@@ -774,7 +774,7 @@ export const AdminDocumentViewer: React.FC<AdminDocumentViewerProps> = ({
                         className={cn(
                           'h-7 min-w-7 rounded-lg border px-2 text-xs font-bold tabular-nums transition',
                           active
-                            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                             : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground',
                         )}
                       >
@@ -835,7 +835,7 @@ export const AdminDocumentViewer: React.FC<AdminDocumentViewerProps> = ({
                         className={cn(
                           'h-7 min-w-7 rounded-lg border px-2 text-xs font-bold tabular-nums transition',
                           active
-                            ? 'border-primary bg-primary text-primary-foreground shadow-xs'
+                            ? 'border-primary bg-primary text-primary-foreground shadow-sm'
                             : 'border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground',
                         )}
                       >

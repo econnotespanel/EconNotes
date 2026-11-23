@@ -98,7 +98,7 @@ export const FatalErrorScreen: React.FC<FatalErrorScreenProps> = ({
   };
 
   return (
-    <div className="relative min-h-screen w-full bg-[#1b0307] text-white flex flex-col justify-between overflow-hidden select-none">
+    <div className="relative min-h-[100dvh] w-full bg-[#1b0307] text-white flex flex-col justify-between overflow-hidden select-none">
       {/* Background Deep Crimson Gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#24050a] via-[#350810] to-[#120205] z-0 pointer-events-none" />
 

@@ -210,7 +210,7 @@ export const InteractiveEconomicsLab: React.FC<InteractiveEconomicsLabProps> = (
                 onClick={() => setMode(tab.id as SimMode)}
                 className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-semibold transition whitespace-nowrap ${
                   active
-                    ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/35 shadow-xs'
+                    ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-400/35 shadow-sm'
                     : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                 }`}
               >

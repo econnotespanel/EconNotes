@@ -1084,7 +1084,7 @@ export default function DailyTrivia() {
             )}
 
             {/* Question navigator */}
-            <Card className="rounded-2xl border-border/75 bg-card/95 shadow-xs">
+            <Card className="rounded-2xl border-border/75 bg-card/95 shadow-sm">
               <CardContent className="space-y-3 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <span className="font-extrabold text-foreground">

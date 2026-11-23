@@ -546,7 +546,7 @@ const Install = () => {
                             </div>
                             <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs space-y-2 text-slate-300 shadow-inner">
                               <div className="flex items-center gap-2 font-bold text-white">
-                                <img src="/icons/icon-192x192.png" className="h-5 w-5 rounded-md shadow-xs shrink-0" alt="EconNotes Logo" />
+                                <img src="/icons/icon-192x192.png" className="h-5 w-5 rounded-md shadow-sm shrink-0" alt="EconNotes Logo" />
                                 <EconLogo className="h-4 w-auto" />
                               </div>
                               <p className="text-[11px] text-slate-400 leading-relaxed">
@@ -621,7 +621,7 @@ const Install = () => {
                             </div>
                             <div className="rounded-lg bg-slate-900 border border-slate-800 p-3 text-xs space-y-2 text-slate-300 shadow-inner">
                               <div className="flex items-center gap-2 font-bold text-emerald-400">
-                                <img src="/icons/icon-192x192.png" className="h-5 w-5 rounded-md shadow-xs shrink-0" alt="EconNotes Logo" />
+                                <img src="/icons/icon-192x192.png" className="h-5 w-5 rounded-md shadow-sm shrink-0" alt="EconNotes Logo" />
                                 <span>Kurulum Başarıyla Tamamlandı!</span>
                               </div>
                               <div className="flex items-center gap-1.5 text-[11px] text-sky-300">

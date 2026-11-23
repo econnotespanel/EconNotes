@@ -46,6 +46,7 @@ const Profile = () => {
     setSavingPrivacy(false);
     if (error) { toast.error('Tercih kaydedilemedi.'); return; }
     toast.success(value ? 'Soyadın artık listelerde sansürlü görünecek.' : 'Soyadın listelerde tam görünecek.');
+    window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
     refreshProfile();
   };
 

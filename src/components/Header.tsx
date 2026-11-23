@@ -14,6 +14,7 @@ import {
   Zap,
   Shield,
   LifeBuoy,
+  Info,
   X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -514,7 +515,7 @@ const Header = () => {
                   className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  Puan Geçmişim
+                  Puan Geçmişim &amp; Sıralama
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => navigate('/support')}
@@ -522,6 +523,13 @@ const Header = () => {
                 >
                   <LifeBuoy className="h-3.5 w-3.5" />
                   Destek Merkezi
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => navigate('/about')}
+                  className="cursor-pointer gap-2 rounded-xl text-xs font-medium"
+                >
+                  <Info className="h-3.5 w-3.5" />
+                  EconNotes Hakkında
                 </DropdownMenuItem>
                 {isAdmin && (
                   <DropdownMenuItem

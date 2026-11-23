@@ -77,7 +77,7 @@ const ForgotPassword = () => {
             <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60 mb-2">Platform Özellikleri</p>
             {features.map((f, i) => (
               <div key={i} className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 transition-all duration-300 hover:bg-white/15 hover:border-white/25 hover:translate-x-1 shadow-sm">
-                <div className="p-2.5 rounded-xl bg-white/10 text-white shadow-xs shrink-0">
+                <div className="p-2.5 rounded-xl bg-white/10 text-white shadow-sm shrink-0">
                   <f.icon className="h-5 w-5" />
                 </div>
                 <div>
@@ -114,7 +114,7 @@ const ForgotPassword = () => {
           <div className="w-full flex items-center justify-between lg:justify-end mb-5">
             <Link
               to="/login"
-              className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors shadow-xs"
+              className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors shadow-sm"
             >
               <span>← Giriş</span>
             </Link>
@@ -122,7 +122,7 @@ const ForgotPassword = () => {
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
-              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md shadow-xs hover:shadow-sm transition-all duration-200 text-xs font-semibold text-muted-foreground hover:text-foreground"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-card/80 border border-border/70 backdrop-blur-md shadow-sm hover:shadow-sm transition-all duration-200 text-xs font-semibold text-muted-foreground hover:text-foreground"
               aria-label={theme === 'dark' ? 'Açık moda geç' : 'Koyu moda geç'}
             >
               <span className={`transition-transform duration-300 ${theme === 'dark' ? 'rotate-0' : '-rotate-90 scale-0 absolute'}`}>☀️</span>
@@ -146,7 +146,7 @@ const ForgotPassword = () => {
           </div>
 
           {sent ? (
-            <div className="text-center space-y-3 py-4 rounded-2xl bg-card border border-border/80 p-5 shadow-xs">
+            <div className="text-center space-y-3 py-4 rounded-2xl bg-card border border-border/80 p-5 shadow-sm">
               <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
               <p className="text-sm text-foreground">
                 Şifre sıfırlama bağlantısı <strong>{email}</strong> adresine gönderildi. Lütfen e-posta kutunuzu kontrol edin.

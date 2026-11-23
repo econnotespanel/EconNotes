@@ -290,7 +290,7 @@ export function NotebookStudioWorkspace({
   return (
     <div className="space-y-3">
       {/* Unified Notebook Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-border/80 bg-card px-3.5 py-2.5 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card px-3.5 py-2.5 shadow-[var(--panel-shadow)]">
         <div className="flex min-w-0 items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -300,7 +300,7 @@ export function NotebookStudioWorkspace({
                 size="sm"
                 className={cn(
                   STUDIO_BTN_SECONDARY,
-                  'max-w-[260px] gap-2 font-semibold sm:max-w-[340px]',
+                  'max-w-[175px] gap-2 rounded-full font-semibold sm:max-w-[320px]',
                 )}
               >
                 <span className="text-sm leading-none">{activeNotebook.emoji}</span>
@@ -407,8 +407,8 @@ export function NotebookStudioWorkspace({
         </div>
       </div>
 
-      {/* Mobile / Tablet / Compact Laptop (< 1280px) 3-Panel Segmented Switcher */}
-      <div className="grid grid-cols-3 gap-1.5 rounded-2xl border border-border/80 bg-muted/40 p-1 xl:hidden">
+      {/* Mobile / Tablet / Compact Laptop (< 1280px) Oval 3-Panel Segmented Switcher */}
+      <div className="grid grid-cols-3 gap-1 rounded-full border border-slate-200/85 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/70 p-1 xl:hidden">
         {(
           [
             ['sources', 'Kaynaklar', FolderOpen, activeNotebook.sources.length],
@@ -421,16 +421,21 @@ export function NotebookStudioWorkspace({
             type="button"
             onClick={() => setMobilePanel(id)}
             className={cn(
-              'flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-semibold transition-colors',
+              'flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-semibold transition-all',
               mobilePanel === id
-                ? 'bg-card text-primary shadow-sm ring-1 ring-border/70'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'bg-gradient-to-r from-[#174ec4] to-[#2e78f6] text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:text-foreground',
             )}
           >
-            <Icon className="h-4 w-4 shrink-0" />
+            <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="truncate">{label}</span>
             {count > 0 && (
-              <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              <span
+                className={cn(
+                  'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none',
+                  mobilePanel === id ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary',
+                )}
+              >
                 {count}
               </span>
             )}
