@@ -148,68 +148,54 @@ const Welcome = () => {
       <FloatingStickers />
 
       <div className="relative w-full max-w-3xl">
-        {/* Progress tape */}
-        <div className="mb-4 flex items-center gap-3">
-          <EconLogo className="h-10 w-40" />
-          <div className="flex-1 h-3 border-2 border-foreground rounded-full bg-card overflow-hidden shadow-[3px_3px_0_0_hsl(var(--foreground))]">
+        {/* Progress bar */}
+        <div className="mb-5 flex items-center gap-3.5">
+          <EconLogo className="h-8 w-auto shrink-0" />
+          <div className="flex-1 h-2 rounded-full bg-slate-200/80 dark:bg-slate-800 overflow-hidden">
             <div
-              className="h-full transition-[width] duration-500 ease-out"
-              style={{
-                width: `${progress}%`,
-                background: `linear-gradient(90deg, hsl(var(--sticker-pink)), hsl(var(--sticker-cyan)), hsl(var(--sticker-lime)))`,
-              }}
+              className="h-full rounded-full bg-gradient-to-r from-[#1b5ce5] via-[#2b73f5] to-[#5ba0ff] transition-[width] duration-500 ease-out"
+              style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="chip chip-cobalt !py-0.5">{step + 1}/{total}</span>
+          <span className="rounded-full border border-blue-200/80 bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-300 tabular-nums">
+            {step + 1}/{total}
+          </span>
         </div>
 
-        {/* Main sticker card */}
+        {/* Clean 2026 onboarding card */}
         <div
           key={step}
-          className="relative sticker-card p-6 md:p-10 animate-fade-in"
-          style={{ background: `linear-gradient(135deg, hsl(var(--card)) 60%, hsl(var(--${current.color}) / 0.35))` }}
+          className="relative overflow-hidden rounded-[24px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-6 sm:p-9 shadow-[var(--panel-shadow)] animate-fade-in"
         >
-          {/* Corner sticker */}
-          <div
-            className="absolute -top-5 -left-5 w-16 h-16 rounded-2xl border-2 border-foreground grid place-items-center rotate-[-8deg] shadow-[4px_4px_0_0_hsl(var(--foreground))] text-3xl"
-            style={{ background: `hsl(var(--${current.color}))` }}
-            aria-hidden
-          >
-            {current.emoji}
-          </div>
-
-          {/* Tape decorations */}
-          <span aria-hidden className="hidden md:block absolute -top-3 right-16 h-6 w-24 rotate-[8deg] tape-strip border-2 border-foreground" />
-
-          <div className="pt-6 md:pt-4 md:pl-14">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="chip chip-lilac !py-0.5">{current.eyebrow}</span>
-              <Icon className="h-4 w-4 text-foreground/70" strokeWidth={2.5} />
+          <div className="space-y-5">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                <Icon className="h-5 w-5" strokeWidth={1.9} />
+              </span>
+              <span className="rounded-full border border-blue-200/80 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-300">
+                {current.eyebrow}
+              </span>
             </div>
 
-            <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground leading-[1.05]">
-              <span className="wavy-underline">{current.title}</span>
+            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-foreground leading-tight">
+              {current.title}
             </h1>
 
-            <p className="mt-4 md:mt-5 text-base md:text-lg text-foreground/80 max-w-2xl">
+            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed max-w-2xl">
               {current.desc}
             </p>
 
             {current.bullets && (
-              <ul className="mt-6 grid sm:grid-cols-3 gap-3">
+              <ul className="grid gap-3 pt-1 sm:grid-cols-3">
                 {current.bullets.map((b, i) => (
                   <li
                     key={i}
-                    className="flex items-center gap-2 rounded-xl border-2 border-foreground bg-background px-3 py-2 text-sm font-semibold shadow-[3px_3px_0_0_hsl(var(--foreground))]"
-                    style={{ transform: `rotate(${(i - 1) * 1.2}deg)` }}
+                    className="flex items-center gap-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-muted/40 px-3.5 py-3 text-xs sm:text-sm font-semibold text-foreground"
                   >
-                    <span
-                      className="w-6 h-6 rounded-md border-2 border-foreground grid place-items-center text-[10px] font-black"
-                      style={{ background: `hsl(var(--${current.color}))` }}
-                    >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
                       {i + 1}
                     </span>
-                    <span className="leading-tight">{b}</span>
+                    <span className="leading-snug">{b}</span>
                   </li>
                 ))}
               </ul>
@@ -218,8 +204,9 @@ const Welcome = () => {
             {/* Nav */}
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
               <button
+                type="button"
                 onClick={finish}
-                className="text-sm font-semibold text-foreground/60 hover:text-foreground underline underline-offset-4"
+                className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
               >
                 Turu atla
               </button>
@@ -227,21 +214,24 @@ const Welcome = () => {
               <div className="flex items-center gap-2">
                 {step > 0 && (
                   <Button
+                    type="button"
                     variant="outline"
                     onClick={prev}
-                    className="border-2 border-foreground shadow-[3px_3px_0_0_hsl(var(--foreground))] font-bold"
+                    className="rounded-full"
                   >
-                    <ChevronLeft className="h-4 w-4 mr-1" /> Geri
+                    <ChevronLeft className="h-4 w-4" /> Geri
                   </Button>
                 )}
                 <Button
+                  type="button"
+                  variant="cta"
                   onClick={next}
-                  className="gradient-primary font-black rounded-xl px-6"
+                  className="px-6"
                 >
                   {step === total - 1 ? (
-                    <>Panele Git <PartyPopper className="h-4 w-4 ml-2" /></>
+                    <>Panele Git <PartyPopper className="h-4 w-4" /></>
                   ) : (
-                    <>Devam <ChevronRight className="h-4 w-4 ml-1" /></>
+                    <>Devam <ChevronRight className="h-4 w-4" /></>
                   )}
                 </Button>
               </div>
@@ -251,13 +241,17 @@ const Welcome = () => {
 
         {/* Dots */}
         <div className="mt-5 flex justify-center gap-2">
-          {slides.map((s, i) => (
+          {slides.map((_, i) => (
             <button
               key={i}
+              type="button"
               aria-label={`Adım ${i + 1}`}
               onClick={() => setStep(i)}
-              className={`h-3 rounded-full border-2 border-foreground transition-all duration-300 ${i === step ? 'w-10' : 'w-3 opacity-60 hover:opacity-100'}`}
-              style={{ background: `hsl(var(--${s.color}))` }}
+              className={`h-2.5 rounded-full transition-all duration-300 ${
+                i === step
+                  ? 'w-9 bg-primary'
+                  : 'w-2.5 bg-slate-300 hover:bg-slate-400 dark:bg-slate-700 dark:hover:bg-slate-600'
+              }`}
             />
           ))}
         </div>
@@ -266,34 +260,11 @@ const Welcome = () => {
   );
 };
 
-const FloatingStickers = () => {
-  const items = [
-    { emoji: '✨', top: '8%',  left: '6%',  color: 'sticker-pink',      rotate: -12, delay: 0 },
-    { emoji: '📚', top: '18%', left: '88%', color: 'sticker-lime',      rotate: 10,  delay: 0.3 },
-    { emoji: '🎓', top: '78%', left: '10%', color: 'sticker-cobalt',    rotate: -6,  delay: 0.6 },
-    { emoji: '💡', top: '85%', left: '82%', color: 'sticker-tangerine', rotate: 14,  delay: 0.9 },
-    { emoji: '🚀', top: '48%', left: '3%',  color: 'sticker-lilac',     rotate: -18, delay: 1.2 },
-    { emoji: '🎯', top: '52%', left: '92%', color: 'sticker-cyan',      rotate: 8,   delay: 1.5 },
-  ];
-  return (
-    <div className="pointer-events-none absolute inset-0 -z-0">
-      {items.map((it, i) => (
-        <div
-          key={i}
-          className="absolute w-12 h-12 md:w-14 md:h-14 rounded-2xl border-2 border-foreground grid place-items-center text-2xl md:text-3xl shadow-[4px_4px_0_0_hsl(var(--foreground))] animate-wiggle"
-          style={{
-            top: it.top,
-            left: it.left,
-            background: `hsl(var(--${it.color}))`,
-            transform: `rotate(${it.rotate}deg)`,
-            animationDelay: `${it.delay}s`,
-          }}
-        >
-          {it.emoji}
-        </div>
-      ))}
-    </div>
-  );
-};
+const FloatingStickers = () => (
+  <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+    <div className="absolute -top-32 right-1/4 h-80 w-80 rounded-full bg-primary/10 blur-3xl" />
+    <div className="absolute -bottom-32 left-1/4 h-80 w-80 rounded-full bg-sky-500/10 blur-3xl" />
+  </div>
+);
 
 export default Welcome;

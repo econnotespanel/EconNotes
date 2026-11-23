@@ -1,4 +1,5 @@
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -110,39 +111,46 @@ const LiveClass = () => {
 
   return (
     <Layout>
-      <div className="space-y-4 animate-fade-in">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Video className="h-6 w-6 text-primary" /> Canlı Ders
-            </h1>
-            <p className="text-sm text-muted-foreground">Video konferans ile ders anlatımı</p>
-          </div>
-          {isAdmin && (
-            <div className="flex gap-2">
-              {!isLive ? (
-                <Button className="gradient-primary text-primary-foreground" onClick={startClass}>
-                  <Video className="h-4 w-4 mr-2" /> Ders Başlat
+      <div className="space-y-5 animate-fade-in">
+        <PageHeader
+          title="Canlı Ders"
+          description="Etkileşimli video konferans ile canlı ders anlatımı ve katılım alanı."
+          icon={Video}
+          badge={
+            isLive ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/15 px-2.5 py-0.5 text-[11px] font-bold text-rose-600 dark:text-rose-400">
+                <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+                Canlı Yayın Aktif
+              </span>
+            ) : undefined
+          }
+          actions={
+            isAdmin ? (
+              !isLive ? (
+                <Button variant="cta" className="w-full sm:w-auto" onClick={startClass}>
+                  <Video className="h-4 w-4" /> Ders Başlat
                 </Button>
               ) : (
-                <Button variant="destructive" onClick={endClass}>
-                  <VideoOff className="h-4 w-4 mr-2" /> Dersi Bitir
+                <Button variant="destructive" className="w-full rounded-full sm:w-auto" onClick={endClass}>
+                  <VideoOff className="h-4 w-4" /> Dersi Bitir
                 </Button>
-              )}
-            </div>
-          )}
-        </div>
+              )
+            ) : undefined
+          }
+        />
 
         {isLive && roomName ? (
           !rulesAccepted ? (
             <Card className="glass-card">
-              <CardContent className="p-12 text-center space-y-4">
-                <ShieldCheck className="h-16 w-16 text-primary mx-auto" />
-                <h2 className="text-lg font-semibold">Canlı Derse Katılmadan Önce</h2>
-                <p className="text-sm text-muted-foreground">
+              <CardContent className="p-8 sm:p-12 text-center space-y-4">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                  <ShieldCheck className="h-7 w-7" />
+                </div>
+                <h2 className="text-lg font-bold">Canlı Derse Katılmadan Önce</h2>
+                <p className="mx-auto max-w-md text-sm text-muted-foreground">
                   Canlı derse katılabilmek için önce kuralları okumanız ve kabul etmeniz gerekmektedir.
                 </p>
-                <Button className="gradient-primary text-primary-foreground" onClick={() => setShowRulesDialog(true)}>
+                <Button variant="cta" onClick={() => setShowRulesDialog(true)}>
                   Kuralları Oku ve Kabul Et
                 </Button>
               </CardContent>
@@ -152,7 +160,8 @@ const LiveClass = () => {
               <CardContent className="p-0">
                 <iframe
                   src={jitsiUrl}
-                  className="w-full h-[70vh] border-0"
+                  title="EconNotes Canlı Ders"
+                  className="w-full h-[68dvh] min-h-[420px] border-0"
                   allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
                 />
               </CardContent>
@@ -160,13 +169,15 @@ const LiveClass = () => {
           )
         ) : (
           <Card className="glass-card">
-            <CardContent className="p-12 text-center space-y-4">
-              <VideoOff className="h-16 w-16 text-muted-foreground mx-auto opacity-30" />
-              <h2 className="text-lg font-semibold">Şu anda aktif canlı ders bulunmamaktadır</h2>
-              <p className="text-sm text-muted-foreground">
+            <CardContent className="p-8 sm:p-12 text-center space-y-4">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                <VideoOff className="h-7 w-7" />
+              </div>
+              <h2 className="text-lg font-bold">Şu anda aktif canlı ders bulunmamaktadır</h2>
+              <p className="mx-auto max-w-md text-sm text-muted-foreground">
                 {isAdmin
                   ? 'Yeni bir canlı ders başlatmak için yukarıdaki butonu kullanın.'
-                  : 'Bir yönetici canlı ders başlattığında burada katılabilirsiniz.'}
+                  : 'Bir yönetici canlı ders başlattığında buradan katılabilirsiniz.'}
               </p>
             </CardContent>
           </Card>
@@ -174,26 +185,26 @@ const LiveClass = () => {
 
         {/* Rules Dialog */}
         <Dialog open={showRulesDialog} onOpenChange={setShowRulesDialog}>
-          <DialogContent className="max-h-[80vh]">
+          <DialogContent className="max-h-[85dvh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-primary" /> Canlı Ders Kuralları
               </DialogTitle>
             </DialogHeader>
-            <ScrollArea className="h-[300px] rounded-lg border border-border p-4">
+            <ScrollArea className="h-[280px] rounded-2xl border border-border p-4">
               <ol className="space-y-3 list-decimal list-inside text-sm">
                 {LIVE_CLASS_RULES.map((rule, i) => (
                   <li key={i} className="leading-relaxed">{rule}</li>
                 ))}
               </ol>
             </ScrollArea>
-            <div className="flex items-start gap-2 mt-2">
+            <div className="flex items-start gap-2.5 mt-1">
               <Checkbox id="accept-rules" checked={acceptChecked} onCheckedChange={(v) => setAcceptChecked(v as boolean)} />
-              <label htmlFor="accept-rules" className="text-xs leading-tight cursor-pointer">
+              <label htmlFor="accept-rules" className="text-xs leading-relaxed cursor-pointer">
                 Canlı ders kurallarını okudum ve kabul ediyorum. Kurallara uymadığım takdirde cezai yaptırım uygulanabileceğini biliyorum.
               </label>
             </div>
-            <Button className="w-full gradient-primary text-primary-foreground" onClick={handleAcceptRules}>
+            <Button variant="cta" className="w-full" onClick={handleAcceptRules}>
               Kabul Et ve Derse Katıl
             </Button>
           </DialogContent>

@@ -1,4 +1,5 @@
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,7 +43,7 @@ const labelFor = (reason: string) => {
   return REASON_LABEL[reason] || reason;
 };
 
-const TONES = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--warning))', 'hsl(var(--accent))', 'hsl(var(--destructive))'];
+const TONES = ['#2563eb', '#4f46e5', '#0ea5e9', '#10b981', '#f59e0b'];
 
 const Points = () => {
   const { user } = useAuth();
@@ -118,43 +119,45 @@ const Points = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="font-display text-2xl font-bold">Puan Geçmişim</h1>
-          <p className="text-sm text-muted-foreground">Giriş, not yükleme, deneme bitirme ve görev bonuslarının detaylı dökümü.</p>
-        </div>
+      <div className="space-y-5">
+        <PageHeader
+          title="Puan Geçmişim"
+          description="Giriş, not yükleme, bilgi yarışması ve çalışma görevlerinden kazandığın XP dökümü."
+          icon={Trophy}
+          actions={
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <Tabs value={granularity} onValueChange={(v) => setGranularity(v as any)}>
+                <TabsList className="h-10">
+                  <TabsTrigger value="daily">Günlük</TabsTrigger>
+                  <TabsTrigger value="weekly">Haftalık</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Select value={range} onValueChange={(v) => setRange(v as any)}>
+                <SelectTrigger className="w-[132px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">Son 7 gün</SelectItem>
+                  <SelectItem value="30">Son 30 gün</SelectItem>
+                  <SelectItem value="90">Son 90 gün</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={reasonFilter} onValueChange={setReasonFilter}>
+                <SelectTrigger className="w-full sm:w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tüm kaynaklar</SelectItem>
+                  {reasons.map(r => (
+                    <SelectItem key={r} value={r}>{r === 'mission' ? 'Mini görev bonusu' : labelFor(r)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          }
+        />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Tabs value={granularity} onValueChange={(v) => setGranularity(v as any)}>
-            <TabsList>
-              <TabsTrigger value="daily">Günlük</TabsTrigger>
-              <TabsTrigger value="weekly">Haftalık</TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <Select value={range} onValueChange={(v) => setRange(v as any)}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Son 7 gün</SelectItem>
-              <SelectItem value="30">Son 30 gün</SelectItem>
-              <SelectItem value="90">Son 90 gün</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={reasonFilter} onValueChange={setReasonFilter}>
-            <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tüm kaynaklar</SelectItem>
-              {reasons.map(r => (
-                <SelectItem key={r} value={r}>{r === 'mission' ? 'Mini görev bonusu' : labelFor(r)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card className="glass-card border-primary/25"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Toplam puanım</p><p className="flex items-center gap-1.5 text-2xl font-bold"><Trophy className="h-5 w-5 text-primary" />{(pointsState?.points ?? total).toLocaleString('tr-TR')}</p></CardContent></Card>
-          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Dönem kazancı ({range} gün)</p><p className="flex items-center gap-1.5 text-2xl font-bold"><Sparkles className="h-5 w-5 text-primary" />{total.toLocaleString('tr-TR')}</p></CardContent></Card>
-          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">En yüksek {granularity === 'daily' ? 'gün' : 'hafta'}</p><p className="flex items-center gap-1.5 text-2xl font-bold"><TrendingUp className="h-5 w-5 text-success" />{best.toLocaleString('tr-TR')}</p></CardContent></Card>
-          <Card className="glass-card"><CardContent className="p-4"><p className="text-xs text-muted-foreground">Ortalama</p><p className="flex items-center gap-1.5 text-2xl font-bold"><CalendarDays className="h-5 w-5 text-warning" />{avg.toLocaleString('tr-TR')}</p></CardContent></Card>
+        <div className="grid grid-cols-2 gap-3.5 sm:gap-4 lg:grid-cols-4">
+          <Card className="glass-card"><CardContent className="flex items-center gap-3.5 p-4 sm:p-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400"><Trophy className="h-5 w-5" /></span><div className="min-w-0"><p className="truncate text-xs font-medium text-muted-foreground">Toplam puanım</p><p className="truncate text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">{(pointsState?.points ?? total).toLocaleString('tr-TR')}</p></div></CardContent></Card>
+          <Card className="glass-card"><CardContent className="flex items-center gap-3.5 p-4 sm:p-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400"><Sparkles className="h-5 w-5" /></span><div className="min-w-0"><p className="truncate text-xs font-medium text-muted-foreground">Dönem ({range} gün)</p><p className="truncate text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">{total.toLocaleString('tr-TR')}</p></div></CardContent></Card>
+          <Card className="glass-card"><CardContent className="flex items-center gap-3.5 p-4 sm:p-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"><TrendingUp className="h-5 w-5" /></span><div className="min-w-0"><p className="truncate text-xs font-medium text-muted-foreground">En yüksek {granularity === 'daily' ? 'gün' : 'hafta'}</p><p className="truncate text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">{best.toLocaleString('tr-TR')}</p></div></CardContent></Card>
+          <Card className="glass-card"><CardContent className="flex items-center gap-3.5 p-4 sm:p-5"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-50 text-orange-500 dark:bg-orange-500/15 dark:text-orange-400"><CalendarDays className="h-5 w-5" /></span><div className="min-w-0"><p className="truncate text-xs font-medium text-muted-foreground">Ortalama</p><p className="truncate text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">{avg.toLocaleString('tr-TR')}</p></div></CardContent></Card>
         </div>
 
         {loading ? (

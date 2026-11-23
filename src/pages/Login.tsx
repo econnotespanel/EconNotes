@@ -428,7 +428,7 @@ const Login = () => {
   // Show penalty expired countdown screen
   if (penaltyInfo?.expired && penaltyCountdown > 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background p-4">
         <div className="max-w-md text-center space-y-4 animate-fade-in">
           <div className="flex justify-center">
             <div className="p-4 rounded-full bg-warning/10">
@@ -457,7 +457,7 @@ const Login = () => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row overflow-x-clip bg-background text-foreground antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-[100dvh] flex flex-col lg:flex-row overflow-x-clip bg-background text-foreground antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Left panel - Classic PlayStation-blue platform features (desktop) */}
       <div
         className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 xl:p-14 relative overflow-hidden z-10"
@@ -521,9 +521,9 @@ const Login = () => {
 
       {/* Right panel - Frosted Glass Login Console */}
       <div
-        className="relative flex-1 flex flex-col items-center px-4 sm:px-8 min-h-screen lg:min-h-0 overflow-x-clip"
+        className="relative flex-1 flex flex-col items-center px-4 sm:px-8 min-h-[100dvh] lg:min-h-0 overflow-x-clip"
         style={{
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 1rem)',
           paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
         }}
       >

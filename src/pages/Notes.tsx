@@ -1,4 +1,5 @@
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import SignedImage from '@/components/SignedImage';
 import EconLogo from '@/components/EconLogo';
 import NotePreviewViewer from '@/components/NotePreviewViewer';
@@ -1036,17 +1037,21 @@ const Notes = () => {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Notlar</h1>
-            <p className="text-sm text-muted-foreground">Tüm paylaşılan ders notları</p>
-          </div>
-          <Button
-            className="gradient-primary text-primary-foreground rounded-xl"
-            onClick={openNewNoteDialog}
-          >
-            <Plus className="h-4 w-4 mr-2" /> Not Ekle
-          </Button>
+        <PageHeader
+          title="Notlar"
+          description="Üniversite, bölüm ve ders bazlı paylaşılan tüm ders notlarını keşfedin."
+          icon={FileText}
+          actions={
+            <Button
+              variant="cta"
+              className="w-full sm:w-auto"
+              onClick={openNewNoteDialog}
+            >
+              <Plus className="h-4 w-4" /> Not Ekle
+            </Button>
+          }
+        />
+        <div>
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingNote(null); setConfirmUpload(false); setAcceptOwnership(false); } }}>
             <DialogContent className="flex flex-col gap-0 p-0 overflow-hidden sm:p-0">
               <DialogHeader className="px-5 pt-5 pb-3.5 border-b border-border/60 bg-gradient-to-r from-primary/[0.08] via-transparent to-transparent shrink-0">
@@ -1241,35 +1246,34 @@ const Notes = () => {
           </Dialog>
         </div>
 
-        <section className="relative overflow-hidden rounded-2xl border border-border/70 bg-card/75 p-4 shadow-sm backdrop-blur sm:p-5">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-accent to-primary opacity-80" />
+        <section className="relative overflow-hidden rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-4 shadow-[var(--panel-shadow)] sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row">
             <div className="relative min-w-0 flex-1">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Not, ders, üniversite, bölüm veya kişi ara..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setSelectedCourse(null); }} className="h-11 rounded-xl border-border/70 bg-background/80 pl-10" />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Not, ders, üniversite, bölüm veya kişi ara..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setSelectedCourse(null); }} className="h-11 rounded-full pl-10" />
             </div>
-            <Button variant="outline" className="h-11 rounded-xl" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
-              {sortOrder === 'desc' ? <SortDesc className="mr-2 h-4 w-4" /> : <SortAsc className="mr-2 h-4 w-4" />}
+            <Button variant="outline" className="h-11 rounded-full px-4 shrink-0" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
+              {sortOrder === 'desc' ? <SortDesc className="mr-1.5 h-4 w-4" /> : <SortAsc className="mr-1.5 h-4 w-4" />}
               {sortOrder === 'desc' ? 'Yeniden Eskiye' : 'Eskiden Yeniye'}
             </Button>
           </div>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+          <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
             <Select value={filterUniversity} onValueChange={(v) => { setFilterUniversity(v); setFilterDepartment('all'); setSelectedCourse(null); }}>
-              <SelectTrigger className="h-10 rounded-xl bg-background/80 sm:w-72"><Building2 className="mr-2 h-4 w-4 text-primary" /><SelectValue placeholder="Üniversite seç" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:w-72"><Building2 className="mr-2 h-4 w-4 text-primary" /><SelectValue placeholder="Üniversite seç" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tüm Üniversiteler</SelectItem>
                 {universityOptions.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={filterDepartment} onValueChange={(v) => { setFilterDepartment(v); setSelectedCourse(null); }}>
-              <SelectTrigger className="h-10 rounded-xl bg-background/80 sm:w-72"><GraduationCap className="mr-2 h-4 w-4 text-primary" /><SelectValue placeholder="Bölüm seç" /></SelectTrigger>
+              <SelectTrigger className="h-10 sm:w-72"><GraduationCap className="mr-2 h-4 w-4 text-primary" /><SelectValue placeholder="Bölüm seç" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tüm Bölümler</SelectItem>
                 {departmentOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
             {(filterUniversity !== 'all' || filterDepartment !== 'all' || searchTerm) && (
-              <Button variant="ghost" className="h-10 rounded-xl" onClick={() => { setFilterUniversity('all'); setFilterDepartment('all'); setSearchTerm(''); setSelectedCourse(null); }}>
+              <Button variant="ghost" className="h-10 rounded-full" onClick={() => { setFilterUniversity('all'); setFilterDepartment('all'); setSearchTerm(''); setSelectedCourse(null); }}>
                 Filtreleri Temizle
               </Button>
             )}
@@ -1309,10 +1313,10 @@ const Notes = () => {
                   <button
                     key={university}
                     onClick={() => { setFilterUniversity(university); setSelectedCourse(null); }}
-                    className="group relative flex min-h-40 flex-col justify-between overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-primary/10 via-card to-accent/20 p-5 pt-7 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
+                    className="group relative flex min-h-40 flex-col justify-between overflow-hidden rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 pt-7 text-left shadow-[var(--panel-shadow)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300/80 dark:hover:border-blue-500/40 hover:shadow-[var(--panel-shadow-hover)]"
                   >
-                    <span className="absolute left-5 top-0 h-1.5 w-20 rounded-b-full bg-gradient-to-r from-primary to-secondary opacity-80" />
-                    <span className="pointer-events-none absolute inset-x-5 top-4 border-t border-dashed border-primary/20" />
+                    <span className="absolute left-5 top-0 h-1.5 w-20 rounded-b-full bg-gradient-to-r from-[#1b5ce5] to-[#5ba0ff]" />
+                    <span className="pointer-events-none absolute inset-x-5 top-4 border-t border-dashed border-border/70" />
                     <div className="absolute -right-5 -top-7 h-28 w-28 rounded-full bg-primary/10 blur-2xl transition-colors group-hover:bg-primary/20" />
                     <div className="relative flex w-full items-start justify-between gap-3">
                       <span className="flex h-12 w-28 items-center justify-center rounded-xl border border-primary/15 bg-background/70 px-2 shadow-sm">
@@ -1693,7 +1697,7 @@ const Notes = () => {
               setPreviewWatermarkIdentity(null);
             }}
           >
-            <DialogContent className="flex h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
+            <DialogContent className="flex h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1rem)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden rounded-2xl border-primary/25 bg-slate-950 p-0 shadow-2xl shadow-primary/20 [&>button]:hidden sm:h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]">
               <DialogHeader className="relative flex min-h-[72px] shrink-0 flex-row items-center justify-between gap-2.5 border-b border-white/10 bg-gradient-to-r from-slate-950 via-slate-900 to-primary/20 px-3 py-2.5 text-left sm:gap-4 sm:px-6 sm:py-3">
                 <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
                   <EconLogo allWhite className="hidden h-8 w-28 shrink-0 sm:block sm:h-9 sm:w-36" />

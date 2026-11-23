@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -625,7 +626,7 @@ const Support = () => {
   if (authLoading || (!user && loading)) {
     return (
       <Layout>
-        <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="flex min-h-[50dvh] items-center justify-center">
           <Loader2 className="h-7 w-7 animate-spin text-primary" />
         </div>
       </Layout>
@@ -637,11 +638,11 @@ const Support = () => {
         <Card className="mx-auto mt-10 max-w-lg">
           <CardContent className="p-8 text-center">
             <LifeBuoy className="mx-auto mb-3 h-9 w-9 text-primary" />
-            <h1 className="text-xl font-semibold">Destek Merkezi</h1>
+            <h1 className="text-xl font-bold">Destek Merkezi</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Destek talebi oluşturmak ve taleplerinizi takip etmek için giriş yapın.
             </p>
-            <Button className="mt-5" onClick={() => navigate('/login')}>
+            <Button variant="cta" className="mt-5" onClick={() => navigate('/login')}>
               Giriş yap
             </Button>
           </CardContent>
@@ -652,62 +653,57 @@ const Support = () => {
 
   return (
     <Layout>
-      <div className="mx-auto max-w-6xl space-y-6">
-        <section className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-7">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 rounded-full bg-primary/10 blur-3xl"
-          />
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-                <LifeBuoy className="h-6 w-6" />
-              </span>
-              <div>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Destek Merkezi</h1>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                  {isAdmin
-                    ? 'Kullanıcıların destek taleplerini yanıtlayın veya kişi seçerek doğrudan resmi destek görüşmesi başlatın.'
-                    : 'Sorun, öneri veya geri bildiriminizi bize iletin; yönetimin size gönderdiği resmi destek mesajlarını buradan takip edin.'}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <PageHeader
+          surface="hero"
+          title="Destek Merkezi"
+          description={
+            isAdmin
+              ? 'Kullanıcıların destek taleplerini yanıtlayın veya kişi seçerek doğrudan resmi destek görüşmesi başlatın.'
+              : 'Sorun, öneri veya geri bildiriminizi bize iletin; yönetimin size gönderdiği resmi destek mesajlarını buradan takip edin.'
+          }
+          icon={LifeBuoy}
+          actions={
+            <>
               {isAdmin && 'Notification' in window && (
                 <Button
                   variant="outline"
                   onClick={() => void enableNotifications()}
                   disabled={notificationsEnabled}
-                  className="gap-2"
+                  className="w-full gap-2 rounded-full border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
                 >
                   <Smartphone className="h-4 w-4" />
                   {notificationsEnabled ? 'Bildirimler açık' : 'Bildirimleri aç'}
                 </Button>
               )}
               {isAdmin ? (
-                <Button onClick={openAdminNewConversationModal} className="shrink-0 gap-2">
+                <Button
+                  onClick={openAdminNewConversationModal}
+                  className="w-full shrink-0 gap-2 rounded-full bg-white text-[#0c265c] hover:bg-blue-50 font-bold sm:w-auto"
+                >
                   <UserPlus className="h-4 w-4" /> Kişi Seç &amp; Konuşma Başlat
                 </Button>
               ) : (
                 <Button
                   onClick={() => setDialogOpen(true)}
                   disabled={!assignedAdminId}
-                  className="shrink-0 gap-2"
+                  className="w-full shrink-0 gap-2 rounded-full bg-white text-[#0c265c] hover:bg-blue-50 font-bold sm:w-auto"
                 >
                   <Plus className="h-4 w-4" /> Yeni talep oluştur
                 </Button>
               )}
-            </div>
-          </div>
-          <div className="relative mt-5 flex items-center gap-2 rounded-xl border border-border/70 bg-background/70 px-3 py-2.5 text-xs text-muted-foreground sm:max-w-fit sm:px-4">
-            <Clock3 className="h-4 w-4 shrink-0 text-primary" />
-            <span>
-              {isAdmin
-                ? 'Mesajlar bölümündeki kişisel arkadaş sohbetleriniz Destek Merkezi’nde görünmez; yalnızca buradan başlatılan resmi destek görüşmeleri yer alır.'
-                : 'Gönderdiğiniz talepleri ve yönetici yanıtlarını buradan takip edebilirsiniz.'}
-            </span>
-          </div>
-        </section>
+            </>
+          }
+        />
+
+        <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200/85 dark:border-slate-800 bg-card px-4 py-2.5 text-xs text-muted-foreground shadow-sm sm:w-fit">
+          <Clock3 className="h-4 w-4 shrink-0 text-primary" />
+          <span>
+            {isAdmin
+              ? 'Mesajlar bölümündeki kişisel arkadaş sohbetleriniz Destek Merkezi’nde görünmez; yalnızca buradan başlatılan resmi destek görüşmeleri yer alır.'
+              : 'Gönderdiğiniz talepleri ve yönetici yanıtlarını buradan anlık olarak takip edebilirsiniz.'}
+          </span>
+        </div>
 
         {loadError && (
           <div

@@ -797,7 +797,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   if (loading || state === 'ok') return <>{children}</>;
   if (state === 'checking') {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-background">
         <ShieldEmblem size="sm" />
         <p className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Güvenlik kontrolü yapılıyor…</p>
       </div>
@@ -824,7 +824,13 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
             : 'Doğrulayıcı uygulamanızdaki 6 haneli kodu girin.';
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-4">
+    <div
+      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-background p-4"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 1rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+      }}
+    >
       {/* Ambient background */}
       <div
         aria-hidden

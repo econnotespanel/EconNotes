@@ -18,15 +18,18 @@ const About = () => {
 
   return (
     <Layout>
-      <div className="max-w-3xl mx-auto space-y-8 animate-fade-in">
-        <div className="text-center space-y-4">
-          <div className="flex w-full justify-center">
-            <EconLogo className="mx-auto h-14 w-64 max-w-full sm:h-16 sm:w-72" />
+      <div className="mx-auto max-w-4xl space-y-6 animate-fade-in">
+        <section className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-[#06183d] via-[#0b2a6e] to-[#0f3a8f] px-6 py-8 text-center text-white shadow-[0_16px_40px_-14px_rgba(7,26,66,0.45)] sm:px-10 sm:py-10">
+          <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-16 h-56 w-56 rounded-full bg-sky-400/20 blur-3xl" />
+          <div className="relative z-10 space-y-4">
+            <div className="flex w-full justify-center">
+              <EconLogo allWhite className="mx-auto h-11 w-48 max-w-full sm:h-12 sm:w-56" />
+            </div>
+            <p className="mx-auto max-w-2xl text-sm leading-relaxed text-blue-100/90 sm:text-base">
+              EconNotes, üniversite öğrencilerinin ders notlarına daha hızlı ulaşmasını ve yapay zekâ destekli Çalışma Stüdyosu ile sınavlara en verimli şekilde hazırlanmasını sağlayan kapsamlı bir akademik platformdur.
+            </p>
           </div>
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            EconNotes, üniversite öğrencilerinin ders notlarına daha hızlı ulaşmasını ve yapay zeka destekli Çalışma Stüdyosu ile sınavlara en verimli şekilde hazırlanmasını sağlayan kapsamlı bir akademik platformdur.
-          </p>
-        </div>
+        </section>
 
         <Card className="glass-card">
           <CardHeader>
@@ -56,15 +59,15 @@ const About = () => {
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
-            <Card key={f.title} className="glass-card hover:shadow-xl transition-shadow">
-              <CardContent className="p-5 flex flex-col items-center text-center gap-3">
-                <div className="p-3 rounded-xl bg-primary/10">
-                  <f.icon className="h-6 w-6 text-primary" />
+            <Card key={f.title} className="glass-card transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300/80 dark:hover:border-blue-500/40">
+              <CardContent className="flex flex-col items-start gap-3 p-5 text-left">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                  <f.icon className="h-5 w-5" strokeWidth={1.9} />
                 </div>
-                <h3 className="font-semibold text-sm">{f.title}</h3>
-                <p className="text-xs text-muted-foreground">{f.desc}</p>
+                <h3 className="text-sm font-bold text-foreground">{f.title}</h3>
+                <p className="text-xs leading-relaxed text-muted-foreground">{f.desc}</p>
               </CardContent>
             </Card>
           ))}

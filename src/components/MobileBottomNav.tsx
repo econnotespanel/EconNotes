@@ -322,16 +322,16 @@ const MobileBottomNav = () => {
                     activateTabByIndex(idx);
                   }}
                   className={cn(
-                    'group flex h-full w-full min-w-0 flex-col items-center justify-center gap-[3px] rounded-full px-1 transition-colors duration-200 active:scale-[0.94] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2f95ff]/60',
+                    'group flex h-full w-full min-w-0 flex-col items-center justify-center gap-[3px] rounded-full px-1 transition-colors duration-200 active:scale-[0.94] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
                     isActive
-                      ? 'text-[#0066cc] dark:text-[#2f95ff]'
-                      : 'text-slate-700/85 hover:text-slate-900 dark:text-white/85 dark:hover:text-white',
+                      ? 'text-white'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white',
                   )}
                 >
                   <span className="relative flex items-center justify-center transition-transform duration-200 group-active:scale-95">
                     {item.renderIcon({ active: isActive })}
                     {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-1 -right-2.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#ff3b30] px-1 text-[9px] font-semibold leading-none text-white shadow-xs ring-[1.5px] ring-white/90 dark:ring-[#1c1c20]">
+                      <span className="absolute -top-1 -right-2.5 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white shadow-sm ring-[1.5px] ring-white dark:ring-[#091224]">
                         {item.badge > 99 ? '99+' : item.badge}
                       </span>
                     ) : null}

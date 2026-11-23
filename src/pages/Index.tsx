@@ -26,7 +26,7 @@ const Index = () => {
   if ((loading || systemOpen === null) && !forceGuest) {
     if (loadTimedOut) {
       return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 text-center">
+        <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background px-4 text-center">
           <EconLogo className="h-10 w-44 mb-6 opacity-90" />
           <h2 className="text-lg font-semibold text-foreground mb-2">Sunucu Bağlantısı Bekleniyor</h2>
           <p className="text-sm text-muted-foreground max-w-md mb-6 leading-relaxed">
@@ -55,7 +55,7 @@ const Index = () => {
     }
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
         <div className="animate-pulse-glow p-4 rounded-full">
           <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>

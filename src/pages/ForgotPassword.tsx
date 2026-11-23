@@ -52,7 +52,7 @@ const ForgotPassword = () => {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row relative">
+    <div className="min-h-[100dvh] flex flex-col lg:flex-row overflow-x-clip relative">
       {/* Left panel */}
       <div
         className="hidden lg:flex lg:w-1/2 flex-col justify-between p-10 xl:p-14 relative overflow-hidden"
@@ -104,9 +104,9 @@ const ForgotPassword = () => {
 
       {/* Right panel */}
       <div
-        className="flex-1 flex flex-col items-center px-6 bg-background relative min-h-screen lg:min-h-0"
+        className="flex-1 flex flex-col items-center px-6 bg-background relative min-h-[100dvh] lg:min-h-0"
         style={{
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 1rem)',
           paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
         }}
       >

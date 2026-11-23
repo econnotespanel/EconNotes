@@ -32,7 +32,7 @@ const RouteLoader = () => {
       aria-busy="true"
       aria-label="Sayfa yükleniyor"
       tabIndex={-1}
-      className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden outline-none transition-opacity"
+      className="min-h-[100dvh] flex items-center justify-center bg-background relative overflow-hidden outline-none transition-opacity"
       style={{
         opacity: leaving ? 0 : 1,
         transitionDuration: `${FADE_MS}ms`,

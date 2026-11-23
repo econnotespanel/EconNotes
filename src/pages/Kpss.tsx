@@ -29,19 +29,18 @@ const Kpss = () => {
     <Layout>
       <div className="mx-auto max-w-4xl space-y-6 py-2 sm:py-6 animate-fade-in">
         {/* Ana EconKPSS Taşınma & Yönlendirme Kartı */}
-        <Card className="overflow-hidden rounded-[26px] border border-primary/30 bg-card/95 shadow-[0_20px_60px_rgba(0,55,145,0.14)] backdrop-blur-xl">
+        <Card className="overflow-hidden rounded-[24px] border border-slate-200/85 dark:border-slate-800/90 bg-card shadow-[var(--panel-shadow)]">
           {/* Üst EconNotes Kobalt-Mavi Başlık Alanı */}
           <div
             className={cn(
               'relative overflow-hidden px-6 py-8 sm:px-10 sm:py-10 text-white',
               isNovember10
-                ? 'bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900'
-                : 'bg-gradient-to-br from-[#001845] via-[#003791] to-[#0070d1]',
+                ? 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-800'
+                : 'bg-gradient-to-r from-[#06183d] via-[#0b2a6e] to-[#0f3a8f]',
             )}
           >
-            <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-cyan-400/20 blur-3xl" />
-            <div className="pointer-events-none absolute -left-16 -bottom-16 h-56 w-56 rounded-full bg-blue-400/20 blur-2xl" />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/70 to-transparent" />
+            <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-sky-400/20 blur-3xl" />
+            <div className="pointer-events-none absolute -left-16 -bottom-16 h-56 w-56 rounded-full bg-blue-400/15 blur-2xl" />
 
             <div className="relative z-10 flex flex-wrap items-center gap-3.5 sm:gap-4 mb-6">
               <EconLogo allWhite className="h-7 sm:h-8 w-auto" />
@@ -59,8 +58,8 @@ const Kpss = () => {
             </div>
 
             <div className="relative z-10 max-w-2xl space-y-3">
-              <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-white/25 bg-white/12 text-cyan-200 shadow-lg backdrop-blur-md mb-1">
-                <Target className="h-7 w-7" />
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-200/25 bg-sky-300/15 text-sky-100 mb-1">
+                <Target className="h-6 w-6" />
               </div>
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white">
                 KPSS Merkezi artık EconKPSS’e taşındı!
@@ -134,10 +133,10 @@ const Kpss = () => {
                 size="lg"
                 onClick={handleGoEconKpss}
                 className={cn(
-                  'w-full sm:w-auto shrink-0 gap-2 rounded-xl px-6 font-bold text-white shadow-lg',
+                  'w-full sm:w-auto shrink-0 gap-2 rounded-full px-6 font-bold text-white shadow-md',
                   isNovember10
                     ? 'bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950'
-                    : 'bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] hover:opacity-95 shadow-blue-600/25',
+                    : 'bg-gradient-to-r from-[#174ec4] via-[#1f62e8] to-[#2e78f6] hover:brightness-105 shadow-blue-600/30',
                 )}
               >
                 <span>EconKPSS’e Git</span>

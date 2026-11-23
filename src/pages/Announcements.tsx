@@ -1,4 +1,5 @@
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import SignedImage from '@/components/SignedImage';
 import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
@@ -203,24 +204,20 @@ const Announcements = () => {
 
   return (
     <Layout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="relative isolate overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 via-card to-accent/30 p-5 shadow-sm sm:p-7">
-          <div className="pointer-events-none absolute -right-10 -top-16 -z-10 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="mt-1 rounded-xl border border-primary/15 bg-background/80 p-3 text-primary shadow-sm">
-                <Megaphone className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Duyurular</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Platformdaki güncel haberleri ve önemli bilgilendirmeleri takip edin.</p>
-              </div>
-            </div>
-          {isAdmin && (
-            <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingItem(null); setConfirmUpload(false); setAttachmentFile(null); } }}>
-              <DialogTrigger asChild>
-                  <Button className="gradient-primary w-full text-primary-foreground shadow-sm sm:w-auto"><Plus className="mr-2 h-4 w-4" /> Duyuru Ekle</Button>
-              </DialogTrigger>
+      <div className="space-y-5 animate-fade-in">
+        <PageHeader
+          surface="hero"
+          title="Duyurular"
+          description="Platformdaki güncel haberleri, ders duyurularını ve önemli bilgilendirmeleri takip edin."
+          icon={Megaphone}
+          actions={
+            isAdmin ? (
+              <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingItem(null); setConfirmUpload(false); setAttachmentFile(null); } }}>
+                <DialogTrigger asChild>
+                  <Button className="w-full rounded-full bg-white text-[#0c265c] hover:bg-blue-50 font-bold shadow-sm sm:w-auto">
+                    <Plus className="mr-1.5 h-4 w-4" /> Duyuru Ekle
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{editingItem ? 'Duyuruyu Düzenle' : 'Yeni Duyuru'}</DialogTitle>
@@ -239,7 +236,7 @@ const Announcements = () => {
                       <Label>Dosya / Görsel Ekle (Opsiyonel)</Label>
                       <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)} />
                       {attachmentFile ? (
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-accent/50 text-sm">
+                        <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-muted/50 p-2.5 text-sm">
                           {attachmentFile.type.startsWith('image/') ? <ImageIcon className="h-4 w-4 text-primary" /> : <FileIcon className="h-4 w-4 text-primary" />}
                           <span className="flex-1 truncate">{attachmentFile.name}</span>
                           <Button variant="ghost" size="sm" onClick={() => setAttachmentFile(null)}><X className="h-3 w-3" /></Button>
@@ -253,7 +250,7 @@ const Announcements = () => {
                         <p className="text-xs text-muted-foreground">Mevcut ek: {editingItem.attachment_name}</p>
                       )}
                     </div>
-                    <Button className="w-full" onClick={() => setConfirmUpload(true)}>
+                    <Button variant="cta" className="w-full" onClick={() => setConfirmUpload(true)}>
                       {editingItem ? 'Güncelle' : 'Duyuruyu Yayınla'}
                     </Button>
                   </div>
@@ -270,16 +267,16 @@ const Announcements = () => {
                 )}
               </DialogContent>
             </Dialog>
-          )}
-          </div>
-        </div>
+            ) : null
+          }
+        />
 
-        <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card/70 p-3 shadow-sm sm:flex-row">
+        <div className="flex flex-col gap-3 rounded-[20px] border border-slate-200/85 dark:border-slate-800 bg-card p-3.5 shadow-sm sm:flex-row">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Duyurularda ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="h-10 border-border/60 bg-background/70 pl-10" />
+            <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Duyurularda ara..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="h-10 pl-10" />
           </div>
-          <Button variant="outline" className="h-10 border-border/60 bg-background/70" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
+          <Button variant="outline" className="h-10 shrink-0" onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}>
             {sortOrder === 'desc' ? <SortDesc className="h-4 w-4 mr-2" /> : <SortAsc className="h-4 w-4 mr-2" />}
             {sortOrder === 'desc' ? 'Yeniden Eskiye' : 'Eskiden Yeniye'}
           </Button>

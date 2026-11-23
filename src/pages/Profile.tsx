@@ -1,4 +1,5 @@
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -144,93 +145,148 @@ const Profile = () => {
 
   return (
     <Layout>
-      <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
-        <h1 className="text-2xl font-bold">Profilim</h1>
+      <div className="mx-auto max-w-4xl space-y-5 animate-fade-in">
+        <PageHeader
+          title="Profilim & Ayarlar"
+          description="Hesap bilgilerinizi, güvenlik tercihlerinizi, rozetlerinizi ve gizlilik ayarlarınızı yönetin."
+          icon={User}
+        />
 
         <Card className="glass-card">
-          <CardContent className="p-6">
-            <div className="flex flex-col items-center gap-4 mb-6">
-              <div className="relative">
-                <Avatar className="h-24 w-24">
-                  <AvatarImage src={profile?.avatar_url || ''} />
-                  <AvatarFallback className="text-2xl gradient-primary text-primary-foreground">
-                    {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
-                  </AvatarFallback>
-                </Avatar>
-                <label className="absolute bottom-0 right-0 p-1.5 rounded-full bg-primary text-primary-foreground cursor-pointer hover:opacity-80">
-                  <Camera className="h-4 w-4" />
-                  <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-                </label>
-              </div>
-              <div className="text-center">
-                <h2 className="text-xl font-bold">{profile?.full_name || 'Kullanıcı'}</h2>
-                <p className="text-sm text-muted-foreground">Öğrenci</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">E-posta</p>
-                  <p className="text-sm font-medium">{user?.email}</p>
+          <CardContent className="p-5 sm:p-6">
+            <div className="mb-6 flex flex-col items-center gap-4 border-b border-border/70 pb-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col items-center gap-4 sm:flex-row">
+                <div className="relative">
+                  <Avatar className="h-20 w-20 ring-4 ring-primary/10">
+                    <AvatarImage src={profile?.avatar_url || ''} />
+                    <AvatarFallback className="text-2xl font-bold gradient-primary text-white">
+                      {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <label className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-card bg-primary text-white shadow-sm transition-transform hover:scale-105">
+                    <Camera className="h-3.5 w-3.5" />
+                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                  </label>
+                </div>
+                <div className="text-center sm:text-left">
+                  <h2 className="text-xl font-extrabold tracking-tight text-foreground">{profile?.full_name || 'Kullanıcı'}</h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground">{user?.email || 'Öğrenci Hesabı'}</p>
+                  {profile?.university && (
+                    <p className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                      <GraduationCap className="h-3 w-3" />
+                      <span>{profile.university}</span>
+                    </p>
+                  )}
                 </div>
               </div>
+              {!editing && (
+                <Button
+                  variant="cta"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    setForm({
+                      full_name: profile?.full_name || '',
+                      university: profile?.university || '',
+                      department: profile?.department || '',
+                      birth_date: currentBirthDate,
+                    });
+                    setEditing(true);
+                  }}
+                >
+                  Profili Düzenle
+                </Button>
+              )}
+            </div>
 
+            <div className="space-y-3">
               {editing ? (
-                <div className="space-y-3">
-                  <div><Label>Ad Soyad</Label><Input value={form.full_name} onChange={(e) => setForm({...form, full_name: e.target.value})} /></div>
-                  <div><Label>Üniversite</Label><Input value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} /></div>
-                  <div><Label>Bölüm</Label><Input value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} /></div>
-                  <div>
-                    <Label>Doğum Tarihi (Doğum gününde 1 gün sınırsız not erişimi hediyesi)</Label>
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                  <div className="space-y-1.5"><Label>Ad Soyad</Label><Input value={form.full_name} onChange={(e) => setForm({...form, full_name: e.target.value})} /></div>
+                  <div className="space-y-1.5"><Label>Üniversite</Label><Input value={form.university} onChange={(e) => setForm({...form, university: e.target.value})} /></div>
+                  <div className="space-y-1.5"><Label>Bölüm</Label><Input value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} /></div>
+                  <div className="space-y-1.5">
+                    <Label>Doğum Tarihi (Doğum günü hediyesi)</Label>
                     <Input
                       type="date"
                       value={form.birth_date}
                       onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
                     />
                   </div>
-                  <div className="flex gap-2">
-                    <Button onClick={handleUpdate}>Kaydet</Button>
+                  <div className="flex flex-wrap gap-2 pt-1 sm:col-span-2">
+                    <Button variant="cta" onClick={handleUpdate}>Kaydet</Button>
                     <Button variant="outline" onClick={() => setEditing(false)}>İptal</Button>
                   </div>
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Ad Soyad</p>
-                      <p className="text-sm font-medium">{profile?.full_name || '-'}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/40 p-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                        <Mail className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-muted-foreground">E-posta</p>
+                        <p className="truncate text-sm font-semibold text-foreground">{user?.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/40 p-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                        <User className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-muted-foreground">Ad Soyad</p>
+                        <p className="truncate text-sm font-semibold text-foreground">{profile?.full_name || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/40 p-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                        <Building className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-muted-foreground">Üniversite</p>
+                        <p className="truncate text-sm font-semibold text-foreground">{profile?.university || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/40 p-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                        <GraduationCap className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-muted-foreground">Bölüm & Sınıf</p>
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {profile?.department || '-'}
+                          {profile?.grade ? ` • ${profile.grade === 5 ? 'Mezun' : `${profile.grade}. Sınıf`}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/40 p-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                        <Calendar className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-muted-foreground">Kayıt Tarihi</p>
+                        <p className="truncate text-sm font-semibold text-foreground">{profile?.created_at ? new Date(profile.created_at).toLocaleDateString('tr-TR') : '-'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/40 p-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                        <Calendar className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-muted-foreground">Son Giriş</p>
+                        <p className="truncate text-sm font-semibold text-foreground">{profile?.last_login ? new Date(profile.last_login).toLocaleString('tr-TR') : '-'}</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
-                    <Building className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Üniversite</p>
-                      <p className="text-sm font-medium">{profile?.university || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
-                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Bölüm</p>
-                      <p className="text-sm font-medium">{profile?.department || '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
-                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Sınıf</p>
-                      <p className="text-sm font-medium">{profile?.grade === 5 ? 'Mezun' : profile?.grade ? `${profile.grade}. Sınıf` : '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-accent/50">
-                    <div className="flex items-center gap-3">
-                      <Cake className="h-4 w-4 text-primary" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Doğum Tarihi</p>
-                        <p className="text-sm font-medium">
+
+                  <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-muted/40 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+                        <Cake className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-muted-foreground">Doğum Tarihi</p>
+                        <p className="text-sm font-semibold text-foreground">
                           {currentBirthDate
                             ? new Date(currentBirthDate).toLocaleDateString('tr-TR')
                             : 'Henüz eklenmedi (Doğum günü hediyesi için ekleyin)'}
@@ -241,38 +297,22 @@ const Profile = () => {
                       <button
                         type="button"
                         onClick={openBirthdayCelebrationModal}
-                        className="rounded-full bg-primary/10 border border-primary/30 px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/15 transition-colors"
+                        className="w-fit rounded-full bg-primary/10 border border-primary/30 px-3 py-1 text-[11px] font-bold text-primary hover:bg-primary/15 transition-colors"
                       >
                         Doğum Günü Hediyen Aktif · Kutlamayı Gör
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Kayıt Tarihi</p>
-                      <p className="text-sm font-medium">{profile?.created_at ? new Date(profile.created_at).toLocaleDateString('tr-TR') : '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Son Giriş</p>
-                      <p className="text-sm font-medium">{profile?.last_login ? new Date(profile.last_login).toLocaleString('tr-TR') : '-'}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start justify-between gap-3 p-3 rounded-lg bg-accent/50">
-                    <div>
-                      <p className="text-sm font-medium">Soyadımı listelerde gizle</p>
-                      <p className="text-xs text-muted-foreground">
-                        Açık olduğunda liderlik tablosunda adın "{(profile?.full_name || 'Kaan Çolakoğulları').split(' ')[0]} {(profile?.full_name || 'Kaan Çolakoğulları').split(' ')[1]?.charAt(0).toUpperCase() || 'Ç'}..." biçiminde görünür.
+
+                  <div className="flex items-start justify-between gap-4 rounded-2xl border border-border/70 bg-muted/40 p-3.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground">Soyadımı listelerde gizle</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                        Açık olduğunda liderlik tablosunda adın &quot;{(profile?.full_name || 'Kaan Çolakoğulları').split(' ')[0]} {(profile?.full_name || 'Kaan Çolakoğulları').split(' ')[1]?.charAt(0).toUpperCase() || 'Ç'}...&quot; biçiminde görünür.
                       </p>
                     </div>
                     <Switch checked={hideSurname} disabled={savingPrivacy} onCheckedChange={toggleHideSurname} />
                   </div>
-                  <Button onClick={() => { setForm({ full_name: profile?.full_name || '', university: profile?.university || '', department: profile?.department || '', birth_date: currentBirthDate }); setEditing(true); }}>
-                    Profili Düzenle
-                  </Button>
                 </>
               )}
             </div>

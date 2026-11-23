@@ -17,7 +17,7 @@ const PageGuard = ({ path, children }: { path: string; children: React.ReactNode
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
         <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -44,7 +44,7 @@ const PageGuard = ({ path, children }: { path: string; children: React.ReactNode
 
   return (
     <Layout>
-      <div className="flex min-h-[70vh] items-center justify-center p-4">
+      <div className="flex min-h-[70dvh] items-center justify-center p-4">
         {isStudy ? (
           <Card className="glass-card w-full max-w-lg border border-cyan-500/25 bg-gradient-to-b from-card/95 via-card/90 to-card/95 shadow-2xl shadow-cyan-500/10 backdrop-blur-xl">
             <CardContent className="space-y-6 p-6 sm:p-8 text-center">

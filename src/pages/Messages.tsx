@@ -1,4 +1,5 @@
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import SignedImage from '@/components/SignedImage';
 import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
@@ -397,73 +398,74 @@ const Messages = () => {
   return (
     <Layout>
       <div className="mx-auto w-full max-w-7xl space-y-4 animate-fade-in sm:space-y-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Mesajlar</h1>
-            <p className="text-sm text-muted-foreground">Arkadaşlarınızla özel mesajlaşın</p>
-          </div>
-          <Dialog open={addFriendOpen} onOpenChange={setAddFriendOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full gap-2 rounded-xl gradient-primary text-primary-foreground sm:w-auto">
-                <UserPlus className="h-4 w-4" /> Arkadaş Ekle
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg rounded-2xl">
-              <DialogHeader><DialogTitle>Kullanıcı Bul & Arkadaş Ekle</DialogTitle></DialogHeader>
-              <div className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="İsim veya üniversite ara..." value={searchUser} onChange={e => setSearchUser(e.target.value)} className="pl-10" />
-                </div>
-                <div className="max-h-[300px] overflow-y-auto space-y-2">
-                  {filteredUsers.map(u => (
-                    <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-accent/50">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          {u.avatar_url && <AvatarImage src={u.avatar_url} />}
-                          <AvatarFallback className="text-xs">{u.full_name?.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="text-sm font-medium">{u.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{u.university} • {u.department}</p>
-                          <p className="text-xs text-muted-foreground">{u.grade ? `${u.grade}. Sınıf` : ''}</p>
+        <PageHeader
+          title="Mesajlar"
+          description="Arkadaşlarınızla güvenli ve anlık akademik mesajlaşın."
+          icon={MessageSquare}
+          actions={
+            <Dialog open={addFriendOpen} onOpenChange={setAddFriendOpen}>
+              <DialogTrigger asChild>
+                <Button variant="cta" className="w-full gap-2 sm:w-auto">
+                  <UserPlus className="h-4 w-4" /> Arkadaş Ekle
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg rounded-[24px]">
+                <DialogHeader><DialogTitle>Kullanıcı Bul & Arkadaş Ekle</DialogTitle></DialogHeader>
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="İsim veya üniversite ara..." value={searchUser} onChange={e => setSearchUser(e.target.value)} className="pl-10" />
+                  </div>
+                  <div className="max-h-[300px] overflow-y-auto space-y-2">
+                    {filteredUsers.map(u => (
+                      <div key={u.id} className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/40 p-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Avatar className="h-9 w-9 shrink-0">
+                            {u.avatar_url && <AvatarImage src={u.avatar_url} />}
+                            <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{u.full_name?.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">{u.full_name}</p>
+                            <p className="truncate text-xs text-muted-foreground">{u.university} • {u.department}</p>
+                            <p className="text-[11px] text-muted-foreground">{u.grade ? `${u.grade}. Sınıf` : ''}</p>
+                          </div>
                         </div>
+                        {isFriend(u.user_id) ? (
+                          <span className="shrink-0 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">Arkadaş</span>
+                        ) : hasSentRequest(u.user_id) ? (
+                          <span className="shrink-0 text-xs text-muted-foreground">İstek Gönderildi</span>
+                        ) : (
+                          <Button size="sm" variant="outline" className="shrink-0" onClick={() => sendFriendRequest(u.user_id)}>
+                            <UserPlus className="h-3.5 w-3.5 mr-1" /> Ekle
+                          </Button>
+                        )}
                       </div>
-                      {isFriend(u.user_id) ? (
-                        <span className="text-xs text-green-500">Arkadaş</span>
-                      ) : hasSentRequest(u.user_id) ? (
-                        <span className="text-xs text-muted-foreground">İstek Gönderildi</span>
-                      ) : (
-                        <Button size="sm" variant="outline" onClick={() => sendFriendRequest(u.user_id)}>
-                          <UserPlus className="h-3 w-3 mr-1" /> Ekle
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              </DialogContent>
+            </Dialog>
+          }
+        />
 
-        <div className="grid min-h-[min(620px,calc(100dvh-13rem))] grid-cols-1 gap-3 md:min-h-[32rem] md:grid-cols-3 md:gap-4">
+        <div className="grid min-h-[min(620px,calc(100dvh-13rem))] grid-cols-1 gap-4 md:min-h-[34rem] md:grid-cols-3">
           {/* Left: Friends & Requests — hidden on mobile when a chat is open */}
-          <Card className={`glass-card min-h-0 overflow-hidden rounded-2xl md:col-span-1 ${selectedFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
+          <Card className={`glass-card min-h-0 overflow-hidden md:col-span-1 ${selectedFriend ? 'hidden md:flex md:flex-col' : 'flex flex-col'}`}>
             <Tabs defaultValue="friends" className="flex h-full min-h-0 flex-col">
-              <TabsList className="grid h-auto min-h-12 w-full shrink-0 grid-cols-2 rounded-none border-0 border-b border-border bg-muted/60 p-1 shadow-none">
-                <TabsTrigger value="friends" className="min-h-10 flex-1 rounded-lg border-0 px-2 text-xs font-semibold data-[state=active]:border-0 data-[state=active]:shadow-sm sm:text-sm">
-                  <Users className="h-3 w-3 mr-1" /> Arkadaşlar
+              <TabsList className="grid h-auto min-h-12 w-full shrink-0 grid-cols-2 rounded-none border-0 border-b border-border bg-muted/40 p-1.5 shadow-none">
+                <TabsTrigger value="friends" className="min-h-9 flex-1 rounded-full px-2.5 text-xs font-semibold sm:text-sm">
+                  <Users className="h-3.5 w-3.5 mr-1.5" /> Arkadaşlar
                 </TabsTrigger>
-                <TabsTrigger value="private-announcements" className="relative min-h-10 flex-1 rounded-lg border-0 px-2 text-xs font-semibold data-[state=active]:border-0 data-[state=active]:shadow-sm sm:text-sm">
+                <TabsTrigger value="private-announcements" className="relative min-h-9 flex-1 rounded-full px-2.5 text-xs font-semibold sm:text-sm">
                   Özel duyurular
                   {pendingRequests.length > 0 && (
-                    <span className="ml-1 h-4 w-4 rounded-full bg-destructive text-[10px] text-destructive-foreground inline-flex items-center justify-center">
+                    <span className="ml-1.5 h-4 min-w-4 rounded-full bg-destructive px-1 text-[10px] text-destructive-foreground inline-flex items-center justify-center">
                       {pendingRequests.length}
                     </span>
                   )}
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="friends" className="m-0 min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+              <TabsContent value="friends" className="m-0 min-h-0 flex-1 space-y-1 overflow-y-auto p-2.5">
                 {friends.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center p-4">Henüz arkadaş yok. Kullanıcı ekleyin!</p>
                 ) : (
@@ -471,8 +473,10 @@ const Messages = () => {
                     <div key={f.id} className="group relative">
                       <button
                         onClick={() => setSelectedFriend(f)}
-                        className={`w-full flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
-                          selectedFriend?.user_id === f.user_id ? 'border-primary/30 bg-primary/10' : 'border-transparent hover:border-border hover:bg-accent/70'
+                        className={`w-full flex items-center gap-3 rounded-2xl border p-3 text-left transition-colors ${
+                          selectedFriend?.user_id === f.user_id
+                            ? 'border-primary/30 bg-primary/10'
+                            : 'border-transparent hover:border-border/80 hover:bg-muted/60'
                         }`}
                       >
                         <Avatar className="h-9 w-9">

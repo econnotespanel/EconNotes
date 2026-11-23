@@ -22,7 +22,7 @@ const OfflineBanner = () => {
     <div
       role="alert"
       aria-live="assertive"
-      className="fixed inset-0 z-[9999] flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-6 py-10 text-center text-white"
+      className="fixed inset-0 z-[9999] flex min-h-[100dvh] items-center justify-center overflow-hidden bg-[#06183d] px-6 py-10 text-center text-white"
     >
       <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-secondary/15 blur-3xl" />

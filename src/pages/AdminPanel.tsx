@@ -1,4 +1,5 @@
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import { openSignedNote } from '@/lib/storageUrl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useMemo, useState } from 'react';
@@ -867,7 +868,7 @@ const AdminPanel = () => {
   if (authLoading) {
     return (
       <Layout>
-        <div className="flex min-h-[60vh] items-center justify-center gap-2 text-muted-foreground">
+        <div className="flex min-h-[60dvh] items-center justify-center gap-2 text-muted-foreground">
           <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <span className="text-sm">Yönetici yetkisi doğrulanıyor…</span>
         </div>
@@ -879,28 +880,29 @@ const AdminPanel = () => {
 
   return (
     <Layout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2"><Shield className="h-6 w-6 text-primary" /> Yönetici Paneli</h1>
-            <p className="text-sm text-muted-foreground">Sistem yönetimi ve kullanıcı kontrolü</p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-end gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Saat Kısıtı</span>
-              <Switch checked={noteUploadRestricted} onCheckedChange={toggleUploadRestriction} />
+      <div className="space-y-5 animate-fade-in">
+        <PageHeader
+          title="Yönetici Paneli"
+          description="Sistem ayarları, kullanıcı onayları, not moderasyonu ve platform denetimi."
+          icon={Shield}
+          actions={
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <div className="flex items-center gap-2 rounded-full border border-slate-200/90 dark:border-slate-800 bg-card px-3 py-1.5 shadow-sm">
+                <span className="text-xs font-medium text-muted-foreground">Saat Kısıtı</span>
+                <Switch checked={noteUploadRestricted} onCheckedChange={toggleUploadRestriction} />
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-slate-200/90 dark:border-slate-800 bg-card px-3 py-1.5 shadow-sm">
+                <span className="text-xs font-medium text-muted-foreground">Önizleme Kotası</span>
+                <Switch checked={noteViewRestricted} onCheckedChange={toggleViewRestriction} />
+              </div>
+              <div className="flex items-center gap-2 rounded-full border border-slate-200/90 dark:border-slate-800 bg-card px-3 py-1.5 shadow-sm">
+                <span className="text-xs font-medium text-muted-foreground">Sistem</span>
+                <Switch checked={systemOpen} onCheckedChange={toggleSystem} />
+                <Power className={`h-3.5 w-3.5 ${systemOpen ? 'text-emerald-500' : 'text-destructive'}`} />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Önizleme Kotası</span>
-              <Switch checked={noteViewRestricted} onCheckedChange={toggleViewRestriction} />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Sistem</span>
-              <Switch checked={systemOpen} onCheckedChange={toggleSystem} />
-              <Power className={`h-4 w-4 ${systemOpen ? 'text-green-500' : 'text-destructive'}`} />
-            </div>
-          </div>
-        </div>
+          }
+        />
 
         {/* Academic Week Setting */}
         <Card className="glass-card">
@@ -1048,38 +1050,40 @@ const AdminPanel = () => {
 
 
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
           {[
-            { label: 'Kullanıcılar', sub: !usersLoading && activeTodayCount > 0 ? `Bugün ${activeTodayCount} aktif` : undefined, value: usersLoading ? '…' : users.length, icon: Users, tone: 'from-blue-500/20 to-cyan-500/5' },
-            { label: 'Notlar', value: notesLoading ? '…' : notes.length, icon: FileText, tone: 'from-violet-500/20 to-fuchsia-500/5' },
-            { label: 'Duyurular', value: announcements.length, icon: Megaphone, tone: 'from-amber-500/20 to-orange-500/5' },
-            { label: 'Cezalar', value: penalties.length, icon: AlertTriangle, tone: 'from-rose-500/20 to-red-500/5' },
-          ].map(({ label, sub, value, icon: Icon, tone }) => (
-            <Card key={label} className={`glass-card overflow-hidden bg-gradient-to-br ${tone}`}>
-              <CardContent className="flex items-center justify-between p-4">
-                <div>
-                  <p className="text-2xl font-bold tracking-tight">{value}</p>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  {sub && <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">{sub}</p>}
+            { label: 'Kullanıcılar', sub: !usersLoading && activeTodayCount > 0 ? `Bugün ${activeTodayCount} aktif` : undefined, value: usersLoading ? '…' : users.length, icon: Users, iconCls: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' },
+            { label: 'Notlar', value: notesLoading ? '…' : notes.length, icon: FileText, iconCls: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400' },
+            { label: 'Duyurular', value: announcements.length, icon: Megaphone, iconCls: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400' },
+            { label: 'Cezalar', value: penalties.length, icon: AlertTriangle, iconCls: 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400' },
+          ].map(({ label, sub, value, icon: Icon, iconCls }) => (
+            <Card key={label} className="glass-card overflow-hidden">
+              <CardContent className="flex items-center gap-3.5 p-4">
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${iconCls}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
+                  <p className="text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">{value}</p>
+                  {sub && <p className="truncate text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">{sub}</p>}
                 </div>
-                <Icon className="h-5 w-5 text-muted-foreground/70" />
               </CardContent>
             </Card>
           ))}
         </div>
 
         <Tabs defaultValue="users">
-          <TabsList className="flex h-auto w-full max-w-full gap-1.5 overflow-x-auto rounded-[22px] border border-slate-200/80 bg-white/95 p-2 shadow-[0_12px_36px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/[0.08] dark:bg-[#14171c]/95 dark:shadow-[0_20px_50px_rgba(0,0,0,0.65)]">
-            <TabsTrigger className="shrink-0 rounded-[14px] px-3.5 py-2.5 text-[13.5px] font-medium text-slate-600 transition-all hover:bg-slate-100/80 hover:text-slate-900 data-[state=active]:bg-blue-500/10 data-[state=active]:font-semibold data-[state=active]:text-blue-600 data-[state=active]:ring-1 data-[state=active]:ring-blue-500/20 data-[state=active]:shadow-none dark:text-[#8e96a4] dark:hover:bg-white/[0.05] dark:hover:text-[#e2e8f0] dark:data-[state=active]:bg-[#19283e] dark:data-[state=active]:text-[#5b9cf6] dark:data-[state=active]:ring-[#5b9cf6]/25" value="users"><Users className="mr-2 hidden h-4 w-4 sm:inline" />Kullanıcılar</TabsTrigger>
+          <TabsList className="flex h-auto w-full max-w-full gap-1.5 overflow-x-auto rounded-[20px] border border-slate-200/85 bg-card p-1.5 shadow-[var(--panel-shadow)] dark:border-slate-800/90">
+            <TabsTrigger className="shrink-0 rounded-full px-3.5 py-2 text-xs sm:text-[13px] font-semibold text-slate-600 transition-all hover:bg-slate-100/80 hover:text-slate-900 data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#1b5ce5] data-[state=active]:to-[#3b82f6] data-[state=active]:text-white data-[state=active]:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white" value="users"><Users className="mr-1.5 hidden h-4 w-4 sm:inline" />Kullanıcılar</TabsTrigger>
             {([
               ['logins', Smartphone, 'Giriş & Cihazlar'],
               ['notes', FileText, 'Notlar'], ['announcements', Megaphone, 'Duyurular'], ['banners', ImageIcon, 'Bannerlar'],
               ['penalties', AlertTriangle, 'Cezalar'], ['reports', Flag, 'Raporlar'], ['activity', Activity, 'Aktiviteler'],
               ['audit', Shield, 'Denetim'], ['design', Palette, 'Tasarım'], ['study', Sparkles, 'Stüdyo'],
             ] as [string, React.ElementType, string][]).map(([value, Icon, label]) => (
-              <TabsTrigger key={value as string} className="shrink-0 rounded-[14px] px-3.5 py-2.5 text-[13.5px] font-medium text-slate-600 transition-all hover:bg-slate-100/80 hover:text-slate-900 data-[state=active]:bg-blue-500/10 data-[state=active]:font-semibold data-[state=active]:text-blue-600 data-[state=active]:ring-1 data-[state=active]:ring-blue-500/20 data-[state=active]:shadow-none dark:text-[#8e96a4] dark:hover:bg-white/[0.05] dark:hover:text-[#e2e8f0] dark:data-[state=active]:bg-[#19283e] dark:data-[state=active]:text-[#5b9cf6] dark:data-[state=active]:ring-[#5b9cf6]/25" value={value as string}>
-                <Icon className="mr-2 hidden h-4 w-4 sm:inline" />{label}
-                {value === 'reports' && messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1.5 inline-flex h-[20px] min-w-[24px] items-center justify-center rounded-full bg-[#f05252] px-1.5 text-[11px] font-bold text-white">{messageReports.filter(r => r.status === 'pending').length}</span>}
+              <TabsTrigger key={value as string} className="shrink-0 rounded-full px-3.5 py-2 text-xs sm:text-[13px] font-semibold text-slate-600 transition-all hover:bg-slate-100/80 hover:text-slate-900 data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#1b5ce5] data-[state=active]:to-[#3b82f6] data-[state=active]:text-white data-[state=active]:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white" value={value as string}>
+                <Icon className="mr-1.5 hidden h-4 w-4 sm:inline" />{label}
+                {value === 'reports' && messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1.5 inline-flex h-[18px] min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">{messageReports.filter(r => r.status === 'pending').length}</span>}
               </TabsTrigger>
             ))}
           </TabsList>

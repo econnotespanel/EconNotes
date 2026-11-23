@@ -66,9 +66,9 @@ const ResetPassword = () => {
   if (!isRecovery && !done) {
     return (
       <div
-        className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden"
+        className="min-h-[100dvh] flex items-center justify-center p-4 bg-gradient-to-br from-[#06183d] via-[#0b2a6e] to-[#0f3a8f] relative overflow-hidden"
         style={{
-          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 1rem)',
           paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
         }}
       >
@@ -93,9 +93,9 @@ const ResetPassword = () => {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4 gradient-primary relative overflow-hidden"
+      className="min-h-[100dvh] flex items-center justify-center p-4 bg-gradient-to-br from-[#06183d] via-[#0b2a6e] to-[#0f3a8f] relative overflow-hidden"
       style={{
-        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 1rem)',
         paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
       }}
     >

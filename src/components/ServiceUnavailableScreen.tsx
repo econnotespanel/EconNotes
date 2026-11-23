@@ -28,21 +28,31 @@ const ServiceUnavailableScreen = ({ onRetry }: { onRetry: () => void }) => {
 
   const Icon = online ? ServerCrash : WifiOff;
   return (
-    <main role="alert" aria-live="assertive" className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center text-foreground">
-      <EconLogo />
-      <div className="rounded-2xl border-2 border-border bg-card p-8 shadow-lg max-w-md w-full">
-        <Icon className="mx-auto h-12 w-12 text-primary" aria-hidden />
-        <h1 className="mt-4 font-display text-2xl font-bold">
+    <main
+      role="alert"
+      aria-live="assertive"
+      className="flex min-h-[100dvh] flex-col items-center justify-center gap-6 bg-background px-6 text-center text-foreground"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px) + 1.5rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+      }}
+    >
+      <EconLogo className="h-9 w-auto" />
+      <div className="w-full max-w-md rounded-[24px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-8 shadow-[var(--panel-shadow)]">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
+          <Icon className="h-7 w-7" aria-hidden />
+        </div>
+        <h1 className="mt-4 text-xl sm:text-2xl font-extrabold tracking-tight">
           {online ? 'EconNotes sunucularına ulaşılamıyor.' : 'İnternet bağlantınız yok.'}
         </h1>
-        <p className="mt-3 text-sm text-muted-foreground">
+        <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
           {online
             ? 'Şu anda yoğunluk veya geçici bir servis kesintisi yaşanıyor. Bağlantı otomatik olarak yeniden denenecek.'
             : 'Bağlantınız geri geldiğinde EconNotes otomatik olarak yeniden bağlanacak.'}
         </p>
-        <p className="mt-4 text-xs text-muted-foreground" aria-live="polite">{seconds} sn içinde yeniden denenecek.</p>
-        <Button className="mt-5 w-full" onClick={() => { setSeconds(15); onRetry(); }}>
-          <RefreshCw className="mr-2 h-4 w-4" />Şimdi yeniden dene.
+        <p className="mt-4 text-xs text-muted-foreground tabular-nums" aria-live="polite">{seconds} sn içinde yeniden denenecek.</p>
+        <Button variant="cta" className="mt-5 w-full" onClick={() => { setSeconds(15); onRetry(); }}>
+          <RefreshCw className="h-4 w-4" />Şimdi yeniden dene
         </Button>
       </div>
     </main>

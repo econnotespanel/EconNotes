@@ -453,18 +453,18 @@ const AcademicAssistant = () => {
         onDrop={handleDrop}
       >
         {/* Header & Problem Solving Modes */}
-        <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-secondary/10 p-4 shadow-sm sm:p-5">
+        <div className="rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-4 shadow-[var(--panel-shadow)] sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-primary shadow-inner">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
                 <Bot className="h-6 w-6" />
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Akademik Asistan</h1>
-                  <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                  <h1 className="text-xl font-extrabold tracking-tight sm:text-2xl">Akademik Asistan</h1>
+                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-200/80 bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/15 dark:text-blue-300">
                     <Calculator className="h-3 w-3" />
-                    Matematik & Mühendislik Çözücü
+                    Matematik &amp; Mühendislik Çözücü
                   </span>
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
