@@ -64,7 +64,7 @@ const ForcePasswordChange = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+    <div className="safe-area-screen flex items-center justify-center bg-background p-4 relative overflow-x-clip">
       <div className={cn(
         "absolute -top-24 -right-24 h-96 w-96 rounded-full blur-3xl pointer-events-none",
         isNovember10 ? "bg-white/5" : "bg-[#00f0ff]/10"

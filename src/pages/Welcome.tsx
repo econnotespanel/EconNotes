@@ -137,7 +137,13 @@ const Welcome = () => {
   }, [loading, user, navigate]);
 
   return (
-    <div className="min-h-screen w-full relative overflow-hidden flex items-center justify-center px-4 py-8">
+    <div
+      className="min-h-[100dvh] w-full relative overflow-x-clip flex items-center justify-center px-4 py-8"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.5rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+      }}
+    >
       {/* Confetti stickers scattered around */}
       <FloatingStickers />
 

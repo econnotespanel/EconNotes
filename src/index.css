@@ -79,6 +79,7 @@
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, sans-serif;
     overflow-x: hidden;
+    overflow-x: clip;
     transition: background-color .7s ease, color .7s ease;
   }
 
@@ -516,6 +517,7 @@
 
   #root {
     min-height: 100vh;
+    min-height: 100dvh;
     position: relative;
     isolation: isolate;
   }
@@ -1196,5 +1198,116 @@ math mtd.math-cell-divider-left {
 @media (prefers-reduced-motion: reduce) {
   .econ-liquid-active-pill {
     transition: none;
+  }
+}
+
+/* ============================================================================
+   iPhone / iOS Safe-Area & Daily Trivia Premium Motion Primitives
+   ============================================================================ */
+.safe-area-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+@keyframes trivia-question-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes trivia-select-pop {
+  0% {
+    transform: scale(0.988);
+  }
+  50% {
+    transform: scale(1.012);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes trivia-correct-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.48);
+  }
+  65% {
+    box-shadow: 0 0 0 12px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes trivia-wrong-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  22% {
+    transform: translateX(-4px);
+  }
+  48% {
+    transform: translateX(4px);
+  }
+  74% {
+    transform: translateX(-2px);
+  }
+}
+
+@keyframes trivia-celebrate-shimmer {
+  0% {
+    transform: translateX(-110%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-18deg);
+  }
+}
+
+.trivia-anim-enter {
+  animation: trivia-question-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.trivia-anim-select {
+  animation: trivia-select-pop 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.trivia-anim-correct {
+  animation: trivia-correct-glow 650ms ease-out;
+}
+
+.trivia-anim-wrong {
+  animation: trivia-wrong-shake 320ms ease-in-out;
+}
+
+.trivia-anim-shimmer {
+  animation: trivia-celebrate-shimmer 2.8s ease-in-out infinite;
+}
+
+.trivia-reduced-motion .trivia-anim-enter,
+.trivia-reduced-motion .trivia-anim-select,
+.trivia-reduced-motion .trivia-anim-correct,
+.trivia-reduced-motion .trivia-anim-wrong,
+.trivia-reduced-motion .trivia-anim-shimmer,
+.trivia-reduced-motion .animate-pulse {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trivia-anim-enter,
+  .trivia-anim-select,
+  .trivia-anim-correct,
+  .trivia-anim-wrong,
+  .trivia-anim-shimmer {
+    animation: none !important;
   }
 }

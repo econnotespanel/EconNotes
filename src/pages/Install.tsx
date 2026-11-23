@@ -103,7 +103,7 @@ const Install = () => {
 
   return (
     <div
-      className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between px-4 sm:px-6 relative overflow-x-hidden selection:bg-blue-600 selection:text-white"
+      className="min-h-[100dvh] bg-slate-950 text-slate-100 flex flex-col justify-between px-4 sm:px-6 relative overflow-x-clip selection:bg-blue-600 selection:text-white"
       style={{
         paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.5rem)',
         paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)',

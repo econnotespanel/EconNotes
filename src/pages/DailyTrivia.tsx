@@ -16,12 +16,29 @@ import {
   MinusCircle,
   ShieldAlert,
   Sparkles,
+  Square,
   Timer,
   Trophy,
+  Volume2,
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import { TriviaAudioControls } from '@/components/trivia/TriviaAudioControls';
+import {
+  isTurkishTtsSupported,
+  loadTriviaAudioPrefs,
+  playTriviaSound,
+  saveTriviaAudioPrefs,
+  speakTriviaQuestion,
+  startTriviaAmbientMusic,
+  stopAllTriviaAudio,
+  stopTriviaAmbientMusic,
+  stopTriviaSpeech,
+  unlockTriviaAudio,
+  updateTriviaAmbientMusicVolume,
+  type TriviaAudioPrefs,
+} from '@/lib/triviaAudio';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -139,6 +156,15 @@ export default function DailyTrivia() {
   const [clockOffsetMs, setClockOffsetMs] = useState(0);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
+  // Audio, TTS & Motion preferences (persisted in localStorage)
+  const [audioPrefs, setAudioPrefs] = useState<TriviaAudioPrefs>(() => loadTriviaAudioPrefs());
+  const audioPrefsRef = useRef(audioPrefs);
+  audioPrefsRef.current = audioPrefs;
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [lastSelectedOption, setLastSelectedOption] = useState<number | null>(null);
+  const [inspectedAnswerIdx, setInspectedAnswerIdx] = useState<number | null>(null);
+  const ttsSupported = useMemo(() => isTurkishTtsSupported(), []);
+
   // 5-second anti-cheat return guard state
   const [awayActive, setAwayActive] = useState(false);
   const [awayRemainingMs, setAwayRemainingMs] = useState(TRIVIA_LEAVE_LIMIT_MS);
@@ -199,8 +225,63 @@ export default function DailyTrivia() {
     setAwayRemainingMs(TRIVIA_LEAVE_LIMIT_MS);
   }, []);
 
+  const handleAudioPrefsChange = useCallback(
+    (next: TriviaAudioPrefs) => {
+      audioPrefsRef.current = next;
+      setAudioPrefs(next);
+      saveTriviaAudioPrefs(next);
+
+      if (!next.masterEnabled || next.volume <= 0.001) {
+        stopAllTriviaAudio();
+        setIsSpeaking(false);
+        return;
+      }
+      if (!next.ttsEnabled) {
+        stopTriviaSpeech();
+        setIsSpeaking(false);
+      }
+      if (isInProgressRef.current) {
+        if (next.musicEnabled) {
+          startTriviaAmbientMusic(next);
+          updateTriviaAmbientMusicVolume(next);
+        } else {
+          stopTriviaAmbientMusic();
+        }
+      } else {
+        stopTriviaAmbientMusic();
+      }
+    },
+    [],
+  );
+
+  // Stop all audio & speech cleanly on unmount
+  useEffect(() => {
+    return () => {
+      stopAllTriviaAudio();
+    };
+  }, []);
+
+  // Sync opt-in ambient music strictly with active quiz state (stops immediately on end/cancel/mute)
+  useEffect(() => {
+    if (isInProgress && audioPrefs.masterEnabled && audioPrefs.musicEnabled && audioPrefs.volume > 0.001) {
+      startTriviaAmbientMusic(audioPrefs);
+    } else {
+      stopTriviaAmbientMusic();
+    }
+  }, [isInProgress, audioPrefs.masterEnabled, audioPrefs.musicEnabled, audioPrefs.volume]);
+
+  // Stop speech automatically when question changes or quiz leaves active state
+  useEffect(() => {
+    stopTriviaSpeech();
+    setIsSpeaking(false);
+    setLastSelectedOption(null);
+  }, [currentIdx, isInProgress]);
+
   const markCancelledLocally = useCallback(
     (reason: string, message: string | null, points?: number | null) => {
+      stopAllTriviaAudio();
+      setIsSpeaking(false);
+      playTriviaSound('wrong', audioPrefsRef.current);
       if (userId) clearActiveTriviaRunInSession(userId);
       setAttempt((prev) =>
         prev
@@ -256,6 +337,8 @@ export default function DailyTrivia() {
   const applyFinalResult = useCallback(
     (final: TriviaFinishResponse) => {
       if (!userId) return;
+      stopAllTriviaAudio();
+      setIsSpeaking(false);
       clearActiveTriviaRunInSession(userId);
       clearAwayTimers();
       setAttempt(final.attempt);
@@ -265,13 +348,18 @@ export default function DailyTrivia() {
       setUserPoints(final.newUserPointsTotal);
       setConfirmFinishOpen(false);
       setFinishing(false);
+      setInspectedAnswerIdx(null);
       if (final.grandPrizeAwarded && final.unlimitedExpiresAt) {
+        playTriviaSound('grand_prize', audioPrefsRef.current);
         setUnlimitedExpiresAt(final.unlimitedExpiresAt);
         syncTriviaUnlimitedUntil(userId, final.unlimitedExpiresAt);
         void refreshProfile?.();
         toast.success('MÜKEMMEL! 15/15 ile 375 XP + 2 Saatlik Sınırsız Not Erişimi kazandın!');
       } else if (final.timedOut) {
+        playTriviaSound(final.correctCount > 0 ? 'complete' : 'wrong', audioPrefsRef.current);
         toast.info('Süre doldu. Kaydedilen cevapların değerlendirildi.');
+      } else {
+        playTriviaSound(final.correctCount > 0 ? 'complete' : 'wrong', audioPrefsRef.current);
       }
       window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
       window.dispatchEvent(new CustomEvent('econnotes:trivia-updated'));
@@ -477,6 +565,7 @@ export default function DailyTrivia() {
 
   const handleStart = async () => {
     if (!user || starting) return;
+    unlockTriviaAudio();
     setStarting(true);
     setErrorMsg(null);
     const { data, error } = await invokeDailyTrivia<TriviaStartResponse>({ action: 'start' });
@@ -504,6 +593,7 @@ export default function DailyTrivia() {
     setCurrentIdx(0);
     setReturnWarning(null);
     markActiveTriviaRunInSession(user.id, data.quizDate, data.attempt.id);
+    playTriviaSound('start', audioPrefsRef.current);
     toast.success('Yarışma başladı. 15 dakikan var, bol şans!');
   };
 
@@ -513,6 +603,9 @@ export default function DailyTrivia() {
     const qIdx = currentIdx;
     if (selected[qIdx] === optionIndex) return;
 
+    unlockTriviaAudio();
+    setLastSelectedOption(optionIndex);
+    playTriviaSound('select', audioPrefsRef.current);
     setSelected((prev) => ({ ...prev, [qIdx]: optionIndex }));
     setSaveState('saving');
     pendingSavesRef.current += 1;
@@ -575,7 +668,49 @@ export default function DailyTrivia() {
   };
 
   const goToQuestion = (idx: number) => {
-    setCurrentIdx(Math.max(0, Math.min(TRIVIA_TOTAL_QUESTIONS - 1, idx)));
+    const nextIdx = Math.max(0, Math.min(TRIVIA_TOTAL_QUESTIONS - 1, idx));
+    if (nextIdx === currentIdx) return;
+    unlockTriviaAudio();
+    stopTriviaSpeech();
+    setIsSpeaking(false);
+    playTriviaSound('next_question', audioPrefsRef.current);
+    setCurrentIdx(nextIdx);
+  };
+
+  const handleToggleSpeakQuestion = () => {
+    const activeQ = questions[currentIdx];
+    if (!activeQ) return;
+    unlockTriviaAudio();
+    if (isSpeaking) {
+      stopTriviaSpeech();
+      setIsSpeaking(false);
+      return;
+    }
+    if (!ttsSupported) {
+      toast.info('Bu tarayıcı sesli okuma özelliğini desteklemiyor.');
+      return;
+    }
+    if (!audioPrefs.masterEnabled || !audioPrefs.ttsEnabled) {
+      toast.info('Sesli soru okuma ses ayarlarından kapalı. Üstteki Ses menüsünden açabilirsin.');
+      return;
+    }
+    const started = speakTriviaQuestion(
+      {
+        questionIndex: currentIdx,
+        question: activeQ.question,
+        options: activeQ.options,
+        includeOptions: audioPrefs.ttsReadOptions,
+      },
+      audioPrefs,
+      {
+        onStart: () => setIsSpeaking(true),
+        onEnd: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false),
+      },
+    );
+    if (started) {
+      setIsSpeaking(true);
+    }
   };
 
   /** Yarışmayı sonuçlandırır (kullanıcı onayı sonrası veya süre dolunca otomatik). */
@@ -665,10 +800,11 @@ export default function DailyTrivia() {
     }
   }, [timeIsUp, nowTick, finishQuiz]);
 
-  // 2 dakika altına düşünce tek seferlik görsel uyarı
+  // 2 dakika altına düşünce tek seferlik görsel ve sesli uyarı
   useEffect(() => {
     if (warnTime && !warnedRef.current) {
       warnedRef.current = true;
+      playTriviaSound('two_min_warning', audioPrefsRef.current);
       toast.warning('Son 2 dakika! Süre dolduğunda yarışma otomatik sonlanır.');
     }
   }, [warnTime]);
@@ -700,7 +836,7 @@ export default function DailyTrivia() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6 text-muted-foreground">
+      <div className="safe-area-screen flex flex-col items-center justify-center bg-background p-6 text-muted-foreground">
         <Loader2 className="h-7 w-7 animate-spin text-primary" />
         <p className="mt-3 text-sm font-medium">Yarışma hazırlanıyor...</p>
       </div>
@@ -709,7 +845,7 @@ export default function DailyTrivia() {
 
   if (!user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="safe-area-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md rounded-3xl border-border/70 p-6 text-center shadow-xl">
           <CardContent className="space-y-4 p-2">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -742,54 +878,70 @@ export default function DailyTrivia() {
     attempt?.wrongCount ?? Math.max(0, answers.length - resultCorrect);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-background text-foreground selection:bg-primary/20">
-      {/* Subtle Cobalt / Gold Ambiance */}
+    <div
+      className={cn(
+        'relative min-h-[100dvh] overflow-x-clip bg-background text-foreground selection:bg-primary/20',
+        audioPrefs.reducedMotion && 'trivia-reduced-motion',
+      )}
+      style={{
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+      }}
+    >
+      {/* Subtle Premium Cobalt & Gold Quiz-Show Ambiance */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-36 left-1/3 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[#003791]/18 via-blue-500/10 to-transparent blur-[110px]" />
-        <div className="absolute bottom-0 right-0 h-[360px] w-[500px] rounded-full bg-gradient-to-tl from-amber-500/12 via-cyan-500/10 to-transparent blur-[120px]" />
+        <div className="absolute -top-36 left-1/3 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[#003791]/20 via-blue-500/10 to-transparent blur-[110px]" />
+        <div className="absolute bottom-0 right-0 h-[360px] w-[500px] rounded-full bg-gradient-to-tl from-amber-500/15 via-cyan-500/10 to-transparent blur-[120px]" />
       </div>
 
-      {/* Independent Standalone Header (not coupled to any sidebar/menu) */}
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between gap-3 px-4">
+      {/* iPhone Safe-Area Aware Standalone Header (Dynamic Island + Landscape + Narrow-Screen Proof) */}
+      <header
+        className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur-2xl"
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingLeft: 'env(safe-area-inset-left, 0px)',
+          paddingRight: 'env(safe-area-inset-right, 0px)',
+        }}
+      >
+        <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3.5 py-2.5 sm:h-16 sm:flex-nowrap sm:px-4 sm:py-0">
           <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-            <EconLogo className="h-6 w-[108px] shrink-0 justify-center -translate-y-[2.5px] sm:h-[26px] sm:w-[117px] sm:-translate-y-[3px]" />
+            <EconLogo className="h-[22px] w-[99px] shrink-0 justify-center -translate-y-[2px] sm:h-[26px] sm:w-[117px] sm:-translate-y-[3px]" />
             <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border sm:h-5" />
-            <span className="truncate text-xs font-bold leading-none tracking-tight text-foreground sm:text-sm sm:leading-none">
+            <span className="whitespace-nowrap text-xs font-bold leading-none tracking-tight text-foreground sm:text-sm sm:leading-none">
               Günlük Bilgi Yarışması
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <TriviaAudioControls prefs={audioPrefs} onChange={handleAudioPrefsChange} compact />
             {isInProgress ? (
               <div
                 role="timer"
                 aria-live="off"
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-2xl border px-3.5 py-1.5 font-mono text-lg font-black tabular-nums transition-colors sm:text-xl',
+                  'inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 font-mono text-sm font-black tabular-nums transition-colors sm:h-10 sm:rounded-2xl sm:px-3.5 sm:text-lg',
                   warnTime
                     ? 'animate-pulse border-rose-500/60 bg-rose-500/15 text-rose-600 dark:text-rose-400'
-                    : 'border-primary/30 bg-primary/10 text-primary',
+                    : 'border-primary/35 bg-primary/10 text-primary',
                 )}
               >
-                <Timer className="h-4 w-4 sm:h-5 sm:w-5" />
-                {formatTriviaClock(remainingMs)}
+                <Timer className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+                <span>{formatTriviaClock(remainingMs)}</span>
               </div>
             ) : (
               <>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-bold text-primary tabular-nums">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {userPoints.toLocaleString('tr-TR')} XP
+                <span className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary tabular-nums">
+                  <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                  <span>{userPoints.toLocaleString('tr-TR')} XP</span>
                 </span>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => navigate('/')}
-                  className="h-8 gap-1.5 rounded-xl text-xs"
+                  className="h-8 shrink-0 gap-1.5 whitespace-nowrap rounded-xl px-2.5 text-xs"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Ana Sayfa</span>
+                  <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+                  <span>Ana Sayfa</span>
                 </Button>
               </>
             )}
@@ -803,7 +955,13 @@ export default function DailyTrivia() {
       </header>
 
       {/* Main Standalone Arena */}
-      <main className="relative z-10 mx-auto max-w-3xl space-y-5 px-4 py-6 sm:py-8">
+      <main
+        className="relative z-10 mx-auto max-w-3xl space-y-5 px-4 py-5 sm:py-8"
+        style={{
+          paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+        }}
+      >
         {/* Live 2-Hour Grand Prize Active Banner */}
         {activeUnlimitedPass && !isInProgress && (
           <div className="flex flex-col gap-3 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-card to-orange-500/10 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -849,19 +1007,24 @@ export default function DailyTrivia() {
 
         {/* ==================== 1. LOBBY (NOT STARTED YET) ==================== */}
         {!errorMsg && !attempt && (
-          <Card className="overflow-hidden rounded-3xl border-border/75 bg-card/95 shadow-xl">
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0070d1] px-6 py-8 text-center text-white sm:px-10 sm:py-11">
+          <Card className="trivia-anim-enter overflow-hidden rounded-3xl border-border/80 bg-card/95 shadow-xl">
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#001a4d] via-[#003791] to-[#0066cc] px-6 py-8 text-center text-white sm:px-10 sm:py-11">
+              <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/75 to-transparent" />
               <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-cyan-400/25 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-amber-400/15 blur-3xl" />
-              <div className="relative z-10 space-y-3.5">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/10 shadow-inner backdrop-blur-md">
+              <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-amber-400/20 blur-3xl" />
+              <div className="relative z-10 flex flex-col items-center space-y-3.5">
+                <EconLogo
+                  allWhite
+                  className="h-[26px] w-[117px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.22)] sm:h-[27px] sm:w-[121px]"
+                />
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/35 bg-gradient-to-br from-amber-400/25 via-white/15 to-white/5 shadow-inner backdrop-blur-md">
                   <Trophy className="h-7 w-7 text-amber-300" />
                 </div>
                 <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
                   Günlük Genel Kültür Bilgi Yarışması
                 </h1>
-                <p className="mx-auto max-w-md text-sm leading-relaxed text-blue-100 sm:text-base">
-                  Her gün yenilenen 15 genel kültür sorusuyla bilgini test et!
+                <p className="mx-auto max-w-md text-sm leading-relaxed text-blue-100/95 sm:text-base">
+                  Her gün sana özel 15 genel kültür sorusuyla bilgini test et!
                 </p>
               </div>
             </div>
@@ -991,11 +1154,22 @@ export default function DailyTrivia() {
 
             {/* Question Card */}
             <Card
+              key={currentIdx}
               className={cn(
-                'overflow-hidden rounded-3xl border-border/75 bg-card/95 shadow-lg transition-all',
+                'trivia-anim-enter relative overflow-hidden rounded-3xl border-border/80 bg-card/95 shadow-xl transition-all',
+                warnTime && 'border-rose-500/45 ring-1 ring-rose-500/20',
                 awayActive && 'pointer-events-none select-none blur-md',
               )}
             >
+              <div
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none h-1 w-full bg-gradient-to-r',
+                  warnTime
+                    ? 'from-rose-500 via-amber-400 to-rose-500'
+                    : 'from-[#003791] via-[#0070d1] to-amber-400/80',
+                )}
+              />
               <CardContent className="space-y-5 p-5 sm:p-7">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1012,21 +1186,55 @@ export default function DailyTrivia() {
                       {DIFFICULTY_LABELS[currentQuestion.difficulty].label}
                     </Badge>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleToggleFlag}
-                    aria-pressed={flagged.has(currentIdx)}
-                    className={cn(
-                      'h-8 gap-1.5 rounded-xl text-xs font-semibold',
-                      flagged.has(currentIdx) &&
-                        'border-amber-500 bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300',
+                  <div className="flex items-center gap-1.5">
+                    {ttsSupported && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleToggleSpeakQuestion}
+                        aria-pressed={isSpeaking}
+                        aria-label={isSpeaking ? 'Sesli okumayı durdur' : 'Soruyu sesli dinle'}
+                        title={
+                          isSpeaking
+                            ? 'Sesli okumayı durdur'
+                            : audioPrefs.ttsReadOptions
+                            ? 'Soruyu ve şıkları Türkçe dinle'
+                            : 'Soruyu Türkçe dinle'
+                        }
+                        className={cn(
+                          'h-8 gap-1.5 rounded-xl text-xs font-semibold transition-colors',
+                          isSpeaking
+                            ? 'border-primary bg-primary/15 text-primary hover:bg-primary/20'
+                            : !audioPrefs.masterEnabled || !audioPrefs.ttsEnabled
+                            ? 'opacity-60'
+                            : 'hover:border-primary/50 hover:text-primary',
+                        )}
+                      >
+                        {isSpeaking ? (
+                          <Square className="h-3 w-3 fill-current" />
+                        ) : (
+                          <Volume2 className="h-3.5 w-3.5 text-primary" />
+                        )}
+                        <span>{isSpeaking ? 'Durdur' : 'Dinle'}</span>
+                      </Button>
                     )}
-                  >
-                    <Flag className={cn('h-3.5 w-3.5', flagged.has(currentIdx) && 'fill-current')} />
-                    {flagged.has(currentIdx) ? 'İşareti Kaldır' : 'İşaretle'}
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleToggleFlag}
+                      aria-pressed={flagged.has(currentIdx)}
+                      className={cn(
+                        'h-8 gap-1.5 rounded-xl text-xs font-semibold',
+                        flagged.has(currentIdx) &&
+                          'border-amber-500 bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300',
+                      )}
+                    >
+                      <Flag className={cn('h-3.5 w-3.5', flagged.has(currentIdx) && 'fill-current')} />
+                      <span>{flagged.has(currentIdx) ? 'İşaretli' : 'İşaretle'}</span>
+                    </Button>
+                  </div>
                 </div>
 
                 <h2 className="text-base font-bold leading-relaxed text-foreground sm:text-xl">
@@ -1037,6 +1245,7 @@ export default function DailyTrivia() {
                 <div className="space-y-2.5">
                   {currentQuestion.options.map((opt, idx) => {
                     const isSelected = selected[currentIdx] === idx;
+                    const justPicked = isSelected && lastSelectedOption === idx;
                     return (
                       <button
                         key={idx}
@@ -1047,8 +1256,9 @@ export default function DailyTrivia() {
                         className={cn(
                           'group flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all sm:p-4',
                           isSelected
-                            ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
-                            : 'border-border/80 bg-background/70 hover:border-primary/50 hover:bg-primary/[0.04]',
+                            ? 'border-primary bg-primary/10 ring-1 ring-primary/40 shadow-sm'
+                            : 'border-border/80 bg-background/75 hover:border-primary/50 hover:bg-primary/[0.04]',
+                          justPicked && 'trivia-anim-select',
                         )}
                       >
                         <span
@@ -1243,8 +1453,12 @@ export default function DailyTrivia() {
 
         {/* ==================== 3. CANCELLED SCREEN ==================== */}
         {!errorMsg && attempt?.status === 'cancelled' && (
-          <Card className="overflow-hidden rounded-3xl border-border/75 bg-card/95 shadow-xl">
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0055b8] px-5 py-7 text-center text-white sm:px-8 sm:py-8">
+          <Card className="trivia-anim-enter overflow-hidden rounded-3xl border-border/80 bg-card/95 shadow-xl">
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#001a4d] via-[#003791] to-[#0055b8] px-5 py-7 text-center text-white sm:px-8 sm:py-8">
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-rose-300/65 to-transparent"
+              />
               <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-rose-400/20 blur-3xl" />
               <div className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
               <div className="relative z-10 flex flex-col items-center space-y-3">
@@ -1314,20 +1528,33 @@ export default function DailyTrivia() {
         {!errorMsg && attempt?.status === 'completed' && (
           <Card
             className={cn(
-              'overflow-hidden rounded-3xl bg-card/95 shadow-xl',
+              'trivia-anim-enter overflow-hidden rounded-3xl bg-card/95 shadow-xl',
               attempt.grandPrizeAwarded
-                ? 'border-2 border-amber-400/55'
-                : 'border-border/75',
+                ? 'border-2 border-amber-400/60 shadow-amber-500/10'
+                : 'border-border/80',
             )}
           >
             <div
               className={cn(
                 'relative overflow-hidden px-5 py-6 text-center text-white sm:px-8 sm:py-8',
                 attempt.grandPrizeAwarded
-                  ? 'bg-gradient-to-br from-[#001d52] via-[#003791] to-amber-500'
-                  : 'bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0070d1]',
+                  ? 'bg-gradient-to-br from-[#001a4d] via-[#003791] to-amber-500'
+                  : 'bg-gradient-to-br from-[#001a4d] via-[#003791] to-[#0066cc]',
               )}
             >
+              <div
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent to-transparent',
+                  attempt.grandPrizeAwarded ? 'via-amber-200/85' : 'via-cyan-200/60',
+                )}
+              />
+              {attempt.grandPrizeAwarded && (
+                <div
+                  aria-hidden="true"
+                  className="trivia-anim-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-amber-200/20 to-transparent"
+                />
+              )}
               <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/25 blur-3xl" />
               <div className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-amber-400/20 blur-3xl" />
               <div className="relative z-10 flex flex-col items-center space-y-3">
@@ -1339,7 +1566,7 @@ export default function DailyTrivia() {
                   className={cn(
                     'flex h-14 w-14 items-center justify-center rounded-2xl border shadow-inner backdrop-blur-md',
                     attempt.grandPrizeAwarded
-                      ? 'border-amber-200/45 bg-amber-400/25 text-amber-200'
+                      ? 'trivia-anim-correct border-amber-200/50 bg-amber-400/25 text-amber-200'
                       : 'border-white/25 bg-white/15 text-cyan-200',
                   )}
                 >
@@ -1463,26 +1690,69 @@ export default function DailyTrivia() {
                     const state = !rec ? 'blank' : rec.isCorrect ? 'correct' : 'wrong';
                     const stateLabel =
                       state === 'correct' ? 'Doğru (+25 XP)' : state === 'wrong' ? 'Yanlış' : 'Boş';
+                    const isInspected = inspectedAnswerIdx === idx;
                     return (
-                      <span
+                      <button
                         key={idx}
+                        type="button"
+                        onClick={() => {
+                          unlockTriviaAudio();
+                          setInspectedAnswerIdx(idx);
+                          if (state === 'correct') playTriviaSound('correct', audioPrefsRef.current);
+                          else if (state === 'wrong') playTriviaSound('wrong', audioPrefsRef.current);
+                          else playTriviaSound('select', audioPrefsRef.current);
+                        }}
                         aria-label={`Soru ${idx + 1}: ${stateLabel}`}
                         title={`Soru ${idx + 1}: ${stateLabel}`}
                         className={cn(
-                          'flex h-9 items-center justify-center rounded-xl border text-xs font-extrabold tabular-nums sm:h-8',
+                          'flex h-9 items-center justify-center rounded-xl border text-xs font-extrabold tabular-nums transition-all sm:h-8',
                           state === 'correct' &&
-                            'border-emerald-500/45 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+                            'border-emerald-500/45 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300',
                           state === 'wrong' &&
-                            'border-rose-500/45 bg-rose-500/15 text-rose-700 dark:text-rose-300',
+                            'border-rose-500/45 bg-rose-500/15 text-rose-700 hover:bg-rose-500/25 dark:text-rose-300',
                           state === 'blank' &&
-                            'border-dashed border-border bg-background/80 text-muted-foreground',
+                            'border-dashed border-border bg-background/80 text-muted-foreground hover:border-primary/40',
+                          isInspected && state === 'correct' && 'trivia-anim-correct ring-2 ring-emerald-500/60',
+                          isInspected && state === 'wrong' && 'trivia-anim-wrong ring-2 ring-rose-500/60',
+                          isInspected && state === 'blank' && 'ring-2 ring-primary/40',
                         )}
                       >
                         {idx + 1}
-                      </span>
+                      </button>
                     );
                   })}
                 </div>
+
+                {inspectedAnswerIdx !== null && (() => {
+                  const rec = answers.find((a) => a.questionIndex === inspectedAnswerIdx);
+                  const state = !rec ? 'blank' : rec.isCorrect ? 'correct' : 'wrong';
+                  return (
+                    <div
+                      key={inspectedAnswerIdx}
+                      className={cn(
+                        'trivia-anim-enter flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs',
+                        state === 'correct' &&
+                          'border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+                        state === 'wrong' &&
+                          'border-rose-500/35 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+                        state === 'blank' &&
+                          'border-border/75 bg-background/80 text-muted-foreground',
+                      )}
+                    >
+                      <span className="font-bold">
+                        Soru {inspectedAnswerIdx + 1}:{' '}
+                        {state === 'correct'
+                          ? 'Doğru cevap (+25 XP)'
+                          : state === 'wrong'
+                          ? 'Yanlış cevap'
+                          : 'Boş bırakıldı'}
+                      </span>
+                      {rec?.explanation && (
+                        <span className="text-[11px] opacity-90">{rec.explanation}</span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Next Daily Quiz Renewal Countdown */}

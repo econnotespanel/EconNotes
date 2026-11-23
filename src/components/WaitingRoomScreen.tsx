@@ -60,7 +60,13 @@ export const WaitingRoomScreen: React.FC = () => {
     : new Date().toLocaleDateString('tr-TR');
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-background via-card/40 to-background flex flex-col justify-between p-4 sm:p-6 lg:p-8 relative overflow-hidden">
+    <div
+      className="min-h-[100dvh] w-full bg-gradient-to-br from-background via-card/40 to-background flex flex-col justify-between p-4 sm:p-6 lg:p-8 relative overflow-x-clip"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+      }}
+    >
       {/* Ambient background glows */}
       <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
       <div className="absolute -bottom-32 -left-32 h-96 w-96 rounded-full bg-primary/10 blur-3xl pointer-events-none" />

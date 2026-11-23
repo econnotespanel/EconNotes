@@ -442,9 +442,17 @@ export const AdminDocumentViewer: React.FC<AdminDocumentViewerProps> = ({
       className={cn(
         'flex flex-col overflow-hidden border border-border/80 bg-muted/20',
         fullscreen
-          ? 'fixed inset-0 z-[100] h-screen w-screen rounded-none bg-background shadow-none'
+          ? 'fixed inset-0 z-[100] h-[100dvh] w-screen rounded-none bg-background shadow-none'
           : 'rounded-2xl shadow-sm',
       )}
+      style={
+        fullscreen
+          ? {
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            }
+          : undefined
+      }
     >
       {/* Unified EconNotes Document Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 bg-gradient-to-r from-[#001d52] via-[#003791] to-[#0055b8] px-3 py-2.5 text-white sm:px-4">
@@ -686,7 +694,7 @@ export const AdminDocumentViewer: React.FC<AdminDocumentViewerProps> = ({
                 title={noteTitle}
                 className={cn(
                   'w-full rounded-xl border border-border bg-white',
-                  fullscreen ? 'h-[calc(100vh-110px)]' : 'h-[480px]',
+                  fullscreen ? 'h-[calc(100dvh-110px)]' : 'h-[480px]',
                 )}
               />
             </div>
@@ -958,7 +966,7 @@ export const AdminDocumentViewer: React.FC<AdminDocumentViewerProps> = ({
                 style={{ transform: `rotate(${imageRotation}deg)` }}
                 className={cn(
                   'mx-auto block object-contain transition-transform duration-200',
-                  fullscreen ? 'max-h-[calc(100vh-120px)]' : 'max-h-[480px]',
+                  fullscreen ? 'max-h-[calc(100dvh-120px)]' : 'max-h-[480px]',
                 )}
               />
             </div>

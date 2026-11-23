@@ -166,7 +166,7 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
 
   if (isGtaTheme) {
     return (
-      <div className="min-h-screen bg-[#0c0318] flex flex-col justify-between font-sans text-white antialiased selection:bg-pink-500/40 selection:text-white relative overflow-x-hidden">
+      <div className="min-h-[100dvh] bg-[#0c0318] flex flex-col justify-between font-sans text-white antialiased selection:bg-pink-500/40 selection:text-white relative overflow-x-clip">
         {/* Ambient Full-Page Sunset Glow Echo */}
         <div
           className="fixed inset-0 bg-cover bg-center opacity-20 blur-2xl scale-105 pointer-events-none z-0"
@@ -480,7 +480,7 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-muted/30 dark:bg-background flex flex-col justify-between font-sans text-foreground antialiased selection:bg-primary/20 relative">
+    <div className="min-h-[100dvh] bg-muted/30 dark:bg-background flex flex-col justify-between font-sans text-foreground antialiased selection:bg-primary/20 relative overflow-x-clip">
       
       {/* Top Banner Gradient Background (spans top of screen behind status bar down into hero) */}
       <div className="absolute top-0 inset-x-0 h-96 sm:h-[28rem] bg-gradient-to-b from-[#002e7a] via-[#004bb5] to-[#0066d6] pointer-events-none z-0 overflow-hidden">

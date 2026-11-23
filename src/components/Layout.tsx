@@ -15,7 +15,7 @@ const Layout = ({ children, wide = false }: { children: React.ReactNode; wide?: 
   const isNovember10 = seasonalTheme?.id === 'november10';
 
   return (
-    <div className="min-h-screen bg-background relative overflow-x-hidden selection:bg-primary/20">
+    <div className="min-h-[100dvh] bg-background relative overflow-x-clip selection:bg-primary/20">
       {/* Hafifletilmiş ve Mobil Performansı Optimize Edilmiş Arka Plan Katmanı */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
         {/* Masaüstünde zengin ambiyans */}
@@ -44,11 +44,15 @@ const Layout = ({ children, wide = false }: { children: React.ReactNode; wide?: 
       <Sidebar />
       <main
         className={cn(
-          "relative z-10 min-h-[calc(100vh-4rem)] min-w-0 opacity-100 visible md:ml-[16.5rem]",
+          "relative z-10 min-h-[calc(100dvh-4rem)] min-w-0 opacity-100 visible md:ml-[16.5rem]",
           wide
-            ? "px-2.5 py-3 pb-24 sm:px-4 sm:pb-28 md:px-4 md:py-4 xl:px-5"
-            : "px-3 py-4 pb-24 sm:px-4 sm:pb-28 md:p-8",
+            ? "px-2.5 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] sm:px-4 sm:pb-28 md:px-4 md:py-4 xl:px-5"
+            : "px-3 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] sm:px-4 sm:pb-28 md:p-8",
         )}
+        style={{
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+        }}
       >
         <div
           className={cn(
@@ -59,7 +63,7 @@ const Layout = ({ children, wide = false }: { children: React.ReactNode; wide?: 
           {children}
         </div>
       </main>
-      <footer className="relative z-10 md:ml-[16.5rem] flex items-center justify-center px-6 py-4 pb-24 sm:pb-28 md:pb-4 text-center text-xs text-muted-foreground border-t border-border/50 bg-card/30 backdrop-blur-sm">
+      <footer className="relative z-10 md:ml-[16.5rem] flex items-center justify-center px-6 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] sm:pb-28 md:pb-4 text-center text-xs text-muted-foreground border-t border-border/50 bg-card/30 backdrop-blur-sm">
         <span>EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</span>
       </footer>
       <MobileBottomNav />
