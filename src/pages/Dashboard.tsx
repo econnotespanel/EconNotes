@@ -93,7 +93,7 @@ const BannerContent = ({ content }: { content: string }) => {
   );
 };
 
-/** Subtle decorative vector sparkline wave inside KPI stat cards (pure crisp SVG, zero raster art). */
+/** Subtle decorative vector sparkline wave tucked safely in the bottom-right corner of KPI stat cards. */
 const StatSparkline = ({
   id,
   stroke,
@@ -111,7 +111,7 @@ const StatSparkline = ({
     viewBox="0 0 120 36"
     fill="none"
     aria-hidden="true"
-    className="pointer-events-none absolute bottom-0 right-0 h-11 w-28 opacity-80 dark:opacity-55"
+    className="pointer-events-none absolute bottom-0 right-0 z-0 h-7 w-16 opacity-35 sm:h-9 sm:w-24 sm:opacity-55 dark:opacity-30"
     preserveAspectRatio="none"
   >
     <defs>
@@ -618,7 +618,7 @@ const Dashboard = () => {
         <section
           aria-label="Karşılama alanı"
           className={cn(
-            'relative overflow-hidden rounded-[24px] px-5 py-6 sm:px-7 sm:py-7 text-white shadow-[0_16px_40px_-14px_rgba(7,26,66,0.45)]',
+            'relative overflow-hidden rounded-[22px] sm:rounded-[24px] px-4 py-4 sm:px-7 sm:py-6 text-white shadow-[0_14px_34px_-12px_rgba(7,26,66,0.45)]',
             isNovember10
               ? 'bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-800'
               : 'bg-gradient-to-r from-[#06183d] via-[#0b2a6e] to-[#0f3a8f]',
@@ -657,13 +657,13 @@ const Dashboard = () => {
           </svg>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute -right-12 -top-20 h-64 w-64 rounded-full bg-sky-400/20 blur-3xl"
+            className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-sky-400/20 blur-3xl"
           />
 
-          <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative z-10 flex flex-col gap-3.5 sm:gap-5 lg:flex-row lg:items-center lg:justify-between">
             {/* Greeting Text */}
-            <div className="min-w-0 space-y-2">
-              <h1 className="text-2xl font-extrabold tracking-tight sm:text-[32px] sm:leading-[1.15]">
+            <div className="min-w-0 space-y-1.5">
+              <h1 className="text-[22px] leading-tight font-extrabold tracking-tight sm:text-[30px] sm:leading-[1.15]">
                 {isBirthdayToday ? (
                   <>
                     Doğum günün kutlu olsun,{' '}
@@ -680,15 +680,16 @@ const Dashboard = () => {
                   </>
                 )}
               </h1>
-              <p className="flex items-center gap-2 text-sm text-blue-100/90 sm:text-[15px]">
+              <p className="text-[13px] leading-relaxed text-blue-100/90 sm:text-[15px]">
                 <span>
                   {isBirthdayToday
                     ? 'Bugün sana özel tüm ders notlarını sınırsız görüntüleyebilir ve indirebilirsin.'
                     : 'Bugünün hedefi: Bir adım daha ileriye gitmek.'}
                 </span>
                 <TrendingUp
+                  aria-hidden="true"
                   className={cn(
-                    'h-4 w-4 shrink-0',
+                    'ml-1.5 inline-block h-4 w-4 align-text-bottom',
                     isNovember10 ? 'text-zinc-300' : 'text-amber-300',
                   )}
                   strokeWidth={2.2}
@@ -700,7 +701,7 @@ const Dashboard = () => {
             <div
               aria-label="Akademik Takvim"
               className={cn(
-                'inline-flex w-fit max-w-full shrink-0 items-center gap-3 rounded-2xl border px-3.5 py-2.5 backdrop-blur-md self-start lg:self-center',
+                'flex w-full sm:w-fit max-w-full shrink-0 items-center gap-3 rounded-2xl border px-3 py-2.5 sm:px-3.5 backdrop-blur-md self-start lg:self-center',
                 isNovember10
                   ? 'border-white/15 bg-white/10'
                   : 'border-sky-200/25 bg-sky-300/15',
@@ -708,15 +709,15 @@ const Dashboard = () => {
             >
               <div
                 className={cn(
-                  'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
+                  'flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl border',
                   isNovember10
                     ? 'border-white/15 bg-white/10 text-zinc-100'
                     : 'border-sky-200/25 bg-sky-200/15 text-sky-100',
                 )}
               >
-                <GraduationCap className="h-5 w-5" strokeWidth={1.9} />
+                <GraduationCap className="h-[18px] w-[18px] sm:h-5 sm:w-5" strokeWidth={1.9} />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
@@ -728,11 +729,11 @@ const Dashboard = () => {
                   >
                     {academicDisplay.semester}
                   </span>
-                  <span className="text-sm font-bold leading-none text-white">
+                  <span className="text-[13px] sm:text-sm font-bold leading-none text-white">
                     {academicDisplay.weekLabel}
                   </span>
                 </div>
-                <p className="mt-1 text-[11.5px] font-medium leading-snug text-sky-100/85">
+                <p className="mt-1 text-[11px] sm:text-[11.5px] font-medium leading-snug text-sky-100/85">
                   {academicDisplay.yearLabel}
                 </p>
               </div>
@@ -740,21 +741,24 @@ const Dashboard = () => {
           </div>
         </section>
 
-        {/* 2. FOUR KPI STAT CARDS */}
+        {/* 2. FOUR KPI STAT CARDS — ZERO TRUNCATION ON 360px+ MOBILE SCREENS */}
         <section
           aria-label="Özet istatistikler"
-          className="grid grid-cols-2 gap-3.5 sm:gap-4 xl:grid-cols-4"
+          className="grid grid-cols-2 max-[359px]:grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-4"
         >
           {loading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div
                   key={i}
-                  className="rounded-[20px] border border-slate-200/80 dark:border-slate-800 bg-card p-4 sm:p-5 shadow-[0_4px_18px_rgba(15,23,42,0.03)]"
+                  className="rounded-[20px] border border-slate-200/80 dark:border-slate-800 bg-card p-3.5 sm:p-5 shadow-[0_4px_18px_rgba(15,23,42,0.03)]"
                 >
-                  <div className="flex items-center gap-3.5">
-                    <Skeleton className="h-11 w-11 rounded-2xl shrink-0" />
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <Skeleton className="h-3.5 w-20" />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-9 w-9 sm:h-11 sm:w-11 rounded-2xl shrink-0" />
+                      <Skeleton className="h-4 w-10 rounded-full" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-3.5 w-24" />
                       <Skeleton className="h-7 w-16" />
                     </div>
                   </div>
@@ -767,33 +771,34 @@ const Dashboard = () => {
                     key={stat.label}
                     type="button"
                     onClick={stat.onClick}
-                    className="group relative flex min-w-0 flex-col justify-between overflow-hidden rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-4 sm:p-5 text-left shadow-[0_4px_20px_rgba(15,23,42,0.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300/80 dark:hover:border-blue-500/40 hover:shadow-[0_12px_28px_-10px_rgba(37,99,235,0.14)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    className="group relative flex min-w-0 flex-col justify-between gap-2.5 overflow-hidden rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-3.5 sm:p-5 text-left shadow-[0_4px_20px_rgba(15,23,42,0.035)] transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-300/80 dark:hover:border-blue-500/40 hover:shadow-[0_12px_28px_-10px_rgba(37,99,235,0.14)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
-                    <div className="relative z-10 flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-3 sm:gap-3.5">
-                        <span
-                          className={cn(
-                            'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-transform duration-200 group-hover:scale-105',
-                            stat.iconTile,
-                          )}
-                        >
-                          <Icon className="h-5 w-5" strokeWidth={1.9} />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-slate-500 dark:text-slate-400">
-                            {stat.label}
-                          </p>
-                          <p className="mt-0.5 truncate text-xl font-extrabold tracking-tight text-foreground sm:text-[26px] sm:leading-tight tabular-nums">
-                            {stat.value}
-                          </p>
-                        </div>
-                      </div>
+                    {/* Top Row: Icon + Optional Delta Pill (never squeezes label or value!) */}
+                    <div className="relative z-10 flex w-full items-center justify-between gap-2">
+                      <span
+                        className={cn(
+                          'flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl transition-transform duration-200 group-hover:scale-105',
+                          stat.iconTile,
+                        )}
+                      >
+                        <Icon className="h-[18px] w-[18px] sm:h-5 sm:w-5" strokeWidth={1.9} />
+                      </span>
 
                       {stat.delta && (
-                        <span className="shrink-0 text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                        <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                           {stat.delta}
                         </span>
                       )}
+                    </div>
+
+                    {/* Full-Width Label + Value (100% readable, zero ellipsis clipping!) */}
+                    <div className="relative z-10 min-w-0 space-y-0.5 pr-4">
+                      <p className="text-[12px] font-medium leading-snug text-slate-500 dark:text-slate-400 sm:text-[13px]">
+                        {stat.label}
+                      </p>
+                      <p className="text-[22px] font-extrabold leading-tight tracking-tight text-foreground sm:text-[26px] tabular-nums">
+                        {stat.value}
+                      </p>
                     </div>
 
                     <StatSparkline
@@ -813,12 +818,12 @@ const Dashboard = () => {
           aria-label="Çalışma ve Günlük Bilgi Yarışması"
           className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-12"
         >
-          {/* Left: Kaldığın yerden devam et */}
-          <div className="flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-5 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6">
+          {/* Left: Kaldığın yerden devam et (compact purposeful layout, zero empty decorative box) */}
+          <div className="flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-4 sm:p-6 shadow-[0_6px_24px_rgba(15,23,42,0.035)] lg:col-span-6">
             <div className="mb-4 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <BarChart2 className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
-                <h2 className="truncate text-[16px] font-bold tracking-tight text-foreground sm:text-[17px]">
+              <div className="flex items-center gap-2 min-w-0">
+                <BarChart2 className="h-[18px] w-[18px] sm:h-5 sm:w-5 shrink-0 text-primary" strokeWidth={2} />
+                <h2 className="truncate text-[15px] font-bold tracking-tight text-foreground sm:text-[17px]">
                   Kaldığın yerden devam et
                 </h2>
               </div>
@@ -833,46 +838,46 @@ const Dashboard = () => {
             </div>
 
             {loading ? (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <Skeleton className="h-[116px] w-full rounded-2xl sm:w-[148px] shrink-0" />
-                <div className="flex-1 space-y-3">
-                  <Skeleton className="h-5 w-40" />
-                  <Skeleton className="h-3.5 w-32" />
-                  <Skeleton className="h-2 w-full rounded-full" />
-                  <Skeleton className="h-10 w-full rounded-full" />
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
-                {/* Clean navy vector thumbnail (no 3D/AI raster images) */}
-                <div
-                  aria-hidden="true"
-                  className={cn(
-                    'relative flex h-[112px] w-full shrink-0 items-center justify-center overflow-hidden rounded-2xl sm:h-[124px] sm:w-[152px]',
-                    isNovember10
-                      ? 'bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-700'
-                      : 'bg-gradient-to-br from-[#071c4a] via-[#113a8f] to-[#1e60d5]',
-                  )}
-                >
-                  <div className="pointer-events-none absolute -bottom-8 -right-8 h-24 w-24 rounded-full bg-sky-300/20 blur-xl" />
-                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white backdrop-blur-sm">
-                    <ClipboardList className="h-7 w-7" strokeWidth={1.65} />
+              <div className="space-y-4">
+                <div className="flex items-center gap-3.5">
+                  <Skeleton className="h-12 w-12 rounded-2xl shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-44" />
+                    <Skeleton className="h-3.5 w-32" />
                   </div>
                 </div>
-
-                {/* Real course/topic progress & action */}
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate text-lg font-extrabold tracking-tight text-foreground">
+                <Skeleton className="h-2 w-full rounded-full" />
+                <Skeleton className="h-10 w-full rounded-full" />
+              </div>
+            ) : (
+              <div className="flex flex-1 flex-col justify-between gap-4">
+                {/* Compact Icon Tile + Real Course & Topic Title */}
+                <div className="flex items-center gap-3.5">
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      'flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm',
+                      isNovember10
+                        ? 'bg-zinc-900 dark:bg-zinc-800'
+                        : 'bg-gradient-to-br from-[#0b2a6e] to-[#1d63ed]',
+                    )}
+                  >
+                    <ClipboardList className="h-6 w-6" strokeWidth={1.85} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base sm:text-lg font-extrabold leading-snug tracking-tight text-foreground line-clamp-2">
                       {continueItem.title}
                     </h3>
                     <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
                       {continueItem.subtitle}
                     </p>
                   </div>
+                </div>
 
+                {/* Progress Bar + Percentage + Full-Width CTA */}
+                <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                       <div
                         className={cn(
                           'h-full rounded-full transition-all duration-500',
@@ -880,7 +885,9 @@ const Dashboard = () => {
                             ? 'bg-zinc-900 dark:bg-zinc-200'
                             : 'bg-gradient-to-r from-[#1d63ed] to-[#5ba0ff]',
                         )}
-                        style={{ width: `${Math.max(continueItem.progressPct, continueItem.hasRealHistory ? 8 : 0)}%` }}
+                        style={{
+                          width: `${Math.max(continueItem.progressPct, continueItem.hasRealHistory ? 8 : 0)}%`,
+                        }}
                       />
                     </div>
                     <span className="shrink-0 text-xs font-extrabold text-foreground tabular-nums">
@@ -892,7 +899,7 @@ const Dashboard = () => {
                     type="button"
                     onClick={() => navigate(continueItem.targetPath)}
                     className={cn(
-                      'h-10 w-full gap-2 rounded-full text-sm font-semibold text-white transition-all hover:brightness-105 active:scale-[0.99]',
+                      'h-10 sm:h-11 w-full gap-2 rounded-full text-sm font-semibold text-white transition-all hover:brightness-105 active:scale-[0.99]',
                       isNovember10
                         ? 'bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950'
                         : 'bg-gradient-to-r from-[#174ec4] via-[#1f62e8] to-[#2e78f6] shadow-[0_10px_22px_-8px_rgba(29,99,237,0.6)]',
@@ -906,28 +913,23 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Right: Günlük Bilgi Yarışması */}
+          {/* Right: Günlük Bilgi Yarışması (pure typography, Lucide line icons, zero decorative trophy graphics) */}
           <div
             className={cn(
-              'relative flex flex-col justify-between overflow-hidden rounded-[22px] p-5 sm:p-6 text-white shadow-[0_14px_34px_-10px_rgba(12,46,115,0.45)] lg:col-span-6',
+              'relative flex flex-col justify-between overflow-hidden rounded-[22px] p-4 sm:p-6 text-white shadow-[0_14px_34px_-10px_rgba(12,46,115,0.45)] lg:col-span-6',
               isNovember10
                 ? 'bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-800'
                 : 'bg-gradient-to-br from-[#071a42] via-[#0e3682] to-[#1d63ed]',
             )}
           >
-            {/* Subtle vector ring + thin-stroke Trophy icon watermark (strictly line icon, zero 3D/AI art) */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute -right-5 top-1/2 hidden -translate-y-1/2 sm:flex h-40 w-40 items-center justify-center rounded-full border border-sky-200/15 bg-sky-300/10"
-            >
-              <div className="flex h-28 w-28 items-center justify-center rounded-full border border-sky-200/20">
-                <Trophy className="h-14 w-14 text-sky-200/45" strokeWidth={1.35} />
-              </div>
-            </div>
+              className="pointer-events-none absolute -right-10 -top-12 h-44 w-44 rounded-full bg-sky-300/15 blur-3xl"
+            />
 
-            <div className="relative z-10 flex flex-col justify-between gap-4 h-full">
+            <div className="relative z-10 flex h-full flex-col justify-between gap-4">
               <div className="space-y-1.5">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-2 text-sm font-bold text-white">
                     <Trophy
                       className={cn(
@@ -945,19 +947,19 @@ const Dashboard = () => {
                   )}
                 </div>
 
-                <h2 className="text-2xl font-extrabold tracking-tight text-white sm:text-[27px] sm:leading-tight">
+                <h2 className="text-[22px] font-extrabold tracking-tight text-white sm:text-[26px] sm:leading-tight">
                   15 soru • 15 dakika
                 </h2>
-                <p className="text-sm text-blue-100/90">
+                <p className="text-xs sm:text-sm text-blue-100/90">
                   Bilgini test et, ödülleri kazan!
                 </p>
               </div>
 
-              <div className="space-y-3 sm:max-w-[290px]">
+              <div className="space-y-2.5">
                 <Button
                   type="button"
                   onClick={() => navigate('/gunluk-yarisma')}
-                  className="h-11 w-full gap-2 rounded-full bg-white px-6 text-sm font-bold text-[#0c265c] shadow-[0_8px_20px_-6px_rgba(0,0,0,0.28)] transition-all hover:bg-blue-50 active:scale-[0.99]"
+                  className="h-10 sm:h-11 w-full sm:w-auto sm:min-w-[220px] gap-2 rounded-full bg-white px-6 text-sm font-bold text-[#0c265c] shadow-[0_8px_20px_-6px_rgba(0,0,0,0.28)] transition-all hover:bg-blue-50 active:scale-[0.99]"
                 >
                   <Play className="h-4 w-4 fill-current" />
                   <span>

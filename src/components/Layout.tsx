@@ -53,8 +53,8 @@ const Layout = ({ children, wide = false }: { children: React.ReactNode; wide?: 
           className={cn(
             'relative z-10 flex-1 min-w-0 opacity-100 visible',
             wide
-              ? 'py-4 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] sm:pb-28 md:py-5'
-              : 'py-4 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] sm:pb-28 md:py-6',
+              ? 'py-4 pb-6 md:py-5'
+              : 'py-4 pb-6 md:py-6',
           )}
           style={{
             paddingLeft: 'env(safe-area-inset-left, 0px)',
@@ -71,7 +71,7 @@ const Layout = ({ children, wide = false }: { children: React.ReactNode; wide?: 
           </div>
         </main>
 
-        <footer className="relative z-10 flex items-center justify-center border-t border-slate-200/70 dark:border-slate-800/80 bg-card/40 px-6 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+6rem)] text-center text-xs text-muted-foreground sm:pb-28 md:pb-4">
+        <footer className="relative z-10 flex items-center justify-center border-t border-slate-200/70 dark:border-slate-800/80 bg-card/40 px-6 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+6.75rem)] text-center text-xs text-muted-foreground md:pb-5">
           <span>EconNotes, Düzce Üniversitesi öğrencileri tarafından geliştirilmiştir.</span>
         </footer>
       </div>

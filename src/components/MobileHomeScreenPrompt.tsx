@@ -219,7 +219,7 @@ const MobileHomeScreenPrompt = ({ splashActive = false }: MobileHomeScreenPrompt
       role="dialog"
       aria-label="EconNotes Uygulamasını Ana Ekrana Ekle"
       style={{ bottom: bottomOffset }}
-      className="fixed inset-x-3 z-[75] mx-auto max-w-md md:hidden pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-300"
+      className="fixed inset-x-3 z-[58] mx-auto max-w-md md:hidden pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-300"
     >
       <div className="relative overflow-hidden rounded-2xl border border-primary/35 bg-card/95 dark:bg-[#0b1528]/95 p-4 shadow-[0_18px_45px_rgba(0,18,56,0.32)] backdrop-blur-2xl">
         {/* Top subtle glow accent */}

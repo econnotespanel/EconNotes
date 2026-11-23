@@ -132,7 +132,7 @@ const DeviceNotificationBanner = () => {
   return (
     <aside
       aria-label="Bildirim İzni"
-      className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:bottom-4 left-3 right-3 sm:left-auto sm:right-6 z-[70] pointer-events-auto mx-auto max-w-sm rounded-2xl border border-primary/30 bg-card/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom duration-300"
+      className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:bottom-4 left-3 right-3 sm:left-auto sm:right-6 z-[58] pointer-events-auto mx-auto max-w-sm rounded-2xl border border-primary/30 bg-card/95 p-3.5 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom duration-300"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">

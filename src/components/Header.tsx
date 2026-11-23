@@ -269,14 +269,14 @@ const Header = () => {
           paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
       >
-        <div className="mx-auto flex h-[60px] sm:h-[68px] w-full max-w-[1440px] items-center justify-between gap-2.5 px-3.5 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-[56px] sm:h-[68px] w-full max-w-[1440px] items-center justify-between gap-2 px-3 sm:px-6 lg:px-8">
           {/* Mobile Brand Logo (desktop displays logo at top of left sidebar) */}
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="flex min-w-0 shrink-0 items-center gap-2 rounded-xl py-1 focus:outline-none md:hidden"
+            className="flex min-w-0 shrink-0 items-center gap-1.5 rounded-xl py-1 focus:outline-none md:hidden"
           >
-            <EconLogo className="h-[22px] w-auto sm:h-6" />
+            <EconLogo className="h-[19px] max-w-[96px] w-auto sm:h-6 sm:max-w-none" />
             {isNovember10 && (
               <span className="inline-flex items-center gap-1 border-l border-border/80 pl-1.5">
                 <AtaturkPortrait className="h-5 w-auto" />
@@ -309,8 +309,8 @@ const Header = () => {
             </span>
           </form>
 
-          {/* Right Utility Controls — Uniform Height & Vertical Alignment */}
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+          {/* Right Utility Controls — Strictly Sized to Fit 360px+ Screens Without Clipping */}
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2.5">
             {/* Mobile Search Toggle */}
             <button
               type="button"
@@ -320,9 +320,9 @@ const Header = () => {
                 setMobileSearchOpen((v) => !v);
                 window.setTimeout(() => mobileSearchInputRef.current?.focus(), 60);
               }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white md:hidden"
+              className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white md:hidden"
             >
-              {mobileSearchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[18px] w-[18px]" />}
+              {mobileSearchOpen ? <X className="h-[17px] w-[17px]" /> : <Search className="h-[17px] w-[17px]" />}
             </button>
 
             {/* Points Pill Button */}
@@ -331,19 +331,22 @@ const Header = () => {
               onClick={() => navigate('/points')}
               title={`${formattedPoints} Puan${points?.current_streak ? ` • ${points.current_streak} günlük seri` : ''}`}
               className={cn(
-                'inline-flex h-9 sm:h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 sm:px-4 text-xs sm:text-[13px] font-bold transition-all duration-200 hover:brightness-105 active:scale-95',
+                'inline-flex h-8 sm:h-10 shrink-0 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-full px-2.5 sm:px-4 text-[11.5px] sm:text-[13px] font-bold transition-all duration-200 hover:brightness-105 active:scale-95',
                 isNovember10
                   ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 shadow-sm'
-                  : 'bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-[0_8px_18px_-6px_rgba(37,99,235,0.55)]',
+                  : 'bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-[0_6px_16px_-5px_rgba(37,99,235,0.5)]',
               )}
             >
               <Zap
                 className={cn(
-                  'h-3.5 w-3.5 shrink-0',
+                  'h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0',
                   isNovember10 ? 'fill-current' : 'fill-amber-300 text-amber-300',
                 )}
               />
-              <span className="tabular-nums">{formattedPoints} Puan</span>
+              <span className="tabular-nums">
+                {formattedPoints}
+                <span className="hidden min-[410px]:inline"> Puan</span>
+              </span>
             </button>
 
             <span aria-hidden="true" className="hidden h-5 w-px bg-slate-200 dark:bg-slate-800 sm:block" />
@@ -355,15 +358,15 @@ const Header = () => {
                   type="button"
                   aria-label="Bildirimler"
                   title="Bildirimler"
-                  className="relative flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                  className="relative flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
                 >
                   {deviceNotificationsEnabled ? (
-                    <BellRing className="h-[19px] w-[19px] text-primary" strokeWidth={1.85} />
+                    <BellRing className="h-[18px] w-[18px] sm:h-[19px] sm:w-[19px] text-primary" strokeWidth={1.85} />
                   ) : (
-                    <Bell className="h-[19px] w-[19px]" strokeWidth={1.85} />
+                    <Bell className="h-[18px] w-[18px] sm:h-[19px] sm:w-[19px]" strokeWidth={1.85} />
                   )}
                   {totalUnread > 0 && (
-                    <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-background" />
+                    <span className="absolute right-1.5 top-1.5 sm:right-2 sm:top-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-background" />
                   )}
                 </button>
               </PopoverTrigger>
@@ -456,12 +459,12 @@ const Header = () => {
               title={theme === 'light' ? 'Karanlık moda geç' : 'Aydınlık moda geç'}
               aria-label="Tema değiştir"
               onClick={toggleTheme}
-              className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+              className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
             >
               {theme === 'light' ? (
-                <Moon className="h-[19px] w-[19px]" strokeWidth={1.85} />
+                <Moon className="h-[18px] w-[18px] sm:h-[19px] sm:w-[19px]" strokeWidth={1.85} />
               ) : (
-                <Sun className="h-[19px] w-[19px]" strokeWidth={1.85} />
+                <Sun className="h-[18px] w-[18px] sm:h-[19px] sm:w-[19px]" strokeWidth={1.85} />
               )}
             </button>
 
@@ -473,7 +476,7 @@ const Header = () => {
                   aria-label="Profil menüsü"
                   title={displayName}
                   className={cn(
-                    'flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs sm:text-sm font-bold text-white shadow-sm ring-2 ring-white/80 dark:ring-slate-800 transition-transform active:scale-95 focus:outline-none focus-visible:ring-primary/50',
+                    'flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs sm:text-sm font-bold text-white shadow-sm ring-2 ring-white/80 dark:ring-slate-800 transition-transform active:scale-95 focus:outline-none focus-visible:ring-primary/50',
                     isNovember10 ? 'bg-zinc-900 dark:bg-zinc-700' : 'bg-[#132b5e] dark:bg-blue-600',
                   )}
                 >

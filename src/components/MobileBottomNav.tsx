@@ -272,7 +272,13 @@ const MobileBottomNav = () => {
     <nav
       role="navigation"
       aria-label="Mobil Alt Menü"
-      className="fixed inset-x-0 z-[60] md:hidden pointer-events-none select-none"
+      aria-hidden={isSidebarOpen}
+      className={cn(
+        'fixed inset-x-0 z-[55] md:hidden select-none transition-all duration-200 ease-out',
+        isSidebarOpen
+          ? 'pointer-events-none translate-y-6 opacity-0'
+          : 'pointer-events-none translate-y-0 opacity-100',
+      )}
       style={{
         bottom: isStandalone
           ? 'calc(env(safe-area-inset-bottom, 0px) + 10px)'
@@ -282,7 +288,7 @@ const MobileBottomNav = () => {
       }}
     >
       <div className="mx-auto flex w-full max-w-[404px] sm:max-w-[456px] items-center justify-center">
-        {/* Apple Music esintili zarif Liquid Glass alt navigasyon kapsülü */}
+        {/* Oval yarı saydam mobil alt navigasyon kapsülü — açılır menü açıkken otomatik gizlenir */}
         <div
           ref={barRef}
           onPointerDown={handlePointerDown}
@@ -292,7 +298,10 @@ const MobileBottomNav = () => {
             pointerStartXRef.current = null;
             didSwipeRef.current = false;
           }}
-          className="econ-liquid-dock pointer-events-auto relative h-[58px] sm:h-[60px] w-full overflow-hidden rounded-full p-[4px]"
+          className={cn(
+            'econ-liquid-dock relative h-[58px] sm:h-[60px] w-full overflow-hidden rounded-full p-[4px]',
+            isSidebarOpen ? 'pointer-events-none' : 'pointer-events-auto',
+          )}
         >
           {/* Aktif seçenek arkasında kayan hafif, yarı saydam yuvarlatılmış cam alan */}
           <div

@@ -342,12 +342,12 @@ const Sidebar = () => {
 
   return (
     <>
-      {/* Mobile Backdrop */}
+      {/* Mobile Backdrop — sits cleanly above bottom nav so drawer is completely independent */}
       <div
         aria-hidden="true"
         onClick={() => setOpen(false)}
         className={cn(
-          'fixed inset-0 z-40 bg-[#040d21]/60 backdrop-blur-[3px] md:hidden transition-opacity duration-300',
+          'fixed inset-0 z-[65] bg-[#040d21]/70 backdrop-blur-[4px] md:hidden transition-opacity duration-300',
           open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none',
         )}
       />
@@ -357,25 +357,25 @@ const Sidebar = () => {
         role="navigation"
         aria-label="Ana menü"
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-[272px] max-w-[84vw] flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-[#091224] text-foreground',
-          'shadow-[8px_0_32px_rgba(15,23,42,0.08)] md:w-[16rem] md:max-w-none md:shadow-[4px_0_24px_rgba(15,23,42,0.03)] dark:md:shadow-[4px_0_24px_rgba(0,6,20,0.4)]',
+          'fixed inset-y-0 left-0 z-[70] md:z-40 flex h-[100dvh] w-[284px] max-w-[85vw] flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-[#091224] text-foreground',
+          'shadow-[12px_0_40px_rgba(2,8,24,0.35)] md:w-[16rem] md:max-w-none md:shadow-[4px_0_24px_rgba(15,23,42,0.03)] dark:md:shadow-[4px_0_24px_rgba(0,6,20,0.4)]',
           'transition-transform duration-300 ease-[cubic-bezier(.22,1,.36,1)] md:translate-x-0',
           open ? 'translate-x-0 pointer-events-auto' : '-translate-x-full pointer-events-none md:pointer-events-auto',
         )}
         style={{
           paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px))',
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+          paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
           paddingLeft: 'env(safe-area-inset-left, 0px)',
         }}
       >
-        {/* Top Logo Header Aligned to Left Menu */}
-        <div className="flex h-[68px] shrink-0 items-center justify-between px-5">
+        {/* Top Logo Header Aligned to Left Menu + Aligned Close Button on Mobile */}
+        <div className="flex h-[62px] sm:h-[68px] shrink-0 items-center justify-between border-b border-slate-200/70 dark:border-slate-800/70 px-5 md:border-b-0">
           <button
             type="button"
             onClick={() => navigate('/')}
             className="flex min-w-0 items-center gap-2 rounded-xl py-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
-            <EconLogo className="h-[25px] w-auto" />
+            <EconLogo className="h-[23px] w-auto sm:h-[25px]" />
             {isNovember10 && (
               <span className="inline-flex items-center gap-1 border-l border-border/80 pl-2">
                 <AtaturkPortrait className="h-6 w-auto" />
@@ -388,14 +388,14 @@ const Sidebar = () => {
             type="button"
             aria-label="Menüyü kapat"
             onClick={() => setOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white md:hidden"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200/80 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/70 text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white md:hidden"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Scrollable Navigation Sections */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-3 pb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <nav className="flex flex-col" aria-label="Sol navigasyon">
             <Section title="Panel" items={visible(primary)} showHeading={false} isFirstSection />
             <Section title="Araçlar" items={visible(tools)} />
@@ -455,7 +455,7 @@ const Sidebar = () => {
             <DropdownMenuContent
               side="top"
               align="start"
-              className="z-[70] w-[228px] rounded-2xl border-slate-200/90 dark:border-slate-800 p-1.5"
+              className="z-[80] w-[228px] rounded-2xl border-slate-200/90 dark:border-slate-800 p-1.5"
             >
               <DropdownMenuLabel className="px-2.5 py-1.5">
                 <p className="truncate text-xs font-bold text-foreground">{displayName}</p>

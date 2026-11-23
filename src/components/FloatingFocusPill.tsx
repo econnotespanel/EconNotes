@@ -37,7 +37,7 @@ const FloatingFocusPill = () => {
     <div
       role="status"
       aria-label="Aktif Odak Sayacı"
-      className="fixed right-3 top-[5.25rem] md:top-auto md:bottom-5 md:right-6 z-[65] pointer-events-auto animate-in fade-in slide-in-from-top-2 md:slide-in-from-bottom-2 duration-200"
+      className="fixed top-[calc(env(safe-area-inset-top,0px)_+_var(--ios-pwa-top-buffer,0px)_+_4.5rem)] right-3 md:top-auto md:bottom-5 md:right-6 z-[45] pointer-events-auto animate-in fade-in slide-in-from-top-2 md:slide-in-from-bottom-2 duration-200"
     >
       <div className="relative flex items-center gap-2 rounded-full border border-primary/40 bg-card/95 dark:bg-[#0b1528]/95 pl-3 pr-2 py-1.5 shadow-[0_12px_32px_rgba(0,18,56,0.3)] backdrop-blur-xl">
         <button
