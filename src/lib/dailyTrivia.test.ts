@@ -489,7 +489,7 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     expect(overlap).toHaveLength(0);
   });
 
-  it('preserves existing daily question set, answers, and timer on quick reload (<= 5s)', async () => {
+  it('preserves existing daily question set, answers, and timer on quick reload (<= 5s) without letting Dashboard status disarm grace_period', async () => {
     const started = await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
     const stored = mockState.userMeta.daily_trivia_state as {
       questionIds: string[];
@@ -511,26 +511,40 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     });
     await flushPendingTriviaWrites(mockState.userId);
 
-    // Quick reload within <5s -> must NOT create a new test, cancel, or reset the 15-min timer
+    // User leaves screen -> enters grace_period
     recordFallbackLeaveLocally(mockState.userId);
     resetFallbackEngineMemory();
 
-    const reloaded = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({
+    // Dashboard calling read-only status MUST NOT clear grace_period!
+    const dashboardStatus = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({
       action: 'status',
-      clientReloaded: true,
     });
-    expect(reloaded.error).toBeNull();
-    expect(reloaded.data?.attempt?.status).toBe('in_progress');
-    expect(reloaded.data?.attempt?.startedAt).toBe(stored.startedAt);
-    expect(reloaded.data?.questions?.map((q) => q.question)).toEqual(
+    expect(dashboardStatus.error).toBeNull();
+    expect(dashboardStatus.data?.attempt?.status).toBe('grace_period');
+    expect(dashboardStatus.data?.attempt?.graceExpiresAt).toBeTruthy();
+    expect(dashboardStatus.data?.attempt?.startedAt).toBe(stored.startedAt);
+
+    // Returning within <= 5s via explicit report_return resumes in_progress with exact same questions & answers
+    const returned = await runDailyTriviaSupabaseEngine<{ cancelled: boolean; status: string; questions?: Array<{ question: string }> }>({
+      action: 'report_return',
+    });
+    expect(returned.error).toBeNull();
+    expect(returned.data?.cancelled).toBe(false);
+    expect(returned.data?.status).toBe('in_progress');
+    expect(returned.data?.questions?.map((q) => q.question)).toEqual(
       started.data?.questions.map((q) => q.question),
     );
-    expect(reloaded.data?.answers).toHaveLength(2);
-    expect(reloaded.data?.answers?.find((a) => a.questionIndex === 0)?.selectedOption).toBe(q0.correctIndex);
-    expect(reloaded.data?.answers?.find((a) => a.questionIndex === 5)?.selectedOption).toBe((q5.correctIndex + 1) % 4);
+
+    const resumedStatus = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({
+      action: 'status',
+    });
+    expect(resumedStatus.data?.attempt?.status).toBe('in_progress');
+    expect(resumedStatus.data?.answers).toHaveLength(2);
+    expect(resumedStatus.data?.answers?.find((a) => a.questionIndex === 0)?.selectedOption).toBe(q0.correctIndex);
+    expect(resumedStatus.data?.answers?.find((a) => a.questionIndex === 5)?.selectedOption).toBe((q5.correctIndex + 1) % 4);
   });
 
-  it('cancels active run when away > 5 seconds and grants ZERO XP or rewards', async () => {
+  it('cancels active run when away > 5 seconds, blocks reactivation/late answers/finish, and grants ZERO XP or rewards', async () => {
     await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
     const stored = mockState.userMeta.daily_trivia_state as { questionIds: string[] };
     const bankMap = new Map(ALL_CURATED_TRIVIA_BANK.map((q) => [q.id, q]));
@@ -546,11 +560,16 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     }
     await flushPendingTriviaWrites(mockState.userId);
 
-    // Simulate user leaving EconNotes for > 5 seconds (6.5s ago)
+    // Simulate user leaving EconNotes for > 5 seconds (5.5s ago)
     const { dateStr } = getIstanbulDateParts(new Date());
-    const expiredLeaveTs = Date.now() - 6500;
+    const expiredLeaveTs = Date.now() - 5500;
     const curState = mockState.userMeta.daily_trivia_state as Record<string, unknown>;
-    mockState.userMeta.daily_trivia_state = { ...curState, leaveStartedAt: expiredLeaveTs };
+    mockState.userMeta.daily_trivia_state = {
+      ...curState,
+      status: 'grace_period',
+      leaveStartedAt: expiredLeaveTs,
+      graceExpiresAt: expiredLeaveTs + 5000,
+    };
     localStorage.setItem(`econnotes_trivia_leave_ts_${mockState.userId}_${dateStr}`, String(expiredLeaveTs));
     resetFallbackEngineMemory();
 
@@ -563,6 +582,95 @@ describe('Daily Trivia Exam System (15-Min Timer, Free Navigation, Answer Change
     expect(returned.data?.attempt?.grandPrizeAwarded).toBe(false);
     expect(returned.data?.attempt?.cancelMessage).toContain('5 saniye içerisinde geri dönülmediği');
     expect(mockState.rpcCalls).toHaveLength(0);
+    expect(mockState.points).toBe(100);
+
+    // Cancelled session can NEVER reactivate via report_return, start, answer, or finish
+    const retAfterCancel = await runDailyTriviaSupabaseEngine<{ cancelled: boolean; status: string }>({
+      action: 'report_return',
+    });
+    expect(retAfterCancel.data?.cancelled).toBe(true);
+    expect(retAfterCancel.data?.status).toBe('cancelled');
+
+    const startAfterCancel = await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
+    expect(startAfterCancel.status).toBe(409);
+
+    const lateAnswer = await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 3,
+      selectedOption: 0,
+    });
+    expect(lateAnswer.status).toBe(409);
+    expect(lateAnswer.raw?.cancelled).toBe(true);
+
+    const lateFinish = await runDailyTriviaSupabaseEngine<TriviaFinishResponse>({
+      action: 'finish',
+      timedOut: false,
+    });
+    expect(lateFinish.status).toBe(409);
+    expect(lateFinish.raw?.cancelled).toBe(true);
+    expect(mockState.rpcCalls).toHaveLength(0);
+    expect(mockState.points).toBe(100);
+  });
+
+  it('never extends 5-second graceExpiresAt across duplicate report_leave calls and cancels silent background suspension', async () => {
+    await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
+
+    const firstLeave = await runDailyTriviaSupabaseEngine<{ graceExpiresAt?: string; status?: string }>({
+      action: 'report_leave',
+      reason: 'window_blur',
+    });
+    expect(firstLeave.data?.status).toBe('grace_period');
+    const originalGrace = firstLeave.data?.graceExpiresAt;
+    expect(originalGrace).toBeTruthy();
+
+    await new Promise((r) => setTimeout(r, 40));
+
+    const secondLeave = await runDailyTriviaSupabaseEngine<{ graceExpiresAt?: string; status?: string }>({
+      action: 'report_leave',
+      reason: 'tab_hidden',
+    });
+    expect(secondLeave.data?.graceExpiresAt).toBe(originalGrace);
+
+    // Return within 5s -> active again
+    const ret = await runDailyTriviaSupabaseEngine<{ cancelled: boolean; status: string }>({
+      action: 'report_return',
+    });
+    expect(ret.data?.cancelled).toBe(false);
+    expect(ret.data?.status).toBe('in_progress');
+
+    // Start heartbeat, then simulate iOS PWA silent background freeze > 15s without pagehide
+    await runDailyTriviaSupabaseEngine({ action: 'heartbeat' });
+    const staleHb = Date.now() - 16_500;
+    const cur = mockState.userMeta.daily_trivia_state as Record<string, unknown>;
+    mockState.userMeta.daily_trivia_state = { ...cur, lastHeartbeatAt: staleHb };
+    resetFallbackEngineMemory();
+    localStorage.clear();
+
+    const afterFreeze = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({ action: 'status' });
+    expect(afterFreeze.data?.attempt?.status).toBe('cancelled');
+    expect(afterFreeze.data?.attempt?.xpEarned).toBe(0);
+    expect(mockState.points).toBe(100);
+  });
+
+  it('marks attempt as expired (0 XP) when 15-minute timer expires with zero answers', async () => {
+    await runDailyTriviaSupabaseEngine<TriviaStartResponse>({ action: 'start' });
+    const expiredStartedAt = new Date(Date.now() - 16 * 60 * 1000).toISOString();
+    const curState = mockState.userMeta.daily_trivia_state as Record<string, unknown>;
+    mockState.userMeta.daily_trivia_state = { ...curState, startedAt: expiredStartedAt };
+    resetFallbackEngineMemory();
+    localStorage.clear();
+
+    const statusAfterExpiry = await runDailyTriviaSupabaseEngine<TriviaStatusResponse>({ action: 'status' });
+    expect(statusAfterExpiry.data?.attempt?.status).toBe('expired');
+    expect(statusAfterExpiry.data?.attempt?.xpEarned).toBe(0);
+
+    const lateAns = await runDailyTriviaSupabaseEngine<TriviaAnswerResponse>({
+      action: 'answer',
+      questionIndex: 0,
+      selectedOption: 0,
+    });
+    expect(lateAns.status).toBe(409);
+    expect(lateAns.raw?.expired).toBe(true);
     expect(mockState.points).toBe(100);
   });
 });

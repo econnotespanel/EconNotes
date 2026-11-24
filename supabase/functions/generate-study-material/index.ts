@@ -25,7 +25,14 @@ interface SectionTarget {
 
 interface GenerateReq {
   materialType: 'flashcards' | 'quiz' | 'summary' | 'video';
-  stage?: 'single' | 'blueprint' | 'expand_batch' | 'grade_answer';
+  stage?:
+    | 'single'
+    | 'blueprint'
+    | 'expand_batch'
+    | 'analyze_chunk'
+    | 'synthesize_merge'
+    | 'quality_repair'
+    | 'grade_answer';
   noteTitle?: string;
   course?: string;
   noteContext?: string;
@@ -61,6 +68,13 @@ interface GenerateReq {
   minWordsPerSection?: number;
   maxWordsPerSection?: number;
   disciplineGuidance?: string;
+  chunkMeta?: {
+    index?: number;
+    total?: number;
+    pageRangeLabel?: string;
+    overlapPrefix?: string;
+    coveredHeadings?: string[];
+  };
   sectionTargets?: SectionTarget[];
   globalOutline?: {
     overview?: string;
@@ -361,6 +375,129 @@ Yanıtını YALNIZCA geçerli bir JSON objesi olarak döndür:
 }`;
     const userText = `DERS: ${courseName}\nSORU (${req.gradePayload.topic || 'Genel'}): ${req.gradePayload.question}\n\nBEKLENEN ÖRNEK CEVAP / RUBRİK:\n${req.gradePayload.rubricAnswer}\n\nÖĞRENCİNİN YAZDIĞI CEVAP:\n${req.gradePayload.studentAnswer}`;
     return { system, userText, maxTokens: 2500, temperature: 0.2 };
+  }
+
+  // --- STAGE 4 (NEW MULTI-STAGE): ANALYZE SINGLE LOGICAL CHUNK ---
+  if (req.materialType === 'summary' && stage === 'analyze_chunk') {
+    const chunkIdx = Number(req.chunkMeta?.index ?? 0);
+    const chunkTotal = Math.max(1, Number(req.chunkMeta?.total ?? 1));
+    const pageRange = req.chunkMeta?.pageRangeLabel || 'Kaynak';
+    const wordBudget = `${req.minWordsPerSection || 420}–${req.maxWordsPerSection || 760}`;
+    const secRange = req.targetSectionRange?.trim() || (chunkTotal === 1 ? '5-8' : '2-4');
+    const disciplineGuidanceBlock = req.disciplineGuidance?.trim()
+      ? `\nDERSİN NİTELİĞİNE ÖZGÜ AKADEMİK YAPI:\n${req.disciplineGuidance.trim()}`
+      : '';
+    const overlapBlock = req.chunkMeta?.overlapPrefix?.trim()
+      ? `\nÖNCEKİ PARÇADAN BAĞLAM ÖRTÜŞMESİ (TEKRARLAMA; YALNIZCA KOPUKSUZ GEÇİŞ İÇİN REFERANS AL):\n"""\n${req.chunkMeta.overlapPrefix.slice(0, 700)}\n"""`
+      : '';
+    const coveredBlock =
+      Array.isArray(req.chunkMeta?.coveredHeadings) && req.chunkMeta.coveredHeadings.length > 0
+        ? `\nÖNCEKİ PARÇALARDA TAMAMLANAN BAŞLIKLAR (TEKRARLAMA): ${req.chunkMeta.coveredHeadings
+            .slice(-16)
+            .join(' | ')}`
+        : '';
+    const hintsBlock =
+      Array.isArray(req.fullOutlineHint) && req.fullOutlineHint.length > 0
+        ? `\nBU PARÇADAKİ BAŞLIKLAR (HİÇBİRİNİ ATLAMA):\n${req.fullOutlineHint
+            .slice(0, 14)
+            .map((h, i) => `${i + 1}. ${h}`)
+            .join('\n')}`
+        : '';
+
+    const system = `Sen üniversite öğrencilerine ders materyallerinden kapsamlı, öğretici ve sınava tam hazırlık sağlayan ders notları üreten kıdemli akademisyensin.
+Sana belgenin ${chunkIdx + 1}/${chunkTotal}. mantıksal parçası (${pageRange}) verilmektedir.
+${multiCourseDirective}${disciplineGuidanceBlock}
+${styleInstruction}
+${researchInstruction}${verbalInstruction}
+${customDirective}
+
+KESİN AKADEMİK KURALLAR:
+1. YÜZEYSEL ÖZET YASAKTIR: Önemli bilgileri silerek metni kısaltma! Öğrencinin orijinal PDF'ye dönmek zorunda kalmadan konuyu tam öğrenebilmesi için her kavramı, teoriyi, modeli, formülü/değişkeni (hukukta kanun maddesi, şart, unsur, istisna ve hukuki sonucu), tablo/grafik yorumunu ve örneği ayrıntılı anlat.
+2. HER BÖLÜM ${wordBudget} KELİME: Ana başlığı koru, alt başlıkları (\`####\`) oluştur, konular arası bağlantıyı ve sınavda sorulabilecek ayrıntıları vurgula.
+3. KAYNAK SADAKATİ: Kaynakta olmayan bilgiyi kaynakta varmış gibi uydurma; pedagojik açıklama gerekiyorsa **[Ek Açıklama]** etiketiyle kaynaktan açıkça ayır.
+4. Bu parça için ${secRange} kapsamlı bölüm üret ve YALNIZCA geçerli JSON döndür:
+{
+  "overviewSnippet": "Bu parçanın kapsamını anlatan 2-3 cümle",
+  "keyPoints": ["Bu parçadan 3-5 somut ana nokta"],
+  "sections": [
+    {
+      "index": 0,
+      "heading": "Kaynaktaki gerçek ana başlık",
+      "pageRange": "${pageRange}",
+      "content": "${wordBudget} kelimelik alt başlıklı (####), tanımlı, teorili/formüllü veya kanun unsurlu, tablolu/örnekli Türkçe Markdown anlatımı",
+      "takeaways": ["Bölüm sonu kısa tekrar 1", "Kısa tekrar 2", "Kısa tekrar 3"],
+      "commonPitfalls": ["Sınavda dikkat edilecek 1-2 kritik ayrım veya tuzak"],
+      "checkpointQuestion": { "question": "Kontrol sorusu?", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "Kaynağa dayalı çözüm." }
+    }
+  ],
+  "comparativeMatrix": {
+    "title": "Karşılaştırma tablosu başlığı (metinde karşılaştırma varsa)",
+    "columns": ["Ölçüt", "Yaklaşım / Kavram A", "Yaklaşım / Kavram B"],
+    "rows": [["...", "...", "..."]]
+  },
+  "keyTerms": [{ "term": "Terim", "definition": "Eksiksiz tanım", "formula": "" }],
+  "teacherEmphasis": [{ "point": "Kritik ayrıntı", "whyImportant": "Sınavda neden önemli", "examProbability": "Yüksek" }],
+  "memorizeVsInterpret": { "memorize": ["Ezberlenecekler"], "interpret": ["Yorumlanacaklar"] },
+  "studyChecklist": ["Öğrenme hedefi"],
+  "synthesisSnippet": "Bu parçanın bütüne katkısı (2 cümle)"
+}`;
+
+    const userText = `DERS: ${courseName}\nMATERYAL: ${noteTitle}\nPARÇA: ${chunkIdx + 1}/${chunkTotal} (${pageRange})${hintsBlock}${coveredBlock}${overlapBlock}${warningsBlock}\n\nKAYNAK METİN PARÇASI:\n${enrichedContext.slice(
+      0,
+      46_000,
+    )}`;
+    return { system, userText, maxTokens: 12_500, temperature: 0.22 };
+  }
+
+  // --- STAGE 5 (NEW MULTI-STAGE): SYNTHESIZE & MERGE ALL CHUNKS ---
+  if (req.materialType === 'summary' && stage === 'synthesize_merge') {
+    const system = `Sen çok parçalı ders analizini bütünlüklü, akıcı ve tutarlı tek bir fakülte ders notuna dönüştüren akademik baş editörsün.
+Sana belgenin tüm parçalarından çıkarılan bölüm özetleri verilmiştir. Görevin, hiçbir bilgiyi eksiltmeden genel çerçeveyi, konular arası bağlantıları, kapsayıcı karşılaştırma tablosunu ve kapanış değerlendirmesini sentezlemektir.
+YALNIZCA geçerli JSON döndür:
+{
+  "overview": "Belgenin tamamını (ilk sayfadan son sayfaya) kapsayan 2-3 paragraflık güçlü giriş ve konu akışı",
+  "comparativeMatrix": {
+    "title": "Dersin Temel Kavram / Teori Karşılaştırma Tablosu",
+    "columns": ["Ölçüt", "Yaklaşım / Kavram A", "Yaklaşım / Kavram B"],
+    "rows": [["...", "...", "..."], ["...", "...", "..."]]
+  },
+  "summarySynthesis": "Tüm bölümleri birbirine bağlayan, sınava stratejik çalışma sırasını özetleyen 2 paragraflık kapsamlı konu değerlendirmesi"
+}`;
+    const userText = `DERS: ${courseName}\nMATERYAL: ${noteTitle}\n${
+      req.disciplineGuidance ? `DERS ODAĞI:\n${req.disciplineGuidance}\n` : ''
+    }\nTAMAMLANAN BÖLÜMLER:\n${enrichedContext.slice(0, 42_000)}`;
+    return { system, userText, maxTokens: 4_500, temperature: 0.2 };
+  }
+
+  // --- STAGE 6 (NEW MULTI-STAGE): TARGETED QUALITY REPAIR ---
+  if (req.materialType === 'summary' && stage === 'quality_repair') {
+    const targets = req.sectionTargets || [];
+    const wordBudget = `${req.minWordsPerSection || 420}–${req.maxWordsPerSection || 760}`;
+    const system = `Sen akademik kalite denetimi sırasında eksik veya yüzeysel bulunan ders bölümlerini orijinal kaynak metne dayanarak eksiksiz tamamlayan uzman akademisyensin.
+${req.disciplineGuidance ? `DERS ODAĞI:\n${req.disciplineGuidance}\n` : ''}${researchInstruction}${verbalInstruction}
+Her hedef bölüm için ${wordBudget} kelime aralığında alt başlıklı (\`####\`), eksiksiz tanımlı, örnekli, sayfa referanslı ve sınav odaklı bölüm yaz. YALNIZCA geçerli JSON döndür:
+{
+  "sections": [
+    {
+      "index": 0,
+      "heading": "Bölüm başlığı",
+      "pageRange": "Sayfa/Slayt",
+      "content": "Kapsamlı Türkçe Markdown ders bölümü...",
+      "takeaways": ["Çıkarım 1", "Çıkarım 2", "Çıkarım 3"],
+      "commonPitfalls": ["Sınav tuzağı"]
+    }
+  ]
+}`;
+    const targetText = targets
+      .map(
+        (t) =>
+          `Index=${t.index} | Başlık: ${t.title} | Sayfa: ${t.pageRange || 'Kaynak'}\nKAYNAK KESİTİ:\n${(
+            t.contextSlice || ''
+          ).slice(0, 14_000)}`,
+      )
+      .join('\n\n========\n\n');
+    const userText = `DERS: ${courseName}\nMATERYAL: ${noteTitle}\nONARILACAK / EKSİK BÖLÜMLER (${targets.length} adet):\n\n${targetText}`;
+    return { system, userText, maxTokens: 12_500, temperature: 0.2 };
   }
 
   // --- STAGE 1: SUMMARY BLUEPRINT ---
@@ -867,7 +1004,7 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
     };
   }
 
-  if (stage === 'expand_batch') {
+  if (stage === 'expand_batch' || stage === 'quality_repair') {
     const sections = Array.isArray(raw.sections)
       ? raw.sections
           .filter((s: any) => s && (s.content || s.heading))
@@ -887,6 +1024,48 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
       : [];
     if (sections.length === 0) return null;
     return { sections };
+  }
+
+  if (stage === 'synthesize_merge') {
+    return {
+      overview: typeof raw.overview === 'string' ? raw.overview.trim() : '',
+      comparativeMatrix:
+        raw.comparativeMatrix?.columns && Array.isArray(raw.comparativeMatrix?.rows)
+          ? raw.comparativeMatrix
+          : undefined,
+      summarySynthesis: typeof raw.summarySynthesis === 'string' ? raw.summarySynthesis.trim() : '',
+    };
+  }
+
+  if (stage === 'analyze_chunk') {
+    const sections = Array.isArray(raw.sections) ? raw.sections : [];
+    if (sections.length === 0) return null;
+    return {
+      overviewSnippet: String(raw.overviewSnippet || raw.overview || ''),
+      keyPoints: Array.isArray(raw.keyPoints) ? raw.keyPoints.map(String) : [],
+      sections: sections.map((s: any, idx: number) => ({
+        index: typeof s?.index === 'number' ? s.index : idx,
+        heading: String(s?.heading || s?.title || `Bölüm ${idx + 1}`),
+        pageRange: s?.pageRange ? String(s.pageRange) : req.chunkMeta?.pageRangeLabel,
+        content: String(s?.content || ''),
+        takeaways: Array.isArray(s?.takeaways) ? s.takeaways.map(String) : [],
+        deepResearchNote: s?.deepResearchNote ? String(s.deepResearchNote) : undefined,
+        commonPitfalls: Array.isArray(s?.commonPitfalls) ? s.commonPitfalls.map(String) : [],
+        checkpointQuestion:
+          s?.checkpointQuestion?.question && Array.isArray(s?.checkpointQuestion?.options)
+            ? s.checkpointQuestion
+            : undefined,
+      })),
+      comparativeMatrix:
+        raw.comparativeMatrix?.columns && Array.isArray(raw.comparativeMatrix?.rows)
+          ? raw.comparativeMatrix
+          : undefined,
+      keyTerms: Array.isArray(raw.keyTerms) ? raw.keyTerms : [],
+      teacherEmphasis: Array.isArray(raw.teacherEmphasis) ? raw.teacherEmphasis : [],
+      memorizeVsInterpret: raw.memorizeVsInterpret,
+      studyChecklist: Array.isArray(raw.studyChecklist) ? raw.studyChecklist.map(String) : [],
+      synthesisSnippet: String(raw.synthesisSnippet || raw.summarySynthesis || ''),
+    };
   }
 
   if (materialType === 'summary') {
@@ -1430,10 +1609,23 @@ Deno.serve(async (req) => {
     let usedAi = false;
 
     try {
+      // Cost-balanced model selection:
+      // - Heavy multi-chunk text passes (> 4 chunks) use fast high-context Flash/Mini to balance speed & cost
+      // - Compact docs, multimodal pages, synthesis merges, quality repairs, and deep research use flagship Pro
+      const isHighVolumeChunk =
+        stage === 'analyze_chunk' &&
+        Number(body.chunkMeta?.total ?? 1) > 4 &&
+        imageParts.length === 0 &&
+        !body.deepResearch;
       const preferPro =
-        body.materialType === 'summary' || body.materialType === 'video' || Boolean(body.deepResearch);
+        !isHighVolumeChunk &&
+        (body.materialType === 'summary' ||
+          body.materialType === 'video' ||
+          stage === 'synthesize_merge' ||
+          stage === 'quality_repair' ||
+          Boolean(body.deepResearch));
       const completion = await createChatCompletion({
-        model: preferPro ? 'google/gemini-2.5-pro' : 'gpt-4o-mini',
+        model: preferPro ? 'google/gemini-2.5-pro' : 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: userContent },

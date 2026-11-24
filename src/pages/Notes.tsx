@@ -829,7 +829,7 @@ const Notes = () => {
       user &&
       (isAdmin ||
         isBirthdayUnlimitedActive(user, profile) ||
-        isWheelUnlimitedActive(user) ||
+        isWheelUnlimitedActive(user, new Date(), profile as any) ||
         isTriviaUnlimitedActive(user, profile as any) ||
         Boolean(quota?.can_download)),
   );
@@ -868,7 +868,7 @@ const Notes = () => {
                         Pazartesi Şans Çarkı Ödülün Aktif: 1 Gün Sınırsız İndirme & Yükleme!
                       </h3>
                       <p className="text-xs text-muted-foreground">
-                        Şans çarkından kazandığın 24 saatlik sınırsız not görüntüleme, indirme ve yükleme hakkın aktif ({getMondayWheelState(user).wheelUnlimitedRemainingLabel}).
+                        Şans çarkından kazandığın 24 saatlik sınırsız not görüntüleme, indirme ve yükleme hakkın aktif ({getMondayWheelState(user, new Date(), { profile: profile as any }).wheelUnlimitedRemainingLabel}).
                       </p>
                     </div>
                   </div>

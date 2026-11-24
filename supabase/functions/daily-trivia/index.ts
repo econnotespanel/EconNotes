@@ -22,7 +22,8 @@ const ALL_CURATED_TRIVIA_BANK: TriviaQuestionRecord[] = [
 
 const TOTAL_QUESTIONS = 15;
 const XP_PER_CORRECT = 25;
-const MAX_AWAY_MS = 5500; // 5s strict client window + 0.5s network grace
+const MAX_AWAY_MS = 5000; // Strict 5-second server-authoritative return window
+const SILENT_INACTIVITY_MS = 15_000; // Catch force-killed / background-frozen PWAs without pagehide
 const GRAND_PRIZE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours real-time
 const TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes total for all 15 questions
 const TIME_GRACE_MS = 4000; // network latency tolerance for final answer / auto-finish
@@ -628,12 +629,45 @@ function sanitizeQuestions(questions: StoredTriviaQuestion[]): SanitizedTriviaQu
   }));
 }
 
-async function addUserPoints(
+async function addUserPointsAtomic(
   admin: ReturnType<typeof createClient>,
   userId: string,
   amount: number,
   reason: string,
-): Promise<number> {
+  transactionId: string,
+  attemptId: string,
+  metadata: Record<string, unknown>,
+): Promise<{ points: number; alreadyCredited: boolean }> {
+  // Primary path: atomic single-transaction credit_xp_atomic RPC
+  const { data: rpcData, error: rpcErr } = await admin.rpc('credit_xp_atomic', {
+    _user_id: userId,
+    _amount: amount,
+    _reason: reason,
+    _source: 'daily_trivia',
+    _transaction_id: transactionId,
+    _source_ref: attemptId,
+    _metadata: metadata,
+  });
+
+  if (!rpcErr && rpcData) {
+    const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    if (row && typeof row.points === 'number') {
+      return {
+        points: Number(row.points),
+        alreadyCredited: Boolean(row.already_credited),
+      };
+    }
+  }
+
+  // Fallback if credit_xp_atomic migration isn't applied yet (idempotent by reason)
+  const { data: existingEv } = await admin
+    .from('point_events')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('reason', reason)
+    .limit(1)
+    .maybeSingle();
+
   const { data: existing } = await admin
     .from('user_points')
     .select('points')
@@ -641,8 +675,18 @@ async function addUserPoints(
     .maybeSingle();
 
   const current = Number((existing as { points?: number } | null)?.points ?? 0);
+  if (existingEv) {
+    return { points: current, alreadyCredited: true };
+  }
+
   const nextPoints = current + amount;
   const nowIso = new Date().toISOString();
+
+  await admin.from('point_events').insert({
+    user_id: userId,
+    amount,
+    reason,
+  });
 
   if (existing) {
     await admin
@@ -655,13 +699,7 @@ async function addUserPoints(
       .insert({ user_id: userId, points: nextPoints, updated_at: nowIso });
   }
 
-  await admin.from('point_events').insert({
-    user_id: userId,
-    amount,
-    reason,
-  });
-
-  return nextPoints;
+  return { points: nextPoints, alreadyCredited: false };
 }
 
 async function cancelAttemptAndRevokeRewards(
@@ -669,11 +707,41 @@ async function cancelAttemptAndRevokeRewards(
   attempt: Record<string, any>,
   reason: string,
 ): Promise<{ attempt: Record<string, any>; xpRevoked: number; newUserPointsTotal: number | null }> {
+  // Primary path: atomic PostgreSQL RPC
+  const { data: rpcRes, error: rpcErr } = await admin.rpc('trivia_cancel_attempt', {
+    _attempt_id: attempt.id,
+    _reason: reason,
+    _actor_user_id: attempt.user_id,
+  });
+
+  if (!rpcErr && rpcRes && (rpcRes as { ok?: boolean }).ok) {
+    const { data: fresh } = await admin
+      .from('daily_trivia_attempts')
+      .select('*')
+      .eq('id', attempt.id)
+      .maybeSingle();
+    const resObj = rpcRes as { xpRevoked?: number; newUserPointsTotal?: number | null };
+    return {
+      attempt: (fresh as Record<string, any>) || {
+        ...attempt,
+        status: 'cancelled',
+        cancel_reason: reason,
+        xp_earned: 0,
+        grand_prize_awarded: false,
+        unlimited_expires_at: null,
+        leave_started_at: null,
+        grace_expires_at: null,
+      },
+      xpRevoked: Number(resObj.xpRevoked ?? 0),
+      newUserPointsTotal:
+        typeof resObj.newUserPointsTotal === 'number' ? resObj.newUserPointsTotal : null,
+    };
+  }
+
   const nowIso = new Date().toISOString();
   const userId = String(attempt.user_id);
   const quizDate = String(attempt.quiz_date);
 
-  // Reverse any XP granted during this cancelled attempt so cancelled runs grant zero rewards
   const { data: triviaEvents } = await admin
     .from('point_events')
     .select('id, amount')
@@ -720,8 +788,9 @@ async function cancelAttemptAndRevokeRewards(
       leave_started_at: null,
     })
     .eq('id', attempt.id)
+    .in('status', ['in_progress', 'grace_period'])
     .select('*')
-    .single();
+    .maybeSingle();
 
   return {
     attempt: updated || {
@@ -732,6 +801,8 @@ async function cancelAttemptAndRevokeRewards(
       xp_earned: 0,
       grand_prize_awarded: false,
       unlimited_expires_at: null,
+      leave_started_at: null,
+      grace_expires_at: null,
     },
     xpRevoked,
     newUserPointsTotal,
@@ -742,6 +813,8 @@ function getCancelMessage(reason: string | null | undefined): string {
   switch (reason) {
     case 'page_reloaded':
       return 'Yarışma devam ederken bağlantı/oturum kuralı ihlal edildiği için katılımınız iptal edildi.';
+    case 'inactivity_over_5s':
+      return 'Yarışma oturumu uzun süre arka planda/pasif kaldığı için güvenlik kuralı gereği iptal edildi.';
     case 'away_over_5s':
     case 'left_screen_over_5s':
       return 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
@@ -840,19 +913,37 @@ Deno.serve(async (req) => {
     const perfectWinsCount = perfectCountRes.count ?? 0;
     const currentUserPoints = Number((userPtsRes.data as { points?: number } | null)?.points ?? 0);
 
-    // Helper: enforce 5-second away check server-side on any in_progress attempt
+    // Helper: enforce 5-second away deadline + silent background kill on any active attempt
     const enforceServerAwayDeadline = async (): Promise<{
       cancelledNow: boolean;
       xpRevoked: number;
       newPoints: number | null;
     }> => {
-      if (!attempt || attempt.status !== 'in_progress') {
+      if (!attempt || (attempt.status !== 'in_progress' && attempt.status !== 'grace_period')) {
         return { cancelledNow: false, xpRevoked: 0, newPoints: null };
       }
-      if (attempt.leave_started_at) {
-        const awayMs = Date.now() - Date.parse(String(attempt.leave_started_at));
-        if (Number.isFinite(awayMs) && awayMs > MAX_AWAY_MS) {
+      const nowMs = Date.now();
+      if (attempt.leave_started_at || attempt.status === 'grace_period') {
+        const leaveMs = attempt.leave_started_at ? Date.parse(String(attempt.leave_started_at)) : NaN;
+        const graceMs = attempt.grace_expires_at
+          ? Date.parse(String(attempt.grace_expires_at))
+          : Number.isFinite(leaveMs)
+            ? leaveMs + MAX_AWAY_MS
+            : NaN;
+        if (Number.isFinite(graceMs) && nowMs > graceMs) {
           const cancelled = await cancelAttemptAndRevokeRewards(admin, attempt, 'away_over_5s');
+          attempt = cancelled.attempt;
+          return {
+            cancelledNow: true,
+            xpRevoked: cancelled.xpRevoked,
+            newPoints: cancelled.newUserPointsTotal,
+          };
+        }
+      }
+      if (attempt.status === 'in_progress' && attempt.last_heartbeat_at) {
+        const hbMs = Date.parse(String(attempt.last_heartbeat_at));
+        if (Number.isFinite(hbMs) && nowMs - hbMs > SILENT_INACTIVITY_MS) {
+          const cancelled = await cancelAttemptAndRevokeRewards(admin, attempt, 'inactivity_over_5s');
           attempt = cancelled.attempt;
           return {
             cancelledNow: true,
@@ -868,6 +959,8 @@ Deno.serve(async (req) => {
     let livePoints = currentUserPoints;
 
     const attemptDeadlineMs = (a: Record<string, any>): number => {
+      const explicit = a.expires_at ? Date.parse(String(a.expires_at)) : NaN;
+      if (Number.isFinite(explicit)) return explicit;
       const started = Date.parse(String(a.started_at));
       return (Number.isFinite(started) ? started : Date.now()) + TIME_LIMIT_MS;
     };
@@ -878,8 +971,15 @@ Deno.serve(async (req) => {
       const done = a.status === 'completed';
       const answered = Number(a.answered_count ?? 0);
       const correct = done ? Number(a.correct_count ?? 0) : 0;
+      const leaveIso = a.leave_started_at ? String(a.leave_started_at) : null;
+      const graceIso = a.grace_expires_at
+        ? String(a.grace_expires_at)
+        : leaveIso && Number.isFinite(Date.parse(leaveIso))
+          ? new Date(Date.parse(leaveIso) + MAX_AWAY_MS).toISOString()
+          : null;
       return {
         id: a.id,
+        sessionToken: a.session_token ?? a.id,
         status: a.status,
         currentIndex: Number(a.current_index ?? 0),
         answeredCount: answered,
@@ -887,14 +987,24 @@ Deno.serve(async (req) => {
         wrongCount: done ? answered - correct : 0,
         blankCount: done ? TOTAL_QUESTIONS - answered : 0,
         xpEarned: done ? Number(a.xp_earned ?? 0) : 0,
+        xpCredited: Boolean(a.xp_credited ?? (done && Number(a.xp_earned ?? 0) > 0)),
+        rewardTransactionId: a.reward_transaction_id ?? null,
         grandPrizeAwarded: Boolean(a.grand_prize_awarded),
         unlimitedExpiresAt: a.unlimited_expires_at ?? null,
+        leaveStartedAt: leaveIso,
+        graceExpiresAt: graceIso,
+        lastActivityAt: a.last_activity_at ?? a.started_at,
         cancelReason: a.cancel_reason ?? null,
-        cancelMessage: a.status === 'cancelled' ? getCancelMessage(a.cancel_reason) : null,
+        cancelMessage:
+          a.status === 'cancelled'
+            ? getCancelMessage(a.cancel_reason)
+            : a.status === 'expired'
+              ? '15 dakikalık yarışma süresi dolduğu için oturum sonlandı.'
+              : null,
         startedAt: a.started_at,
         deadlineAt: new Date(attemptDeadlineMs(a)).toISOString(),
         timeLimitSec: TIME_LIMIT_MS / 1000,
-        timedOut: done && a.cancel_reason === 'time_expired',
+        timedOut: (done || a.status === 'expired') && a.cancel_reason === 'time_expired',
         completedAt: a.completed_at ?? null,
         cancelledAt: a.cancelled_at ?? null,
       };
@@ -928,7 +1038,9 @@ Deno.serve(async (req) => {
       const summary = summarizeAttempt(a);
       return {
         attempt: summary,
-        answers: (rows || []).map((r) => revealAnswerRow(r as Record<string, unknown>, fullSet, true)),
+        answers: (rows || []).map((r) =>
+          revealAnswerRow(r as Record<string, unknown>, fullSet, a.status === 'completed'),
+        ),
         correctCount: summary.correctCount,
         wrongCount: summary.wrongCount,
         blankCount: summary.blankCount,
@@ -943,10 +1055,49 @@ Deno.serve(async (req) => {
 
     /**
      * Cevapları sunucuda değerlendirir; her doğru için 25 XP verir, 15/15 ise 2 saatlik sınırsız erişimi tanımlar.
-     * Durum `in_progress -> completed` geçişi tek seferlik (atomik) alınır; eşzamanlı ikinci çağrı ödülü tekrar veremez.
+     * Tek PostgreSQL atomik işlemi (`trivia_finalize_attempt` + `credit_xp_atomic`) kullanır; eşzamanlı ikinci çağrı ödülü tekrar veremez.
      */
     const finalizeAttempt = async (timedOut: boolean) => {
       const att = attempt as Record<string, any>;
+
+      // Primary path: single atomic PostgreSQL RPC
+      const { data: rpcFinal, error: rpcFinalErr } = await admin.rpc('trivia_finalize_attempt', {
+        _attempt_id: att.id,
+        _timed_out: timedOut,
+        _actor_user_id: String(att.user_id),
+      });
+
+      if (!rpcFinalErr && rpcFinal) {
+        const resObj = rpcFinal as Record<string, any>;
+        const { data: fresh } = await admin
+          .from('daily_trivia_attempts')
+          .select('*')
+          .eq('id', att.id)
+          .single();
+        attempt = (fresh as Record<string, any>) || att;
+        if (typeof resObj.newUserPointsTotal === 'number') {
+          livePoints = resObj.newUserPointsTotal;
+        }
+        if (attempt.status === 'completed' && attempt.grand_prize_awarded && attempt.unlimited_expires_at && !resObj.alreadyCompleted) {
+          try {
+            const { data: authUserRes } = await admin.auth.admin.getUserById(String(att.user_id));
+            const existingMeta = (authUserRes?.user?.user_metadata || {}) as Record<string, unknown>;
+            const prevPerfect = Number(existingMeta.trivia_perfect_wins || 0);
+            await admin.auth.admin.updateUserById(String(att.user_id), {
+              user_metadata: {
+                ...existingMeta,
+                trivia_unlimited_until: attempt.unlimited_expires_at,
+                trivia_perfect_wins: prevPerfect + 1,
+              },
+            });
+          } catch (metaErr) {
+            console.warn('daily-trivia user_metadata update warning:', metaErr);
+          }
+        }
+        return buildFinishPayload(attempt as Record<string, any>, livePoints);
+      }
+
+      // Fallback path if new RPC hasn't been deployed yet
       const { questions: fullSet } = await ensureUserDailyQuizSet(admin, String(att.user_id), String(att.quiz_date));
       const { data: rows } = await admin
         .from('daily_trivia_answers')
@@ -965,27 +1116,27 @@ Deno.serve(async (req) => {
       const perfect = correct === TOTAL_QUESTIONS;
       const nowIso = new Date().toISOString();
       const unlimited = perfect ? new Date(Date.now() + GRAND_PRIZE_DURATION_MS).toISOString() : null;
+      const txId = `trivia:${att.id}`;
 
       const { data: claimed } = await admin
         .from('daily_trivia_attempts')
         .update({
-          status: 'completed',
+          status: timedOut && graded.length === 0 ? 'expired' : 'completed',
           completed_at: nowIso,
           answered_count: graded.length,
           correct_count: correct,
-          xp_earned: xp,
+          xp_earned: timedOut && graded.length === 0 ? 0 : xp,
           grand_prize_awarded: perfect,
           unlimited_expires_at: unlimited,
           leave_started_at: null,
           cancel_reason: timedOut ? 'time_expired' : null,
         })
         .eq('id', att.id)
-        .eq('status', 'in_progress')
+        .in('status', ['in_progress', 'grace_period'])
         .select('*')
         .maybeSingle();
 
       if (!claimed) {
-        // Başka bir istek sonuçlandırmış: mevcut sonucu döndür (ödül tekrar verilmez)
         const { data: fresh } = await admin
           .from('daily_trivia_attempts')
           .select('*')
@@ -997,7 +1148,7 @@ Deno.serve(async (req) => {
 
       attempt = claimed as Record<string, any>;
 
-      if (correctRows.length > 0) {
+      if (correctRows.length > 0 && attempt.status === 'completed') {
         await admin
           .from('daily_trivia_answers')
           .update({ xp_awarded: XP_PER_CORRECT })
@@ -1007,12 +1158,20 @@ Deno.serve(async (req) => {
             correctRows.map((g) => g.idx),
           );
       }
-      if (xp > 0) {
-        livePoints = await addUserPoints(admin, String(att.user_id), xp, `daily_trivia:${att.quiz_date}:final`);
+      if (xp > 0 && attempt.status === 'completed') {
+        const creditRes = await addUserPointsAtomic(
+          admin,
+          String(att.user_id),
+          xp,
+          `daily_trivia:${att.quiz_date}:final`,
+          txId,
+          String(att.id),
+          { quiz_date: att.quiz_date, correct_count: correct, grand_prize: perfect },
+        );
+        livePoints = creditRes.points;
       }
 
       if (perfect && unlimited) {
-        // Persist real-time 2-hour unlimited note access on profiles + auth user metadata
         await admin.from('profiles').update({ trivia_unlimited_until: unlimited }).eq('user_id', att.user_id);
         try {
           const { data: authUserRes } = await admin.auth.admin.getUserById(String(att.user_id));
@@ -1033,23 +1192,15 @@ Deno.serve(async (req) => {
       return buildFinishPayload(attempt as Record<string, any>, livePoints);
     };
 
-    // ==================== ACTION: STATUS ====================
+    // ==================== ACTION: STATUS (Strictly Read-Only w.r.t. grace_period!) ====================
     if (action === 'status') {
-      if (attempt && attempt.status === 'in_progress') {
+      if (attempt && (attempt.status === 'in_progress' || attempt.status === 'grace_period')) {
         const away = await enforceServerAwayDeadline();
-        if (!away.cancelledNow && attempt) {
-          if (isAttemptExpired(attempt)) {
-            // Süre dolmuş: kayıtlı cevaplarla otomatik sonuçlandır
-            await finalizeAttempt(true);
-          } else if (attempt.leave_started_at) {
-            // 5 saniye içinde geri dönüldü / yenilendi: mevcut test, cevaplar ve kalan süre korunur
-            await admin
-              .from('daily_trivia_attempts')
-              .update({ leave_started_at: null })
-              .eq('id', attempt.id);
-            attempt.leave_started_at = null;
-          }
+        if (!away.cancelledNow && attempt && isAttemptExpired(attempt)) {
+          await finalizeAttempt(true);
         }
+        // CRITICAL: status NEVER clears leave_started_at or grace_period!
+        // Only an explicit report_return from the visible DailyTrivia screen can resume from grace_period.
       }
 
       let questions: SanitizedTriviaQuestion[] | undefined;
@@ -1063,7 +1214,11 @@ Deno.serve(async (req) => {
           .order('question_index', { ascending: true });
 
         let fullSet: StoredTriviaQuestion[] = [];
-        if (attempt.status === 'in_progress' || attempt.status === 'completed') {
+        if (
+          attempt.status === 'in_progress' ||
+          attempt.status === 'grace_period' ||
+          attempt.status === 'completed'
+        ) {
           const setObj = await ensureUserDailyQuizSet(admin, authUserId, quizDate);
           fullSet = setObj.questions;
           if (attempt.status === 'in_progress') {
@@ -1071,7 +1226,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Doğru/yanlış bilgisi yalnızca yarışma sonuçlandıktan sonra açıklanır
         answers = (ansRows || []).map((r) =>
           revealAnswerRow(r as Record<string, unknown>, fullSet, attempt?.status === 'completed'),
         );
@@ -1080,6 +1234,7 @@ Deno.serve(async (req) => {
       return json({
         quizDate,
         resetsAtIso,
+        sessionStatus: attempt ? attempt.status : 'not_started',
         totalQuestions: TOTAL_QUESTIONS,
         xpPerCorrect: XP_PER_CORRECT,
         maxXp: TOTAL_QUESTIONS * XP_PER_CORRECT,
@@ -1099,35 +1254,66 @@ Deno.serve(async (req) => {
     // ==================== ACTION: START ====================
     if (action === 'start') {
       if (attempt) {
+        // Re-check expiration/cancellation before responding so stale status is updated
+        if (attempt.status === 'in_progress' || attempt.status === 'grace_period') {
+          await enforceServerAwayDeadline();
+        }
         return json(
           {
             error:
               attempt.status === 'cancelled'
                 ? 'Bugünkü yarışma hakkınız güvenlik iptali nedeniyle kapandı. Yarın yeni 15 soru ile tekrar katılabilirsiniz.'
-                : attempt.status === 'completed'
-                ? 'Bugünkü Günlük Genel Kültür Bilgi Yarışması’nı zaten tamamladınız. Her kullanıcı günde 1 kez katılabilir.'
-                : 'Devam eden bir yarışmanız zaten bulunuyor.',
+                : attempt.status === 'expired'
+                  ? 'Bugünkü yarışma süreniz dolduğu için oturum kapandı. Yarın yeni 15 soru ile tekrar katılabilirsiniz.'
+                  : attempt.status === 'completed'
+                    ? 'Bugünkü Günlük Genel Kültür Bilgi Yarışması’nı zaten tamamladınız. Her kullanıcı günde 1 kez katılabilir.'
+                    : 'Devam eden bir yarışmanız zaten bulunuyor.',
             alreadyParticipated: true,
+            status: attempt.status,
           },
           409,
         );
       }
 
       const { questions } = await ensureUserDailyQuizSet(admin, authUserId, quizDate);
+      const nowIso = new Date().toISOString();
+      const expiresAtIso = new Date(Date.now() + TIME_LIMIT_MS).toISOString();
 
-      const { data: created, error: createErr } = await admin
+      const insertPayload: Record<string, unknown> = {
+        user_id: authUserId,
+        quiz_date: quizDate,
+        status: 'in_progress',
+        current_index: 0,
+        answered_count: 0,
+        correct_count: 0,
+        xp_earned: 0,
+        started_at: nowIso,
+        expires_at: expiresAtIso,
+        last_activity_at: nowIso,
+      };
+
+      let { data: created, error: createErr } = await admin
         .from('daily_trivia_attempts')
-        .insert({
-          user_id: authUserId,
-          quiz_date: quizDate,
-          status: 'in_progress',
-          current_index: 0,
-          answered_count: 0,
-          correct_count: 0,
-          xp_earned: 0,
-        })
+        .insert(insertPayload)
         .select('*')
         .single();
+
+      // Backwards compatibility if new columns aren't migrated yet
+      if (createErr && String(createErr.message || '').includes('column')) {
+        ({ data: created, error: createErr } = await admin
+          .from('daily_trivia_attempts')
+          .insert({
+            user_id: authUserId,
+            quiz_date: quizDate,
+            status: 'in_progress',
+            current_index: 0,
+            answered_count: 0,
+            correct_count: 0,
+            xp_earned: 0,
+          })
+          .select('*')
+          .single());
+      }
 
       if (createErr || !created) {
         return json(
@@ -1139,42 +1325,165 @@ Deno.serve(async (req) => {
       return json({
         quizDate,
         resetsAtIso,
-        serverNowIso: new Date().toISOString(),
+        serverNowIso: nowIso,
         attempt: summarizeAttempt(created),
         questions: sanitizeQuestions(questions),
       });
     }
 
+    // ==================== ACTION: HEARTBEAT ====================
+    if (action === 'heartbeat') {
+      if (!attempt) {
+        return json({ ok: false, status: 'not_started', serverNowIso: new Date().toISOString() });
+      }
+      if (attempt.status === 'cancelled' || attempt.status === 'expired' || attempt.status === 'completed') {
+        return json({
+          ok: true,
+          status: attempt.status,
+          cancelled: attempt.status === 'cancelled',
+          expired: attempt.status === 'expired',
+          cancelReason: attempt.cancel_reason ?? null,
+          cancelMessage: attempt.status === 'cancelled' ? getCancelMessage(attempt.cancel_reason) : null,
+          serverNowIso: new Date().toISOString(),
+        });
+      }
+
+      const { data: hbData, error: hbErr } = await admin.rpc('trivia_heartbeat', {
+        _attempt_id: attempt.id,
+        _actor_user_id: authUserId,
+      });
+      if (!hbErr && hbData) {
+        const resObj = hbData as Record<string, unknown>;
+        return json({
+          ...resObj,
+          cancelMessage: resObj.cancelled ? getCancelMessage(String(resObj.cancelReason || 'away_over_5s')) : null,
+        });
+      }
+
+      const awayCheck = await enforceServerAwayDeadline();
+      if (awayCheck.cancelledNow) {
+        return json({
+          ok: true,
+          status: 'cancelled',
+          cancelled: true,
+          cancelReason: attempt.cancel_reason || 'away_over_5s',
+          cancelMessage: getCancelMessage(attempt.cancel_reason || 'away_over_5s'),
+          serverNowIso: new Date().toISOString(),
+        });
+      }
+      if (attempt.status === 'grace_period') {
+        return json({
+          ok: true,
+          status: 'grace_period',
+          graceExpiresAt: summarizeAttempt(attempt).graceExpiresAt,
+          serverNowIso: new Date().toISOString(),
+        });
+      }
+      return json({ ok: true, status: attempt.status, serverNowIso: new Date().toISOString() });
+    }
+
     // ==================== ACTION: REPORT_LEAVE ====================
     if (action === 'report_leave') {
-      if (!attempt || attempt.status !== 'in_progress') {
-        return json({ ok: true, status: attempt?.status ?? 'none' });
+      if (!attempt) {
+        return json({ ok: true, status: 'not_started' });
       }
+      if (attempt.status !== 'in_progress' && attempt.status !== 'grace_period') {
+        return json({
+          ok: true,
+          status: attempt.status,
+          cancelled: attempt.status === 'cancelled',
+        });
+      }
+
+      const leaveReason =
+        typeof body.reason === 'string' && body.reason.trim()
+          ? body.reason.trim().slice(0, 60)
+          : 'left_screen';
+
+      const { data: leaveRpc, error: leaveRpcErr } = await admin.rpc('trivia_mark_leave', {
+        _attempt_id: attempt.id,
+        _reason: leaveReason,
+        _actor_user_id: authUserId,
+      });
+
+      if (!leaveRpcErr && leaveRpc) {
+        return json(leaveRpc);
+      }
+
+      // Fallback when new RPC isn't deployed yet: preserve original leave_started_at!
       if (!attempt.leave_started_at) {
+        const nowIso = new Date().toISOString();
+        const graceIso = new Date(Date.now() + MAX_AWAY_MS).toISOString();
         await admin
           .from('daily_trivia_attempts')
           .update({
-            leave_started_at: new Date().toISOString(),
+            leave_started_at: nowIso,
             leave_count: Number(attempt.leave_count || 0) + 1,
           })
           .eq('id', attempt.id)
           .eq('status', 'in_progress');
+        return json({ ok: true, status: 'grace_period', leaveStartedAt: nowIso, graceExpiresAt: graceIso, serverNowIso: nowIso });
       }
-      return json({ ok: true, serverNowIso: new Date().toISOString() });
+
+      const leaveMs = Date.parse(String(attempt.leave_started_at));
+      const graceIso = new Date((Number.isFinite(leaveMs) ? leaveMs : Date.now()) + MAX_AWAY_MS).toISOString();
+      return json({
+        ok: true,
+        status: 'grace_period',
+        leaveStartedAt: attempt.leave_started_at,
+        graceExpiresAt: graceIso,
+        serverNowIso: new Date().toISOString(),
+      });
     }
 
     // ==================== ACTION: REPORT_RETURN ====================
     if (action === 'report_return') {
-      if (!attempt) return json({ cancelled: false, status: 'none' });
+      if (!attempt) return json({ cancelled: false, status: 'not_started' });
       if (attempt.status === 'cancelled') {
         return json({
           cancelled: true,
+          status: 'cancelled',
           cancelReason: attempt.cancel_reason,
           cancelMessage: getCancelMessage(attempt.cancel_reason),
         });
       }
-      if (attempt.status !== 'in_progress') {
-        return json({ cancelled: false, status: attempt.status });
+      if (attempt.status === 'expired' || attempt.status === 'completed') {
+        return json({
+          cancelled: false,
+          expired: attempt.status === 'expired',
+          status: attempt.status,
+        });
+      }
+
+      const { data: retRpc, error: retRpcErr } = await admin.rpc('trivia_mark_return', {
+        _attempt_id: attempt.id,
+        _actor_user_id: authUserId,
+      });
+
+      if (!retRpcErr && retRpc) {
+        const resObj = retRpc as Record<string, any>;
+        if (resObj.cancelled) {
+          return json({
+            cancelled: true,
+            status: 'cancelled',
+            awayMs: resObj.awayMs,
+            cancelReason: resObj.cancelReason || 'away_over_5s',
+            cancelMessage: getCancelMessage(resObj.cancelReason || 'away_over_5s'),
+            xpRevoked: resObj.xpRevoked ?? 0,
+            newUserPointsTotal: resObj.newUserPointsTotal ?? null,
+          });
+        }
+        if (resObj.status === 'in_progress') {
+          const setObj = await ensureUserDailyQuizSet(admin, authUserId, quizDate);
+          return json({
+            cancelled: false,
+            status: 'in_progress',
+            awayMs: resObj.awayMs ?? 0,
+            serverNowIso: resObj.serverNowIso ?? new Date().toISOString(),
+            questions: sanitizeQuestions(setObj.questions),
+          });
+        }
+        return json(resObj);
       }
 
       const awayMs = attempt.leave_started_at
@@ -1185,6 +1494,7 @@ Deno.serve(async (req) => {
         const cancelled = await cancelAttemptAndRevokeRewards(admin, attempt, 'away_over_5s');
         return json({
           cancelled: true,
+          status: 'cancelled',
           awayMs,
           cancelReason: 'away_over_5s',
           cancelMessage: getCancelMessage('away_over_5s'),
@@ -1196,16 +1506,25 @@ Deno.serve(async (req) => {
       await admin
         .from('daily_trivia_attempts')
         .update({ leave_started_at: null })
-        .eq('id', attempt.id);
+        .eq('id', attempt.id)
+        .in('status', ['in_progress', 'grace_period']);
 
-      return json({ cancelled: false, awayMs });
+      const setObj = await ensureUserDailyQuizSet(admin, authUserId, quizDate);
+      return json({
+        cancelled: false,
+        status: 'in_progress',
+        awayMs,
+        serverNowIso: new Date().toISOString(),
+        questions: sanitizeQuestions(setObj.questions),
+      });
     }
 
     // ==================== ACTION: CANCEL ====================
     if (action === 'cancel') {
-      if (!attempt || attempt.status !== 'in_progress') {
+      if (!attempt || (attempt.status !== 'in_progress' && attempt.status !== 'grace_period')) {
         return json({
           cancelled: attempt?.status === 'cancelled',
+          status: attempt?.status ?? 'not_started',
           cancelReason: attempt?.cancel_reason ?? null,
           cancelMessage:
             attempt?.status === 'cancelled' ? getCancelMessage(attempt.cancel_reason) : null,
@@ -1217,6 +1536,7 @@ Deno.serve(async (req) => {
       const cancelled = await cancelAttemptAndRevokeRewards(admin, attempt, reason);
       return json({
         cancelled: true,
+        status: 'cancelled',
         cancelReason: reason,
         cancelMessage: getCancelMessage(reason),
         xpRevoked: cancelled.xpRevoked,
@@ -1239,20 +1559,34 @@ Deno.serve(async (req) => {
           409,
         );
       }
+      if (attempt.status === 'expired') {
+        return json({ error: 'Yarışma süresi dolduğu için cevap kabul edilemez.', expired: true }, 409);
+      }
       if (attempt.status === 'completed') {
         return json({ error: 'Bu yarışma zaten tamamlandı.', completed: true }, 409);
       }
 
-      // Enforce 5-second away check before accepting any answer
+      // Enforce 5-second away check & silent kill check before accepting any answer
       const awayCheck = await enforceServerAwayDeadline();
       if (awayCheck.cancelledNow) {
         return json(
           {
-            error: getCancelMessage('away_over_5s'),
+            error: getCancelMessage(attempt.cancel_reason || 'away_over_5s'),
             cancelled: true,
-            cancelReason: 'away_over_5s',
+            cancelReason: attempt.cancel_reason || 'away_over_5s',
             xpRevoked: awayCheck.xpRevoked,
             newUserPointsTotal: awayCheck.newPoints,
+          },
+          409,
+        );
+      }
+
+      if (attempt.status === 'grace_period') {
+        return json(
+          {
+            error: 'Önce yarışma ekranına geri dönmelisiniz.',
+            inGracePeriod: true,
+            graceExpiresAt: summarizeAttempt(attempt).graceExpiresAt,
           },
           409,
         );
@@ -1290,7 +1624,6 @@ Deno.serve(async (req) => {
         return json({ error: 'Soru bulunamadı.' }, 404);
       }
 
-      // Cevap kaydedilir veya (daha önce verildiyse) değiştirilir. XP yalnızca yarışma sonuçlanınca verilir.
       const nowIso = new Date().toISOString();
       const { error: ansUpsertErr } = await admin.from('daily_trivia_answers').upsert(
         {
@@ -1315,15 +1648,26 @@ Deno.serve(async (req) => {
         .eq('attempt_id', attempt.id);
       const answeredCount = Math.min(TOTAL_QUESTIONS, Number(answeredNow ?? 0));
 
-      await admin
+      const { error: updAttemptErr } = await admin
         .from('daily_trivia_attempts')
         .update({
           current_index: questionIndex,
           answered_count: answeredCount,
-          leave_started_at: null,
+          last_activity_at: nowIso,
+          last_heartbeat_at: nowIso,
         })
         .eq('id', attempt.id)
         .eq('status', 'in_progress');
+      if (updAttemptErr && String(updAttemptErr.message || '').includes('column')) {
+        await admin
+          .from('daily_trivia_attempts')
+          .update({
+            current_index: questionIndex,
+            answered_count: answeredCount,
+          })
+          .eq('id', attempt.id)
+          .eq('status', 'in_progress');
+      }
 
       return json({
         questionIndex,
@@ -1351,17 +1695,19 @@ Deno.serve(async (req) => {
           409,
         );
       }
+      if (attempt.status === 'expired') {
+        return json({ error: 'Yarışma süresi dolduğu için ödül tanımlanamaz.', expired: true }, 409);
+      }
       if (attempt.status === 'completed') {
-        // Idempotent: ödül ikinci kez verilmez
         return json(await buildFinishPayload(attempt, livePoints));
       }
       const awayCheck = await enforceServerAwayDeadline();
       if (awayCheck.cancelledNow) {
         return json(
           {
-            error: getCancelMessage('away_over_5s'),
+            error: getCancelMessage(attempt.cancel_reason || 'away_over_5s'),
             cancelled: true,
-            cancelReason: 'away_over_5s',
+            cancelReason: attempt.cancel_reason || 'away_over_5s',
             xpRevoked: awayCheck.xpRevoked,
             newUserPointsTotal: awayCheck.newPoints,
           },

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  BookmarkCheck,
   BookOpen,
   Brain,
   CheckCircle2,
@@ -9,14 +10,17 @@ import {
   ChevronUp,
   Clock,
   Compass,
+  Download,
+  Eye,
   FileDown,
   FlaskConical,
+  HardDriveDownload,
   Layers,
   Loader2,
   Network,
-  Printer,
   RefreshCw,
   Search,
+  ShieldCheck,
   Sparkles,
   Target,
   Video,
@@ -30,8 +34,13 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { downloadLectureSummary, downloadLectureSummaryPdf } from '@/lib/liveLectureReport';
+import {
+  downloadAcademicSummaryPdf,
+  saveAcademicSummaryPdfToDevice,
+} from '@/lib/academicSummaryPdf';
+import { downloadLectureSummary } from '@/lib/liveLectureReport';
 import { buildTopicPriorityGuide } from '@/lib/studySourceProcessor';
+import { summaryJobManager } from '@/lib/studySummaryJobManager';
 import { cn } from '@/lib/utils';
 import type {
   CoachMode,
@@ -56,6 +65,8 @@ interface NeuralSummaryWorkspaceProps {
   expandingSectionIdx: number | null;
   onRegenerateDeep: () => Promise<void>;
   isRegenerating: boolean;
+  onSaveToAccount?: (material: StudyMaterial) => Promise<void>;
+  isSavingToAccount?: boolean;
   onAskCoach: (prompt: string, mode?: CoachMode) => void;
 }
 
@@ -67,6 +78,8 @@ export function NeuralSummaryWorkspace({
   expandingSectionIdx,
   onRegenerateDeep,
   isRegenerating,
+  onSaveToAccount,
+  isSavingToAccount = false,
   onAskCoach,
 }: NeuralSummaryWorkspaceProps) {
   const c: SummaryContent = useMemo(
@@ -111,6 +124,9 @@ export function NeuralSummaryWorkspace({
       sourceCourseBreakdown: Array.isArray(material.content?.sourceCourseBreakdown)
         ? material.content.sourceCourseBreakdown
         : [],
+      documentProfile: material.content?.documentProfile,
+      qualityAudit: material.content?.qualityAudit,
+      disciplineFamily: material.content?.disciplineFamily,
       metadata: material.content?.metadata,
     }),
     [material.content],
@@ -147,7 +163,75 @@ export function NeuralSummaryWorkspace({
   const [priorityFilter, setPriorityFilter] = useState<'all' | TopicPriorityLevel>('all');
   const [examFocusMode, setExamFocusMode] = useState(() => c.metadata?.examMode === 'cram_24h');
   const [expandedInFocus, setExpandedInFocus] = useState<Record<number, boolean>>({});
+  const [pdfBusy, setPdfBusy] = useState<'download' | 'device' | null>(null);
+  const [showQualityPanel, setShowQualityPanel] = useState(false);
+  const [savedConfirmed, setSavedConfirmed] = useState(Boolean(material.id));
+  const summaryReaderRef = useRef<HTMLDivElement | null>(null);
   const sectionRefs = useRef<Array<HTMLDivElement | null>>([]);
+
+  useEffect(() => {
+    setSavedConfirmed(Boolean(material.id));
+  }, [material.id]);
+
+  const handleDownloadPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy('download');
+    try {
+      const cached = summaryJobManager.getCachedPdfForMaterial(material.id);
+      const { fileName } = await downloadAcademicSummaryPdf(
+        {
+          title: material.title,
+          course: material.course || c.disciplineTag,
+          createdAt: material.created_at,
+          summary: c,
+        },
+        cached,
+      );
+      toast.success(`Türkçe PDF indirildi: ${fileName}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'PDF oluşturulamadı.');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  const handleSaveToDevice = async () => {
+    if (pdfBusy) return;
+    setPdfBusy('device');
+    try {
+      const cached = summaryJobManager.getCachedPdfForMaterial(material.id);
+      const { fileName } = await saveAcademicSummaryPdfToDevice(
+        {
+          title: material.title,
+          course: material.course || c.disciplineTag,
+          createdAt: material.created_at,
+          summary: c,
+        },
+        cached,
+      );
+      toast.success(`PDF cihazınıza kaydedildi: ${fileName}`);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      toast.error(err instanceof Error ? err.message : 'Cihaza kaydetme başarısız oldu.');
+    } finally {
+      setPdfBusy(null);
+    }
+  };
+
+  const handleSaveToEconNotes = async () => {
+    if (onSaveToAccount) {
+      await onSaveToAccount(material);
+      setSavedConfirmed(true);
+    } else {
+      setSavedConfirmed(true);
+      toast.success('Özet EconNotes hesabınızda kayıtlı — Çalışma Stüdyosu Kütüphanesinden dilediğiniz zaman açabilirsiniz.');
+    }
+  };
+
+  const handleViewSummary = () => {
+    setExamFocusMode(false);
+    summaryReaderRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     try {
@@ -235,7 +319,170 @@ export function NeuralSummaryWorkspace({
 
   return (
     <div className="space-y-5">
-      {/* Unified Action Toolbar */}
+      {/* Professional Completion, Metadata & 5-Action Command Banner */}
+      <div className="neural-card space-y-4 border-primary/25 bg-gradient-to-br from-primary/[0.05] via-card to-cyan-500/[0.04] p-4 sm:p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={STUDIO_BADGE_COURSE}>
+                {material.course || c.disciplineTag || 'Akademik Ders Notu'}
+              </span>
+              <Badge variant="outline" className="text-[11px]">
+                {c.sections.length} Bölüm
+              </Badge>
+              {(c.documentProfile?.totalPagesOrSlides || c.metadata?.sourceStats?.pagesOrSlides) && (
+                <Badge variant="outline" className="text-[11px]">
+                  {c.documentProfile?.totalPagesOrSlides || c.metadata?.sourceStats?.pagesOrSlides} Sayfa/Slayt Analiz Edildi
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-[11px]">
+                {new Date(c.metadata?.analyzedAt || material.created_at).toLocaleDateString('tr-TR')}
+              </Badge>
+            </div>
+            <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+              {material.title}
+            </h2>
+            {c.documentProfile?.sourceNames && c.documentProfile.sourceNames.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Kaynak Belge: {c.documentProfile.sourceNames.join(', ')}
+              </p>
+            )}
+          </div>
+
+          {c.qualityAudit && (
+            <button
+              type="button"
+              onClick={() => setShowQualityPanel((v) => !v)}
+              className="flex items-center gap-2 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 px-3.5 py-2 text-left transition-colors hover:bg-emerald-500/15"
+            >
+              <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <div>
+                <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                  Kalite Skoru: %{c.qualityAudit.overallScore} · Kapsam: %{c.qualityAudit.headingCoveragePct}
+                </div>
+                <div className="text-[10.5px] text-muted-foreground">
+                  10 maddelik kalite denetimi {showQualityPanel ? '▲' : '▼'}
+                </div>
+              </div>
+            </button>
+          )}
+        </div>
+
+        {/* 5 Primary Action Buttons Requested */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            disabled={pdfBusy !== null}
+            onClick={() => void handleDownloadPdf()}
+            className={cn(STUDIO_BTN_PRIMARY, 'gap-1.5')}
+          >
+            {pdfBusy === 'download' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            PDF Olarak İndir
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={pdfBusy !== null}
+            onClick={() => void handleSaveToDevice()}
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
+          >
+            {pdfBusy === 'device' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <HardDriveDownload className="h-4 w-4 text-primary" />
+            )}
+            Cihaza Kaydet
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isSavingToAccount}
+            onClick={() => void handleSaveToEconNotes()}
+            className={cn(
+              STUDIO_BTN_SECONDARY,
+              'gap-1.5',
+              savedConfirmed && 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+            )}
+          >
+            {isSavingToAccount ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <BookmarkCheck className="h-4 w-4" />
+            )}
+            {savedConfirmed ? "EconNotes'a Kaydet ✓" : "EconNotes'a Kaydet"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleViewSummary}
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
+          >
+            <Eye className="h-4 w-4 text-primary" />
+            Özeti Görüntüle
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isRegenerating}
+            onClick={() => void onRegenerateDeep()}
+            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
+          >
+            {isRegenerating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Yeniden Oluştur
+          </Button>
+        </div>
+
+        {/* Expandable 10-Point Academic Quality & Coverage Audit Panel */}
+        {showQualityPanel && c.qualityAudit && (
+          <div className="space-y-3 rounded-2xl border border-border/80 bg-background/80 p-4 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-bold text-foreground">
+                10 Maddelik Akademik Kalite ve Kapsam Denetimi Raporu
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                Toplam {(c.qualityAudit.totalSummaryWords || 0).toLocaleString('tr-TR')} kelime · Onarılan bölüm:{' '}
+                {c.qualityAudit.repairedSectionsCount || 0} · Temizlenen tekrar:{' '}
+                {c.qualityAudit.duplicateRemovedCount || 0}
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {c.qualityAudit.checks.map((ck, ci) => (
+                <div
+                  key={ck.id}
+                  className={cn(
+                    'rounded-xl border px-3 py-2',
+                    ck.status === 'pass'
+                      ? 'border-emerald-500/30 bg-emerald-500/5'
+                      : ck.status === 'warn'
+                      ? 'border-amber-500/35 bg-amber-500/5'
+                      : 'border-rose-500/35 bg-rose-500/5',
+                  )}
+                >
+                  <div className="font-semibold text-foreground">
+                    {ci + 1}. {ck.label}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">{ck.detail}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Unified Studio Cross-Tool Toolbar */}
       <div className="neural-card flex flex-wrap items-center justify-between gap-2 p-3.5">
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -338,21 +585,6 @@ export function NeuralSummaryWorkspace({
             type="button"
             variant="outline"
             size="sm"
-            disabled={isRegenerating}
-            onClick={() => void onRegenerateDeep()}
-            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
-          >
-            {isRegenerating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            Derin Yenile
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
             onClick={() => {
               downloadLectureSummary(buildExportReport());
               toast.success('HTML çalışma raporu indirildi.');
@@ -361,16 +593,6 @@ export function NeuralSummaryWorkspace({
           >
             <FileDown className="h-4 w-4" />
             HTML
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => downloadLectureSummaryPdf(buildExportReport())}
-            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
-          >
-            <Printer className="h-4 w-4" />
-            PDF
           </Button>
         </div>
       </div>
@@ -550,7 +772,7 @@ export function NeuralSummaryWorkspace({
         </div>
       )}
 
-      <div className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-12">
+      <div ref={summaryReaderRef} className="grid min-w-0 grid-cols-1 gap-5 xl:grid-cols-12">
         {/* Sticky Chapter Navigator */}
         <aside className="neural-card h-fit min-w-0 space-y-3 p-4 xl:sticky xl:top-20 xl:col-span-4">
           <div className="flex items-center justify-between">

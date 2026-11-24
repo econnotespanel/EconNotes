@@ -88,19 +88,31 @@ export function extractFormulasFromText(text: string, maxFormulas = 24): string[
   for (const rawLine of lines) {
     if (formulas.length >= maxFormulas) break;
     const line = rawLine.trim();
-    if (!line || line.length > 180) continue;
+    if (!line) continue;
 
-    // LaTeX blocks
+    // 1. LaTeX blocks (even inside longer prose paragraphs)
     const latexMatches = line.match(/\$\$[^$]{3,140}\$\$|\$[^$\n]{3,120}\$/g);
     if (latexMatches) {
       for (const m of latexMatches) {
         if (formulas.length >= maxFormulas) break;
         pushFormula(m);
       }
+      if (line.length > 180) continue;
+    }
+
+    // 2. Inline equations embedded inside longer academic paragraphs
+    if (line.length > 180) {
+      const inlineEqRe =
+        /\b([A-Za-z][A-Za-z0-9_*']{0,8}\s*=\s*(?:[A-Za-z0-9_*'().^√Σ∑πθαβγδσμλ]+(?:\s*[+\-*/^·×÷]\s*[A-Za-z0-9_*'().^√Σ∑πθαβγδσμλ]+)+))/g;
+      let m: RegExpExecArray | null;
+      while ((m = inlineEqRe.exec(line)) !== null) {
+        if (formulas.length >= maxFormulas) break;
+        pushFormula(m[1]);
+      }
       continue;
     }
 
-    // Explicit mathematical / statistical / econometric / physics equations
+    // 3. Explicit standalone mathematical / statistical / econometric / physics equations
     const hasEquationStructure =
       /(?:^|\s)[A-Za-zÇĞİÖŞÜα-ωΑ-ΩσμχβλΣ∑√][A-Za-z0-9_'\-(),\s]{0,18}\s*=\s*[^=]{2,90}/.test(line) &&
       /[+\-*/^()∑∫√σμχβλ0-9]/.test(line);
@@ -283,7 +295,7 @@ export function buildCanonicalSourceAnalysis(params: {
     (params.allMaterials || []).find(
       (m) =>
         m.material_type === 'summary' &&
-        m.content?.metadata?.sourceMode !== 'local' &&
+        (m.content?.metadata?.sourceMode !== 'local' || Boolean(m.content?.qualityAudit?.passed)) &&
         (m.content?.metadata?.sourceFingerprint === fingerprint ||
           (m.exam_profile as Record<string, unknown> | null | undefined)?.sourceFingerprint ===
             fingerprint),

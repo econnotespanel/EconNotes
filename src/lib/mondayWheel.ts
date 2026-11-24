@@ -1,6 +1,5 @@
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { awardPoints } from '@/hooks/usePoints';
 
 export type WheelRewardType = 'extra_quota' | 'unlimited_day' | 'xp';
 
@@ -15,6 +14,10 @@ export interface WheelSegment {
   textColor: string;
 }
 
+/**
+ * Exact EconNotes Lucky Wheel reward pool & probabilities (unchanged):
+ * quota_2: 18%, xp_100: 22%, xp_200: 20%, unlimited_1d: 10%, xp_300: 14%, xp_400: 10%, xp_500: 6%
+ */
 export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
   {
     id: 'quota_2',
@@ -50,7 +53,8 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
     id: 'unlimited_1d',
     shortLabel: '1 Gün Sınırsız',
     fullTitle: '1 Günlük Sınırsız Not Görüntüleme, İndirme & Yükleme Hakkı',
-    description: '24 saat boyunca tüm ders notlarını sınırsız görüntüleyebilir, indirebilir ve saat kısıtlaması olmadan yükleyebilirsin!',
+    description:
+      '24 saat boyunca tüm ders notlarını sınırsız görüntüleyebilir, indirebilir ve saat kısıtlaması olmadan yükleyebilirsin!',
     type: 'unlimited_day',
     amount: 24,
     color: '#0ea5e9',
@@ -91,37 +95,116 @@ export const MONDAY_WHEEL_SEGMENTS: WheelSegment[] = [
 const STORAGE_SPIN_PREFIX = 'econnotes_monday_wheel_spin_';
 const STORAGE_BONUS_QUOTA_PREFIX = 'econnotes_wheel_bonus_quota_';
 const STORAGE_UNLIMITED_UNTIL_PREFIX = 'econnotes_wheel_unlimited_until_';
+const STORAGE_INFLIGHT_LOCK_PREFIX = 'econnotes_wheel_inflight_lock_';
+const TAB_LOCK_TTL_MS = 15_000;
+
+export interface WheelSpinRecord {
+  id: string;
+  transactionId: string;
+  dailyPeriod: string;
+  segmentId: string;
+  rewardType: WheelRewardType;
+  rewardAmount: number;
+  xpAwarded: number;
+  xpCredited: boolean;
+  pointsAfter: number | null;
+  quotaBonusAdded: number;
+  unlimitedExpiresAt: string | null;
+  createdAt: string;
+}
+
+export interface ServerWheelStatus {
+  serverNowIso: string;
+  dailyPeriod: string;
+  isMonday: boolean;
+  isAdminDailyMode: boolean;
+  hasSpunToday: boolean;
+  canSpinNow: boolean;
+  nextResetAtIso: string;
+  userPoints: number;
+  wheelBonusQuota: number;
+  wheelUnlimitedUntil: string | null;
+  spin: WheelSpinRecord | null;
+}
+
+export interface ExecuteWheelSpinResult {
+  ok: boolean;
+  alreadySpun?: boolean;
+  idempotentReplay?: boolean;
+  segment?: WheelSegment;
+  spin?: WheelSpinRecord;
+  newPointsTotal?: number | null;
+  wheelBonusQuota?: number;
+  wheelUnlimitedUntil?: string | null;
+  serverNowIso?: string;
+  nextResetAtIso?: string;
+  error?: string;
+}
+
+/**
+ * Canonical Europe/Istanbul (UTC+03:00) calendar date & weekday info — independent from device timezone.
+ */
+export function getIstanbulWheelDateParts(now = new Date()): {
+  dateStr: string;
+  isMonday: boolean;
+  isoDow: number;
+  nextDayResetMs: number;
+  nextMondayResetMs: number;
+} {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+
+  const y = Number(parts.find((p) => p.type === 'year')?.value ?? now.getUTCFullYear());
+  const m = Number(parts.find((p) => p.type === 'month')?.value ?? now.getUTCMonth() + 1);
+  const d = Number(parts.find((p) => p.type === 'day')?.value ?? now.getUTCDate());
+  const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Istanbul',
+    weekday: 'short',
+  }).format(now);
+  const dowMap: Record<string, number> = {
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+    Sun: 7,
+  };
+  const isoDow = dowMap[weekday] ?? 1;
+  const isMonday = isoDow === 1;
+  const daysToMonday = isMonday ? 7 : 8 - isoDow;
+
+  // Permanent UTC+03:00 in Europe/Istanbul
+  const nextDayResetMs = Date.UTC(y, m - 1, d + 1, 0, 0, 0) - 3 * 60 * 60 * 1000;
+  const nextMondayResetMs = Date.UTC(y, m - 1, d + daysToMonday, 0, 0, 0) - 3 * 60 * 60 * 1000;
+
+  return { dateStr, isMonday, isoDow, nextDayResetMs, nextMondayResetMs };
+}
 
 export function getTodayDateString(now = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return getIstanbulWheelDateParts(now).dateStr;
 }
 
-/** Bugünün Pazartesi (getDay() === 1) olup olmadığını kontrol eder. */
 export function isMondayToday(now = new Date()): boolean {
-  return now.getDay() === 1;
+  return getIstanbulWheelDateParts(now).isMonday;
 }
 
-/** Bir sonraki Pazartesi günü saat 00:00'a kalan süreyi okunaklı Türkçe metin olarak döndürür. */
 export function getNextMondayCountdownLabel(now = new Date()): string {
-  if (isMondayToday(now)) {
-    const endOfMonday = new Date(now);
-    endOfMonday.setHours(23, 59, 59, 999);
-    const diffMs = Math.max(0, endOfMonday.getTime() - now.getTime());
+  const info = getIstanbulWheelDateParts(now);
+  if (info.isMonday) {
+    const diffMs = Math.max(0, info.nextDayResetMs - now.getTime());
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
     return `Bugün Pazartesi! Çarkın kapanmasına ${hours} saat ${mins} dk kaldı`;
   }
 
-  const dayOfWeek = now.getDay(); // 0 = Pazar, 2 = Salı ... 6 = Cumartesi
-  const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-  const nextMonday = new Date(now);
-  nextMonday.setDate(now.getDate() + daysUntilMonday);
-  nextMonday.setHours(0, 0, 0, 0);
-
-  const diffMs = Math.max(0, nextMonday.getTime() - now.getTime());
+  const diffMs = Math.max(0, info.nextMondayResetMs - now.getTime());
   const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
 
@@ -129,6 +212,14 @@ export function getNextMondayCountdownLabel(now = new Date()): string {
     return `Yeni Pazartesi çarkına ${hours} saat kaldı`;
   }
   return `Bir sonraki Pazartesi çarkına ${days} gün ${hours} saat kaldı`;
+}
+
+export function getNextDayResetCountdownLabel(now = new Date()): string {
+  const info = getIstanbulWheelDateParts(now);
+  const diffMs = Math.max(0, info.nextDayResetMs - now.getTime());
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `Yarınki yönetici çark hakkına ${hours} saat ${mins} dk kaldı`;
 }
 
 export interface MondayWheelState {
@@ -142,49 +233,65 @@ export interface MondayWheelState {
   bonusQuota: number;
   isWheelUnlimitedActive: boolean;
   wheelUnlimitedRemainingLabel: string;
+  dailyPeriod: string;
+  transactionId?: string | null;
 }
 
 export interface MondayWheelOptions {
   isAdmin?: boolean;
+  profile?: { wheel_bonus_quota?: number | null; wheel_unlimited_until?: string | null } | null;
+  serverStatus?: ServerWheelStatus | null;
 }
 
-/** Yönetici günlük çark hakkının yarın 00:00'da yenilenmesine kalan süreyi döndürür. */
-export function getNextDayResetCountdownLabel(now = new Date()): string {
-  const nextMidnight = new Date(now);
-  nextMidnight.setDate(now.getDate() + 1);
-  nextMidnight.setHours(0, 0, 0, 0);
-  const diffMs = Math.max(0, nextMidnight.getTime() - now.getTime());
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-  return `Yarınki yönetici çark hakkına ${hours} saat ${mins} dk kaldı`;
+function parseTimestampMs(val: unknown): number {
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  if (typeof val === 'string' && val.trim()) {
+    const num = Number(val);
+    if (Number.isFinite(num) && num > 1_000_000_000_000) return num;
+    const ms = Date.parse(val);
+    if (Number.isFinite(ms)) return ms;
+  }
+  return 0;
 }
 
-export function getWheelBonusQuota(user: User | null | undefined): number {
+export function getWheelBonusQuota(
+  user: User | null | undefined,
+  profile?: { wheel_bonus_quota?: number | null } | null,
+): number {
   if (!user) return 0;
-  const fromMeta = Number((user.user_metadata as any)?.wheel_bonus_quota || 0);
+  const fromProfile = Number(profile?.wheel_bonus_quota || 0);
+  const fromMeta = Number((user.user_metadata as Record<string, unknown> | undefined)?.wheel_bonus_quota || 0);
   let fromLocal = 0;
   try {
     fromLocal = Number(localStorage.getItem(`${STORAGE_BONUS_QUOTA_PREFIX}${user.id}`) || 0);
   } catch {
     fromLocal = 0;
   }
-  return Math.max(0, fromMeta, fromLocal);
+  return Math.max(0, fromProfile, fromMeta, fromLocal);
 }
 
-export function getWheelUnlimitedUntil(user: User | null | undefined): number {
+export function getWheelUnlimitedUntil(
+  user: User | null | undefined,
+  profile?: { wheel_unlimited_until?: string | null } | null,
+): number {
   if (!user) return 0;
-  const fromMeta = Number((user.user_metadata as any)?.wheel_unlimited_until || 0);
+  const fromProfile = parseTimestampMs(profile?.wheel_unlimited_until);
+  const fromMeta = parseTimestampMs((user.user_metadata as Record<string, unknown> | undefined)?.wheel_unlimited_until);
   let fromLocal = 0;
   try {
-    fromLocal = Number(localStorage.getItem(`${STORAGE_UNLIMITED_UNTIL_PREFIX}${user.id}`) || 0);
+    fromLocal = parseTimestampMs(localStorage.getItem(`${STORAGE_UNLIMITED_UNTIL_PREFIX}${user.id}`));
   } catch {
     fromLocal = 0;
   }
-  return Math.max(0, fromMeta, fromLocal);
+  return Math.max(0, fromProfile, fromMeta, fromLocal);
 }
 
-export function isWheelUnlimitedActive(user: User | null | undefined, now = new Date()): boolean {
-  return getWheelUnlimitedUntil(user) > now.getTime();
+export function isWheelUnlimitedActive(
+  user: User | null | undefined,
+  now = new Date(),
+  profile?: { wheel_unlimited_until?: string | null } | null,
+): boolean {
+  return getWheelUnlimitedUntil(user, profile) > now.getTime();
 }
 
 export function getMondayWheelState(
@@ -192,9 +299,11 @@ export function getMondayWheelState(
   now = new Date(),
   options?: MondayWheelOptions,
 ): MondayWheelState {
-  const isMonday = isMondayToday(now);
-  const isAdminDailyMode = Boolean(options?.isAdmin);
-  const todayStr = getTodayDateString(now);
+  const srv = options?.serverStatus;
+  const info = getIstanbulWheelDateParts(now);
+  const isMonday = srv ? srv.isMonday : info.isMonday;
+  const isAdminDailyMode = srv ? srv.isAdminDailyMode : Boolean(options?.isAdmin);
+  const todayStr = srv ? srv.dailyPeriod : info.dateStr;
   const baseCountdownLabel = getNextMondayCountdownLabel(now);
 
   if (!user) {
@@ -209,13 +318,15 @@ export function getMondayWheelState(
       bonusQuota: 0,
       isWheelUnlimitedActive: false,
       wheelUnlimitedRemainingLabel: '',
+      dailyPeriod: todayStr,
+      transactionId: null,
     };
   }
 
-  const metaSpinDate = String((user.user_metadata as any)?.monday_wheel_last_date || '');
-  const metaRewardId = String((user.user_metadata as any)?.monday_wheel_last_reward || '');
+  const metaSpinDate = String((user.user_metadata as Record<string, unknown> | undefined)?.monday_wheel_last_date || '');
+  const metaRewardId = String((user.user_metadata as Record<string, unknown> | undefined)?.monday_wheel_last_reward || '');
 
-  let localRecord: { date: string; rewardId: string } | null = null;
+  let localRecord: { date: string; rewardId: string; transactionId?: string } | null = null;
   try {
     const raw = localStorage.getItem(`${STORAGE_SPIN_PREFIX}${user.id}_${todayStr}`);
     if (raw) localRecord = JSON.parse(raw);
@@ -223,14 +334,24 @@ export function getMondayWheelState(
     localRecord = null;
   }
 
-  const hasSpunToday = metaSpinDate === todayStr || localRecord?.date === todayStr;
-  const todayRewardId =
-    (localRecord?.date === todayStr ? localRecord.rewardId : null) ||
-    (metaSpinDate === todayStr ? metaRewardId : null);
-  const rewardObj = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === todayRewardId) || null;
+  const hasSpunToday = srv
+    ? Boolean(srv.hasSpunToday)
+    : metaSpinDate === todayStr || localRecord?.date === todayStr;
 
-  const bonusQuota = getWheelBonusQuota(user);
-  const unlimitedUntil = getWheelUnlimitedUntil(user);
+  const todayRewardId = srv
+    ? srv.spin?.segmentId ?? null
+    : (localRecord?.date === todayStr ? localRecord.rewardId : null) ||
+      (metaSpinDate === todayStr ? metaRewardId : null);
+
+  const rewardObj = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === todayRewardId) || null;
+  const bonusQuota = Math.max(
+    srv?.wheelBonusQuota ?? 0,
+    getWheelBonusQuota(user, options?.profile),
+  );
+  const unlimitedUntil = Math.max(
+    parseTimestampMs(srv?.wheelUnlimitedUntil),
+    getWheelUnlimitedUntil(user, options?.profile),
+  );
   const unlimitedActive = unlimitedUntil > now.getTime();
   let wheelUnlimitedRemainingLabel = '';
   if (unlimitedActive) {
@@ -240,7 +361,7 @@ export function getMondayWheelState(
     wheelUnlimitedRemainingLabel = `${h} saat ${m} dk kaldı`;
   }
 
-  const canSpinNow = (isMonday || isAdminDailyMode) && !hasSpunToday;
+  const canSpinNow = srv ? Boolean(srv.canSpinNow) : (isMonday || isAdminDailyMode) && !hasSpunToday;
   const countdownLabel = isAdminDailyMode
     ? hasSpunToday
       ? getNextDayResetCountdownLabel(now)
@@ -258,7 +379,41 @@ export function getMondayWheelState(
     bonusQuota,
     isWheelUnlimitedActive: unlimitedActive,
     wheelUnlimitedRemainingLabel,
+    dailyPeriod: todayStr,
+    transactionId: srv?.spin?.transactionId ?? localRecord?.transactionId ?? null,
   };
+}
+
+function mirrorServerWheelOutcomeLocally(
+  userId: string,
+  dailyPeriod: string,
+  spin: WheelSpinRecord | null,
+  wheelBonusQuota?: number,
+  wheelUnlimitedUntil?: string | null,
+): void {
+  try {
+    if (spin) {
+      localStorage.setItem(
+        `${STORAGE_SPIN_PREFIX}${userId}_${dailyPeriod}`,
+        JSON.stringify({
+          date: dailyPeriod,
+          rewardId: spin.segmentId,
+          transactionId: spin.transactionId,
+        }),
+      );
+    }
+    if (typeof wheelBonusQuota === 'number' && wheelBonusQuota > 0) {
+      localStorage.setItem(`${STORAGE_BONUS_QUOTA_PREFIX}${userId}`, String(wheelBonusQuota));
+    }
+    if (wheelUnlimitedUntil) {
+      const ms = parseTimestampMs(wheelUnlimitedUntil);
+      if (ms > Date.now()) {
+        localStorage.setItem(`${STORAGE_UNLIMITED_UNTIL_PREFIX}${userId}`, String(ms));
+      }
+    }
+  } catch {
+    // ignore storage errors
+  }
 }
 
 async function getSessionAccessToken(forceRefresh = false): Promise<string | null> {
@@ -270,18 +425,448 @@ async function getSessionAccessToken(forceRefresh = false): Promise<string | nul
   return data.session?.access_token ?? null;
 }
 
+// Module-level deduplication maps so concurrent tabs / StrictMode / rapid re-renders NEVER double-fire
+const inFlightSpinByKey = new Map<string, Promise<ExecuteWheelSpinResult>>();
+const inFlightSyncUsers = new Set<string>();
+
+export function resetWheelClientLocks(): void {
+  inFlightSpinByKey.clear();
+  inFlightSyncUsers.clear();
+}
+
+function acquireCrossTabSpinLock(userId: string, dailyPeriod: string, requestId: string): boolean {
+  const key = `${STORAGE_INFLIGHT_LOCK_PREFIX}${userId}_${dailyPeriod}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { requestId?: string; expiresAt?: number };
+      if (parsed.expiresAt && parsed.expiresAt > Date.now() && parsed.requestId !== requestId) {
+        return false;
+      }
+    }
+    localStorage.setItem(key, JSON.stringify({ requestId, expiresAt: Date.now() + TAB_LOCK_TTL_MS }));
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+function releaseCrossTabSpinLock(userId: string, dailyPeriod: string, requestId: string): void {
+  const key = `${STORAGE_INFLIGHT_LOCK_PREFIX}${userId}_${dailyPeriod}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as { requestId?: string };
+    if (parsed.requestId === requestId) {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function parseServerStatusPayload(raw: Record<string, unknown>): ServerWheelStatus | null {
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.dailyPeriod !== 'string') return null;
+  const spinRaw = raw.spin && typeof raw.spin === 'object' ? (raw.spin as Record<string, unknown>) : null;
+  const spin: WheelSpinRecord | null = spinRaw
+    ? {
+        id: String(spinRaw.id || ''),
+        transactionId: String(spinRaw.transactionId || ''),
+        dailyPeriod: String(spinRaw.dailyPeriod || raw.dailyPeriod),
+        segmentId: String(spinRaw.segmentId || ''),
+        rewardType: (spinRaw.rewardType as WheelRewardType) || 'xp',
+        rewardAmount: Number(spinRaw.rewardAmount || 0),
+        xpAwarded: Number(spinRaw.xpAwarded || 0),
+        xpCredited: Boolean(spinRaw.xpCredited),
+        pointsAfter: typeof spinRaw.pointsAfter === 'number' ? spinRaw.pointsAfter : null,
+        quotaBonusAdded: Number(spinRaw.quotaBonusAdded || 0),
+        unlimitedExpiresAt:
+          typeof spinRaw.unlimitedExpiresAt === 'string' ? spinRaw.unlimitedExpiresAt : null,
+        createdAt: String(spinRaw.createdAt || new Date().toISOString()),
+      }
+    : null;
+
+  return {
+    serverNowIso: String(raw.serverNowIso || new Date().toISOString()),
+    dailyPeriod: String(raw.dailyPeriod),
+    isMonday: Boolean(raw.isMonday),
+    isAdminDailyMode: Boolean(raw.isAdminDailyMode),
+    hasSpunToday: Boolean(raw.hasSpunToday),
+    canSpinNow: Boolean(raw.canSpinNow),
+    nextResetAtIso: String(raw.nextResetAtIso || new Date().toISOString()),
+    userPoints: Number(raw.userPoints ?? 0),
+    wheelBonusQuota: Number(raw.wheelBonusQuota ?? 0),
+    wheelUnlimitedUntil:
+      typeof raw.wheelUnlimitedUntil === 'string' ? raw.wheelUnlimitedUntil : null,
+    spin,
+  };
+}
+
 /**
- * Çarktan kazanılan XP puanını (100 - 500 XP) kullanıcının toplam puan sistemine
- * (`user_points` & `point_events`) güvenli ve idempotent biçimde işler.
- * 1) Öncelikli: `claim_monday_wheel_xp` SQL RPC
- * 2) Yedek (migration beklenirken anında çalışır): `claim-wheel-xp` Edge Function
- * 3) Son yedek: `award_points` RPC
+ * Fetches server-authoritative Lucky Wheel status using Istanbul server time.
+ * Strictly read-only — NEVER spins the wheel or triggers animations!
+ */
+export async function fetchLuckyWheelStatus(
+  user: User | null | undefined,
+  options?: { isAdmin?: boolean },
+): Promise<ServerWheelStatus | null> {
+  if (!user) return null;
+
+  // 1) Primary: dedicated PostgreSQL SECURITY DEFINER RPC
+  try {
+    const { data, error } = await (supabase as any).rpc('get_lucky_wheel_status');
+    if (!error && data && typeof data === 'object') {
+      const parsed = parseServerStatusPayload(data as Record<string, unknown>);
+      if (parsed) {
+        mirrorServerWheelOutcomeLocally(
+          user.id,
+          parsed.dailyPeriod,
+          parsed.spin,
+          parsed.wheelBonusQuota,
+          parsed.wheelUnlimitedUntil,
+        );
+        return parsed;
+      }
+    }
+  } catch {
+    // Fall through to Edge Function
+  }
+
+  // 2) Secondary: claim-wheel-xp Edge Function (`action: 'status'`)
+  try {
+    const token = (await getSessionAccessToken(false)) || (await getSessionAccessToken(true));
+    if (token) {
+      const res = await supabase.functions.invoke('claim-wheel-xp', {
+        body: { action: 'status' },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.error && res.data && typeof res.data === 'object') {
+        const parsed = parseServerStatusPayload(res.data as Record<string, unknown>);
+        if (parsed) {
+          mirrorServerWheelOutcomeLocally(
+            user.id,
+            parsed.dailyPeriod,
+            parsed.spin,
+            parsed.wheelBonusQuota,
+            parsed.wheelUnlimitedUntil,
+          );
+          return parsed;
+        }
+      }
+    }
+  } catch {
+    // Fall through to DB table read
+  }
+
+  // 3) Read-only DB check on point_events for today's Istanbul date
+  try {
+    const info = getIstanbulWheelDateParts(new Date());
+    const [ptsRes, evRes] = await Promise.all([
+      supabase.from('user_points').select('points').eq('user_id', user.id).maybeSingle(),
+      supabase
+        .from('point_events')
+        .select('id, amount, created_at')
+        .eq('user_id', user.id)
+        .eq('reason', `monday_wheel:${info.dateStr}`)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const userPoints = Number((ptsRes.data as { points?: number } | null)?.points ?? 0);
+    const localState = getMondayWheelState(user, new Date(), { isAdmin: options?.isAdmin });
+    const hasDbEvent = Boolean(evRes.data);
+    const segId = evRes.data?.amount
+      ? `xp_${evRes.data.amount}`
+      : localState.todayRewardId;
+    const seg = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === segId) || null;
+    const hasSpun = hasDbEvent || localState.hasSpunToday;
+
+    return {
+      serverNowIso: new Date().toISOString(),
+      dailyPeriod: info.dateStr,
+      isMonday: info.isMonday,
+      isAdminDailyMode: Boolean(options?.isAdmin),
+      hasSpunToday: hasSpun,
+      canSpinNow: (info.isMonday || Boolean(options?.isAdmin)) && !hasSpun,
+      nextResetAtIso: new Date(
+        options?.isAdmin ? info.nextDayResetMs : info.nextMondayResetMs,
+      ).toISOString(),
+      userPoints,
+      wheelBonusQuota: localState.bonusQuota,
+      wheelUnlimitedUntil: localState.isWheelUnlimitedActive
+        ? new Date(getWheelUnlimitedUntil(user)).toISOString()
+        : null,
+      spin:
+        hasSpun && seg
+          ? {
+              id: `db-${info.dateStr}`,
+              transactionId: `wheel:${user.id}:${info.dateStr}`,
+              dailyPeriod: info.dateStr,
+              segmentId: seg.id,
+              rewardType: seg.type,
+              rewardAmount: seg.amount,
+              xpAwarded: seg.type === 'xp' ? seg.amount : 0,
+              xpCredited: hasDbEvent || seg.type !== 'xp',
+              pointsAfter: userPoints,
+              quotaBonusAdded: seg.type === 'extra_quota' ? seg.amount : 0,
+              unlimitedExpiresAt:
+                seg.type === 'unlimited_day' && localState.isWheelUnlimitedActive
+                  ? new Date(getWheelUnlimitedUntil(user)).toISOString()
+                  : null,
+              createdAt: (evRes.data as { created_at?: string } | null)?.created_at ?? new Date().toISOString(),
+            }
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Server-authoritative, single-transaction atomic Lucky Wheel spin.
+ * - Uses clientRequestId for idempotent retry (never produces a second reward).
+ * - Deduplicates concurrent in-tab and cross-tab spin attempts.
+ * - Server determines the winning segment using the exact original odds and commits XP/quota/unlimited
+ *   atomically BEFORE the client plays the visual wheel landing animation.
+ */
+export async function executeLuckyWheelSpin(
+  user: User,
+  clientRequestId: string,
+  options?: { isAdmin?: boolean },
+): Promise<ExecuteWheelSpinResult> {
+  const dailyPeriod = getTodayDateString(new Date());
+  const lockKey = `${user.id}:${dailyPeriod}`;
+
+  // If a spin call is already in flight in this tab, return the exact same promise (zero duplicate requests)
+  const existingPromise = inFlightSpinByKey.get(lockKey);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  if (!acquireCrossTabSpinLock(user.id, dailyPeriod, clientRequestId)) {
+    return {
+      ok: false,
+      error: 'Başka bir sekmede çark çevirme işlemi devam ediyor. Lütfen birkaç saniye bekle.',
+    };
+  }
+
+  const task = (async (): Promise<ExecuteWheelSpinResult> => {
+    try {
+      let rawResult: Record<string, unknown> | null = null;
+      let rpcErrorMsg: string | null = null;
+
+      // 1) Primary path: atomic PostgreSQL RPC `spin_lucky_wheel`
+      try {
+        const { data, error } = await (supabase as any).rpc('spin_lucky_wheel', {
+          _client_request_id: clientRequestId,
+        });
+        if (!error && data && typeof data === 'object' && (data as { ok?: boolean }).ok) {
+          rawResult = data as Record<string, unknown>;
+        } else if (error) {
+          const msg = String(error.message || '');
+          const isMissingFn =
+            error.code === 'PGRST202' ||
+            msg.includes('spin_lucky_wheel') ||
+            msg.includes('schema cache');
+          if (!isMissingFn) {
+            rpcErrorMsg = msg;
+          }
+        }
+      } catch (err) {
+        console.warn('spin_lucky_wheel RPC fallback:', err);
+      }
+
+      // If the RPC explicitly rejected eligibility (e.g. not Monday), return that exact error immediately
+      if (!rawResult && rpcErrorMsg) {
+        return { ok: false, error: rpcErrorMsg };
+      }
+
+      // 2) Secondary path: Edge Function `claim-wheel-xp` with `{ action: 'spin', clientRequestId }`
+      if (!rawResult) {
+        try {
+          let token = await getSessionAccessToken(false);
+          if (!token) token = await getSessionAccessToken(true);
+          if (token) {
+            let res = await supabase.functions.invoke('claim-wheel-xp', {
+              body: { action: 'spin', clientRequestId },
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const status = (res.error as { context?: { status?: number } } | null)?.context?.status;
+            if (res.error && status === 401) {
+              const freshToken = await getSessionAccessToken(true);
+              if (freshToken && freshToken !== token) {
+                res = await supabase.functions.invoke('claim-wheel-xp', {
+                  body: { action: 'spin', clientRequestId },
+                  headers: { Authorization: `Bearer ${freshToken}` },
+                });
+              }
+            }
+            if (!res.error && res.data && typeof res.data === 'object' && (res.data as { ok?: boolean }).ok) {
+              rawResult = res.data as Record<string, unknown>;
+            } else if (res.data && typeof (res.data as { error?: unknown }).error === 'string') {
+              return { ok: false, error: String((res.data as { error: string }).error) };
+            }
+          }
+        } catch (err) {
+          console.warn('claim-wheel-xp spin fallback error:', err);
+        }
+      }
+
+      if (!rawResult) {
+        return {
+          ok: false,
+          error:
+            'Şans Çarkı sunucu ödül servisine ulaşılamadı. Ödül kaybı yaşanmaması için işlem durduruldu; lütfen kısa süre sonra tekrar dene.',
+        };
+      }
+
+      const spinRaw = rawResult.spin as Record<string, unknown> | undefined;
+      if (!spinRaw || typeof spinRaw.segmentId !== 'string') {
+        return { ok: false, error: 'Sunucudan geçersiz çark sonucu döndü.' };
+      }
+
+      const segment = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === spinRaw.segmentId);
+      if (!segment) {
+        return { ok: false, error: 'Tanımlı olmayan ödül dilimi döndü.' };
+      }
+
+      const spin: WheelSpinRecord = {
+        id: String(spinRaw.id || clientRequestId),
+        transactionId: String(spinRaw.transactionId || `wheel:${user.id}:${dailyPeriod}`),
+        dailyPeriod: String(spinRaw.dailyPeriod || rawResult.dailyPeriod || dailyPeriod),
+        segmentId: segment.id,
+        rewardType: (spinRaw.rewardType as WheelRewardType) || segment.type,
+        rewardAmount: Number(spinRaw.rewardAmount || segment.amount),
+        xpAwarded: Number(spinRaw.xpAwarded ?? (segment.type === 'xp' ? segment.amount : 0)),
+        xpCredited: Boolean(spinRaw.xpCredited ?? segment.type !== 'xp'),
+        pointsAfter:
+          typeof rawResult.newPointsTotal === 'number'
+            ? rawResult.newPointsTotal
+            : typeof spinRaw.pointsAfter === 'number'
+              ? spinRaw.pointsAfter
+              : null,
+        quotaBonusAdded: Number(spinRaw.quotaBonusAdded || 0),
+        unlimitedExpiresAt:
+          typeof spinRaw.unlimitedExpiresAt === 'string' ? spinRaw.unlimitedExpiresAt : null,
+        createdAt: String(spinRaw.createdAt || new Date().toISOString()),
+      };
+
+      const wheelBonusQuota =
+        typeof rawResult.wheelBonusQuota === 'number' ? rawResult.wheelBonusQuota : undefined;
+      const wheelUnlimitedUntil =
+        typeof rawResult.wheelUnlimitedUntil === 'string' ? rawResult.wheelUnlimitedUntil : null;
+
+      mirrorServerWheelOutcomeLocally(
+        user.id,
+        spin.dailyPeriod,
+        spin,
+        wheelBonusQuota,
+        wheelUnlimitedUntil,
+      );
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('econnotes:wheel-updated'));
+        window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+        window.dispatchEvent(new CustomEvent('econnotes:birthdate-updated'));
+      }
+
+      return {
+        ok: true,
+        alreadySpun: Boolean(rawResult.alreadySpun),
+        idempotentReplay: Boolean(rawResult.idempotentReplay),
+        segment,
+        spin,
+        newPointsTotal: spin.pointsAfter,
+        wheelBonusQuota,
+        wheelUnlimitedUntil,
+        serverNowIso: typeof rawResult.serverNowIso === 'string' ? rawResult.serverNowIso : undefined,
+        nextResetAtIso: typeof rawResult.nextResetAtIso === 'string' ? rawResult.nextResetAtIso : undefined,
+      };
+    } finally {
+      inFlightSpinByKey.delete(lockKey);
+      releaseCrossTabSpinLock(user.id, dailyPeriod, clientRequestId);
+    }
+  })();
+
+  inFlightSpinByKey.set(lockKey, task);
+  return task;
+}
+
+/**
+ * Safe, deduplicated per-user historical XP reconciliation for verified uncredited Wheel / Trivia XP.
+ * Calls the atomic `reconcile_my_missing_xp` PostgreSQL RPC (never estimates or double-credits).
+ */
+export async function syncPendingWheelXp(
+  user: User | null | undefined,
+  _options?: MondayWheelOptions,
+): Promise<number | null> {
+  if (!user) return null;
+  if (inFlightSyncUsers.has(user.id)) return null;
+
+  const todayStr = getTodayDateString(new Date());
+  const sessionKey = `econnotes_xp_reconciled_${user.id}_${todayStr}`;
+  try {
+    if (sessionStorage.getItem(sessionKey) === '1') return null;
+  } catch {
+    // ignore
+  }
+
+  inFlightSyncUsers.add(user.id);
+  try {
+    // 1) Primary: atomic PostgreSQL self-reconciliation RPC
+    const { data, error } = await (supabase as any).rpc('reconcile_my_missing_xp');
+    if (!error && data && typeof data === 'object') {
+      try {
+        sessionStorage.setItem(sessionKey, '1');
+      } catch {
+        // ignore
+      }
+      const creditedXp = Number((data as { creditedXp?: number }).creditedXp ?? 0);
+      if (creditedXp > 0 && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+        window.dispatchEvent(new CustomEvent('econnotes:wheel-updated'));
+        return creditedXp;
+      }
+      return null;
+    }
+
+    // 2) Secondary: Edge Function reconcile action
+    const token = await getSessionAccessToken(false);
+    if (token) {
+      const res = await supabase.functions.invoke('claim-wheel-xp', {
+        body: { action: 'reconcile' },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.error && res.data && typeof res.data === 'object') {
+        try {
+          sessionStorage.setItem(sessionKey, '1');
+        } catch {
+          // ignore
+        }
+        const creditedXp = Number((res.data as { creditedXp?: number }).creditedXp ?? 0);
+        if (creditedXp > 0 && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+          window.dispatchEvent(new CustomEvent('econnotes:wheel-updated'));
+          return creditedXp;
+        }
+      }
+    }
+  } catch {
+    // Non-fatal background check
+  } finally {
+    inFlightSyncUsers.delete(user.id);
+  }
+  return null;
+}
+
+/**
+ * Legacy helper retained for API compatibility; delegates directly to the atomic `claim_monday_wheel_xp` RPC / Edge Function.
  */
 export async function awardMondayWheelXp(
   amount: number,
   todayStr: string,
+  transactionId?: string,
 ): Promise<{ ok: boolean; newPointsTotal: number | null; alreadyClaimed?: boolean; error?: string }> {
-  // 1) Dedicated SECURITY DEFINER RPC
   try {
     const { data, error } = await (supabase as any).rpc('claim_monday_wheel_xp', {
       _amount: amount,
@@ -304,27 +889,13 @@ export async function awardMondayWheelXp(
     // Fall through to Edge Function
   }
 
-  // 2) Live Edge Function fallback (works immediately with service_role)
   try {
-    let token = await getSessionAccessToken(false);
-    if (!token) token = await getSessionAccessToken(true);
+    const token = (await getSessionAccessToken(false)) || (await getSessionAccessToken(true));
     if (token) {
-      let res = await supabase.functions.invoke('claim-wheel-xp', {
-        body: { amount, spinDate: todayStr },
+      const res = await supabase.functions.invoke('claim-wheel-xp', {
+        body: { amount, spinDate: todayStr, transactionId },
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      const status = (res.error as { context?: { status?: number } } | null)?.context?.status;
-      if (res.error && status === 401) {
-        const freshToken = await getSessionAccessToken(true);
-        if (freshToken && freshToken !== token) {
-          res = await supabase.functions.invoke('claim-wheel-xp', {
-            body: { amount, spinDate: todayStr },
-            headers: { Authorization: `Bearer ${freshToken}` },
-          });
-        }
-      }
-
       if (!res.error && res.data && (res.data as { ok?: boolean }).ok) {
         const payload = res.data as { points?: number; already_claimed?: boolean };
         if (typeof window !== 'undefined') {
@@ -338,163 +909,12 @@ export async function awardMondayWheelXp(
       }
     }
   } catch {
-    // Fall through to legacy awardPoints RPC
-  }
-
-  // 3) Updated award_points RPC fallback
-  const directTotal = await awardPoints(`monday_wheel:${todayStr}`, amount);
-  if (directTotal !== null) {
-    return { ok: true, newPointsTotal: directTotal };
+    // Fall through
   }
 
   return {
     ok: false,
     newPointsTotal: null,
-    error: 'XP puanı toplam puan sistemine kaydedilemedi. Lütfen internet bağlantını kontrol edip tekrar dene.',
+    error: 'XP puanı toplam puan sistemine kaydedilemedi. Lütfen kısa süre sonra tekrar dene.',
   };
-}
-
-/**
- * Kullanıcı bugün çarkı daha önce çevirip XP kazandıysa fakat eski sistem hatası nedeniyle
- * `point_events` tablosuna yansımadıysa tek seferlik olarak eksik XP'yi hesaba senkronize eder.
- */
-export async function syncPendingWheelXp(
-  user: User | null | undefined,
-  options?: MondayWheelOptions,
-): Promise<number | null> {
-  if (!user) return null;
-  const state = getMondayWheelState(user, new Date(), options);
-  if (!state.hasSpunToday || !state.todayRewardId) return null;
-
-  const seg = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === state.todayRewardId);
-  if (!seg || seg.type !== 'xp') return null;
-
-  const todayStr = getTodayDateString(new Date());
-  const syncedKey = `econnotes_wheel_xp_synced_${user.id}_${todayStr}`;
-  try {
-    if (localStorage.getItem(syncedKey) === '1') return null;
-  } catch {
-    // ignore
-  }
-
-  try {
-    const { data: existingEvents } = await supabase
-      .from('point_events')
-      .select('id')
-      .eq('user_id', user.id)
-      .like('reason', `monday_wheel:${todayStr}%`)
-      .limit(1);
-
-    if (Array.isArray(existingEvents) && existingEvents.length > 0) {
-      try {
-        localStorage.setItem(syncedKey, '1');
-      } catch {
-        // ignore
-      }
-      return null;
-    }
-
-    const res = await awardMondayWheelXp(seg.amount, todayStr);
-    if (res.ok) {
-      try {
-        localStorage.setItem(syncedKey, '1');
-      } catch {
-        // ignore
-      }
-      return res.alreadyClaimed ? null : seg.amount;
-    }
-  } catch {
-    // Non-fatal background sync
-  }
-  return null;
-}
-
-/**
- * Normal kullanıcılar için Pazartesi günleri, yöneticiler için her gün günde 1 kez çalışır.
- * Kazanan dilimi kullanıcının hesabına anında yükler:
- * - XP ise: claim_monday_wheel_xp / claim-wheel-xp ile user_points + point_events ve liderlik sıralamasına yazar.
- * - +2 Not Hakkı ise: kullanıcının indirme/görüntüleme kotasını kalıcı olarak +2 artırır.
- * - 1 Gün Sınırsız ise: 24 saatlik sınırsız not görüntüleme, indirme ve yükleme geçişini başlatır.
- */
-export async function claimMondayWheelReward(
-  user: User,
-  segment: WheelSegment,
-  now = new Date(),
-  options?: MondayWheelOptions,
-): Promise<{ ok: boolean; error?: string; newPointsTotal?: number | null }> {
-  const isAdmin = Boolean(options?.isAdmin);
-  const state = getMondayWheelState(user, now, { isAdmin });
-  if (!state.isMonday && !isAdmin) {
-    return {
-      ok: false,
-      error: 'Şans Çarkı yalnızca Pazartesi günleri çevrilebilir. Bir sonraki Pazartesi gününü beklemelisin!',
-    };
-  }
-  if (state.hasSpunToday) {
-    return {
-      ok: false,
-      error: isAdmin
-        ? 'Bugünkü yönetici çark hakkını zaten kullandın. Yarın tekrar çevirebilirsin!'
-        : 'Bu Pazartesi çark hakkını zaten kullandın. Haftaya Pazartesi tekrar çevirebilirsin!',
-    };
-  }
-
-  const todayStr = getTodayDateString(now);
-
-  let newPointsTotal: number | null = null;
-
-  if (segment.type === 'xp') {
-    const xpRes = await awardMondayWheelXp(segment.amount, todayStr);
-    if (!xpRes.ok) {
-      return {
-        ok: false,
-        error: xpRes.error || 'XP puanı puan sistemine eklenemedi. Lütfen tekrar dene.',
-      };
-    }
-    newPointsTotal = xpRes.newPointsTotal;
-    try {
-      localStorage.setItem(`econnotes_wheel_xp_synced_${user.id}_${todayStr}`, '1');
-    } catch {
-      // ignore
-    }
-  }
-
-  try {
-    localStorage.setItem(
-      `${STORAGE_SPIN_PREFIX}${user.id}_${todayStr}`,
-      JSON.stringify({ date: todayStr, rewardId: segment.id }),
-    );
-  } catch {
-    // ignore
-  }
-
-  const nextMeta: Record<string, unknown> = {
-    monday_wheel_last_date: todayStr,
-    monday_wheel_last_reward: segment.id,
-  };
-
-  if (segment.type === 'extra_quota') {
-    const nextBonus = getWheelBonusQuota(user) + segment.amount;
-    nextMeta.wheel_bonus_quota = nextBonus;
-    try {
-      localStorage.setItem(`${STORAGE_BONUS_QUOTA_PREFIX}${user.id}`, String(nextBonus));
-    } catch {
-      // ignore
-    }
-  } else if (segment.type === 'unlimited_day') {
-    const expiresAt = now.getTime() + 24 * 60 * 60 * 1000;
-    nextMeta.wheel_unlimited_until = expiresAt;
-    try {
-      localStorage.setItem(`${STORAGE_UNLIMITED_UNTIL_PREFIX}${user.id}`, String(expiresAt));
-    } catch {
-      // ignore
-    }
-  }
-
-  await supabase.auth.updateUser({ data: nextMeta }).catch(() => {});
-  window.dispatchEvent(new CustomEvent('econnotes:wheel-updated'));
-  window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
-  window.dispatchEvent(new CustomEvent('econnotes:birthdate-updated'));
-
-  return { ok: true, newPointsTotal };
 }

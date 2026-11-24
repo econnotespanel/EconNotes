@@ -1,4 +1,5 @@
 import { APP_VERSION_LABEL } from '@/lib/version';
+import { downloadAcademicSummaryPdf } from '@/lib/academicSummaryPdf';
 
 export interface LectureSummaryReport {
   title: string;
@@ -377,7 +378,30 @@ export function downloadLectureSummary(report: LectureSummaryReport) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function downloadLectureSummaryPdf(report: LectureSummaryReport) {
+export async function downloadLectureSummaryPdf(report: LectureSummaryReport) {
+  try {
+    await downloadAcademicSummaryPdf({
+      title: report.title,
+      course: report.course,
+      createdAt: report.generatedAt,
+      summary: {
+        overview: report.overview,
+        disciplineTag: report.course,
+        keyPoints: report.keyPoints || [],
+        sections: report.sections || [],
+        teacherEmphasis: report.teacherEmphasis,
+        comparativeMatrix: report.comparativeMatrix,
+        deepResearchTopics: report.deepResearchTopics,
+        keyTerms: report.keyTerms,
+        memorizeVsInterpret: report.memorizeVsInterpret,
+        summarySynthesis: report.summarySynthesis,
+        studyChecklist: report.studyChecklist,
+      },
+    });
+    return;
+  } catch {
+    // Fallback to print window only if binary PDF fails
+  }
   const html = buildLectureSummaryHtml(report);
   const popup = window.open('', '_blank', 'width=960,height=780');
   if (!popup) {

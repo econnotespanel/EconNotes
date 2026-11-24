@@ -23,6 +23,8 @@ interface NeuralWorkspaceFrameProps {
   expandingSectionIdx: number | null;
   onRegenerateDeep: () => Promise<void>;
   isRegenerating: boolean;
+  onSaveToAccount?: (material: StudyMaterial) => Promise<void>;
+  isSavingToAccount?: boolean;
   onRecordProgress: (score: number, total: number) => Promise<void> | void;
   onReportIssue: () => void;
 }
@@ -36,6 +38,8 @@ export function NeuralWorkspaceFrame({
   expandingSectionIdx,
   onRegenerateDeep,
   isRegenerating,
+  onSaveToAccount,
+  isSavingToAccount,
   onRecordProgress,
   onReportIssue,
 }: NeuralWorkspaceFrameProps) {
@@ -133,6 +137,8 @@ export function NeuralWorkspaceFrame({
               expandingSectionIdx={expandingSectionIdx}
               onRegenerateDeep={onRegenerateDeep}
               isRegenerating={isRegenerating}
+              onSaveToAccount={onSaveToAccount}
+              isSavingToAccount={isSavingToAccount}
               onAskCoach={handleAskCoach}
             />
           )}

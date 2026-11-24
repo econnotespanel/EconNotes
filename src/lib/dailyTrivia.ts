@@ -38,17 +38,31 @@ export interface TriviaAnswerRecord {
   explanation?: string;
 }
 
+export type TriviaSessionStatus =
+  | 'not_started'
+  | 'in_progress'
+  | 'grace_period'
+  | 'completed'
+  | 'cancelled'
+  | 'expired';
+
 export interface TriviaAttemptSummary {
   id: string;
-  status: 'in_progress' | 'completed' | 'cancelled';
+  sessionToken?: string;
+  status: TriviaSessionStatus;
   currentIndex: number;
   answeredCount: number;
   correctCount: number;
   wrongCount?: number;
   blankCount?: number;
   xpEarned: number;
+  xpCredited?: boolean;
+  rewardTransactionId?: string | null;
   grandPrizeAwarded: boolean;
   unlimitedExpiresAt: string | null;
+  leaveStartedAt?: string | null;
+  graceExpiresAt?: string | null;
+  lastActivityAt?: string | null;
   cancelReason: string | null;
   cancelMessage: string | null;
   startedAt: string;
@@ -63,6 +77,7 @@ export interface TriviaAttemptSummary {
 export interface TriviaStatusResponse {
   quizDate: string;
   resetsAtIso: string;
+  sessionStatus?: TriviaSessionStatus;
   totalQuestions: number;
   xpPerCorrect: number;
   maxXp: number;
@@ -113,11 +128,35 @@ export interface TriviaFinishResponse {
 
 export interface TriviaReturnResponse {
   cancelled: boolean;
+  expired?: boolean;
+  status?: TriviaSessionStatus;
   awayMs?: number;
   cancelReason?: string | null;
   cancelMessage?: string | null;
   xpRevoked?: number;
   newUserPointsTotal?: number | null;
+  serverNowIso?: string;
+  questions?: TriviaQuestionClient[];
+}
+
+export interface TriviaLeaveResponse {
+  ok: boolean;
+  status?: TriviaSessionStatus;
+  cancelled?: boolean;
+  leaveStartedAt?: string;
+  graceExpiresAt?: string;
+  serverNowIso?: string;
+}
+
+export interface TriviaHeartbeatResponse {
+  ok: boolean;
+  status?: TriviaSessionStatus;
+  cancelled?: boolean;
+  expired?: boolean;
+  cancelReason?: string | null;
+  cancelMessage?: string | null;
+  graceExpiresAt?: string | null;
+  serverNowIso?: string;
 }
 
 export const TRIVIA_TOTAL_QUESTIONS = 15;
@@ -418,12 +457,13 @@ export function sendDailyTriviaBeacon(
   body: Record<string, unknown>,
   userId?: string | null,
 ): void {
-  if (edgeUnavailableInSession) {
-    recordFallbackLeaveLocally(userId ?? null);
-    return;
-  }
   if (userId) {
-    recordFallbackLeaveLocally(userId);
+    recordFallbackLeaveLocally(userId, typeof body.reason === 'string' ? body.reason : 'left_screen');
+  }
+  if (edgeUnavailableInSession) {
+    // Also persist grace_period asynchronously to Supabase Auth metadata so reloads/other tabs see it immediately
+    void runDailyTriviaSupabaseEngine(body).catch(() => {});
+    return;
   }
   if (!accessToken) return;
   try {

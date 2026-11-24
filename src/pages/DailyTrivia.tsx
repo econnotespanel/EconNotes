@@ -78,6 +78,7 @@ import {
   type TriviaCategory,
   type TriviaDifficulty,
   type TriviaFinishResponse,
+  type TriviaHeartbeatResponse,
   type TriviaQuestionClient,
   type TriviaReturnResponse,
   type TriviaStartResponse,
@@ -172,12 +173,18 @@ export default function DailyTrivia() {
 
   const accessTokenRef = useRef<string | null>(null);
   const isInProgressRef = useRef(false);
+  const isActiveQuizRef = useRef(false);
+  const attemptStatusRef = useRef<string>('not_started');
   const leaveStartedAtRef = useRef<number | null>(null);
+  const graceExpiresAtRef = useRef<number | null>(null);
+  const leaveBeaconSentRef = useRef(false);
   const awayIntervalRef = useRef<number | null>(null);
+  const returningRef = useRef(false);
   const cancellingRef = useRef(false);
   const initialReloadCheckedRef = useRef(false);
   const finishingRef = useRef(false);
   const warnedRef = useRef(false);
+  const clockOffsetRef = useRef(0);
   // Cevap kayıtları sırayla (kuyruk) gönderilir; başarısız olanlar bitişten önce tekrar denenir
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const pendingSavesRef = useRef(0);
@@ -185,7 +192,10 @@ export default function DailyTrivia() {
 
   const userId = user?.id ?? null;
   const isInProgress = attempt?.status === 'in_progress';
+  const isActiveQuiz = attempt?.status === 'in_progress' || attempt?.status === 'grace_period';
   isInProgressRef.current = isInProgress;
+  isActiveQuizRef.current = isActiveQuiz;
+  attemptStatusRef.current = attempt?.status ?? 'not_started';
 
   // Keep a fresh JWT in ref for synchronous keepalive beacons on tab hide / unload
   useEffect(() => {
@@ -212,18 +222,29 @@ export default function DailyTrivia() {
 
   const syncClock = useCallback((serverNowIso?: string | null) => {
     const serverMs = serverNowIso ? Date.parse(serverNowIso) : NaN;
-    if (Number.isFinite(serverMs)) setClockOffsetMs(serverMs - Date.now());
+    if (Number.isFinite(serverMs)) {
+      const offset = serverMs - Date.now();
+      clockOffsetRef.current = offset;
+      setClockOffsetMs(offset);
+    }
   }, []);
 
-  const clearAwayTimers = useCallback(() => {
+  const stopAwayIntervalOnly = useCallback(() => {
     if (awayIntervalRef.current !== null) {
       window.clearInterval(awayIntervalRef.current);
       awayIntervalRef.current = null;
     }
+  }, []);
+
+  const clearAwayTimers = useCallback(() => {
+    stopAwayIntervalOnly();
     leaveStartedAtRef.current = null;
+    graceExpiresAtRef.current = null;
+    leaveBeaconSentRef.current = false;
+    returningRef.current = false;
     setAwayActive(false);
     setAwayRemainingMs(TRIVIA_LEAVE_LIMIT_MS);
-  }, []);
+  }, [stopAwayIntervalOnly]);
 
   const handleAudioPrefsChange = useCallback(
     (next: TriviaAudioPrefs) => {
@@ -280,9 +301,15 @@ export default function DailyTrivia() {
   const markCancelledLocally = useCallback(
     (reason: string, message: string | null, points?: number | null) => {
       stopAllTriviaAudio();
+      clearAwayTimers();
       setIsSpeaking(false);
       playTriviaSound('wrong', audioPrefsRef.current);
       if (userId) clearActiveTriviaRunInSession(userId);
+      isInProgressRef.current = false;
+      isActiveQuizRef.current = false;
+      attemptStatusRef.current = 'cancelled';
+      unsavedRef.current.clear();
+      setQuestions([]);
       setAttempt((prev) =>
         prev
           ? {
@@ -291,6 +318,8 @@ export default function DailyTrivia() {
               xpEarned: 0,
               grandPrizeAwarded: false,
               unlimitedExpiresAt: null,
+              leaveStartedAt: null,
+              graceExpiresAt: null,
               cancelReason: reason,
               cancelMessage:
                 message ||
@@ -305,32 +334,209 @@ export default function DailyTrivia() {
       window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
       window.dispatchEvent(new CustomEvent('econnotes:trivia-updated'));
     },
-    [userId],
+    [clearAwayTimers, userId],
   );
+
+  const markExpiredLocally = useCallback(() => {
+    stopAllTriviaAudio();
+    clearAwayTimers();
+    setIsSpeaking(false);
+    if (userId) clearActiveTriviaRunInSession(userId);
+    isInProgressRef.current = false;
+    isActiveQuizRef.current = false;
+    attemptStatusRef.current = 'expired';
+    unsavedRef.current.clear();
+    setQuestions([]);
+    setAttempt((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: 'expired',
+            xpEarned: 0,
+            grandPrizeAwarded: false,
+            unlimitedExpiresAt: null,
+            leaveStartedAt: null,
+            graceExpiresAt: null,
+            timedOut: true,
+            cancelReason: 'time_expired',
+            cancelMessage: '15 dakikalık yarışma süresi dolduğu için oturum sonlandı.',
+          }
+        : prev,
+    );
+    setFinishing(false);
+    finishingRef.current = false;
+    window.dispatchEvent(new CustomEvent('econnotes:trivia-updated'));
+  }, [clearAwayTimers, userId]);
 
   const triggerCancel = useCallback(
     async (reason: string) => {
       if (cancellingRef.current || !userId) return;
+      if (
+        attemptStatusRef.current === 'cancelled' ||
+        attemptStatusRef.current === 'completed' ||
+        attemptStatusRef.current === 'expired'
+      ) {
+        return;
+      }
       cancellingRef.current = true;
-      clearAwayTimers();
+      stopAwayIntervalOnly();
       clearActiveTriviaRunInSession(userId);
 
-      const { data } = await invokeDailyTrivia<{
-        cancelled?: boolean;
-        cancelReason?: string;
-        cancelMessage?: string;
-        xpRevoked?: number;
-        newUserPointsTotal?: number | null;
-      }>({
-        action: 'cancel',
-        reason,
-      });
+      try {
+        const { data } = await invokeDailyTrivia<{
+          cancelled?: boolean;
+          cancelReason?: string;
+          cancelMessage?: string;
+          xpRevoked?: number;
+          newUserPointsTotal?: number | null;
+        }>({
+          action: 'cancel',
+          reason,
+        });
 
-      markCancelledLocally(data?.cancelReason || reason, data?.cancelMessage || null, data?.newUserPointsTotal);
-      toast.error('Yarışma güvenlik kuralı gereği iptal edildi. Bu yarışmaya ait ödüller verilmedi.');
-      cancellingRef.current = false;
+        markCancelledLocally(data?.cancelReason || reason, data?.cancelMessage || null, data?.newUserPointsTotal);
+        toast.error('Yarışma güvenlik kuralı gereği iptal edildi. Bu yarışmaya ait ödüller verilmedi.');
+      } finally {
+        cancellingRef.current = false;
+      }
     },
-    [clearAwayTimers, markCancelledLocally, userId],
+    [markCancelledLocally, stopAwayIntervalOnly, userId],
+  );
+
+  /** Tek merkezli 5 saniyelik ayrılma zamanlayıcısı — aynı ayrılmada asla ikinci zamanlayıcı oluşturmaz. */
+  const enterGracePeriod = useCallback(
+    (reason: string, existingGraceExpiresAtLocalMs?: number) => {
+      if (!userId || !isActiveQuizRef.current || cancellingRef.current || finishingRef.current) return;
+
+      // Aynı ayrılma olayı (blur + visibilitychange + pagehide) için zamanlayıcıyı ASLA sıfırlama / çoğaltma!
+      if (leaveStartedAtRef.current !== null) {
+        if (
+          (reason === 'page_hide' || reason === 'page_unload' || reason === 'navigated_away') &&
+          !leaveBeaconSentRef.current
+        ) {
+          leaveBeaconSentRef.current = true;
+          sendDailyTriviaBeacon(accessTokenRef.current, { action: 'report_leave', reason }, userId);
+        }
+        return;
+      }
+
+      const now = Date.now();
+      const graceUntil =
+        typeof existingGraceExpiresAtLocalMs === 'number' && Number.isFinite(existingGraceExpiresAtLocalMs)
+          ? existingGraceExpiresAtLocalMs
+          : now + TRIVIA_LEAVE_LIMIT_MS;
+      const started = graceUntil - TRIVIA_LEAVE_LIMIT_MS;
+
+      leaveStartedAtRef.current = started;
+      graceExpiresAtRef.current = graceUntil;
+      setAwayActive(true);
+      setAwayRemainingMs(Math.max(0, graceUntil - now));
+
+      if (existingGraceExpiresAtLocalMs === undefined) {
+        leaveBeaconSentRef.current = true;
+        sendDailyTriviaBeacon(accessTokenRef.current, { action: 'report_leave', reason }, userId);
+      }
+
+      if (now >= graceUntil) {
+        void triggerCancel('away_over_5s');
+        return;
+      }
+
+      stopAwayIntervalOnly();
+      awayIntervalRef.current = window.setInterval(() => {
+        if (graceExpiresAtRef.current === null) return;
+        const left = Math.max(0, graceExpiresAtRef.current - Date.now());
+        setAwayRemainingMs(left);
+        if (left <= 0) {
+          stopAwayIntervalOnly();
+          void triggerCancel('away_over_5s');
+        }
+      }, 80);
+    },
+    [stopAwayIntervalOnly, triggerCancel, userId],
+  );
+
+  /** Sunucu zamanıyla doğrulanan geri dönüş işleyici (visibilitychange / focus / pageshow / buton). */
+  const handleReturn = useCallback(
+    async (source: 'visibilitychange' | 'focus' | 'pageshow' | 'button_click' | 'reload_resume') => {
+      if (!userId || !isActiveQuizRef.current || cancellingRef.current || finishingRef.current) return;
+      if (document.hidden && source !== 'button_click') return;
+      if (returningRef.current) return;
+      if (leaveStartedAtRef.current === null && attemptStatusRef.current !== 'grace_period') return;
+
+      returningRef.current = true;
+      const now = Date.now();
+      const elapsed =
+        leaveStartedAtRef.current !== null ? Math.max(0, now - leaveStartedAtRef.current) : 0;
+      const deadline = graceExpiresAtRef.current;
+
+      if ((deadline !== null && now >= deadline) || elapsed >= TRIVIA_LEAVE_LIMIT_MS) {
+        stopAwayIntervalOnly();
+        returningRef.current = false;
+        await triggerCancel('away_over_5s');
+        return;
+      }
+
+      try {
+        const { data, error } = await invokeDailyTrivia<TriviaReturnResponse>({
+          action: 'report_return',
+        });
+
+        if (data?.cancelled) {
+          markCancelledLocally(
+            data.cancelReason || 'away_over_5s',
+            data.cancelMessage || '5 saniyelik geri dönüş süresi aşıldığı için yarışma iptal edildi.',
+            data.newUserPointsTotal,
+          );
+          toast.error(data.cancelMessage || '5 saniye içinde dönülmediği için yarışma iptal edildi.');
+          return;
+        }
+
+        if (data?.expired) {
+          markExpiredLocally();
+          toast.info('Yarışma süresi dolduğu için oturum sonlandı.');
+          return;
+        }
+
+        if (error || !data) {
+          // Sunucu onayı olmadan grace_period'u kapatma; süre dolduysa iptal et
+          if (graceExpiresAtRef.current !== null && Date.now() >= graceExpiresAtRef.current) {
+            await triggerCancel('away_over_5s');
+          }
+          return;
+        }
+
+        syncClock(data.serverNowIso);
+        clearAwayTimers();
+        if (Array.isArray(data.questions) && data.questions.length > 0) {
+          setQuestions(data.questions);
+        }
+        setAttempt((prev) =>
+          prev && prev.status === 'grace_period'
+            ? { ...prev, status: 'in_progress', leaveStartedAt: null, graceExpiresAt: null }
+            : prev,
+        );
+
+        const reportedMs = typeof data.awayMs === 'number' && data.awayMs > 0 ? data.awayMs : elapsed;
+        if (reportedMs > 0) {
+          const secStr = (reportedMs / 1000).toFixed(1);
+          setReturnWarning(
+            `Yarışma ekranından ayrıldınız (${secStr} sn). 5 saniye içinde döndüğünüz için devam ediyorsunuz; bir dahaki ayrılışta 5 saniyeyi aşarsanız yarışma iptal edilir.`,
+          );
+        }
+      } finally {
+        returningRef.current = false;
+      }
+    },
+    [
+      clearAwayTimers,
+      markCancelledLocally,
+      markExpiredLocally,
+      stopAwayIntervalOnly,
+      syncClock,
+      triggerCancel,
+      userId,
+    ],
   );
 
   /** Sunucudan gelen sonucu (Yarışmayı Bitir veya süre doldu) ekrana uygular. */
@@ -406,8 +612,60 @@ export default function DailyTrivia() {
       setCurrentIdx(Math.min(data.attempt.currentIndex, TRIVIA_TOTAL_QUESTIONS - 1));
       setFlagged(new Set(readFlags(data.attempt.id)));
       markActiveTriviaRunInSession(userId, data.quizDate, data.attempt.id);
+    } else if (data.attempt?.status === 'grace_period') {
+      // Sunucuda 5 sn geri dönüş penceresinde: sayacı ASLA baştan başlatma!
+      setCurrentIdx(Math.min(data.attempt.currentIndex, TRIVIA_TOTAL_QUESTIONS - 1));
+      setFlagged(new Set(readFlags(data.attempt.id)));
+      markActiveTriviaRunInSession(userId, data.quizDate, data.attempt.id);
+      isActiveQuizRef.current = true;
+      attemptStatusRef.current = 'grace_period';
+
+      const graceServerMs = data.attempt.graceExpiresAt ? Date.parse(data.attempt.graceExpiresAt) : NaN;
+      const serverNowMs = data.serverNowIso ? Date.parse(data.serverNowIso) : Date.now();
+      const remainingFromServer = Number.isFinite(graceServerMs)
+        ? graceServerMs - serverNowMs
+        : TRIVIA_LEAVE_LIMIT_MS;
+      const localGraceDeadline = Date.now() + remainingFromServer;
+
+      if (remainingFromServer <= 0) {
+        setLoading(false);
+        void triggerCancel('away_over_5s');
+        return;
+      }
+
+      if (!document.hidden) {
+        // Kullanıcı 5 sn içinde sayfaya geri döndü/yeniledi -> sunucu zamanıyla doğrula
+        const ret = await invokeDailyTrivia<TriviaReturnResponse>({ action: 'report_return' });
+        if (ret.data?.cancelled) {
+          markCancelledLocally(
+            ret.data.cancelReason || 'away_over_5s',
+            ret.data.cancelMessage || null,
+            ret.data.newUserPointsTotal,
+          );
+          toast.error(
+            ret.data.cancelMessage ||
+              'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.',
+          );
+        } else if (ret.data?.expired) {
+          markExpiredLocally();
+        } else if (ret.data && !ret.error) {
+          syncClock(ret.data.serverNowIso);
+          clearAwayTimers();
+          if (Array.isArray(ret.data.questions) && ret.data.questions.length > 0) {
+            setQuestions(ret.data.questions);
+          }
+          setAttempt((prev) =>
+            prev ? { ...prev, status: 'in_progress', leaveStartedAt: null, graceExpiresAt: null } : prev,
+          );
+        } else {
+          enterGracePeriod('reload_grace', localGraceDeadline);
+        }
+      } else {
+        enterGracePeriod('reload_grace', localGraceDeadline);
+      }
     } else {
       clearActiveTriviaRunInSession(userId);
+      clearAwayTimers();
       if (data.attempt?.status === 'cancelled' && activeRunMarker) {
         window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
         toast.error(
@@ -420,7 +678,7 @@ export default function DailyTrivia() {
     }
 
     setLoading(false);
-  }, [syncClock, userId]);
+  }, [clearAwayTimers, enterGracePeriod, markCancelledLocally, markExpiredLocally, syncClock, triggerCancel, userId]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -428,140 +686,107 @@ export default function DailyTrivia() {
     }
   }, [authLoading, fetchStatus]);
 
-  // Real-time 5-second leave detection (tab switch, window blur, page refresh/close).
-  // Soru navigasyonu (Önceki/Sonraki/numara) sayfa içi durum değişimidir ve ekran terk sayılmaz.
+  // Real-time 5-second leave detection across Desktop, Mobile, iOS Safari & PWA lifecycle events.
+  // Soru navigasyonu (Önceki/Sonraki/numara/işaretleme/cevap değişimi) sayfa içi durumdur, ekran terk sayılmaz.
   useEffect(() => {
-    if (!isInProgress || !userId) {
+    if (!isActiveQuiz || !userId) {
       clearAwayTimers();
       return;
     }
 
-    const startAwayClock = (reason: string) => {
-      if (!isInProgressRef.current || cancellingRef.current || finishingRef.current) return;
-      if (leaveStartedAtRef.current !== null) return; // already counting
-
-      const started = Date.now();
-      leaveStartedAtRef.current = started;
-      setAwayActive(true);
-      setAwayRemainingMs(TRIVIA_LEAVE_LIMIT_MS);
-
-      // Immediately stamp departure on server with keepalive
-      sendDailyTriviaBeacon(accessTokenRef.current, { action: 'report_leave', reason }, userId);
-
-      awayIntervalRef.current = window.setInterval(() => {
-        if (leaveStartedAtRef.current === null) return;
-        const elapsed = Date.now() - leaveStartedAtRef.current;
-        const left = Math.max(0, TRIVIA_LEAVE_LIMIT_MS - elapsed);
-        setAwayRemainingMs(left);
-        if (elapsed >= TRIVIA_LEAVE_LIMIT_MS) {
-          void triggerCancel('left_screen_over_5s');
-        }
-      }, 80);
-    };
-
-    const handleReturn = async () => {
-      if (!isInProgressRef.current || cancellingRef.current) return;
-      if (leaveStartedAtRef.current === null) return;
-
-      const elapsed = Date.now() - leaveStartedAtRef.current;
-      clearAwayTimers();
-
-      if (elapsed >= TRIVIA_LEAVE_LIMIT_MS) {
-        await triggerCancel('left_screen_over_5s');
-        return;
-      }
-
-      // Server-side timestamp verification
-      const { data } = await invokeDailyTrivia<TriviaReturnResponse>({
-        action: 'report_return',
-      });
-
-      if (data?.cancelled) {
-        markCancelledLocally(
-          data.cancelReason || 'away_over_5s',
-          data.cancelMessage || '5 saniyelik geri dönüş süresi aşıldığı için yarışma iptal edildi.',
-          data.newUserPointsTotal,
-        );
-        toast.error(data.cancelMessage || '5 saniye içinde dönülmediği için yarışma iptal edildi.');
-        return;
-      }
-
-      const secStr = (elapsed / 1000).toFixed(1);
-      setReturnWarning(
-        `Yarışma ekranından ayrıldınız (${secStr} sn). 5 saniye içinde döndüğünüz için devam ediyorsunuz; bir dahaki ayrılışta 5 saniyeyi aşarsanız yarışma iptal edilir.`,
-      );
-    };
-
     const onVisibilityChange = () => {
       if (document.hidden) {
-        startAwayClock('tab_hidden');
+        enterGracePeriod('tab_hidden');
       } else {
-        void handleReturn();
+        void handleReturn('visibilitychange');
       }
     };
 
     const onWindowBlur = () => {
-      startAwayClock('window_blur');
+      enterGracePeriod('window_blur');
     };
 
     const onWindowFocus = () => {
       if (!document.hidden) {
-        void handleReturn();
+        void handleReturn('focus');
+      }
+    };
+
+    const onPageHide = () => {
+      enterGracePeriod('page_hide');
+    };
+
+    const onPageShow = () => {
+      if (!document.hidden) {
+        void handleReturn('pageshow');
       }
     };
 
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (!isInProgressRef.current) return;
-      sendDailyTriviaBeacon(
-        accessTokenRef.current,
-        {
-          action: 'report_leave',
-          reason: 'page_unload',
-        },
-        userId,
-      );
+      if (!isActiveQuizRef.current || finishingRef.current || cancellingRef.current) return;
+      enterGracePeriod('page_unload');
       e.preventDefault();
       e.returnValue = '';
-    };
-
-    const onPageHide = () => {
-      if (!isInProgressRef.current) return;
-      sendDailyTriviaBeacon(
-        accessTokenRef.current,
-        {
-          action: 'report_leave',
-          reason: 'page_hide',
-        },
-        userId,
-      );
     };
 
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('blur', onWindowBlur);
     window.addEventListener('focus', onWindowFocus);
-    window.addEventListener('beforeunload', onBeforeUnload);
     window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('beforeunload', onBeforeUnload);
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', onWindowBlur);
       window.removeEventListener('focus', onWindowFocus);
-      window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('pagehide', onPageHide);
-      if (isInProgressRef.current && !finishingRef.current) {
-        // Navigating away via SPA router triggers server leave timestamp
-        sendDailyTriviaBeacon(
-          accessTokenRef.current,
-          {
-            action: 'report_leave',
-            reason: 'navigated_away',
-          },
-          userId,
-        );
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      if (isActiveQuizRef.current && !finishingRef.current && !cancellingRef.current) {
+        // SPA route değişikliğinde sunucuda 5 sn geri dönüş penceresini başlat; yerel zaman damgasını SİLME!
+        enterGracePeriod('navigated_away');
       }
-      clearAwayTimers();
+      stopAwayIntervalOnly();
     };
-  }, [isInProgress, userId, clearAwayTimers, triggerCancel, markCancelledLocally]);
+  }, [isActiveQuiz, userId, clearAwayTimers, enterGracePeriod, handleReturn, stopAwayIntervalOnly]);
+
+  // Sunucu tarafı son etkinlik / canlılık kontrolü (iOS Safari/PWA arka planda askıya alınsa bile yakalar)
+  useEffect(() => {
+    if (!isInProgress || awayActive || !userId) return;
+    let active = true;
+
+    const sendHeartbeat = async () => {
+      if (!active || document.hidden || !isInProgressRef.current || cancellingRef.current || finishingRef.current) {
+        return;
+      }
+      const { data } = await invokeDailyTrivia<TriviaHeartbeatResponse>({ action: 'heartbeat' });
+      if (!active || !data) return;
+      if (data.serverNowIso) syncClock(data.serverNowIso);
+      if (data.cancelled) {
+        markCancelledLocally(
+          data.cancelReason || 'inactivity_over_5s',
+          data.cancelMessage || null,
+        );
+        toast.error(data.cancelMessage || 'Yarışma güvenlik kuralı gereği iptal edildi.');
+      } else if (data.expired) {
+        markExpiredLocally();
+      } else if (data.status === 'grace_period' && data.graceExpiresAt) {
+        const graceMs = Date.parse(data.graceExpiresAt) - clockOffsetRef.current;
+        enterGracePeriod('server_grace', graceMs);
+      }
+    };
+
+    void sendHeartbeat();
+    const hbId = window.setInterval(() => {
+      void sendHeartbeat();
+    }, 3000);
+
+    return () => {
+      active = false;
+      window.clearInterval(hbId);
+    };
+  }, [isInProgress, awayActive, userId, enterGracePeriod, markCancelledLocally, markExpiredLocally, syncClock]);
 
   const handleStart = async () => {
     if (!user || starting) return;
@@ -631,6 +856,11 @@ export default function DailyTrivia() {
           error || 'Yarışma güvenlik kuralı gereği iptal edildi.',
         );
         toast.error(error || 'Yarışma iptal edildi.');
+        return;
+      }
+      if (raw?.expired) {
+        markExpiredLocally();
+        toast.info('Yarışma süresi dolduğu için oturum sonlandı.');
         return;
       }
       if (raw?.completed) {
@@ -756,6 +986,11 @@ export default function DailyTrivia() {
               error || 'Yarışma güvenlik kuralı gereği iptal edildi.',
             );
             toast.error(error || 'Yarışma iptal edildi.');
+            return;
+          }
+          if (raw?.expired) {
+            markExpiredLocally();
+            toast.info('Yarışma süresi dolduğu için oturum sonlandı.');
             return;
           }
           if (data) {
@@ -1423,43 +1658,58 @@ export default function DailyTrivia() {
                 </p>
               </div>
             )}
-
-            {/* 5-Second Away Countdown Lock Overlay */}
-            {awayActive && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#001d52]/75 p-4 backdrop-blur-md">
-                <div className="w-full max-w-md overflow-hidden rounded-3xl border border-border/80 bg-card text-center shadow-2xl">
-                  <div className="bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0055b8] px-6 py-5 text-white">
-                    <div className="mx-auto mb-2.5 flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl border border-rose-300/35 bg-rose-500/20 text-rose-100">
-                      <ShieldAlert className="h-6 w-6" />
-                    </div>
-                    <h2 className="text-lg font-extrabold tracking-tight">
-                      Yarışma Ekranından Ayrıldınız
-                    </h2>
-                  </div>
-                  <div className="space-y-4 p-6">
-                    <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                      5 saniye içerisinde yarışma ekranına geri dönmezseniz katılımınız iptal
-                      edilecek ve bu yarışma için XP veya ödül kazanılamayacaktır.
-                    </p>
-                    <div className="font-mono text-4xl font-black tabular-nums text-rose-600 dark:text-rose-400">
-                      {(awayRemainingMs / 1000).toFixed(1)} sn
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={() => window.focus()}
-                      className="h-11 w-full rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] font-extrabold text-white hover:opacity-95"
-                    >
-                      Yarışmaya Geri Dön
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* ==================== 3. CANCELLED SCREEN ==================== */}
-        {!errorMsg && attempt?.status === 'cancelled' && (
+        {/* ==================== 2B. 5-SECOND AWAY COUNTDOWN OVERLAY (in_progress OR grace_period) ==================== */}
+        {!errorMsg && isActiveQuiz && awayActive && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#001d52]/75 p-4 backdrop-blur-md">
+            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-border/80 bg-card text-center shadow-2xl">
+              <div className="bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0055b8] px-6 py-5 text-white">
+                <div className="mx-auto mb-2.5 flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl border border-rose-300/35 bg-rose-500/20 text-rose-100">
+                  <ShieldAlert className="h-6 w-6" />
+                </div>
+                <h2 className="text-lg font-extrabold tracking-tight">
+                  Yarışma Ekranından Ayrıldınız
+                </h2>
+              </div>
+              <div className="space-y-4 p-6">
+                <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                  5 saniye içerisinde yarışma ekranına geri dönmezseniz katılımınız iptal
+                  edilecek ve bu yarışma için XP veya ödül kazanılamayacaktır.
+                </p>
+                <div className="font-mono text-4xl font-black tabular-nums text-rose-600 dark:text-rose-400">
+                  {(awayRemainingMs / 1000).toFixed(1)} sn
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    window.focus();
+                    void handleReturn('button_click');
+                  }}
+                  className="h-11 w-full rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] font-extrabold text-white hover:opacity-95"
+                >
+                  Yarışmaya Geri Dön
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== 2C. GRACE PERIOD VERIFICATION FALLBACK ==================== */}
+        {!errorMsg && attempt?.status === 'grace_period' && !awayActive && (
+          <Card className="rounded-3xl border-border/80 bg-card/95 p-8 text-center shadow-xl">
+            <CardContent className="flex flex-col items-center gap-3 p-0">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              <p className="text-sm font-semibold text-foreground">
+                Yarışma oturumunuz doğrulanıyor...
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ==================== 3. CANCELLED / EXPIRED SCREEN ==================== */}
+        {!errorMsg && (attempt?.status === 'cancelled' || attempt?.status === 'expired') && (
           <Card className="trivia-anim-enter overflow-hidden rounded-3xl border-border/80 bg-card/95 shadow-xl">
             <div className="relative overflow-hidden bg-gradient-to-br from-[#001a4d] via-[#003791] to-[#0055b8] px-5 py-7 text-center text-white sm:px-8 sm:py-8">
               <div
@@ -1474,15 +1724,21 @@ export default function DailyTrivia() {
                   className="h-[26px] w-[117px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.22)] sm:h-[27px] sm:w-[121px]"
                 />
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-300/40 bg-rose-500/20 text-rose-100 shadow-inner backdrop-blur-md">
-                  <ShieldAlert className="h-7 w-7" />
+                  {attempt.status === 'expired' ? (
+                    <Timer className="h-7 w-7" />
+                  ) : (
+                    <ShieldAlert className="h-7 w-7" />
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                    Yarışma İptal Edildi
+                    {attempt.status === 'expired' ? 'Yarışma Süresi Doldu' : 'Yarışma İptal Edildi'}
                   </h1>
                   <p className="mx-auto max-w-md text-xs leading-relaxed text-blue-100/95 sm:text-sm">
                     {attempt.cancelMessage ||
-                      'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.'}
+                      (attempt.status === 'expired'
+                        ? '15 dakikalık yarışma süresi dolduğu için oturum sonlandı.'
+                        : 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.')}
                   </p>
                 </div>
               </div>

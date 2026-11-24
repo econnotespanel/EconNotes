@@ -22,6 +22,9 @@ export interface LogicalDocumentChunk {
   index: number;
   total: number;
   text: string;
+  /** Trailing paragraphs from the immediately preceding chunk so cross-boundary concepts never break */
+  overlapPrefix?: string;
+  headingHints?: string[];
   pageStart?: number;
   pageEnd?: number;
   pageRangeLabel?: string;
@@ -114,13 +117,13 @@ export function computeDynamicSummaryPlan(params: {
     },
     massive: {
       minSec: 16,
-      maxSec: 24,
+      maxSec: 26,
       minWords: 500,
-      maxWords: 800,
-      terms: 44,
-      points: 18,
-      maxChunks: 16,
-      chunkChars: 26_000,
+      maxWords: 850,
+      terms: 48,
+      points: 20,
+      maxChunks: 24,
+      chunkChars: 24_000,
     },
   };
 
@@ -266,7 +269,8 @@ export function getDisciplineSummaryGuidance(
 export function splitDocumentIntoLogicalChunks(
   text: string,
   maxChunkChars = 24_000,
-  maxChunks = 16,
+  maxChunks = 24,
+  overlapChars = 520,
 ): LogicalDocumentChunk[] {
   const clean = (text || '').trim();
   if (!clean) return [];
@@ -286,6 +290,48 @@ export function splitDocumentIntoLogicalChunks(
     };
   };
 
+  const extractChunkHeadings = (slice: string): string[] => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const rawLine of slice.split('\n')) {
+      const line = rawLine.trim();
+      if (!line || line.length < 4 || line.length > 96) continue;
+      if (/^---\s*(Sayfa|Slayt)\s+\d+\s*---$/i.test(line)) continue;
+      if (/^===\s*KAYNAK/i.test(line)) continue;
+      const isHeading =
+        /^#{1,4}\s+/.test(line) ||
+        /^(\d+(\.\d+){0,2}|[IVX]+\.)\s+[A-ZÇĞİÖŞÜ]/.test(line) ||
+        /^[A-ZÇĞİÖŞÜ][^.!?]{3,55}:$/.test(line) ||
+        (line.length >= 6 && line.length <= 65 && line === line.toUpperCase() && /[A-ZÇĞİÖŞÜ]{3}/.test(line));
+      if (isHeading) {
+        const cleaned = line.replace(/^#{1,4}\s+/, '').replace(/:$/, '').trim();
+        const key = cleaned.toLocaleLowerCase('tr-TR');
+        if (!seen.has(key) && cleaned.length >= 4) {
+          seen.add(key);
+          out.push(cleaned);
+          if (out.length >= 8) break;
+        }
+      }
+    }
+    return out;
+  };
+
+  const extractTailOverlap = (prevPiece: string): string => {
+    if (!prevPiece || overlapChars <= 0) return '';
+    const paras = prevPiece
+      .split(/\n{2,}/)
+      .map((p) => p.trim())
+      .filter((p) => p.length >= 30 && !/^---\s*(Sayfa|Slayt)\s+\d+\s*---$/i.test(p));
+    if (paras.length === 0) return prevPiece.slice(-overlapChars).trim();
+    const chosen: string[] = [];
+    let len = 0;
+    for (let i = paras.length - 1; i >= 0 && len < overlapChars; i--) {
+      chosen.unshift(paras[i]);
+      len += paras[i].length + 2;
+    }
+    return chosen.join('\n\n').slice(-overlapChars).trim();
+  };
+
   if (clean.length <= maxChunkChars) {
     const bounds = extractPageBounds(clean);
     return [
@@ -293,6 +339,7 @@ export function splitDocumentIntoLogicalChunks(
         index: 0,
         total: 1,
         text: clean,
+        headingHints: extractChunkHeadings(clean),
         pageStart: bounds.start,
         pageEnd: bounds.end,
         pageRangeLabel: bounds.label,
@@ -373,10 +420,13 @@ export function splitDocumentIntoLogicalChunks(
   const filtered = rawPieces.filter((p) => p.length > 35);
   return filtered.map((piece, idx) => {
     const bounds = extractPageBounds(piece);
+    const overlapPrefix = idx > 0 ? extractTailOverlap(filtered[idx - 1]) : undefined;
     return {
       index: idx,
       total: filtered.length,
       text: piece,
+      overlapPrefix: overlapPrefix || undefined,
+      headingHints: extractChunkHeadings(piece),
       pageStart: bounds.start,
       pageEnd: bounds.end,
       pageRangeLabel: bounds.label,

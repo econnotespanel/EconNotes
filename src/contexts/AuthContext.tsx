@@ -14,6 +14,9 @@ interface Profile {
   department: string;
   grade: number | null;
   birth_date?: string | null;
+  trivia_unlimited_until?: string | null;
+  wheel_bonus_quota?: number | null;
+  wheel_unlimited_until?: string | null;
   avatar_url: string | null;
   approval_status?: 'pending' | 'approved' | 'rejected' | string;
   approved_at?: string | null;

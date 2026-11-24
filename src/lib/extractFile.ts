@@ -239,7 +239,7 @@ export async function extractFile(
     const buf = await readFileAsArrayBuffer(file);
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     const total = pdf.numPages;
-    const maxPages = Math.min(total, 350);
+    const maxPages = Math.min(total, 500);
     const parts: string[] = new Array(maxPages).fill('');
     const unreadablePages: number[] = [];
     const warnings: string[] = [];
@@ -278,7 +278,7 @@ export async function extractFile(
     }
 
     unreadablePages.sort((a, b) => a - b);
-    const extractedText = parts.filter(Boolean).join('\n\n').slice(0, 900_000);
+    const extractedText = parts.filter(Boolean).join('\n\n').slice(0, 2_400_000);
     const avgCharsPerPage = meaningfulChars / Math.max(1, maxPages);
 
     if (total > maxPages) {
@@ -502,32 +502,40 @@ export async function extractFile(
   }
 
   if (name.endsWith('.docx')) {
-    onProgress?.(30, 'Word belgesi ve tablolar okunuyor...');
+    onProgress?.(30, 'Word belgesi başlıklar, paragraflar ve tablolar sırayla okunuyor...');
     const zip = await JSZip.loadAsync(await readFileAsArrayBuffer(file));
     const docXml = await zip.files['word/document.xml']?.async('text');
     if (!docXml) throw new Error('Word belgesi okunamadı.');
 
-    const extractWordParagraphs = (xml: string): string[] => {
-      const out: string[] = [];
-      const pBlocks = xml.match(/<w:p\b[\s\S]*?<\/w:p>/g) || [];
-      for (const pBlock of pBlocks) {
-        const runs = Array.from(pBlock.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g))
-          .map((m) => decodeXmlEntities(m[1]))
-          .join('');
-        if (runs.trim()) out.push(runs.trim());
-      }
-      return out;
+    const extractParagraphText = (pXml: string): { text: string; headingLevel: number; isListItem: boolean } => {
+      const styleMatch = pXml.match(/<w:pStyle\b[^>]*w:val="([^"]+)"/i);
+      const styleVal = (styleMatch?.[1] || '').toLowerCase();
+      let headingLevel = 0;
+      if (/^(heading|baslik|başlık|title)[\s_-]*1$|^(title)$/.test(styleVal)) headingLevel = 1;
+      else if (/^(heading|baslik|başlık)[\s_-]*2$|^(subtitle)$/.test(styleVal)) headingLevel = 2;
+      else if (/^(heading|baslik|başlık)[\s_-]*[3-6]$/.test(styleVal)) headingLevel = 3;
+
+      const isListItem = /<w:numPr\b/.test(pXml);
+      const runs = Array.from(pXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g))
+        .map((m) => decodeXmlEntities(m[1]))
+        .join('')
+        .trim();
+      return { text: runs, headingLevel, isListItem };
     };
 
-    const blocks: string[] = [];
-    const docWithMarkers = docXml.replace(/<w:tbl\b[\s\S]*?<\/w:tbl>/g, (tblXml) => {
+    const parseTableToMarkdown = (tblXml: string): string => {
       const rows = tblXml.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) || [];
       const parsedRows: string[][] = [];
       for (const rowXml of rows) {
         const cells = rowXml.match(/<w:tc\b[\s\S]*?<\/w:tc>/g) || [];
-        const cellTexts = cells.map((tc) =>
-          extractWordParagraphs(tc).join(' ').replace(/\|/g, '/').trim(),
-        );
+        const cellTexts = cells.map((tc) => {
+          const pBlocks = tc.match(/<w:p\b[\s\S]*?<\/w:p>/g) || [];
+          const joined = pBlocks
+            .map((p) => extractParagraphText(p).text)
+            .filter(Boolean)
+            .join(' ');
+          return joined.replace(/\|/g, '/').trim();
+        });
         if (cellTexts.some((c) => c.length > 0)) parsedRows.push(cellTexts);
       }
       if (parsedRows.length >= 2) {
@@ -535,21 +543,46 @@ export async function extractFile(
         const norm = parsedRows.map((r) =>
           Array.from({ length: colCount }, (_, ci) => r[ci] || '—'),
         );
-        const md = [
+        return [
           `| ${norm[0].join(' | ')} |`,
           `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`,
           ...norm.slice(1).map((r) => `| ${r.join(' | ')} |`),
         ].join('\n');
-        blocks.push(md);
+      }
+      if (parsedRows.length === 1) {
+        return parsedRows[0].filter(Boolean).join(' — ');
       }
       return '';
-    });
+    };
 
-    const paragraphs = extractWordParagraphs(docWithMarkers);
-    const text = [...paragraphs, ...blocks].join('\n\n').slice(0, 600_000);
+    // Preserve exact document order of paragraphs, headings, lists, and inline tables
+    const bodyMatch = docXml.match(/<w:body\b[^>]*>([\s\S]*?)<\/w:body>/i);
+    const bodyXml = bodyMatch ? bodyMatch[1] : docXml;
+    const orderedBlocks: string[] = [];
+    const tokenRe = /<w:tbl\b[\s\S]*?<\/w:tbl>|<w:p\b[\s\S]*?<\/w:p>/g;
+    let m: RegExpExecArray | null;
+    while ((m = tokenRe.exec(bodyXml)) !== null) {
+      const frag = m[0];
+      if (frag.startsWith('<w:tbl')) {
+        const mdTable = parseTableToMarkdown(frag);
+        if (mdTable) orderedBlocks.push(mdTable);
+      } else {
+        const { text, headingLevel, isListItem } = extractParagraphText(frag);
+        if (!text) continue;
+        if (headingLevel === 1) orderedBlocks.push(`# ${text}`);
+        else if (headingLevel === 2) orderedBlocks.push(`## ${text}`);
+        else if (headingLevel === 3) orderedBlocks.push(`### ${text}`);
+        else if (isListItem && !/^[-•*]\s/.test(text)) orderedBlocks.push(`- ${text}`);
+        else orderedBlocks.push(text);
+      }
+    }
+
+    const text = orderedBlocks.join('\n\n').slice(0, 1_200_000);
     if (!text.trim()) throw new Error('Word belgesi boş.');
-    onProgress?.(95, 'Belge hazır.');
-    return { kind: 'text', text };
+    const wordCount = text.split(/\s+/).filter(Boolean).length;
+    const estPages = Math.max(1, Math.ceil(wordCount / 320));
+    onProgress?.(95, 'Word belgesi başlık ve tablolarıyla hazır.');
+    return { kind: 'text', text, pages: estPages, totalPages: estPages };
   }
 
   throw new Error('Desteklenmeyen dosya formatı. PDF, PPTX, DOCX, TXT/MD, Görsel veya Ses yükleyin.');

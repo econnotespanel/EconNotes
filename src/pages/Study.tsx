@@ -11,6 +11,7 @@ import { NeuralPlannerView } from '@/components/study/neural/NeuralPlannerView';
 import { NeuralReportDialog } from '@/components/study/neural/NeuralReportDialog';
 import { NeuralWorkspaceFrame } from '@/components/study/neural/NeuralWorkspaceFrame';
 import { NotebookStudioWorkspace } from '@/components/study/neural/NotebookStudioWorkspace';
+import { SummaryAnalysisProgressView } from '@/components/study/neural/SummaryAnalysisProgressView';
 import { useNeuralEngine } from '@/components/study/neural/useNeuralEngine';
 import { Button } from '@/components/ui/button';
 import {
@@ -60,6 +61,7 @@ import {
   buildPastedSourceItem,
   combineStudySources,
 } from '@/lib/studySourceProcessor';
+import { summaryJobManager } from '@/lib/studySummaryJobManager';
 import type {
   CoachMode,
   ExtractedSourceItem,
@@ -72,6 +74,7 @@ import type {
   StudioNotebook,
   StudyMaterial,
   StudyProgressRow,
+  SummaryJobState,
 } from '@/types/study';
 
 const NeuralVideoStudioLazy = lazy(() => import('@/components/study/neural/NeuralVideoStudio'));
@@ -140,6 +143,11 @@ export default function Study() {
   const [convertingTo, setConvertingTo] = useState<MaterialType | null>(null);
   const [expandingSectionIdx, setExpandingSectionIdx] = useState<number | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isSavingToAccount, setIsSavingToAccount] = useState(false);
+  const [activeSummaryJob, setActiveSummaryJob] = useState<SummaryJobState | null>(
+    () => summaryJobManager.getSnapshot().activeJob,
+  );
+  const [showSummaryProgress, setShowSummaryProgress] = useState(false);
 
   const [srsCards, setSrsCards] = useState<SrsCardState[]>([]);
   const [indexedDocsCount, setIndexedDocsCount] = useState(0);
@@ -213,6 +221,28 @@ export default function Study() {
     setNotebooks(loaded);
     setActiveNotebookId(chosenId);
     setNotebooksLoadedForUser(user.id);
+  }, [user]);
+
+  // Subscribe to resilient background summary job manager & hydrate unfinished jobs across reloads/routes
+  useEffect(() => {
+    const unsubscribe = summaryJobManager.subscribe((snap) => {
+      setActiveSummaryJob(snap.activeJob);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    void summaryJobManager.hydrateForUser(user.id).then((jobs) => {
+      const unfinished = jobs.find(
+        (j) => j.status === 'processing' || j.status === 'queued',
+      );
+      if (unfinished) {
+        setActiveSummaryJob(unfinished);
+        // Surface progress screen cleanly if user refreshed mid-analysis
+        setShowSummaryProgress(true);
+      }
+    });
   }, [user]);
 
   // Persist notebooks whenever they change
@@ -914,6 +944,41 @@ export default function Study() {
       previousFlashcards: targetType === 'flashcards' ? priorFlashcards : undefined,
     };
     setSettings(nextSettings);
+
+    // Next-Gen 10-Stage Resilient Academic Summary Pipeline + Background Job Tracking
+    if (targetType === 'summary') {
+      setActiveMaterial(null);
+      setShowSummaryProgress(true);
+
+      const { deduplicated } = await summaryJobManager.startSummaryJob({
+        userId: user.id,
+        notebookId: activeNotebook.id,
+        bundle,
+        settings: nextSettings,
+        onCompleted: (saved, completedJob) => {
+          setMaterials((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)]);
+          updateActiveNotebook((nb) => ({
+            ...nb,
+            materialIds: [saved.id, ...nb.materialIds.filter((id) => id !== saved.id)],
+          }));
+          void indexMaterialSilent(saved);
+          setActiveMaterial(saved);
+          setShowSummaryProgress(false);
+          const qaScore = completedJob.qualityAudit?.overallScore;
+          toast.success(
+            qaScore
+              ? `Ayrıntılı akademik özet hazırlandı (Kalite: %${qaScore}) ve EconNotes hesabınıza kaydedildi.`
+              : 'Ayrıntılı akademik özet hazırlandı ve EconNotes hesabınıza kaydedildi.',
+          );
+        },
+      });
+
+      if (deduplicated) {
+        toast.info('Bu belge için devam eden bir analiz görevi zaten bulunuyor — mevcut ilerleme açıldı.');
+      }
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationPct(10);
     setGenerationLabel(
@@ -1074,6 +1139,35 @@ export default function Study() {
                 .flatMap((m) => m.content.cards || [])
             : undefined,
       };
+      if (targetType === 'summary') {
+        setConvertingTo(null);
+        setActiveMaterial(null);
+        setShowSummaryProgress(true);
+        await summaryJobManager.startSummaryJob({
+          userId: user.id,
+          notebookId: activeNotebook.id,
+          bundle,
+          settings: nextSettings,
+          onCompleted: (saved, completedJob) => {
+            setMaterials((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)]);
+            updateActiveNotebook((nb) => ({
+              ...nb,
+              materialIds: [saved.id, ...nb.materialIds.filter((id) => id !== saved.id)],
+            }));
+            void indexMaterialSilent(saved);
+            setActiveMaterial(saved);
+            setShowSummaryProgress(false);
+            const qaScore = completedJob.qualityAudit?.overallScore;
+            toast.success(
+              qaScore
+                ? `Ayrıntılı akademik özet hazırlandı (Kalite: %${qaScore}) ve EconNotes hesabınıza kaydedildi.`
+                : 'Ayrıntılı akademik özet hazırlandı.',
+            );
+          },
+        });
+        return;
+      }
+
       const res = await routedGenerateMaterial(bundle, nextSettings);
 
       const { data, error } = await supabase
@@ -1153,8 +1247,80 @@ export default function Study() {
     }
   };
 
+  const handleSaveSummaryToAccount = async (mat: StudyMaterial) => {
+    if (!user) {
+      toast.error('EconNotes hesabınıza kaydetmek için giriş yapmalısınız.');
+      return;
+    }
+    setIsSavingToAccount(true);
+    try {
+      const existsInList = materials.some((m) => m.id === mat.id);
+      if (existsInList && mat.id && !mat.id.startsWith('local-')) {
+        const { error } = await supabase
+          .from('study_materials')
+          .update({
+            title: mat.title,
+            course: mat.course,
+            content: mat.content as unknown as Json,
+          })
+          .eq('id', mat.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('study_materials')
+          .insert({
+            user_id: user.id,
+            source_type: mat.source_type || 'own',
+            source_note_id: mat.source_note_id || null,
+            material_type: 'summary',
+            title: mat.title,
+            course: mat.course || null,
+            content: mat.content as unknown as Json,
+            model: mat.model || 'EconNotes Çok Aşamalı Akademik Motor',
+            exam_profile: (mat.exam_profile || null) as unknown as Json,
+          })
+          .select()
+          .single();
+        if (error || !data) throw new Error(error?.message || 'Özet hesabınıza kaydedilemedi.');
+        const saved = data as unknown as StudyMaterial;
+        setMaterials((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)]);
+        setActiveMaterial(saved);
+        updateActiveNotebook((nb) => ({
+          ...nb,
+          materialIds: [saved.id, ...nb.materialIds.filter((id) => id !== saved.id)],
+        }));
+      }
+      toast.success('Özet EconNotes hesabınıza kaydedildi. Çalışma Stüdyosu Kütüphanesinden dilediğiniz zaman açabilirsiniz.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Hesaba kaydetme sırasında hata oluştu.');
+    } finally {
+      setIsSavingToAccount(false);
+    }
+  };
+
+  const handleResumeSummaryJob = (jobId: string) => {
+    void summaryJobManager
+      .resumeJob(jobId, (saved, completedJob) => {
+        setMaterials((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)]);
+        updateActiveNotebook((nb) => ({
+          ...nb,
+          materialIds: [saved.id, ...nb.materialIds.filter((id) => id !== saved.id)],
+        }));
+        void indexMaterialSilent(saved);
+        setActiveMaterial(saved);
+        setShowSummaryProgress(false);
+        toast.success(
+          `Analiz kaldığı yerden tamamlandı (Kalite: %${completedJob.qualityAudit?.overallScore ?? 90}).`,
+        );
+      })
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Görev devam ettirilemedi.');
+      });
+  };
+
   const handleRegenerateDeep = async () => {
-    if (!activeMaterial) return;
+    if (!activeMaterial || !user) return;
     setIsRegenerating(true);
     try {
       const matFp =
@@ -1178,7 +1344,10 @@ export default function Study() {
               course: activeMaterial.course,
               courseConfirmedByUser: Boolean(activeMaterial.course),
               text: text || activeMaterial.title,
-              pagesOrSlides: 1,
+              pagesOrSlides:
+                activeMaterial.content?.documentProfile?.totalPagesOrSlides ||
+                activeMaterial.content?.metadata?.sourceStats?.pagesOrSlides ||
+                1,
               wordCount: Math.max(1, text.split(/\s+/).filter(Boolean).length),
               charCount: text.length,
             },
@@ -1188,26 +1357,33 @@ export default function Study() {
         );
       }
 
-      const res = await routedGenerateMaterial(bundle, {
-        ...settings,
-        materialType: 'summary',
-        summaryDepth: 'textbook',
-        deepResearch: true,
+      setActiveMaterial(null);
+      setShowSummaryProgress(true);
+      await summaryJobManager.startSummaryJob({
+        userId: user.id,
+        notebookId: activeNotebook?.id,
+        bundle,
+        forceNew: true,
+        settings: {
+          ...settings,
+          materialType: 'summary',
+          summaryDepth: 'textbook',
+          deepResearch: true,
+        },
+        onCompleted: (saved) => {
+          setMaterials((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)]);
+          updateActiveNotebook((nb) => ({
+            ...nb,
+            materialIds: [saved.id, ...nb.materialIds.filter((id) => id !== saved.id)],
+          }));
+          void indexMaterialSilent(saved);
+          setActiveMaterial(saved);
+          setShowSummaryProgress(false);
+          toast.success('Özet 10 aşamalı derin analizle yeniden oluşturuldu.');
+        },
       });
-
-      const { error } = await supabase
-        .from('study_materials')
-        .update({ content: res.content as unknown as Json, model: res.model })
-        .eq('id', activeMaterial.id);
-      if (error) throw error;
-
-      const updated: StudyMaterial = { ...activeMaterial, content: res.content, model: res.model };
-      setActiveMaterial(updated);
-      setMaterials((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-      void indexMaterialSilent(updated);
-      toast.success('Özet akademik ders kitabı derinliğiyle yenilendi.');
     } catch {
-      toast.error('Yeniden sentezleme başarısız oldu.');
+      toast.error('Yeniden oluşturma başlatılamadı.');
     } finally {
       setIsRegenerating(false);
     }
@@ -1298,7 +1474,32 @@ export default function Study() {
             : 'mx-auto w-full max-w-7xl min-w-0 px-1 py-2 sm:px-3 sm:py-4'
         }
       >
-        {activeMaterial?.material_type === 'video' ? (
+        {showSummaryProgress && activeSummaryJob ? (
+          <SummaryAnalysisProgressView
+            job={activeSummaryJob}
+            isLiveInMemory={summaryJobManager.isJobRunningInMemory(activeSummaryJob.id)}
+            onMinimizeToWorkspace={() => setShowSummaryProgress(false)}
+            onResumeJob={handleResumeSummaryJob}
+            onRestartJob={() => {
+              summaryJobManager.dismissActiveJob();
+              setShowSummaryProgress(false);
+              void handleNotebookGenerateType('summary');
+            }}
+            onCancelJob={(jobId) => {
+              summaryJobManager.cancelRunningJob(jobId);
+              toast.info('Analiz duraklatıldı; tamamlanan bölümler korundu.');
+            }}
+            onOpenCompleted={() => {
+              const target =
+                materials.find((m) => m.id === activeSummaryJob.resultMaterialId) ||
+                summaryJobManager.getSnapshot().completedMaterial;
+              if (target) {
+                setActiveMaterial(target);
+              }
+              setShowSummaryProgress(false);
+            }}
+          />
+        ) : activeMaterial?.material_type === 'video' ? (
           <Suspense
             fallback={
               <div className="flex min-h-[55vh] items-center justify-center gap-2 text-muted-foreground">
@@ -1327,6 +1528,8 @@ export default function Study() {
             expandingSectionIdx={expandingSectionIdx}
             onRegenerateDeep={handleRegenerateDeep}
             isRegenerating={isRegenerating}
+            onSaveToAccount={handleSaveSummaryToAccount}
+            isSavingToAccount={isSavingToAccount}
             onRecordProgress={(score, total) =>
               handleRecordProgress(activeMaterial.id, score, total)
             }
@@ -1366,6 +1569,8 @@ export default function Study() {
                 isGenerating={isGenerating}
                 generationPct={generationPct}
                 generationLabel={generationLabel}
+                activeSummaryJob={activeSummaryJob}
+                onOpenSummaryProgress={() => setShowSummaryProgress(true)}
                 onAddSources={handleAddNotebookSources}
                 onRemoveSource={handleRemoveNotebookSource}
                 onToggleSource={handleToggleNotebookSource}

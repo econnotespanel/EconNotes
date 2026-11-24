@@ -60,8 +60,21 @@ const normalizeReasonKey = (reason: string) => {
   if (reason.startsWith('mission_match_')) return 'mission_match';
   if (reason.startsWith('mission_focus_')) return 'mission_focus';
   if (reason.startsWith('mission:')) return 'mission';
-  if (reason.startsWith('monday_wheel')) return 'monday_wheel';
-  if (reason.startsWith('mission_trivia_') || reason.startsWith('daily_trivia')) return 'daily_trivia';
+  if (
+    reason.startsWith('monday_wheel') ||
+    reason.startsWith('lucky_wheel') ||
+    reason.startsWith('wheel_xp_backfill') ||
+    reason.startsWith('mission_wheel_')
+  ) {
+    return 'monday_wheel';
+  }
+  if (
+    reason.startsWith('mission_trivia_') ||
+    reason.startsWith('daily_trivia') ||
+    reason.startsWith('trivia_xp_backfill')
+  ) {
+    return 'daily_trivia';
+  }
   return reason;
 };
 
@@ -70,11 +83,20 @@ const labelFor = (reason: string) => {
   if (reason === 'mission_blitz' || reason.startsWith('mission_blitz_')) return 'Günün iktisat düellosu';
   if (reason === 'mission_match' || reason.startsWith('mission_match_')) return 'Kavram eşleştirme arenası';
   if (reason === 'mission_focus' || reason.startsWith('mission_focus_')) return 'Derin odak stüdyosu';
+  if (reason.startsWith('trivia_xp_backfill')) return 'Günlük Bilgi Yarışması (Eksik XP Aktarımı)';
   if (reason === 'daily_trivia' || reason.startsWith('daily_trivia') || reason.startsWith('mission_trivia_')) {
     return 'Günlük Bilgi Yarışması';
   }
   if (reason === 'mission' || reason.startsWith('mission:')) return 'Mini görev bonusu';
-  if (reason === 'monday_wheel' || reason.startsWith('monday_wheel')) return 'Pazartesi Şans Çarkı';
+  if (reason.startsWith('wheel_xp_backfill')) return 'Pazartesi Şans Çarkı (Eksik XP Aktarımı)';
+  if (
+    reason === 'monday_wheel' ||
+    reason.startsWith('monday_wheel') ||
+    reason.startsWith('lucky_wheel') ||
+    reason.startsWith('mission_wheel_')
+  ) {
+    return 'Pazartesi Şans Çarkı';
+  }
   return REASON_LABEL[reason] || reason;
 };
 

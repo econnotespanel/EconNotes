@@ -31,16 +31,20 @@ export const useDownloadQuota = () => {
       return;
     }
     const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
-    const wheelUnlimited = isWheelUnlimitedActive(user);
+    const wheelProfile = profile as { wheel_bonus_quota?: number | null; wheel_unlimited_until?: string | null } | null;
+    const wheelUnlimited = isWheelUnlimitedActive(user, new Date(), wheelProfile);
     const triviaUnlimited = isTriviaUnlimitedActive(user, profile as { trivia_unlimited_until?: string | null } | null);
     const triviaUntil = getTriviaUnlimitedUntil(user, profile as { trivia_unlimited_until?: string | null } | null);
-    const wheelBonus = getWheelBonusQuota(user);
+    const wheelBonus = getWheelBonusQuota(user, wheelProfile);
+    const serverProfileWheelBonus = Math.max(0, Number(wheelProfile?.wheel_bonus_quota || 0));
 
     const { data, error } = await supabase.rpc('get_download_quota', { _user_id: user.id });
     if (!error && data && data.length > 0) {
       const nextQuota = data[0] as DownloadQuota;
       const baseAllowed = Math.max(0, nextQuota.allowed_downloads);
-      const totalAllowed = baseAllowed + wheelBonus;
+      // Avoid double-counting wheel_bonus_quota when get_download_quota already adds profiles.wheel_bonus_quota
+      const uncountedClientWheelBonus = Math.max(0, wheelBonus - serverProfileWheelBonus);
+      const totalAllowed = baseAllowed + uncountedClientWheelBonus;
       const normalized: DownloadQuota = {
         ...nextQuota,
         allowed_downloads: totalAllowed,

@@ -334,6 +334,33 @@ const Dashboard = () => {
 
     void fetchDashboardData();
 
+    const onGamificationUpdated = () => {
+      if (!user || cancelled) return;
+      void supabase
+        .from('point_events')
+        .select('amount, reason, created_at')
+        .eq('user_id', user.id)
+        .gte('created_at', fourteenDaysAgoIso)
+        .order('created_at', { ascending: false })
+        .limit(400)
+        .then(({ data }) => {
+          if (!cancelled && Array.isArray(data)) {
+            setPointEvents(data as PointEventInput[]);
+          }
+        });
+      void invokeDailyTrivia<TriviaStatusResponse>({ action: 'status' })
+        .then((res) => {
+          if (!cancelled && res.data) {
+            setTriviaAttempt(res.data.attempt ?? null);
+          }
+        })
+        .catch(() => {});
+    };
+
+    window.addEventListener('econnotes:points-updated', onGamificationUpdated);
+    window.addEventListener('econnotes:trivia-updated', onGamificationUpdated);
+    window.addEventListener('econnotes:wheel-updated', onGamificationUpdated);
+
     const sessionStart = Date.now();
     const interval = window.setInterval(() => {
       if (Date.now() - sessionStart > 3600000) {
@@ -345,6 +372,9 @@ const Dashboard = () => {
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.removeEventListener('econnotes:points-updated', onGamificationUpdated);
+      window.removeEventListener('econnotes:trivia-updated', onGamificationUpdated);
+      window.removeEventListener('econnotes:wheel-updated', onGamificationUpdated);
     };
   }, [user]);
 
@@ -598,7 +628,7 @@ const Dashboard = () => {
                     {quota.is_birthday_unlimited
                       ? birthdayStatus.remainingLabel
                       : quota.is_wheel_unlimited
-                        ? getMondayWheelState(user).wheelUnlimitedRemainingLabel
+                        ? getMondayWheelState(user, nowDate, { profile: profile as any }).wheelUnlimitedRemainingLabel
                         : getTriviaUnlimitedRemainingLabel(user, profile as any)}
                   </span>
                 </div>
@@ -946,6 +976,21 @@ const Dashboard = () => {
                       Bugün: {triviaAttempt.correctCount}/15
                     </span>
                   )}
+                  {triviaAttempt?.status === 'cancelled' && (
+                    <span className="rounded-full border border-rose-300/40 bg-rose-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-rose-100">
+                      Bugün: İptal Edildi
+                    </span>
+                  )}
+                  {triviaAttempt?.status === 'expired' && (
+                    <span className="rounded-full border border-amber-300/40 bg-amber-500/25 px-2.5 py-0.5 text-[11px] font-semibold text-amber-100">
+                      Bugün: Süre Doldu
+                    </span>
+                  )}
+                  {triviaAttempt?.status === 'grace_period' && (
+                    <span className="rounded-full border border-amber-300/50 bg-amber-500/30 px-2.5 py-0.5 text-[11px] font-bold text-amber-100 animate-pulse">
+                      5 sn Geri Dönüş!
+                    </span>
+                  )}
                 </div>
 
                 <h2 className="text-[22px] font-extrabold tracking-tight text-white sm:text-[26px] sm:leading-tight">
@@ -966,9 +1011,15 @@ const Dashboard = () => {
                   <span>
                     {triviaAttempt?.status === 'in_progress'
                       ? 'Yarışmaya Devam Et'
-                      : triviaAttempt?.status === 'completed'
-                        ? 'Sonucu Görüntüle'
-                        : 'Yarışmaya Katıl'}
+                      : triviaAttempt?.status === 'grace_period'
+                        ? 'Yarışmaya Hemen Dön'
+                        : triviaAttempt?.status === 'completed'
+                          ? 'Sonucu Görüntüle'
+                          : triviaAttempt?.status === 'cancelled'
+                            ? 'İptal Durumunu Gör'
+                            : triviaAttempt?.status === 'expired'
+                              ? 'Durumu Görüntüle'
+                              : 'Yarışmaya Katıl'}
                   </span>
                 </Button>
 

@@ -83,9 +83,117 @@ export interface SourceCourseBreakdownItem {
   pagesOrSlides: number;
 }
 
+export type SummaryJobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+
+export type SummaryStageCode =
+  | 'preparing_file'
+  | 'extracting_content'
+  | 'detecting_headings'
+  | 'chunking_document'
+  | 'academic_analysis'
+  | 'writing_sections'
+  | 'merging_sections'
+  | 'quality_check'
+  | 'formatting_notes'
+  | 'building_pdf';
+
+export interface SummaryQualityCheckItem {
+  id: string;
+  label: string;
+  status: 'pass' | 'warn' | 'fail';
+  detail: string;
+}
+
+export interface SummaryQualityAuditReport {
+  overallScore: number;
+  passed: boolean;
+  headingCoveragePct: number;
+  totalSourceHeadings: number;
+  coveredHeadings: string[];
+  missingHeadings: string[];
+  weakSectionIndices: number[];
+  repairedSectionsCount: number;
+  duplicateRemovedCount: number;
+  groundingScorePct: number;
+  totalSummaryWords: number;
+  targetMinWords: number;
+  checks: SummaryQualityCheckItem[];
+  auditedAt: string;
+}
+
+export interface SummaryDocumentProfile {
+  fileKinds: string[];
+  totalPagesOrSlides: number;
+  totalWords: number;
+  totalChars: number;
+  density: 'low' | 'medium' | 'high' | 'very_high';
+  headingsCount: number;
+  subheadingsCount: number;
+  formulasCount: number;
+  tablesCount: number;
+  figuresOrChartsCount: number;
+  unreadablePages: number[];
+  warnings: string[];
+  disciplineFamily: 'law' | 'economics' | 'statistics' | 'engineering' | 'medical' | 'general';
+  courseName: string;
+  sourceNames: string[];
+}
+
+export interface SummaryChunkCheckpoint {
+  chunkIndex: number;
+  totalChunks: number;
+  pageStart?: number;
+  pageEnd?: number;
+  pageRangeLabel?: string;
+  headingHints: string[];
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'repaired';
+  sections: SummarySection[];
+  keyPoints: string[];
+  keyTerms: KeyTermItem[];
+  teacherEmphasis: TeacherEmphasisItem[];
+  comparativeMatrix?: ComparativeMatrix;
+  memorize: string[];
+  interpret: string[];
+  studyChecklist: string[];
+  overviewSnippet?: string;
+  synthesisSnippet?: string;
+  errorMessage?: string;
+  attemptCount: number;
+  updatedAt: string;
+}
+
+export interface SummaryJobState {
+  id: string;
+  userId: string;
+  notebookId?: string;
+  sourceFingerprint: string;
+  title: string;
+  course: string;
+  disciplineFamily: SummaryDocumentProfile['disciplineFamily'];
+  status: SummaryJobStatus;
+  currentStage: number; // 1..10
+  stageCode: SummaryStageCode;
+  stageLabel: string;
+  progressPct: number; // 0..100 (never 100 until status === 'completed')
+  totalPages: number;
+  processedPages: number;
+  totalChunks: number;
+  completedChunks: number;
+  documentProfile?: SummaryDocumentProfile;
+  qualityAudit?: SummaryQualityAuditReport;
+  resultMaterialId?: string | null;
+  errorMessage?: string | null;
+  retryCount: number;
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+  persistedToServer?: boolean;
+}
+
 export interface SummaryContent {
   overview: string;
   disciplineTag?: string;
+  disciplineFamily?: SummaryDocumentProfile['disciplineFamily'];
   keyPoints: string[];
   sections: SummarySection[];
   teacherEmphasis?: TeacherEmphasisItem[];
@@ -103,6 +211,8 @@ export interface SummaryContent {
   };
   extractionNotices?: string[];
   sourceCourseBreakdown?: SourceCourseBreakdownItem[];
+  documentProfile?: SummaryDocumentProfile;
+  qualityAudit?: SummaryQualityAuditReport;
   metadata?: {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
@@ -113,6 +223,9 @@ export interface SummaryContent {
     sourceFingerprint?: string;
     analyzedCourses?: string[];
     isMultiCourse?: boolean;
+    jobId?: string;
+    analyzedAt?: string;
+    pdfReady?: boolean;
     sourceStats?: {
       sourceCount: number;
       wordCount: number;

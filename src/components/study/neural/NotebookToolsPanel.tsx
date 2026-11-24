@@ -56,6 +56,7 @@ import type {
   StudioGenerationSettings,
   StudyMaterial,
   StudyProgressRow,
+  SummaryJobState,
 } from '@/types/study';
 import {
   STUDIO_BADGE_WARN,
@@ -88,6 +89,8 @@ interface NotebookToolsPanelProps {
   isGenerating: boolean;
   generationPct: number;
   generationLabel: string;
+  activeSummaryJob?: SummaryJobState | null;
+  onOpenSummaryProgress?: () => void;
   onGenerateType: (type: MaterialType) => void;
   onRequestCourseConfirm?: () => void;
   onOpenMindMap: () => void;
@@ -143,6 +146,8 @@ export function NotebookToolsPanel({
   isGenerating,
   generationPct,
   generationLabel,
+  activeSummaryJob,
+  onOpenSummaryProgress,
   onGenerateType,
   onRequestCourseConfirm,
   onOpenMindMap,
@@ -209,8 +214,8 @@ export function NotebookToolsPanel({
   const studioTiles = [
     {
       id: 'summary',
-      title: 'Ayrıntılı Özet',
-      subtitle: '9 bölümlü kapsamlı rehber',
+      title: 'Ayrıntılı Özet Oluştur',
+      subtitle: '10 aşamalı derin analiz & PDF',
       icon: FileText,
       primary: true,
       onClick: () => onGenerateType('summary'),
@@ -491,7 +496,49 @@ export function NotebookToolsPanel({
             </p>
           )}
 
-          {/* Live Generation Progress */}
+          {/* Background Multi-Stage Summary Job Live Card */}
+          {activeSummaryJob &&
+            (activeSummaryJob.status === 'queued' ||
+              activeSummaryJob.status === 'processing' ||
+              activeSummaryJob.status === 'failed') && (
+              <div className="space-y-2 rounded-xl border border-primary/35 bg-primary/[0.06] p-3">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="flex min-w-0 items-center gap-1.5 font-semibold text-primary">
+                    {activeSummaryJob.status === 'failed' ? (
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-rose-500" />
+                    ) : (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                    )}
+                    <span className="truncate">
+                      {activeSummaryJob.status === 'failed'
+                        ? 'Özet analizi durakladı'
+                        : `Aşama ${activeSummaryJob.currentStage}/10 · ${activeSummaryJob.title}`}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-mono text-[11px] font-bold text-primary tabular-nums">
+                    %{Math.min(99, activeSummaryJob.progressPct)}
+                  </span>
+                </div>
+                <Progress value={Math.min(99, activeSummaryJob.progressPct)} className="h-1.5" />
+                <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span className="truncate">
+                    Sayfa: {activeSummaryJob.processedPages}/{activeSummaryJob.totalPages} · Bölüm:{' '}
+                    {activeSummaryJob.completedChunks}/{activeSummaryJob.totalChunks}
+                  </span>
+                  {onOpenSummaryProgress && (
+                    <button
+                      type="button"
+                      onClick={onOpenSummaryProgress}
+                      className="shrink-0 font-semibold text-primary hover:underline"
+                    >
+                      İlerlemeyi Aç →
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+          {/* Live Generation Progress (Quiz / Flashcards / Video) */}
           {isGenerating && (
             <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/[0.06] p-3">
               <div className="flex items-center justify-between gap-2 text-xs">

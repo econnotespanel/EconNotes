@@ -45,6 +45,7 @@ import type {
   StudioNotebook,
   StudyMaterial,
   StudyProgressRow,
+  SummaryJobState,
 } from '@/types/study';
 import { NotebookMindMapDialog } from './NotebookMindMapDialog';
 import { NotebookSourcesPanel } from './NotebookSourcesPanel';
@@ -82,6 +83,8 @@ interface NotebookStudioWorkspaceProps {
   isGenerating: boolean;
   generationPct: number;
   generationLabel: string;
+  activeSummaryJob?: SummaryJobState | null;
+  onOpenSummaryProgress?: () => void;
   onAddSources: (items: ExtractedSourceItem[]) => Promise<void> | void;
   onRemoveSource: (sourceId: string) => void;
   onToggleSource: (sourceId: string) => void;
@@ -133,6 +136,8 @@ export function NotebookStudioWorkspace({
   isGenerating,
   generationPct,
   generationLabel,
+  activeSummaryJob,
+  onOpenSummaryProgress,
   onAddSources,
   onRemoveSource,
   onToggleSource,
@@ -509,6 +514,8 @@ export function NotebookStudioWorkspace({
             isGenerating={isGenerating}
             generationPct={generationPct}
             generationLabel={generationLabel}
+            activeSummaryJob={activeSummaryJob}
+            onOpenSummaryProgress={onOpenSummaryProgress}
             onGenerateType={onGenerateType}
             onRequestCourseConfirm={openConfirmForUnconfirmed}
             onOpenMindMap={() => setMindMapOpen(true)}

@@ -12,8 +12,11 @@ import type {
   TriviaAnswerResponse,
   TriviaAttemptSummary,
   TriviaFinishResponse,
+  TriviaHeartbeatResponse,
+  TriviaLeaveResponse,
   TriviaQuestionClient,
   TriviaReturnResponse,
+  TriviaSessionStatus,
   TriviaStartResponse,
   TriviaStatusResponse,
 } from '@/lib/dailyTrivia';
@@ -25,7 +28,8 @@ export const ALL_CURATED_TRIVIA_BANK: TriviaQuestionRecord[] = [
 
 const TOTAL_QUESTIONS = 15;
 const XP_PER_CORRECT = 25;
-const MAX_AWAY_MS = 5500; // 5s strict client window + 0.5s grace
+const MAX_AWAY_MS = 5000; // Strict 5-second return window
+const SILENT_INACTIVITY_MS = 15_000; // Catch force-killed / background-frozen PWAs without pagehide
 const GRAND_PRIZE_DURATION_MS = 2 * 60 * 60 * 1000; // 2 hours real-time
 const TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes total for all 15 questions
 const TIME_GRACE_MS = 4000; // network latency tolerance for the final answer / auto-finish
@@ -44,13 +48,16 @@ interface CompactStoredAnswer {
 
 interface StoredAttemptMeta {
   id: string;
+  sessionToken?: string;
   quizDate: string;
-  status: 'in_progress' | 'completed' | 'cancelled';
+  status: TriviaSessionStatus;
   questionIds: string[];
   currentIndex: number;
   answeredCount: number;
   correctCount: number;
   xpEarned: number;
+  xpCredited?: boolean;
+  rewardTransactionId?: string | null;
   grandPrizeAwarded: boolean;
   unlimitedExpiresAt: string | null;
   cancelReason: string | null;
@@ -58,6 +65,9 @@ interface StoredAttemptMeta {
   completedAt: string | null;
   cancelledAt: string | null;
   leaveStartedAt: number | null;
+  graceExpiresAt?: number | null;
+  lastActivityAt?: number;
+  lastHeartbeatAt?: number | null;
   timedOut?: boolean;
   updatedAt?: number;
   answers: CompactStoredAnswer[];
@@ -383,6 +393,8 @@ function getCancelMessage(reason: string | null | undefined): string {
   switch (reason) {
     case 'page_reloaded':
       return 'Yarışma devam ederken bağlantı/oturum kuralı ihlal edildiği için katılımınız iptal edildi.';
+    case 'inactivity_over_5s':
+      return 'Yarışma oturumu uzun süre arka planda/pasif kaldığı için güvenlik kuralı gereği iptal edildi.';
     case 'away_over_5s':
     case 'left_screen_over_5s':
       return 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
@@ -391,6 +403,10 @@ function getCancelMessage(reason: string | null | undefined): string {
     default:
       return 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.';
   }
+}
+
+function isTerminalStatus(status: TriviaSessionStatus): boolean {
+  return status === 'cancelled' || status === 'completed' || status === 'expired';
 }
 
 function cacheKey(userId: string, quizDate: string): string {
@@ -450,15 +466,27 @@ function writeLocalRunMirror(userId: string, quizDate: string, att: StoredAttemp
   }
 }
 
-export function recordFallbackLeaveLocally(userId: string | null): void {
+export function recordFallbackLeaveLocally(userId: string | null, _reason = 'left_screen'): void {
   if (!userId) return;
   const { dateStr } = getIstanbulDateParts(new Date());
-  const existing = readLocalLeaveTs(userId, dateStr);
+  const cached = activeRunCache.get(cacheKey(userId, dateStr)) || readLocalRunMirror(userId, dateStr);
+  if (cached && isTerminalStatus(cached.status)) {
+    return;
+  }
+  const existing = readLocalLeaveTs(userId, dateStr) ?? cached?.leaveStartedAt ?? null;
   const stamp = existing ?? Date.now();
+  const graceExpiresAt = cached?.graceExpiresAt ?? stamp + MAX_AWAY_MS;
   writeLocalLeaveTs(userId, dateStr, stamp);
-  const cached = activeRunCache.get(cacheKey(userId, dateStr));
-  if (cached && cached.status === 'in_progress') {
-    writeLocalRunMirror(userId, dateStr, { ...cached, leaveStartedAt: stamp });
+  if (cached && (cached.status === 'in_progress' || cached.status === 'grace_period')) {
+    const next: StoredAttemptMeta = {
+      ...cached,
+      status: 'grace_period',
+      leaveStartedAt: stamp,
+      graceExpiresAt,
+      updatedAt: Date.now(),
+    };
+    writeLocalRunMirror(userId, dateStr, next);
+    persistLatest.set(userId, next);
   }
 }
 
@@ -467,7 +495,16 @@ function parseStoredAttempt(raw: unknown, quizDate: string): StoredAttemptMeta |
   const obj = raw as Record<string, unknown>;
   if (obj.quizDate !== quizDate) return null;
   const status = obj.status;
-  if (status !== 'in_progress' && status !== 'completed' && status !== 'cancelled') return null;
+  if (
+    status !== 'not_started' &&
+    status !== 'in_progress' &&
+    status !== 'grace_period' &&
+    status !== 'completed' &&
+    status !== 'cancelled' &&
+    status !== 'expired'
+  ) {
+    return null;
+  }
   const questionIds = Array.isArray(obj.questionIds)
     ? obj.questionIds.filter((id): id is string => typeof id === 'string' && QUESTION_BY_ID.has(id))
     : [];
@@ -491,8 +528,17 @@ function parseStoredAttempt(raw: unknown, quizDate: string): StoredAttemptMeta |
         }))
     : [];
 
+  const leaveStartedAt = typeof obj.leaveStartedAt === 'number' ? obj.leaveStartedAt : null;
+  const graceExpiresAt =
+    typeof obj.graceExpiresAt === 'number'
+      ? obj.graceExpiresAt
+      : leaveStartedAt !== null
+        ? leaveStartedAt + MAX_AWAY_MS
+        : null;
+
   return {
     id: typeof obj.id === 'string' ? obj.id : `trivia-${quizDate}`,
+    sessionToken: typeof obj.sessionToken === 'string' ? obj.sessionToken : undefined,
     quizDate,
     status,
     questionIds,
@@ -500,13 +546,18 @@ function parseStoredAttempt(raw: unknown, quizDate: string): StoredAttemptMeta |
     answeredCount: answers.length,
     correctCount: Math.max(0, Math.min(TOTAL_QUESTIONS, Number(obj.correctCount) || 0)),
     xpEarned: Math.max(0, Math.min(TOTAL_QUESTIONS * XP_PER_CORRECT, Number(obj.xpEarned) || 0)),
+    xpCredited: typeof obj.xpCredited === 'boolean' ? obj.xpCredited : status === 'completed',
+    rewardTransactionId: typeof obj.rewardTransactionId === 'string' ? obj.rewardTransactionId : null,
     grandPrizeAwarded: Boolean(obj.grandPrizeAwarded),
     unlimitedExpiresAt: typeof obj.unlimitedExpiresAt === 'string' ? obj.unlimitedExpiresAt : null,
     cancelReason: typeof obj.cancelReason === 'string' ? obj.cancelReason : null,
     startedAt: typeof obj.startedAt === 'string' ? obj.startedAt : new Date().toISOString(),
     completedAt: typeof obj.completedAt === 'string' ? obj.completedAt : null,
     cancelledAt: typeof obj.cancelledAt === 'string' ? obj.cancelledAt : null,
-    leaveStartedAt: typeof obj.leaveStartedAt === 'number' ? obj.leaveStartedAt : null,
+    leaveStartedAt,
+    graceExpiresAt,
+    lastActivityAt: typeof obj.lastActivityAt === 'number' ? obj.lastActivityAt : Date.now(),
+    lastHeartbeatAt: typeof obj.lastHeartbeatAt === 'number' ? obj.lastHeartbeatAt : null,
     timedOut: Boolean(obj.timedOut),
     updatedAt: typeof obj.updatedAt === 'number' ? obj.updatedAt : 0,
     answers,
@@ -522,18 +573,28 @@ function toAttemptSummary(att: StoredAttemptMeta): TriviaAttemptSummary {
   const done = att.status === 'completed';
   return {
     id: att.id,
+    sessionToken: att.sessionToken || att.id,
     status: att.status,
     currentIndex: att.currentIndex,
     answeredCount: att.answers.length,
-    // Doğru/yanlış/XP bilgisi yarışma bitene kadar gizli tutulur (cevaplar değiştirilebilir)
     correctCount: done ? att.correctCount : 0,
     wrongCount: done ? att.answers.length - att.correctCount : 0,
     blankCount: done ? TOTAL_QUESTIONS - att.answers.length : 0,
     xpEarned: done ? att.xpEarned : 0,
+    xpCredited: Boolean(att.xpCredited),
+    rewardTransactionId: att.rewardTransactionId ?? null,
     grandPrizeAwarded: att.grandPrizeAwarded,
     unlimitedExpiresAt: att.unlimitedExpiresAt,
+    leaveStartedAt: att.leaveStartedAt ? new Date(att.leaveStartedAt).toISOString() : null,
+    graceExpiresAt: att.graceExpiresAt ? new Date(att.graceExpiresAt).toISOString() : null,
+    lastActivityAt: att.lastActivityAt ? new Date(att.lastActivityAt).toISOString() : att.startedAt,
     cancelReason: att.cancelReason,
-    cancelMessage: att.status === 'cancelled' ? getCancelMessage(att.cancelReason) : null,
+    cancelMessage:
+      att.status === 'cancelled'
+        ? getCancelMessage(att.cancelReason)
+        : att.status === 'expired'
+          ? '15 dakikalık yarışma süresi dolduğu için oturum sonlandı.'
+          : null,
     startedAt: att.startedAt,
     deadlineAt: new Date(getDeadlineMs(att)).toISOString(),
     timeLimitSec: TIME_LIMIT_MS / 1000,
@@ -556,7 +617,13 @@ function scheduleAttemptPersist(userId: string, att: StoredAttemptMeta): void {
   const next = prev.then(async () => {
     persistQueued.delete(userId);
     const state = persistLatest.get(userId);
-    if (!state || state.status !== 'in_progress') return;
+    if (!state) return;
+    // Guard: NEVER allow a stale in_progress write to overwrite grace_period or any terminal state!
+    const live = activeRunCache.get(cacheKey(userId, state.quizDate));
+    if (live && (live.status !== 'in_progress' || isTerminalStatus(live.status))) {
+      return;
+    }
+    if (state.status !== 'in_progress') return;
     try {
       await supabase.auth.updateUser({ data: { daily_trivia_state: state } });
     } catch {
@@ -672,7 +739,7 @@ export async function runDailyTriviaSupabaseEngine<T>(
   // still verifies active session without hitting Auth rate limits on every click.
   let authUser;
   try {
-    if (action === 'answer' || action === 'report_leave' || action === 'report_return') {
+    if (action === 'answer' || action === 'report_leave' || action === 'report_return' || action === 'heartbeat') {
       const { data: sessData } = await supabase.auth.getSession();
       authUser = sessData.session?.user ?? null;
     }
@@ -748,17 +815,38 @@ export async function runDailyTriviaSupabaseEngine<T>(
     ? (meta.daily_trivia_used_ids as unknown[]).filter((x): x is string => typeof x === 'string')
     : [];
 
-  // Reconcile server-stored attempt with active in-memory/local mirror for today's run
+  // Reconcile server-stored attempt with active in-memory/local mirror for today's run.
+  // INVARIANT: Terminal statuses (cancelled / completed / expired) NEVER revert to active!
   const serverAttempt = parseStoredAttempt(meta.daily_trivia_state, quizDate);
   const mirrorAttempt = activeRunCache.get(cKey) || readLocalRunMirror(userId, quizDate);
 
   let attempt: StoredAttemptMeta | null = serverAttempt;
-  if (serverAttempt && serverAttempt.status === 'in_progress' && mirrorAttempt && mirrorAttempt.id === serverAttempt.id) {
-    if (
-      mirrorAttempt.status !== 'in_progress' ||
-      (mirrorAttempt.updatedAt ?? 0) >= (serverAttempt.updatedAt ?? 0)
-    ) {
+  if (serverAttempt && isTerminalStatus(serverAttempt.status)) {
+    attempt = serverAttempt;
+    writeLocalRunMirror(userId, quizDate, serverAttempt);
+    writeLocalLeaveTs(userId, quizDate, null);
+  } else if (serverAttempt && mirrorAttempt && mirrorAttempt.id === serverAttempt.id) {
+    if (isTerminalStatus(mirrorAttempt.status)) {
       attempt = mirrorAttempt;
+    } else {
+      const base =
+        (mirrorAttempt.updatedAt ?? 0) >= (serverAttempt.updatedAt ?? 0) ? mirrorAttempt : serverAttempt;
+      const leaveCandidates = [
+        serverAttempt.leaveStartedAt,
+        mirrorAttempt.leaveStartedAt,
+        readLocalLeaveTs(userId, quizDate),
+      ].filter((v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0);
+      const earliestLeave = leaveCandidates.length > 0 ? Math.min(...leaveCandidates) : null;
+      if (earliestLeave !== null) {
+        attempt = {
+          ...base,
+          status: 'grace_period',
+          leaveStartedAt: earliestLeave,
+          graceExpiresAt: earliestLeave + MAX_AWAY_MS,
+        };
+      } else {
+        attempt = base;
+      }
     }
   } else if (!serverAttempt && mirrorAttempt) {
     attempt = mirrorAttempt;
@@ -772,7 +860,22 @@ export async function runDailyTriviaSupabaseEngine<T>(
 
   const localLeaveTs = readLocalLeaveTs(userId, quizDate);
   const effectiveLeaveTs =
-    attempt?.status === 'in_progress' ? attempt.leaveStartedAt || localLeaveTs || null : null;
+    attempt && (attempt.status === 'in_progress' || attempt.status === 'grace_period')
+      ? (() => {
+          const vals = [attempt.leaveStartedAt, localLeaveTs].filter(
+            (v): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0,
+          );
+          return vals.length > 0 ? Math.min(...vals) : null;
+        })()
+      : null;
+
+  const effectiveGraceExpiresAt =
+    effectiveLeaveTs !== null
+      ? Math.min(
+          attempt?.graceExpiresAt ?? effectiveLeaveTs + MAX_AWAY_MS,
+          effectiveLeaveTs + MAX_AWAY_MS,
+        )
+      : null;
 
   const persistMetaToServer = async (patch: Record<string, unknown>) => {
     await drainAttemptPersist(userId);
@@ -783,26 +886,73 @@ export async function runDailyTriviaSupabaseEngine<T>(
   };
 
   const cancelAttempt = async (reason: string): Promise<StoredAttemptMeta> => {
+    const base = attempt as StoredAttemptMeta;
+    if (base.status === 'completed') return base;
+    if (base.status === 'cancelled') return base;
+
     const nowIso = new Date().toISOString();
     writeLocalLeaveTs(userId, quizDate, null);
     const next: StoredAttemptMeta = {
-      ...(attempt as StoredAttemptMeta),
+      ...base,
       status: 'cancelled',
       xpEarned: 0,
+      xpCredited: false,
+      rewardTransactionId: null,
       correctCount: 0,
       grandPrizeAwarded: false,
       unlimitedExpiresAt: null,
       leaveStartedAt: null,
+      graceExpiresAt: null,
       cancelReason: reason,
       cancelledAt: nowIso,
       updatedAt: Date.now(),
     };
     attempt = next;
+    persistLatest.set(userId, next);
     writeLocalRunMirror(userId, quizDate, next);
     await persistMetaToServer({
       daily_trivia_state: next,
     });
     return next;
+  };
+
+  const expireAttempt = async (): Promise<StoredAttemptMeta> => {
+    const base = attempt as StoredAttemptMeta;
+    if (isTerminalStatus(base.status)) return base;
+    const nowIso = new Date().toISOString();
+    writeLocalLeaveTs(userId, quizDate, null);
+    const next: StoredAttemptMeta = {
+      ...base,
+      status: 'expired',
+      xpEarned: 0,
+      xpCredited: false,
+      rewardTransactionId: null,
+      correctCount: 0,
+      grandPrizeAwarded: false,
+      unlimitedExpiresAt: null,
+      leaveStartedAt: null,
+      graceExpiresAt: null,
+      cancelReason: 'time_expired',
+      timedOut: true,
+      completedAt: nowIso,
+      updatedAt: Date.now(),
+    };
+    attempt = next;
+    persistLatest.set(userId, next);
+    writeLocalRunMirror(userId, quizDate, next);
+    await persistMetaToServer({
+      daily_trivia_state: next,
+    });
+    return next;
+  };
+
+  const enforceSilentInactivity = async (): Promise<boolean> => {
+    if (!attempt || attempt.status !== 'in_progress') return false;
+    if (attempt.lastHeartbeatAt && Date.now() - attempt.lastHeartbeatAt > SILENT_INACTIVITY_MS) {
+      await cancelAttempt('inactivity_over_5s');
+      return true;
+    }
+    return false;
   };
 
   const buildAnswerRecords = (att: StoredAttemptMeta, reveal: boolean): TriviaAnswerRecord[] => {
@@ -865,16 +1015,20 @@ export async function runDailyTriviaSupabaseEngine<T>(
       answeredCount: graded.length,
       correctCount: correct,
       xpEarned: xp,
+      xpCredited: xp === 0,
+      rewardTransactionId: xp > 0 ? `trivia:${base.id}` : null,
       currentIndex: Math.min(TOTAL_QUESTIONS - 1, base.currentIndex),
       grandPrizeAwarded: isPerfect,
       unlimitedExpiresAt: unlimitedUntil,
       leaveStartedAt: null,
+      graceExpiresAt: null,
       timedOut,
       completedAt: nowIso,
       updatedAt: Date.now(),
     };
     // Önce yerelde kilitle (çifte sonuçlandırmayı engeller)
     attempt = completedAttempt;
+    persistLatest.set(userId, completedAttempt);
     writeLocalLeaveTs(userId, quizDate, null);
     writeLocalRunMirror(userId, quizDate, completedAttempt);
 
@@ -891,6 +1045,7 @@ export async function runDailyTriviaSupabaseEngine<T>(
     if (xpEntries.length > 0) {
       const flushed = await flushTriviaXpEntries(xpEntries, currentUserPoints);
       finalPointsTotal = flushed.totalPoints;
+      completedAttempt.xpCredited = flushed.remainingPending.length === 0;
       if (flushed.remainingPending.length > 0) {
         const existingReasons = new Set(remainingPendingXp.map((p) => p.reason));
         metaPatch.daily_trivia_pending_xp = [
@@ -898,6 +1053,8 @@ export async function runDailyTriviaSupabaseEngine<T>(
           ...flushed.remainingPending.filter((p) => !existingReasons.has(p.reason)),
         ];
       }
+      metaPatch.daily_trivia_state = completedAttempt;
+      writeLocalRunMirror(userId, quizDate, completedAttempt);
     }
     currentUserPoints = finalPointsTotal;
     basePointsCache.set(userId, finalPointsTotal);
@@ -906,7 +1063,6 @@ export async function runDailyTriviaSupabaseEngine<T>(
       activeUnlimitedUntil = unlimitedUntil;
       metaPatch.trivia_unlimited_until = unlimitedUntil;
       metaPatch.trivia_perfect_wins = perfectWinsCount + 1;
-      // Best-effort sync to profiles table if migration column exists
       void supabase
         .from('profiles')
         .update({ trivia_unlimited_until: unlimitedUntil } as Record<string, unknown>)
@@ -921,20 +1077,29 @@ export async function runDailyTriviaSupabaseEngine<T>(
   const isExpired = (att: StoredAttemptMeta): boolean => Date.now() > getDeadlineMs(att) + TIME_GRACE_MS;
 
   try {
-    // ==================== ACTION: STATUS ====================
+    // ==================== ACTION: STATUS (Strictly Read-Only w.r.t. grace_period!) ====================
     if (action === 'status') {
-      if (attempt && attempt.status === 'in_progress') {
-        if (effectiveLeaveTs && Date.now() - effectiveLeaveTs > MAX_AWAY_MS) {
+      if (attempt && (attempt.status === 'in_progress' || attempt.status === 'grace_period')) {
+        if (effectiveGraceExpiresAt !== null && Date.now() > effectiveGraceExpiresAt) {
           await cancelAttempt('away_over_5s');
+        } else if (await enforceSilentInactivity()) {
+          // cancelled due to silent inactivity
         } else if (isExpired(attempt)) {
-          // Süre dolmuş: kayıtlı cevaplarla otomatik sonuçlandır
-          await finalizeAttempt(true);
-        } else if (effectiveLeaveTs) {
-          // 5 saniye içinde geri dönüldü / sayfa yenilendi: mevcut soru seti, cevaplar ve kalan süre korunur
-          writeLocalLeaveTs(userId, quizDate, null);
-          attempt = { ...attempt, leaveStartedAt: null };
+          if (attempt.answers.length === 0) {
+            await expireAttempt();
+          } else {
+            await finalizeAttempt(true);
+          }
+        } else if (effectiveLeaveTs !== null && attempt.status !== 'grace_period') {
+          attempt = {
+            ...attempt,
+            status: 'grace_period',
+            leaveStartedAt: effectiveLeaveTs,
+            graceExpiresAt: effectiveGraceExpiresAt,
+          };
           writeLocalRunMirror(userId, quizDate, attempt);
         }
+        // CRITICAL: status NEVER clears grace_period or leaveStartedAt!
       }
 
       let questions: TriviaQuestionClient[] | undefined;
@@ -950,6 +1115,7 @@ export async function runDailyTriviaSupabaseEngine<T>(
       const payload: TriviaStatusResponse = {
         quizDate,
         resetsAtIso,
+        sessionStatus: attempt ? attempt.status : 'not_started',
         totalQuestions: TOTAL_QUESTIONS,
         xpPerCorrect: XP_PER_CORRECT,
         maxXp: TOTAL_QUESTIONS * XP_PER_CORRECT,
@@ -967,19 +1133,25 @@ export async function runDailyTriviaSupabaseEngine<T>(
     // ==================== ACTION: START ====================
     if (action === 'start') {
       if (attempt) {
+        if (attempt.status === 'grace_period' && effectiveGraceExpiresAt !== null && Date.now() > effectiveGraceExpiresAt) {
+          await cancelAttempt('away_over_5s');
+        }
         const msg =
           attempt.status === 'cancelled'
             ? 'Bugünkü yarışma hakkınız güvenlik iptali nedeniyle kapandı. Yarın yeni 15 soru ile tekrar katılabilirsiniz.'
-            : attempt.status === 'completed'
-            ? 'Bugünkü Günlük Genel Kültür Bilgi Yarışması’nı zaten tamamladınız. Her kullanıcı günde 1 kez katılabilir.'
-            : 'Devam eden bir yarışmanız zaten bulunuyor.';
-        return { data: null, error: msg, status: 409, raw: { error: msg, alreadyParticipated: true } };
+            : attempt.status === 'expired'
+              ? 'Bugünkü yarışma süreniz dolduğu için oturum kapandı. Yarın yeni 15 soru ile tekrar katılabilirsiniz.'
+              : attempt.status === 'completed'
+                ? 'Bugünkü Günlük Genel Kültür Bilgi Yarışması’nı zaten tamamladınız. Her kullanıcı günde 1 kez katılabilir.'
+                : 'Devam eden bir yarışmanız zaten bulunuyor.';
+        return { data: null, error: msg, status: 409, raw: { error: msg, alreadyParticipated: true, status: attempt.status } };
       }
 
       const todayAssignedIds = readDailyAssignedIds(quizDate);
       const selectedQuestions = selectDailyQuestionsForDate(quizDate, usedIds, userId, todayAssignedIds);
       const selectedIds = selectedQuestions.map((q) => q.id);
-      const nowIso = new Date().toISOString();
+      const nowMs = Date.now();
+      const nowIso = new Date(nowMs).toISOString();
 
       recordDailyAssignedIds(quizDate, selectedIds);
 
@@ -988,8 +1160,14 @@ export async function runDailyTriviaSupabaseEngine<T>(
       const nextUsedIds =
         nextUsedSet.size >= ALL_CURATED_TRIVIA_BANK.length ? selectedIds : Array.from(nextUsedSet);
 
+      const sessionToken =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `sess-${quizDate}-${nowMs.toString(36)}`;
+
       const created: StoredAttemptMeta = {
-        id: `trivia-${quizDate}-${Date.now().toString(36)}`,
+        id: `trivia-${quizDate}-${nowMs.toString(36)}`,
+        sessionToken,
         quizDate,
         status: 'in_progress',
         questionIds: selectedIds,
@@ -997,6 +1175,8 @@ export async function runDailyTriviaSupabaseEngine<T>(
         answeredCount: 0,
         correctCount: 0,
         xpEarned: 0,
+        xpCredited: false,
+        rewardTransactionId: null,
         grandPrizeAwarded: false,
         unlimitedExpiresAt: null,
         cancelReason: null,
@@ -1004,14 +1184,16 @@ export async function runDailyTriviaSupabaseEngine<T>(
         completedAt: null,
         cancelledAt: null,
         leaveStartedAt: null,
-        updatedAt: Date.now(),
+        graceExpiresAt: null,
+        lastActivityAt: nowMs,
+        lastHeartbeatAt: null,
+        updatedAt: nowMs,
         answers: [],
       };
 
       writeLocalLeaveTs(userId, quizDate, null);
       writeLocalRunMirror(userId, quizDate, created);
 
-      // Milestone 1: Authoritatively lock today's 1/day participation on Supabase Auth server
       await persistMetaToServer({
         daily_trivia_state: created,
         daily_trivia_used_ids: nextUsedIds,
@@ -1027,44 +1209,158 @@ export async function runDailyTriviaSupabaseEngine<T>(
       return { data: payload as unknown as T, error: null, status: 200 };
     }
 
+    // ==================== ACTION: HEARTBEAT ====================
+    if (action === 'heartbeat') {
+      if (!attempt) {
+        const res: TriviaHeartbeatResponse = { ok: false, status: 'not_started', serverNowIso: new Date().toISOString() };
+        return { data: res as unknown as T, error: null, status: 200 };
+      }
+      if (isTerminalStatus(attempt.status)) {
+        const res: TriviaHeartbeatResponse = {
+          ok: true,
+          status: attempt.status,
+          cancelled: attempt.status === 'cancelled',
+          expired: attempt.status === 'expired',
+          cancelReason: attempt.cancelReason,
+          cancelMessage: attempt.status === 'cancelled' ? getCancelMessage(attempt.cancelReason) : null,
+          serverNowIso: new Date().toISOString(),
+        };
+        return { data: res as unknown as T, error: null, status: 200 };
+      }
+      if (attempt.status === 'grace_period' || effectiveLeaveTs !== null) {
+        if (effectiveGraceExpiresAt !== null && Date.now() > effectiveGraceExpiresAt) {
+          await cancelAttempt('away_over_5s');
+          const res: TriviaHeartbeatResponse = {
+            ok: true,
+            status: 'cancelled',
+            cancelled: true,
+            cancelReason: 'away_over_5s',
+            cancelMessage: getCancelMessage('away_over_5s'),
+            serverNowIso: new Date().toISOString(),
+          };
+          return { data: res as unknown as T, error: null, status: 200 };
+        }
+        const res: TriviaHeartbeatResponse = {
+          ok: true,
+          status: 'grace_period',
+          graceExpiresAt: effectiveGraceExpiresAt ? new Date(effectiveGraceExpiresAt).toISOString() : null,
+          serverNowIso: new Date().toISOString(),
+        };
+        return { data: res as unknown as T, error: null, status: 200 };
+      }
+      if (await enforceSilentInactivity()) {
+        const res: TriviaHeartbeatResponse = {
+          ok: true,
+          status: 'cancelled',
+          cancelled: true,
+          cancelReason: 'inactivity_over_5s',
+          cancelMessage: getCancelMessage('inactivity_over_5s'),
+          serverNowIso: new Date().toISOString(),
+        };
+        return { data: res as unknown as T, error: null, status: 200 };
+      }
+      const nowMs = Date.now();
+      const updated: StoredAttemptMeta = {
+        ...attempt,
+        lastActivityAt: nowMs,
+        lastHeartbeatAt: nowMs,
+        updatedAt: nowMs,
+      };
+      attempt = updated;
+      writeLocalRunMirror(userId, quizDate, updated);
+      const res: TriviaHeartbeatResponse = {
+        ok: true,
+        status: 'in_progress',
+        serverNowIso: new Date(nowMs).toISOString(),
+      };
+      return { data: res as unknown as T, error: null, status: 200 };
+    }
+
     // ==================== ACTION: REPORT_LEAVE ====================
     if (action === 'report_leave') {
-      if (!attempt || attempt.status !== 'in_progress') {
-        return { data: { ok: true, status: attempt?.status ?? 'none' } as unknown as T, error: null, status: 200 };
+      if (!attempt) {
+        const res: TriviaLeaveResponse = { ok: true, status: 'not_started' };
+        return { data: res as unknown as T, error: null, status: 200 };
       }
+      if (isTerminalStatus(attempt.status)) {
+        const res: TriviaLeaveResponse = {
+          ok: true,
+          status: attempt.status,
+          cancelled: attempt.status === 'cancelled',
+        };
+        return { data: res as unknown as T, error: null, status: 200 };
+      }
+
       const stamp = effectiveLeaveTs ?? Date.now();
-      writeLocalLeaveTs(userId, quizDate, stamp);
-      writeLocalRunMirror(userId, quizDate, { ...attempt, leaveStartedAt: stamp });
-      return {
-        data: { ok: true, serverNowIso: new Date().toISOString() } as unknown as T,
-        error: null,
-        status: 200,
+      const graceUntil = Math.min(attempt.graceExpiresAt ?? stamp + MAX_AWAY_MS, stamp + MAX_AWAY_MS);
+
+      if (Date.now() > graceUntil) {
+        await cancelAttempt('away_over_5s');
+        const res: TriviaLeaveResponse = {
+          ok: true,
+          status: 'cancelled',
+          cancelled: true,
+          serverNowIso: new Date().toISOString(),
+        };
+        return { data: res as unknown as T, error: null, status: 200 };
+      }
+
+      const next: StoredAttemptMeta = {
+        ...attempt,
+        status: 'grace_period',
+        leaveStartedAt: stamp,
+        graceExpiresAt: graceUntil,
+        updatedAt: Date.now(),
       };
+      attempt = next;
+      persistLatest.set(userId, next);
+      writeLocalLeaveTs(userId, quizDate, stamp);
+      writeLocalRunMirror(userId, quizDate, next);
+      await persistMetaToServer({ daily_trivia_state: next }).catch(() => {});
+
+      const res: TriviaLeaveResponse = {
+        ok: true,
+        status: 'grace_period',
+        leaveStartedAt: new Date(stamp).toISOString(),
+        graceExpiresAt: new Date(graceUntil).toISOString(),
+        serverNowIso: new Date().toISOString(),
+      };
+      return { data: res as unknown as T, error: null, status: 200 };
     }
 
     // ==================== ACTION: REPORT_RETURN ====================
     if (action === 'report_return') {
       if (!attempt) {
-        return { data: { cancelled: false } as unknown as T, error: null, status: 200 };
+        return { data: { cancelled: false, status: 'not_started' } as unknown as T, error: null, status: 200 };
       }
       if (attempt.status === 'cancelled') {
         const payload: TriviaReturnResponse = {
           cancelled: true,
+          status: 'cancelled',
           cancelReason: attempt.cancelReason,
           cancelMessage: getCancelMessage(attempt.cancelReason),
           newUserPointsTotal: currentUserPoints,
         };
         return { data: payload as unknown as T, error: null, status: 200 };
       }
-      if (attempt.status !== 'in_progress') {
-        return { data: { cancelled: false } as unknown as T, error: null, status: 200 };
+      if (attempt.status === 'completed' || attempt.status === 'expired') {
+        return {
+          data: {
+            cancelled: false,
+            expired: attempt.status === 'expired',
+            status: attempt.status,
+          } as unknown as T,
+          error: null,
+          status: 200,
+        };
       }
 
       const awayMs = effectiveLeaveTs ? Math.max(0, Date.now() - effectiveLeaveTs) : 0;
-      if (effectiveLeaveTs && awayMs > MAX_AWAY_MS) {
+      if (effectiveGraceExpiresAt !== null && Date.now() > effectiveGraceExpiresAt) {
         await cancelAttempt('away_over_5s');
         const payload: TriviaReturnResponse = {
           cancelled: true,
+          status: 'cancelled',
           awayMs,
           cancelReason: 'away_over_5s',
           cancelMessage: getCancelMessage('away_over_5s'),
@@ -1074,21 +1370,51 @@ export async function runDailyTriviaSupabaseEngine<T>(
         return { data: payload as unknown as T, error: null, status: 200 };
       }
 
-      writeLocalLeaveTs(userId, quizDate, null);
-      writeLocalRunMirror(userId, quizDate, { ...attempt, leaveStartedAt: null });
+      if (await enforceSilentInactivity()) {
+        const payload: TriviaReturnResponse = {
+          cancelled: true,
+          status: 'cancelled',
+          awayMs,
+          cancelReason: 'inactivity_over_5s',
+          cancelMessage: getCancelMessage('inactivity_over_5s'),
+          xpRevoked: 0,
+          newUserPointsTotal: currentUserPoints,
+        };
+        return { data: payload as unknown as T, error: null, status: 200 };
+      }
 
-      return {
-        data: { cancelled: false, awayMs } as unknown as T,
-        error: null,
-        status: 200,
+      const nowMs = Date.now();
+      const resumed: StoredAttemptMeta = {
+        ...attempt,
+        status: 'in_progress',
+        leaveStartedAt: null,
+        graceExpiresAt: null,
+        lastActivityAt: nowMs,
+        lastHeartbeatAt: attempt.lastHeartbeatAt !== null ? nowMs : null,
+        updatedAt: nowMs,
       };
+      attempt = resumed;
+      writeLocalLeaveTs(userId, quizDate, null);
+      writeLocalRunMirror(userId, quizDate, resumed);
+      await persistMetaToServer({ daily_trivia_state: resumed }).catch(() => {});
+
+      const questions = sanitizeQuestions(resolveQuestionSet(resumed.questionIds, quizDate, usedIds, userId));
+      const payload: TriviaReturnResponse = {
+        cancelled: false,
+        status: 'in_progress',
+        awayMs,
+        serverNowIso: new Date(nowMs).toISOString(),
+        questions,
+      };
+      return { data: payload as unknown as T, error: null, status: 200 };
     }
 
     // ==================== ACTION: CANCEL ====================
     if (action === 'cancel') {
-      if (!attempt || attempt.status !== 'in_progress') {
+      if (!attempt || (attempt.status !== 'in_progress' && attempt.status !== 'grace_period')) {
         const payload: TriviaReturnResponse = {
           cancelled: attempt?.status === 'cancelled',
+          status: attempt?.status ?? 'not_started',
           cancelReason: attempt?.cancelReason ?? null,
           cancelMessage:
             attempt?.status === 'cancelled' ? getCancelMessage(attempt.cancelReason) : null,
@@ -1104,6 +1430,7 @@ export async function runDailyTriviaSupabaseEngine<T>(
       await cancelAttempt(reason);
       const payload: TriviaReturnResponse = {
         cancelled: true,
+        status: 'cancelled',
         cancelReason: reason,
         cancelMessage: getCancelMessage(reason),
         xpRevoked: 0,
@@ -1126,6 +1453,14 @@ export async function runDailyTriviaSupabaseEngine<T>(
           raw: { error: msg, cancelled: true, cancelReason: attempt.cancelReason },
         };
       }
+      if (attempt.status === 'expired') {
+        return {
+          data: null,
+          error: 'Yarışma süresi dolduğu için cevap kabul edilemez.',
+          status: 409,
+          raw: { error: 'Yarışma süresi dolduğu için cevap kabul edilemez.', expired: true },
+        };
+      }
       if (attempt.status === 'completed') {
         return {
           data: null,
@@ -1135,8 +1470,8 @@ export async function runDailyTriviaSupabaseEngine<T>(
         };
       }
 
-      // Enforce 5-second away check before accepting any answer
-      if (effectiveLeaveTs && Date.now() - effectiveLeaveTs > MAX_AWAY_MS) {
+      // Enforce 5-second away check & silent kill before accepting any answer
+      if (effectiveGraceExpiresAt !== null && Date.now() > effectiveGraceExpiresAt) {
         await cancelAttempt('away_over_5s');
         const msg = getCancelMessage('away_over_5s');
         return {
@@ -1146,9 +1481,39 @@ export async function runDailyTriviaSupabaseEngine<T>(
           raw: { error: msg, cancelled: true, cancelReason: 'away_over_5s' },
         };
       }
+      if (await enforceSilentInactivity()) {
+        const msg = getCancelMessage('inactivity_over_5s');
+        return {
+          data: null,
+          error: msg,
+          status: 409,
+          raw: { error: msg, cancelled: true, cancelReason: 'inactivity_over_5s' },
+        };
+      }
+      if (attempt.status === 'grace_period') {
+        return {
+          data: null,
+          error: 'Önce yarışma ekranına geri dönmelisiniz.',
+          status: 409,
+          raw: {
+            error: 'Önce yarışma ekranına geri dönmelisiniz.',
+            inGracePeriod: true,
+            graceExpiresAt: effectiveGraceExpiresAt ? new Date(effectiveGraceExpiresAt).toISOString() : null,
+          },
+        };
+      }
 
       // Sunucu tarafı süre kontrolü: 15 dk dolduysa bu cevap sayılmaz, kayıtlı cevaplarla sonuçlanır
       if (isExpired(attempt)) {
+        if (attempt.answers.length === 0) {
+          await expireAttempt();
+          return {
+            data: null,
+            error: 'Yarışma süresi dolduğu için oturum sonlandı.',
+            status: 409,
+            raw: { error: 'Yarışma süresi dolduğu için oturum sonlandı.', expired: true },
+          };
+        }
         const done = await finalizeAttempt(true);
         const final = buildFinishPayload(done);
         const payload: TriviaAnswerResponse = {
@@ -1174,22 +1539,21 @@ export async function runDailyTriviaSupabaseEngine<T>(
         return { data: null, error: 'Geçersiz seçenek.', status: 400 };
       }
 
-      // Cevap kaydedilir veya (daha önce verildiyse) değiştirilir; doğruluk bilgisi istemciye verilmez.
       const nextAnswers: CompactStoredAnswer[] = [
         ...attempt.answers.filter((a) => a.i !== questionIndex),
         { i: questionIndex, s: selectedOption },
       ].sort((a, b) => a.i - b.i);
 
+      const nowMs = Date.now();
       const updatedAttempt: StoredAttemptMeta = {
         ...attempt,
         currentIndex: questionIndex,
         answeredCount: nextAnswers.length,
-        leaveStartedAt: null,
-        updatedAt: Date.now(),
+        lastActivityAt: nowMs,
+        updatedAt: nowMs,
         answers: nextAnswers,
       };
       attempt = updatedAttempt;
-      writeLocalLeaveTs(userId, quizDate, null);
       writeLocalRunMirror(userId, quizDate, updatedAttempt);
       scheduleAttemptPersist(userId, updatedAttempt);
 
@@ -1200,7 +1564,7 @@ export async function runDailyTriviaSupabaseEngine<T>(
         answeredCount: nextAnswers.length,
         remainingCount: Math.max(0, TOTAL_QUESTIONS - nextAnswers.length),
         deadlineAt: new Date(getDeadlineMs(updatedAttempt)).toISOString(),
-        serverNowIso: new Date().toISOString(),
+        serverNowIso: new Date(nowMs).toISOString(),
       };
       return { data: payload as unknown as T, error: null, status: 200 };
     }
@@ -1219,11 +1583,18 @@ export async function runDailyTriviaSupabaseEngine<T>(
           raw: { error: msg, cancelled: true, cancelReason: attempt.cancelReason },
         };
       }
+      if (attempt.status === 'expired') {
+        return {
+          data: null,
+          error: 'Yarışma süresi dolduğu için ödül tanımlanamaz.',
+          status: 409,
+          raw: { error: 'Yarışma süresi dolduğu için ödül tanımlanamaz.', expired: true },
+        };
+      }
       if (attempt.status === 'completed') {
-        // Idempotent: ikinci çağrı ödülü tekrar vermez, mevcut sonucu döndürür
         return { data: buildFinishPayload(attempt) as unknown as T, error: null, status: 200 };
       }
-      if (effectiveLeaveTs && Date.now() - effectiveLeaveTs > MAX_AWAY_MS) {
+      if (effectiveGraceExpiresAt !== null && Date.now() > effectiveGraceExpiresAt) {
         await cancelAttempt('away_over_5s');
         const msg = getCancelMessage('away_over_5s');
         return {
@@ -1233,7 +1604,25 @@ export async function runDailyTriviaSupabaseEngine<T>(
           raw: { error: msg, cancelled: true, cancelReason: 'away_over_5s' },
         };
       }
+      if (await enforceSilentInactivity()) {
+        const msg = getCancelMessage('inactivity_over_5s');
+        return {
+          data: null,
+          error: msg,
+          status: 409,
+          raw: { error: msg, cancelled: true, cancelReason: 'inactivity_over_5s' },
+        };
+      }
       const timedOut = isExpired(attempt) || Date.now() >= getDeadlineMs(attempt) - 1500;
+      if (Boolean(body.timedOut) && timedOut && attempt.answers.length === 0) {
+        await expireAttempt();
+        return {
+          data: null,
+          error: 'Yarışma süresi dolduğu için oturum sonlandı.',
+          status: 409,
+          raw: { error: 'Yarışma süresi dolduğu için oturum sonlandı.', expired: true },
+        };
+      }
       const done = await finalizeAttempt(Boolean(body.timedOut) && timedOut);
       return { data: buildFinishPayload(done) as unknown as T, error: null, status: 200 };
     }

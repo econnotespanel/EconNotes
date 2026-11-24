@@ -26,11 +26,19 @@ export async function purgeUser(admin: SupabaseClient, userId: string) {
   }
 
   const ownTables = [
+    'xp_transactions',
+    'lucky_wheel_spins',
+    'daily_trivia_answers',
+    'daily_trivia_attempts',
+    'daily_trivia_user_sets',
+    'daily_trivia_user_history',
     'point_events',
     'user_points',
     'announcement_views',
     'note_views',
     'note_downloads',
+    'study_summary_job_chunks',
+    'study_summary_jobs',
     'study_progress',
     'study_reports',
     'study_materials',

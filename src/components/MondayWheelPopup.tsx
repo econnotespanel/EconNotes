@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
+  AlertTriangle,
   CalendarClock,
   CheckCircle2,
   Gift,
+  Loader2,
   Lock,
   PartyPopper,
   ShieldCheck,
@@ -25,11 +27,12 @@ import econEMark from '@/assets/econnotes-e-mark.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import {
-  claimMondayWheelReward,
+  executeLuckyWheelSpin,
+  fetchLuckyWheelStatus,
   getMondayWheelState,
-  getTodayDateString,
   MONDAY_WHEEL_SEGMENTS,
   syncPendingWheelXp,
+  type ServerWheelStatus,
   type WheelSegment,
 } from '@/lib/mondayWheel';
 import {
@@ -44,6 +47,8 @@ import { cn } from '@/lib/utils';
 
 const WHEEL_SOUND_MUTED_KEY = 'econnotes_wheel_sound_muted';
 const SPIN_DURATION_MS = 4200;
+
+type WheelPhase = 'idle' | 'loading' | 'requesting' | 'animating' | 'completed';
 
 export const openMondayWheelModal = () => {
   window.dispatchEvent(new CustomEvent('econnotes:open-monday-wheel'));
@@ -106,19 +111,31 @@ export const EconWheelMiniGraphic = ({ className = 'h-10 w-10' }: { className?: 
   );
 };
 
+function createClientSpinRequestId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `wheel-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const MondayWheelPopup = () => {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, profile, isAdmin, loading, refreshProfile } = useAuth();
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
   const navigate = useNavigate();
   const location = useLocation();
+
   const [open, setOpen] = useState(false);
-  const [LauncherDismissed, setLauncherDismissed] = useState(false);
+  const [launcherDismissed, setLauncherDismissed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [wheelState, setWheelState] = useState(() =>
-    getMondayWheelState(user, new Date(), { isAdmin }),
-  );
+  const [serverStatus, setServerStatus] = useState<ServerWheelStatus | null>(null);
+  const [clockOffsetMs, setClockOffsetMs] = useState(0);
+  const [phase, setPhase] = useState<WheelPhase>('idle');
+  const [spinError, setSpinError] = useState<string | null>(null);
+  const [rotationDeg, setRotationDeg] = useState(0);
+  const [wonSegment, setWonSegment] = useState<WheelSegment | null>(null);
+  const [pointerKick, setPointerKick] = useState(false);
   const [soundMuted, setSoundMuted] = useState<boolean>(() => {
     try {
       return localStorage.getItem(WHEEL_SOUND_MUTED_KEY) === '1';
@@ -126,13 +143,60 @@ const MondayWheelPopup = () => {
       return false;
     }
   });
-  const [pointerKick, setPointerKick] = useState(false);
+
+  // Strict synchronous guards preventing any double-spin, auto-spin, or duplicate animation
   const soundMutedRef = useRef(soundMuted);
+  const spinLockRef = useRef(false);
+  const statusInFlightRef = useRef(false);
+  const mountedRef = useRef(true);
+  const rotationRef = useRef(0);
+  const userRef = useRef(user);
+  const profileRef = useRef(profile);
+  const isAdminRef = useRef(isAdmin);
+  const animatedTxIdsRef = useRef<Set<string>>(new Set());
   const tickRafRef = useRef<number | null>(null);
   const spinTimerRef = useRef<number | null>(null);
   const pointerTimerRef = useRef<number | null>(null);
+  const lastReconciledUserRef = useRef<string | null>(null);
 
   soundMutedRef.current = soundMuted;
+  rotationRef.current = rotationDeg;
+  userRef.current = user;
+  profileRef.current = profile;
+  isAdminRef.current = isAdmin;
+
+  const isBusy = phase === 'requesting' || phase === 'animating';
+
+  const wheelState = getMondayWheelState(user, new Date(Date.now() + clockOffsetMs), {
+    isAdmin,
+    profile: profile as { wheel_bonus_quota?: number | null; wheel_unlimited_until?: string | null } | null,
+    serverStatus,
+  });
+
+  const stopAnimationTimers = useCallback(() => {
+    stopWheelSpinAudio();
+    if (tickRafRef.current !== null) {
+      cancelAnimationFrame(tickRafRef.current);
+      tickRafRef.current = null;
+    }
+    if (spinTimerRef.current !== null) {
+      window.clearTimeout(spinTimerRef.current);
+      spinTimerRef.current = null;
+    }
+    if (pointerTimerRef.current !== null) {
+      window.clearTimeout(pointerTimerRef.current);
+      pointerTimerRef.current = null;
+    }
+    setPointerKick(false);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      stopAnimationTimers();
+    };
+  }, [stopAnimationTimers]);
 
   const toggleSoundMuted = () => {
     setSoundMuted((prev) => {
@@ -153,15 +217,6 @@ const MondayWheelPopup = () => {
   };
 
   useEffect(() => {
-    return () => {
-      stopWheelSpinAudio();
-      if (tickRafRef.current !== null) cancelAnimationFrame(tickRafRef.current);
-      if (spinTimerRef.current !== null) window.clearTimeout(spinTimerRef.current);
-      if (pointerTimerRef.current !== null) window.clearTimeout(pointerTimerRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
     const handleSidebarState = (e: Event) => {
       const customEvent = e as CustomEvent<{ open: boolean }>;
       if (customEvent.detail && typeof customEvent.detail.open === 'boolean') {
@@ -171,51 +226,79 @@ const MondayWheelPopup = () => {
     window.addEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
     return () => window.removeEventListener('econnotes:sidebar-state', handleSidebarState as EventListener);
   }, []);
-  const [spinning, setSpinning] = useState(false);
-  const [rotationDeg, setRotationDeg] = useState(0);
-  const [wonSegment, setWonSegment] = useState<WheelSegment | null>(null);
 
-  useEffect(() => {
-    const syncState = () => {
-      const next = getMondayWheelState(user, new Date(), { isAdmin });
-      setWheelState(next);
-      if (next.todayRewardId) {
-        const found = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === next.todayRewardId) || null;
-        setWonSegment(found);
+  /** Strictly read-only status refresh from server — NEVER starts a spin or animation. */
+  const refreshWheelStatus = useCallback(async (showLoader = false) => {
+    const activeUser = userRef.current;
+    if (!activeUser || spinLockRef.current || statusInFlightRef.current) return;
+    statusInFlightRef.current = true;
+    if (showLoader) setPhase('loading');
+    try {
+      const srv = await fetchLuckyWheelStatus(activeUser, { isAdmin: isAdminRef.current });
+      if (!mountedRef.current || spinLockRef.current) return;
+      if (srv) {
+        const srvMs = Date.parse(srv.serverNowIso);
+        if (Number.isFinite(srvMs)) setClockOffsetMs(srvMs - Date.now());
+        setServerStatus(srv);
+        if (srv.hasSpunToday && srv.spin?.segmentId) {
+          const found = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === srv.spin?.segmentId) || null;
+          setWonSegment(found);
+          setPhase('completed');
+        } else {
+          setWonSegment(null);
+          setPhase('idle');
+        }
       } else {
-        setWonSegment(null);
+        const fallbackState = getMondayWheelState(activeUser, new Date(), {
+          isAdmin: isAdminRef.current,
+          profile: profileRef.current as any,
+        });
+        if (fallbackState.hasSpunToday && fallbackState.todayRewardId) {
+          const found = MONDAY_WHEEL_SEGMENTS.find((s) => s.id === fallbackState.todayRewardId) || null;
+          setWonSegment(found);
+          setPhase('completed');
+        } else {
+          setWonSegment(null);
+          setPhase('idle');
+        }
       }
-    };
+    } catch {
+      if (mountedRef.current && !spinLockRef.current) {
+        setPhase('idle');
+      }
+    } finally {
+      statusInFlightRef.current = false;
+    }
+  }, []);
 
-    syncState();
+  // One-time read-only status load + verified historical XP sync per user (NEVER auto-spins or auto-opens)
+  useEffect(() => {
+    if (loading || !user?.id) return;
+    void refreshWheelStatus(false);
 
-    if (!loading && user) {
-      // Bugün kazanılıp puan tablosuna yansımamış çark XP'si varsa tek seferlik senkronize et
+    if (lastReconciledUserRef.current !== user.id) {
+      lastReconciledUserRef.current = user.id;
       void syncPendingWheelXp(user, { isAdmin }).then((recoveredXp) => {
-        if (recoveredXp && recoveredXp > 0) {
-          toast.success(`Bugünkü çark ödülün (+${recoveredXp} XP) toplam puanına yansıtıldı!`);
+        if (mountedRef.current && recoveredXp && recoveredXp > 0) {
+          toast.success(`Doğrulanmış eksik +${recoveredXp} XP ödülün hesabına aktarıldı!`);
         }
       });
-
-      // Pazartesi günü (veya yöneticiler için günlük hak hazır olduğunda) ilk girişte otomatik aç
-      const current = getMondayWheelState(user, new Date(), { isAdmin });
-      const todayKey = getTodayDateString();
-      const sessionPromptKey = `econnotes_monday_wheel_prompted_${user.id}_${todayKey}`;
-      if (current.canSpinNow && !sessionStorage.getItem(sessionPromptKey)) {
-        sessionStorage.setItem(sessionPromptKey, '1');
-        const t = window.setTimeout(() => setOpen(true), 650);
-        return () => window.clearTimeout(t);
-      }
     }
-  }, [user, isAdmin, loading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, isAdmin, loading, refreshWheelStatus]);
 
   useEffect(() => {
     const handleOpen = () => {
-      setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
+      setSpinError(null);
       setOpen(true);
+      if (!spinLockRef.current) {
+        void refreshWheelStatus(true);
+      }
     };
     const handleUpdated = () => {
-      setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
+      if (!spinLockRef.current) {
+        void refreshWheelStatus(false);
+      }
     };
 
     window.addEventListener('econnotes:open-monday-wheel', handleOpen);
@@ -224,49 +307,49 @@ const MondayWheelPopup = () => {
       window.removeEventListener('econnotes:open-monday-wheel', handleOpen);
       window.removeEventListener('econnotes:wheel-updated', handleUpdated);
     };
-  }, [user, isAdmin]);
+  }, [refreshWheelStatus]);
 
   if (!user) return null;
 
   const numSegments = MONDAY_WHEEL_SEGMENTS.length;
   const sliceAngle = 360 / numSegments;
 
-  const handleSpin = () => {
-    if (spinning || !wheelState.canSpinNow) return;
-
-    const weights = [18, 22, 20, 10, 14, 10, 6];
-    const roll = Math.random() * 100;
-    let acc = 0;
-    let chosenIdx = 0;
-    for (let i = 0; i < weights.length; i++) {
-      acc += weights[i];
-      if (roll <= acc) {
-        chosenIdx = i;
-        break;
-      }
+  /**
+   * PURELY visual animation targeting an ALREADY server-committed reward segment.
+   * Never calls any backend API or grants any reward when it finishes.
+   */
+  const playSingleSpinAnimation = (
+    chosen: WheelSegment,
+    transactionId: string,
+    newPointsTotal: number | null | undefined,
+    onDone: () => void,
+  ) => {
+    if (animatedTxIdsRef.current.has(transactionId)) {
+      onDone();
+      return;
     }
+    animatedTxIdsRef.current.add(transactionId);
 
-    const chosen = MONDAY_WHEEL_SEGMENTS[chosenIdx];
+    const chosenIdx = Math.max(
+      0,
+      MONDAY_WHEEL_SEGMENTS.findIndex((s) => s.id === chosen.id),
+    );
     const targetSliceCenter = chosenIdx * sliceAngle + sliceAngle / 2;
     const extraSpins = 360 * 6;
-    const jitter = (Math.random() - 0.5) * (sliceAngle * 0.45);
-    const startRotation = rotationDeg;
+    const jitter = (Math.random() - 0.5) * (sliceAngle * 0.42);
+    const startRotation = rotationRef.current;
     const nextRotation =
       startRotation + extraSpins + (360 - targetSliceCenter) - (startRotation % 360) + jitter;
     const totalDelta = nextRotation - startRotation;
 
-    // Precompute exact peg-hit schedule matching CSS cubic-bezier(0.15, 0.88, 0.22, 1)
     const pegEvents = computeWheelPegEvents(startRotation, totalDelta, SPIN_DURATION_MS, 14);
-
-    // Start the full synthesized wheel-spin WAV audio synchronously inside the click gesture
     if (!soundMutedRef.current) {
       startWheelSpinAudio(pegEvents, SPIN_DURATION_MS);
     }
 
-    setSpinning(true);
+    setPhase('animating');
     setRotationDeg(nextRotation);
 
-    // Synchronize visual pointer deflection with the exact same peg timestamps
     if (tickRafRef.current !== null) cancelAnimationFrame(tickRafRef.current);
     let nextEventIdx = 0;
     const spinStartedAt = performance.now();
@@ -278,13 +361,11 @@ const MondayWheelPopup = () => {
         nextEventIdx++;
         triggered = true;
       }
-
       if (triggered) {
         setPointerKick(true);
         if (pointerTimerRef.current !== null) window.clearTimeout(pointerTimerRef.current);
         pointerTimerRef.current = window.setTimeout(() => setPointerKick(false), 55);
       }
-
       if (elapsed < SPIN_DURATION_MS) {
         tickRafRef.current = requestAnimationFrame(stepPointer);
       } else {
@@ -294,32 +375,26 @@ const MondayWheelPopup = () => {
     tickRafRef.current = requestAnimationFrame(stepPointer);
 
     if (spinTimerRef.current !== null) window.clearTimeout(spinTimerRef.current);
-    spinTimerRef.current = window.setTimeout(async () => {
+    spinTimerRef.current = window.setTimeout(() => {
       if (tickRafRef.current !== null) {
         cancelAnimationFrame(tickRafRef.current);
         tickRafRef.current = null;
       }
       setPointerKick(false);
+      if (!mountedRef.current) return;
 
-      // Play prize fanfare right on landing using the gesture-authorized audio element
       if (!soundMutedRef.current) {
         const isGrandPrize = chosen.id === 'xp_500' || chosen.type === 'unlimited_day';
         playWheelWinSound(isGrandPrize);
       }
 
-      const res = await claimMondayWheelReward(user, chosen, new Date(), { isAdmin });
-      setSpinning(false);
-      if (!res.ok) {
-        toast.error(res.error || 'Çark ödülü kaydedilemedi.');
-        setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
-        return;
-      }
-
       setWonSegment(chosen);
-      setWheelState(getMondayWheelState(user, new Date(), { isAdmin }));
-      if (chosen.type === 'xp' && typeof res.newPointsTotal === 'number') {
+      setPhase('completed');
+      onDone();
+
+      if (chosen.type === 'xp' && typeof newPointsTotal === 'number') {
         toast.success(
-          `Tebrikler! ${chosen.fullTitle} hesabına eklendi! (Yeni toplam: ${res.newPointsTotal.toLocaleString('tr-TR')} puan)`,
+          `Tebrikler! ${chosen.fullTitle} hesabına eklendi! (Yeni toplam: ${newPointsTotal.toLocaleString('tr-TR')} XP)`,
         );
       } else {
         toast.success(`Tebrikler! ${chosen.fullTitle} hesabına tanımlandı!`);
@@ -327,10 +402,85 @@ const MondayWheelPopup = () => {
     }, SPIN_DURATION_MS);
   };
 
+  /**
+   * Triggered EXCLUSIVELY by explicit click on "Şans Çarkını Çevir!".
+   * Step 1: Acquire synchronous ref lock + disable button immediately.
+   * Step 2: Execute single atomic server spin (commits reward in PostgreSQL).
+   * Step 3: Animate wheel ONCE to the server-confirmed winning segment.
+   */
+  const handleSpin = async () => {
+    if (spinLockRef.current || phase !== 'idle' || !wheelState.canSpinNow || !user) return;
+
+    spinLockRef.current = true;
+    setSpinError(null);
+    setPhase('requesting');
+
+    // Unlock audio synchronously inside the user's explicit click gesture
+    if (!soundMutedRef.current) {
+      unlockWheelAudio();
+    }
+
+    const clientRequestId = createClientSpinRequestId();
+    const res = await executeLuckyWheelSpin(user, clientRequestId, { isAdmin });
+
+    if (!mountedRef.current) {
+      spinLockRef.current = false;
+      return;
+    }
+
+    if (!res.ok || !res.segment || !res.spin) {
+      const errMsg = res.error || 'Çark ödülü kaydedilemedi. Lütfen tekrar dene.';
+      setSpinError(errMsg);
+      setPhase('idle');
+      spinLockRef.current = false;
+      toast.error(errMsg);
+      return;
+    }
+
+    if (res.serverNowIso) {
+      const srvMs = Date.parse(res.serverNowIso);
+      if (Number.isFinite(srvMs)) setClockOffsetMs(srvMs - Date.now());
+    }
+
+    const nextServerStatus: ServerWheelStatus = {
+      serverNowIso: res.serverNowIso || new Date().toISOString(),
+      dailyPeriod: res.spin.dailyPeriod,
+      isMonday: wheelState.isMonday,
+      isAdminDailyMode: wheelState.isAdminDailyMode,
+      hasSpunToday: true,
+      canSpinNow: false,
+      nextResetAtIso: res.nextResetAtIso || serverStatus?.nextResetAtIso || new Date().toISOString(),
+      userPoints: res.newPointsTotal ?? serverStatus?.userPoints ?? 0,
+      wheelBonusQuota: res.wheelBonusQuota ?? wheelState.bonusQuota,
+      wheelUnlimitedUntil: res.wheelUnlimitedUntil ?? serverStatus?.wheelUnlimitedUntil ?? null,
+      spin: res.spin,
+    };
+
+    // If user already spun in another tab/device, do NOT spin a second time — show exact committed reward!
+    if (res.alreadySpun) {
+      setServerStatus(nextServerStatus);
+      setWonSegment(res.segment);
+      setPhase('completed');
+      spinLockRef.current = false;
+      void refreshProfile?.();
+      toast.info('Bugünkü çark hakkını zaten kullandın. Kazandığın ödül hesabında tanımlı!');
+      return;
+    }
+
+    // Play ONE single visual landing animation for this committed transactionId
+    playSingleSpinAnimation(res.segment, res.spin.transactionId, res.newPointsTotal, () => {
+      setServerStatus(nextServerStatus);
+      spinLockRef.current = false;
+      void refreshProfile?.();
+      window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
+      window.dispatchEvent(new CustomEvent('econnotes:wheel-updated'));
+    });
+  };
+
   const cx = 160;
   const cy = 160;
   const r = 136;
-  const showFloatingLauncher = !LauncherDismissed && location.pathname === '/';
+  const showFloatingLauncher = !launcherDismissed && location.pathname === '/';
 
   return (
     <>
@@ -350,7 +500,6 @@ const MondayWheelPopup = () => {
               'backdrop-blur-2xl transition-all duration-300 hover:-translate-y-0.5 hover:border-cyan-300/60 hover:shadow-[0_22px_50px_-8px_rgba(0,70,175,0.65)]',
             )}
           >
-            {/* Üst ince EconNotes cyan ışık yansıması */}
             <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
             <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-cyan-400/20 blur-2xl" />
 
@@ -404,8 +553,8 @@ const MondayWheelPopup = () => {
         </div>
       )}
 
-      {/* EconNotes Temalı Pazartesi Şans Çarkı Modalı (Tam EconNotes Mavisi ile Bütünleşik) */}
-      <Dialog open={open} onOpenChange={(v) => !spinning && setOpen(v)}>
+      {/* EconNotes Temalı Pazartesi Şans Çarkı Modalı */}
+      <Dialog open={open} onOpenChange={(v) => !isBusy && setOpen(v)}>
         <DialogContent
           onOpenAutoFocus={(e) => e.preventDefault()}
           className={cn(
@@ -415,12 +564,10 @@ const MondayWheelPopup = () => {
               : 'border border-cyan-300/30 bg-gradient-to-b from-[#001d52] via-[#003385] to-[#041536] shadow-[0_24px_72px_rgba(0,55,145,0.6)]',
           )}
         >
-          {/* Ambiyans Işık Küreleri & Üst Parlama */}
           <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-cyan-400/25 blur-3xl" />
           <div className="pointer-events-none absolute -left-14 top-1/3 h-48 w-48 rounded-full bg-[#0070d1]/30 blur-3xl" />
           <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/80 to-transparent" />
 
-          {/* Üst EconNotes Kobalt-Mavi Başlık Katmanı */}
           <div className="relative z-10 px-5 pt-5 pb-3 sm:px-6 sm:pt-6 text-center">
             <div className="relative flex items-center justify-center mb-3.5">
               <button
@@ -435,8 +582,8 @@ const MondayWheelPopup = () => {
               <EconLogo allWhite className="h-5 sm:h-6 w-auto" />
               <button
                 type="button"
-                disabled={spinning}
-                onClick={() => !spinning && setOpen(false)}
+                disabled={isBusy}
+                onClick={() => !isBusy && setOpen(false)}
                 aria-label="Kapat"
                 className="absolute right-0 top-1/2 -translate-y-1/2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/85 transition-all hover:bg-white/20 hover:text-white active:scale-90 disabled:opacity-40"
               >
@@ -463,12 +610,10 @@ const MondayWheelPopup = () => {
           </div>
 
           <div className="relative z-10 px-5 pb-5 pt-2 sm:px-6 sm:pb-6 space-y-4">
-            {/* EconNotes Kobalt & Cyan Çark Görseli + Merkezde Beyaz E Logosu */}
+            {/* EconNotes Kobalt & Cyan Çark Görseli */}
             <div className="relative mx-auto flex h-[290px] w-[290px] sm:h-[304px] sm:w-[304px] items-center justify-center">
-              {/* Arka Plan Mavi/Cyan Parlama Halesi */}
               <div className="pointer-events-none absolute inset-2 rounded-full bg-cyan-400/20 blur-2xl" />
 
-              {/* Üst EconNotes Cyan/Mavi İbre (Çark dönerken pimlere çarpıp hafifçe tıklar) */}
               <div
                 className={cn(
                   'absolute -top-2.5 left-1/2 z-30 -translate-x-1/2 origin-top transition-transform duration-75 drop-shadow-[0_4px_12px_rgba(0,12,36,0.75)]',
@@ -486,18 +631,18 @@ const MondayWheelPopup = () => {
                 </svg>
               </div>
 
-              {/* Dönen SVG Çark */}
               <svg
+                data-testid="lucky-wheel-svg"
                 viewBox="0 0 320 320"
                 className="h-full w-full drop-shadow-[0_16px_38px_rgba(0,12,36,0.65)]"
                 style={{
                   transform: `rotate(${rotationDeg}deg)`,
-                  transition: spinning
-                    ? 'transform 4.2s cubic-bezier(0.15, 0.88, 0.22, 1)'
-                    : 'none',
+                  transition:
+                    phase === 'animating'
+                      ? 'transform 4.2s cubic-bezier(0.15, 0.88, 0.22, 1)'
+                      : 'none',
                 }}
               >
-                {/* Dış Kobalt Çerçeve */}
                 <circle
                   cx={cx}
                   cy={cy}
@@ -517,7 +662,6 @@ const MondayWheelPopup = () => {
                   strokeOpacity="0.6"
                 />
 
-                {/* Çerçeve Üzeri 14 Işıklı Nokta */}
                 {Array.from({ length: 14 }).map((_, i) => {
                   const deg = (i * 360) / 14 - 90;
                   const rad = (deg * Math.PI) / 180;
@@ -546,7 +690,6 @@ const MondayWheelPopup = () => {
                   const y2 = cy + r * Math.sin(endRad);
 
                   const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`;
-
                   const midDeg = startDeg + sliceAngle / 2;
                   const midRad = (midDeg * Math.PI) / 180;
                   const tx = cx + r * 0.65 * Math.cos(midRad);
@@ -576,7 +719,6 @@ const MondayWheelPopup = () => {
                   );
                 })}
 
-                {/* İç Derinlik Halkası */}
                 <circle
                   cx={cx}
                   cy={cy}
@@ -587,7 +729,6 @@ const MondayWheelPopup = () => {
                 />
               </svg>
 
-              {/* Sabit Merkez Göbek: EconNotes Beyaz E Logosu */}
               <div className="pointer-events-none absolute z-20 flex h-16 w-16 items-center justify-center rounded-full border-[3px] border-cyan-300/85 bg-gradient-to-br from-[#001845] via-[#003791] to-[#0070d1] shadow-[0_0_24px_rgba(0,112,209,0.75)]">
                 <img
                   src={econEMark}
@@ -598,8 +739,18 @@ const MondayWheelPopup = () => {
               </div>
             </div>
 
-            {/* Kazanılan Ödül veya Durum Kartı (EconNotes Kobalt Cam Temalı) */}
-            {wonSegment && wheelState.hasSpunToday ? (
+            {spinError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-2xl border border-rose-300/35 bg-rose-500/15 px-3.5 py-2.5 text-left text-xs text-rose-100"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />
+                <span>{spinError}</span>
+              </div>
+            )}
+
+            {/* Kazanılan Ödül veya Durum Kartı */}
+            {phase === 'completed' && wonSegment && wheelState.hasSpunToday ? (
               <div className="rounded-2xl border border-cyan-300/25 bg-white/[0.08] p-4 text-center space-y-2 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]">
                 <div className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-300">
                   <PartyPopper className="h-4 w-4" />
@@ -654,8 +805,8 @@ const MondayWheelPopup = () => {
               <div className="space-y-2.5">
                 <Button
                   type="button"
-                  disabled={spinning || !wheelState.canSpinNow}
-                  onClick={handleSpin}
+                  disabled={phase !== 'idle' || !wheelState.canSpinNow}
+                  onClick={() => void handleSpin()}
                   className={cn(
                     'w-full h-11 rounded-2xl text-white font-bold text-sm shadow-lg gap-2 border border-cyan-300/30',
                     isNovember10
@@ -663,11 +814,21 @@ const MondayWheelPopup = () => {
                       : 'bg-gradient-to-r from-[#0055b8] via-[#0070d1] to-[#0ea5e9] hover:opacity-95 shadow-[#0070d1]/35',
                   )}
                 >
-                  <Gift className="h-4 w-4" />
-                  {spinning ? 'Çark Dönüyor...' : 'Şans Çarkını Çevir!'}
+                  {phase === 'loading' || phase === 'requesting' ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Gift className="h-4 w-4" />
+                  )}
+                  {phase === 'loading'
+                    ? 'Durum Kontrol Ediliyor...'
+                    : phase === 'requesting'
+                      ? 'Ödül Doğrulanıyor...'
+                      : phase === 'animating'
+                        ? 'Çark Dönüyor...'
+                        : 'Şans Çarkını Çevir!'}
                 </Button>
                 <p className="text-center text-[11px] text-blue-100/80">
-                  {wheelState.countdownLabel} · Çıkan ödül anında hesabına tanımlanır.
+                  {wheelState.countdownLabel} · Çıkan ödül sunucu onayıyla anında hesabına tanımlanır.
                 </p>
               </div>
             )}
