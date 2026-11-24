@@ -993,16 +993,25 @@ const AdminPanel = () => {
                 <img src={closureImageUrl} alt="Önizleme" className="mt-2 max-h-40 rounded-lg border border-border object-cover" />
               )}
             </div>
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Button size="sm" variant="outline" onClick={() => saveClosureSettings()}>Ayarları Kaydet</Button>
+            <div className="flex flex-wrap items-center gap-2.5 border-t border-border/60 pt-3">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => saveClosureSettings()}
+                className="h-10 rounded-full bg-gradient-to-r from-[#174ec4] via-[#1f62e8] to-[#2e78f6] px-4 text-xs font-semibold text-white shadow-sm hover:brightness-105"
+              >
+                Ayarları Kaydet
+              </Button>
               {(closureMode === 'maintenance' || closureMode === 'gta6' || closureMode === 'announcement') && (
                 <Button
                   size="sm"
                   type="button"
-                  className="bg-gradient-to-r from-amber-400 via-pink-500 to-fuchsia-600 hover:brightness-110 text-white text-xs font-bold gap-1.5 shadow-md"
+                  variant="outline"
+                  className="h-10 gap-1.5 rounded-full border-blue-200/90 bg-blue-50/70 px-4 text-xs font-semibold text-blue-700 hover:bg-blue-100/80 dark:border-blue-500/35 dark:bg-blue-500/15 dark:text-blue-200 dark:hover:bg-blue-500/25"
                   onClick={() => setShowGtaPreview(true)}
                 >
-                  <Sparkles className="h-3.5 w-3.5" /> 🌴 GTA 6 Ekranını Önizle
+                  <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                  <span>GTA 6 Ekranını Önizle</span>
                 </Button>
               )}
               {closureMode === 'fatal_error' && (
@@ -1010,25 +1019,44 @@ const AdminPanel = () => {
                   size="sm"
                   type="button"
                   variant="destructive"
-                  className="bg-red-700 hover:bg-red-800 text-white font-mono text-xs gap-1.5 shadow-md"
+                  className="h-10 gap-1.5 rounded-full px-4 text-xs font-semibold shadow-sm"
                   onClick={() => setShowFatalPreview(true)}
                 >
-                  <AlertTriangle className="h-4 w-4" /> 🔴 Kırmızı Fatal Error Ekranını Aç
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>Kırmızı Fatal Error Ekranını Aç</span>
                 </Button>
               )}
               {systemOpen ? (
-                <Button size="sm" className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:opacity-90 text-white" onClick={() => saveClosureSettings({ close: true })}>
-                  <Sun className="h-4 w-4 mr-1.5" /> Sistemi Kapat & Yayınla
+                <Button
+                  size="sm"
+                  type="button"
+                  className="h-10 gap-1.5 rounded-full bg-amber-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-amber-700"
+                  onClick={() => saveClosureSettings({ close: true })}
+                >
+                  <Sun className="h-3.5 w-3.5 shrink-0" />
+                  <span>Sistemi Kapat &amp; Yayınla</span>
                 </Button>
               ) : (
-                <Button size="sm" className="bg-gradient-to-r from-cyan-500 to-emerald-500 hover:opacity-90 text-white" onClick={() => saveClosureSettings({ reopen: true })}>
-                  <Power className="h-4 w-4 mr-1.5" /> Sistemi Yeniden Aç
+                <Button
+                  size="sm"
+                  type="button"
+                  className="h-10 gap-1.5 rounded-full bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                  onClick={() => saveClosureSettings({ reopen: true })}
+                >
+                  <Power className="h-3.5 w-3.5 shrink-0" />
+                  <span>Sistemi Yeniden Aç</span>
                 </Button>
               )}
               <AlertDialog open={promoteDialog} onOpenChange={setPromoteDialog}>
                 <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="outline" className="border-emerald-400/60 text-emerald-700 dark:text-emerald-300">
-                    <ArrowUpCircle className="h-4 w-4 mr-1.5" /> Sınıfları Bir Üste Taşı (1 Ağustos)
+                  <Button
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                    className="h-10 gap-1.5 rounded-full border-emerald-500/45 bg-emerald-50/70 px-4 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/15 dark:bg-emerald-500/10 dark:text-emerald-300"
+                  >
+                    <ArrowUpCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>Sınıfları Bir Üste Taşı (1 Ağustos)</span>
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -1048,42 +1076,86 @@ const AdminPanel = () => {
           </CardContent>
         </Card>
 
-
-
         <div className="grid grid-cols-2 gap-3.5 md:grid-cols-4">
           {[
-            { label: 'Kullanıcılar', sub: !usersLoading && activeTodayCount > 0 ? `Bugün ${activeTodayCount} aktif` : undefined, value: usersLoading ? '…' : users.length, icon: Users, iconCls: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400' },
-            { label: 'Notlar', value: notesLoading ? '…' : notes.length, icon: FileText, iconCls: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400' },
-            { label: 'Duyurular', value: announcements.length, icon: Megaphone, iconCls: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400' },
-            { label: 'Cezalar', value: penalties.length, icon: AlertTriangle, iconCls: 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400' },
-          ].map(({ label, sub, value, icon: Icon, iconCls }) => (
-            <Card key={label} className="glass-card overflow-hidden">
-              <CardContent className="flex items-center gap-3.5 p-4">
+            {
+              label: 'Kullanıcılar',
+              sub: !usersLoading && activeTodayCount > 0 ? `Bugün ${activeTodayCount} aktif` : 'Kayıtlı hesap',
+              subTone: !usersLoading && activeTodayCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground',
+              value: usersLoading ? '…' : users.length,
+              icon: Users,
+              iconCls: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400',
+            },
+            {
+              label: 'Notlar',
+              sub: (() => {
+                const pendingCount = notes.filter((n) => n.status === 'pending').length;
+                return pendingCount > 0 ? `${pendingCount} onay bekliyor` : 'Yayınlanan materyal';
+              })(),
+              subTone: notes.some((n) => n.status === 'pending') ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground',
+              value: notesLoading ? '…' : notes.length,
+              icon: FileText,
+              iconCls: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400',
+            },
+            {
+              label: 'Duyurular',
+              sub: 'Yayınlanan duyuru',
+              subTone: 'text-muted-foreground',
+              value: announcements.length,
+              icon: Megaphone,
+              iconCls: 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',
+            },
+            {
+              label: 'Cezalar',
+              sub: 'Kayıtlı yaptırım',
+              subTone: 'text-muted-foreground',
+              value: penalties.length,
+              icon: AlertTriangle,
+              iconCls: 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400',
+            },
+          ].map(({ label, sub, subTone, value, icon: Icon, iconCls }) => (
+            <Card key={label} className="glass-card h-full overflow-hidden">
+              <CardContent className="flex h-full min-h-[92px] items-center gap-3.5 p-4">
                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${iconCls}`}>
                   <Icon className="h-5 w-5" />
                 </span>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium text-muted-foreground">{label}</p>
-                  <p className="text-xl sm:text-2xl font-extrabold tracking-tight tabular-nums">{value}</p>
-                  {sub && <p className="truncate text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">{sub}</p>}
+                  <p className="text-xl sm:text-2xl font-extrabold leading-tight tracking-tight tabular-nums">{value}</p>
+                  <p className={`mt-0.5 truncate text-[11px] font-semibold ${subTone}`}>{sub}</p>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <Tabs defaultValue="users">
-          <TabsList className="flex h-auto w-full max-w-full gap-1.5 overflow-x-auto rounded-[20px] border border-slate-200/85 bg-card p-1.5 shadow-[var(--panel-shadow)] dark:border-slate-800/90">
-            <TabsTrigger className="shrink-0 rounded-full px-3.5 py-2 text-xs sm:text-[13px] font-semibold text-slate-600 transition-all hover:bg-slate-100/80 hover:text-slate-900 data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#1b5ce5] data-[state=active]:to-[#3b82f6] data-[state=active]:text-white data-[state=active]:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white" value="users"><Users className="mr-1.5 hidden h-4 w-4 sm:inline" />Kullanıcılar</TabsTrigger>
+        <Tabs defaultValue="users" className="space-y-4">
+          <TabsList className="flex h-auto w-full flex-wrap items-center justify-start gap-1.5 rounded-[20px] border border-slate-200/85 bg-card p-2 shadow-[var(--panel-shadow)] dark:border-slate-800/90">
+            <TabsTrigger
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-slate-600 transition-all hover:bg-slate-100/85 hover:text-slate-950 data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#174ec4] data-[state=active]:to-[#2e78f6] data-[state=active]:text-white data-[state=active]:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white"
+              value="users"
+            >
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              <span>Kullanıcılar</span>
+            </TabsTrigger>
             {([
               ['logins', Smartphone, 'Giriş & Cihazlar'],
               ['notes', FileText, 'Notlar'], ['announcements', Megaphone, 'Duyurular'], ['banners', ImageIcon, 'Bannerlar'],
               ['penalties', AlertTriangle, 'Cezalar'], ['reports', Flag, 'Raporlar'], ['activity', Activity, 'Aktiviteler'],
               ['audit', Shield, 'Denetim'], ['design', Palette, 'Tasarım'], ['study', Sparkles, 'Stüdyo'],
             ] as [string, React.ElementType, string][]).map(([value, Icon, label]) => (
-              <TabsTrigger key={value as string} className="shrink-0 rounded-full px-3.5 py-2 text-xs sm:text-[13px] font-semibold text-slate-600 transition-all hover:bg-slate-100/80 hover:text-slate-900 data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#1b5ce5] data-[state=active]:to-[#3b82f6] data-[state=active]:text-white data-[state=active]:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white" value={value as string}>
-                <Icon className="mr-1.5 hidden h-4 w-4 sm:inline" />{label}
-                {value === 'reports' && messageReports.filter(r => r.status === 'pending').length > 0 && <span className="ml-1.5 inline-flex h-[18px] min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">{messageReports.filter(r => r.status === 'pending').length}</span>}
+              <TabsTrigger
+                key={value as string}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold text-slate-600 transition-all hover:bg-slate-100/85 hover:text-slate-950 data-[state=active]:bg-gradient-to-r data-[state=active]:from-[#174ec4] data-[state=active]:to-[#2e78f6] data-[state=active]:text-white data-[state=active]:shadow-sm dark:text-slate-300 dark:hover:bg-slate-800/70 dark:hover:text-white"
+                value={value as string}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span>{label}</span>
+                {value === 'reports' && messageReports.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                    {messageReports.filter(r => r.status === 'pending').length}
+                  </span>
+                )}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -1176,55 +1248,71 @@ const AdminPanel = () => {
                   </div>
                 )}
 
-                <div className="mb-4 flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
-                  <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
+                <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200/80 dark:border-slate-800/85 bg-muted/25 p-3.5">
+                  <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
                     <div className="relative min-w-0 flex-1">
-                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
                         value={userSearch}
                         onChange={(e) => setUserSearch(e.target.value)}
                         placeholder="Ad, e-posta, cihaz, üniversite ara..."
-                        className="h-9 border-border/60 bg-background pl-9 text-xs"
+                        className="h-9 rounded-full border-slate-200/90 dark:border-slate-800 bg-background pl-10 text-xs"
                       />
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <Select value={userApprovalFilter} onValueChange={(v) => setUserApprovalFilter(v as any)}>
-                          <SelectTrigger className="h-9 w-[145px] text-xs bg-background"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Tüm Durumlar</SelectItem>
-                            <SelectItem value="pending">Bekleme Odası ({pendingUsers.length})</SelectItem>
-                            <SelectItem value="approved">Onaylılar</SelectItem>
-                            <SelectItem value="rejected">Reddedilenler</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
-                          <SelectTrigger className="h-9 w-[125px] text-xs bg-background"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Tüm roller</SelectItem>
-                            <SelectItem value="student">Öğrenci</SelectItem>
-                            <SelectItem value="akademisyen">Akademisyen</SelectItem>
-                            <SelectItem value="admin">Yönetici</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <Select value={userSortBy} onValueChange={(v) => setUserSortBy(v as any)}>
-                          <SelectTrigger className="h-9 w-[170px] text-xs bg-background"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="last_login">Son Giriş (En Yeni)</SelectItem>
-                            <SelectItem value="created_at">Kayıt Tarihi (En Yeni)</SelectItem>
-                            <SelectItem value="name">Ad Soyad (A–Z)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={fetchAll} className="h-9 rounded-xl gap-1 text-xs" title="Listeyi ve giriş kayıtlarını yenile">
-                        <RotateCcw className="h-3.5 w-3.5" /> Yenile
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:flex xl:flex-nowrap xl:items-center">
+                      <Select value={userApprovalFilter} onValueChange={(v) => setUserApprovalFilter(v as any)}>
+                        <SelectTrigger className="h-9 w-full xl:w-[152px] rounded-full border-slate-200/90 dark:border-slate-800 bg-background px-3 text-xs">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <SelectValue />
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tüm Durumlar</SelectItem>
+                          <SelectItem value="pending">Bekleme Odası ({pendingUsers.length})</SelectItem>
+                          <SelectItem value="approved">Onaylılar</SelectItem>
+                          <SelectItem value="rejected">Reddedilenler</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
+                        <SelectTrigger className="h-9 w-full xl:w-[136px] rounded-full border-slate-200/90 dark:border-slate-800 bg-background px-3 text-xs">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <SelectValue />
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tüm Roller</SelectItem>
+                          <SelectItem value="student">Öğrenci</SelectItem>
+                          <SelectItem value="akademisyen">Akademisyen</SelectItem>
+                          <SelectItem value="admin">Yönetici</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Select value={userSortBy} onValueChange={(v) => setUserSortBy(v as any)}>
+                        <SelectTrigger className="h-9 w-full xl:w-[178px] rounded-full border-slate-200/90 dark:border-slate-800 bg-background px-3 text-xs">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <SelectValue />
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="last_login">Son Giriş (En Yeni)</SelectItem>
+                          <SelectItem value="created_at">Kayıt Tarihi (En Yeni)</SelectItem>
+                          <SelectItem value="name">Ad Soyad (A–Z)</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={fetchAll}
+                        className="h-9 w-full xl:w-auto shrink-0 gap-1.5 rounded-full border-slate-200/90 dark:border-slate-800 bg-background px-3.5 text-xs font-semibold"
+                        title="Listeyi ve giriş kayıtlarını yenile"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                        <span>Yenile</span>
                       </Button>
                     </div>
                   </div>

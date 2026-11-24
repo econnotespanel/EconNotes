@@ -381,14 +381,14 @@ const Header = () => {
                     </span>
                   )}
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <button
                     type="button"
                     onClick={() => {
                       setNotificationsOpen(false);
                       navigate('/announcements');
                     }}
-                    className="flex h-10 w-full items-center justify-between rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-left text-xs font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50/85 dark:hover:border-blue-500/35 dark:hover:bg-blue-500/15"
+                    className="flex h-10 w-full items-center justify-between rounded-full px-3 text-left text-xs font-medium text-foreground transition-colors hover:bg-slate-100/85 dark:hover:bg-slate-800/70"
                   >
                     <span className="flex items-center gap-2.5">
                       <Megaphone className="h-4 w-4 shrink-0 text-primary" />
@@ -409,7 +409,7 @@ const Header = () => {
                       setNotificationsOpen(false);
                       navigate('/messages');
                     }}
-                    className="flex h-10 w-full items-center justify-between rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-left text-xs font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50/85 dark:hover:border-blue-500/35 dark:hover:bg-blue-500/15"
+                    className="flex h-10 w-full items-center justify-between rounded-full px-3 text-left text-xs font-medium text-foreground transition-colors hover:bg-slate-100/85 dark:hover:bg-slate-800/70"
                   >
                     <span className="flex items-center gap-2.5">
                       <MessageSquare className="h-4 w-4 shrink-0 text-primary" />
@@ -430,7 +430,7 @@ const Header = () => {
                       onClick={() => {
                         void handleBellClick();
                       }}
-                      className="flex h-10 w-full items-center justify-between rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-left text-xs font-medium text-foreground transition-colors hover:border-blue-200 hover:bg-blue-50/85 dark:hover:border-blue-500/35 dark:hover:bg-blue-500/15"
+                      className="flex h-10 w-full items-center justify-between rounded-full px-3 text-left text-xs font-medium text-foreground transition-colors hover:bg-slate-100/85 dark:hover:bg-slate-800/70"
                     >
                       <span className="flex items-center gap-2.5">
                         <BellRing className="h-4 w-4 shrink-0 text-primary" />
@@ -501,35 +501,35 @@ const Header = () => {
                   </p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="my-1.5 bg-slate-200/70 dark:bg-slate-800/80" />
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   <DropdownMenuItem
                     onClick={() => navigate('/profile')}
-                    className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-[13px] font-medium text-foreground focus:border-blue-200 focus:bg-blue-50/90 focus:text-slate-950 dark:focus:border-blue-500/35 dark:focus:bg-blue-500/15 dark:focus:text-white"
+                    className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full px-3 text-[13px] font-medium text-foreground focus:bg-slate-100/90 focus:text-slate-950 dark:focus:bg-slate-800/80 dark:focus:text-white"
                   >
                     <User className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
                     <span>Profilim</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => navigate('/about')}
-                    className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-[13px] font-medium text-foreground focus:border-blue-200 focus:bg-blue-50/90 focus:text-slate-950 dark:focus:border-blue-500/35 dark:focus:bg-blue-500/15 dark:focus:text-white"
-                  >
-                    <Info className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                    <span>EconNotes Hakkında</span>
-                  </DropdownMenuItem>
                   {isAdmin && (
                     <DropdownMenuItem
                       onClick={() => navigate('/admin')}
-                      className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full border border-slate-200/75 dark:border-slate-800/85 bg-slate-50/80 dark:bg-slate-900/60 px-3.5 text-[13px] font-medium text-foreground focus:border-blue-200 focus:bg-blue-50/90 focus:text-slate-950 dark:focus:border-blue-500/35 dark:focus:bg-blue-500/15 dark:focus:text-white"
+                      className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full px-3 text-[13px] font-semibold text-primary focus:bg-blue-50/90 focus:text-primary dark:focus:bg-blue-500/15 dark:focus:text-blue-300"
                     >
                       <Shield className="h-4 w-4 shrink-0 text-primary" />
                       <span>Yönetici Paneli</span>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem
+                    onClick={() => navigate('/about')}
+                    className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full px-3 text-[13px] font-medium text-foreground focus:bg-slate-100/90 focus:text-slate-950 dark:focus:bg-slate-800/80 dark:focus:text-white"
+                  >
+                    <Info className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+                    <span>EconNotes Hakkında</span>
+                  </DropdownMenuItem>
                 </div>
                 <DropdownMenuSeparator className="my-1.5 bg-slate-200/70 dark:bg-slate-800/80" />
                 <DropdownMenuItem
                   onClick={() => setLogoutDialogOpen(true)}
-                  className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full border border-transparent px-3.5 text-[13px] font-medium text-destructive focus:border-destructive/20 focus:bg-destructive/10 focus:text-destructive"
+                  className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full px-3 text-[13px] font-medium text-destructive focus:bg-destructive/10 focus:text-destructive"
                 >
                   <LogOut className="h-4 w-4 shrink-0" />
                   <span>Oturumu Kapat</span>
