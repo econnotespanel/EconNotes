@@ -13,6 +13,7 @@
 import { detectCourseIdentity, foldTurkishToAscii } from '@/lib/courseDetector';
 import type {
   DifficultyLevel,
+  FlashcardCategory,
   FlashcardItem,
   QuizQualityReport,
   QuizQuestion,
@@ -606,6 +607,163 @@ export function computeDifficultyQuota(
 }
 
 /**
+ * Computes academic Flashcards 2.0 cognitive difficulty quota:
+ * - 'mixed' -> 20% easy (temel kavram), 50% medium (yorumlama & mekanizma), 30% hard (analiz & karşılaştırma)
+ */
+export function computeFlashcardDifficultyQuota(
+  totalCount: number,
+  requestedDifficulty: DifficultyLevel = 'mixed',
+): DifficultyQuota {
+  const safeTotal = Math.max(1, Math.round(totalCount));
+  if (requestedDifficulty === 'easy') return { easy: safeTotal, medium: 0, hard: 0 };
+  if (requestedDifficulty === 'medium') return { easy: 0, medium: safeTotal, hard: 0 };
+  if (requestedDifficulty === 'hard') return { easy: 0, medium: 0, hard: safeTotal };
+
+  if (safeTotal === 1) return { easy: 0, medium: 1, hard: 0 };
+  if (safeTotal === 2) return { easy: 0, medium: 1, hard: 1 };
+  if (safeTotal === 3) return { easy: 1, medium: 1, hard: 1 };
+
+  const easy = Math.max(1, Math.round(safeTotal * 0.2));
+  const hard = Math.max(1, Math.round(safeTotal * 0.3));
+  const medium = Math.max(1, safeTotal - easy - hard);
+  const diff = easy + medium + hard - safeTotal;
+
+  return {
+    easy,
+    medium: Math.max(1, medium - Math.max(0, diff)),
+    hard: Math.max(1, hard - Math.max(0, diff - Math.max(0, medium - 1))),
+  };
+}
+
+export const FLASHCARD_CATEGORY_LABELS: Record<FlashcardCategory, string> = {
+  concept: 'Kavram',
+  theory: 'Teori / İlke',
+  comparison: 'Karşılaştırma',
+  cause_effect: 'Neden–Sonuç',
+  formula_model: 'Formül / Model',
+  case_study: 'Vaka / Örnek',
+  applied: 'Uygulama',
+  analysis: 'Analiz',
+};
+
+const VALID_FLASHCARD_CATEGORIES = new Set<FlashcardCategory>([
+  'concept',
+  'theory',
+  'comparison',
+  'cause_effect',
+  'formula_model',
+  'case_study',
+  'applied',
+  'analysis',
+]);
+
+export function inferFlashcardCategory(
+  front: string,
+  back: string,
+  explicitType?: unknown,
+): FlashcardCategory {
+  if (typeof explicitType === 'string' && VALID_FLASHCARD_CATEGORIES.has(explicitType as FlashcardCategory)) {
+    return explicitType as FlashcardCategory;
+  }
+  const combined = normalizeForComparison(`${front} ${back}`);
+  if (/(karsilastir|farki|ayrim|farklilik|vs|karsit|benzerlik)/.test(combined)) return 'comparison';
+  if (/(neden|sonuc|yol acar|etkiler|artarsa|azalirsa|sebebi|mekanizma|aktarim)/.test(combined)) return 'cause_effect';
+  if (/(formul|denklem|model|esneklik|hesaplan|oran|degisken|katsayi)/.test(combined) || /\$[^$]+\$|\\frac|=/.test(`${front} ${back}`)) {
+    return 'formula_model';
+  }
+  if (/(vaka|ornek|olay|senaryo|donem|antlasma|uygulamada)/.test(combined)) return 'case_study';
+  if (/(teori|kuram|ilke|yaklasim|ekol|varsayim|hipotez|kanun)/.test(combined)) return 'theory';
+  if (/(uygula|nasil\s+kullanilir|politika\s+araci|karar\s+kurali|strateji)/.test(combined)) return 'applied';
+  if (/(analiz|degerlendir|elestir|sinirlilik|bozulursa|kosul)/.test(combined)) return 'analysis';
+  return 'concept';
+}
+
+/**
+ * Independent 2nd-Pass Answer-Key Consistency Verifier for Academic Quiz 2.0.
+ * Checks option uniqueness, bounds, explanation<->answer-key alignment, and cleans distractor explanations.
+ */
+export function verifyQuizAnswerKeyConsistency(q: {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  distractorExplanations?: Record<string, string>;
+}): {
+  valid: boolean;
+  reasons: string[];
+  cleanedDistractorExplanations?: Record<string, string>;
+} {
+  const reasons: string[] = [];
+  if (!Array.isArray(q.options) || q.options.length !== 4) {
+    reasons.push('answer_key_requires_4_options');
+    return { valid: false, reasons };
+  }
+  if (!Number.isInteger(q.correctIndex) || q.correctIndex < 0 || q.correctIndex >= 4) {
+    reasons.push('answer_key_out_of_bounds');
+    return { valid: false, reasons };
+  }
+
+  const correctLetter = String.fromCharCode(65 + q.correctIndex);
+  const exp = String(q.explanation || '').trim();
+  const explicitLetterMatch = exp.match(
+    /(?:doğru\s+(?:cevap|şık|seçenek)|yanıt)\s*[:\-]?\s*([A-D])\b/i,
+  );
+  if (explicitLetterMatch) {
+    const mentioned = explicitLetterMatch[1].toUpperCase();
+    if (mentioned !== correctLetter) {
+      reasons.push('second_pass_letter_contradiction');
+    }
+  }
+
+  // Verify explanation does not unambiguously describe a different option as correct
+  const normStem = normalizeForComparison(q.question);
+  if (exp.length >= 20 && !NEGATIVE_STEM_RE.test(normStem)) {
+    const expSet = buildTurkishStemSet(extractContentTokens(exp));
+    const rightTokens = extractContentTokens(q.options[q.correctIndex]);
+    const rightRatio = tokenOverlapRatio(rightTokens, expSet).ratio;
+    const hasContrast = /\b(?:degil|degildir|yanlis|yanlistir|hatali|aksine|oysa|fakat|ancak)\b/.test(
+      normalizeForComparison(exp),
+    );
+    if (rightRatio < 0.15 && !hasContrast) {
+      for (let i = 0; i < 4; i++) {
+        if (i === q.correctIndex) continue;
+        const otherTokens = extractContentTokens(q.options[i]);
+        const match = tokenOverlapRatio(otherTokens, expSet);
+        if (otherTokens.length >= 3 && match.ratio >= 0.75 && match.matchedCount >= 3) {
+          reasons.push('second_pass_semantic_contradiction');
+          break;
+        }
+      }
+    }
+  }
+
+  // Normalize optional distractorExplanations (only wrong option letters A-D)
+  let cleanedDistractorExplanations: Record<string, string> | undefined;
+  if (q.distractorExplanations && typeof q.distractorExplanations === 'object') {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(q.distractorExplanations)) {
+      const val = String(v || '').replace(/\s+/g, ' ').trim();
+      if (val.length < 8) continue;
+      let letter = k.trim().toUpperCase();
+      if (/^[0-3]$/.test(letter)) {
+        letter = String.fromCharCode(65 + Number(letter));
+      }
+      if (!/^[A-D]$/.test(letter) || letter === correctLetter) continue;
+      out[letter] = val;
+    }
+    if (Object.keys(out).length > 0) {
+      cleanedDistractorExplanations = out;
+    }
+  }
+
+  return {
+    valid: reasons.length === 0,
+    reasons,
+    cleanedDistractorExplanations,
+  };
+}
+
+/**
  * Classifies cognitive difficulty & Bloom level from actual analytical demand,
  * NEVER from superficial question length.
  */
@@ -1032,6 +1190,26 @@ export function validateQuizBatch(
       }
     }
 
+    // CHECK 3B: Independent 2nd-Pass Answer-Key Consistency Gate + Distractor Explanations
+    let cleanedDistractorExplanations: Record<string, string> | undefined;
+    if (!isShort && correctIndex !== undefined && options.length === 4) {
+      const secondPass = verifyQuizAnswerKeyConsistency({
+        question: rawQuestion,
+        options,
+        correctIndex,
+        explanation,
+        distractorExplanations:
+          rec.distractorExplanations && typeof rec.distractorExplanations === 'object'
+            ? (rec.distractorExplanations as Record<string, string>)
+            : undefined,
+      });
+      if (!secondPass.valid) {
+        reasons.push(...secondPass.reasons);
+      } else {
+        cleanedDistractorExplanations = secondPass.cleanedDistractorExplanations;
+      }
+    }
+
     // CHECK 4: Source Grounding Verification (rejects hallucinated / off-course questions)
     const answerText = isShort
       ? String(sampleAnswer || '')
@@ -1115,6 +1293,7 @@ export function validateQuizBatch(
           ? rec.rubric.map(String).filter(Boolean).slice(0, 5)
           : undefined,
       explanation: explanation || sampleAnswer || '',
+      distractorExplanations: isShort ? undefined : cleanedDistractorExplanations,
       topic,
       sourceSection,
       sourcePage,
@@ -1244,13 +1423,34 @@ export function rebalanceCorrectIndices(questions: QuizQuestion[]): QuizQuestion
       return q;
     }
     const opts = [...q.options];
+    const oldIdx = q.correctIndex;
     const tmp = opts[targetIdx];
-    opts[targetIdx] = opts[q.correctIndex];
-    opts[q.correctIndex] = tmp;
+    opts[targetIdx] = opts[oldIdx];
+    opts[oldIdx] = tmp;
+
+    // Keep distractorExplanations option letters strictly synchronized with swapped options!
+    let remappedDistractors = q.distractorExplanations;
+    if (q.distractorExplanations && Object.keys(q.distractorExplanations).length > 0) {
+      const oldLetter = String.fromCharCode(65 + oldIdx);
+      const targetLetter = String.fromCharCode(65 + targetIdx);
+      const nextDist: Record<string, string> = {};
+      for (const [letter, note] of Object.entries(q.distractorExplanations)) {
+        if (letter === targetLetter) {
+          nextDist[oldLetter] = note;
+        } else if (letter === oldLetter) {
+          // old correct had no distractor note, skip
+        } else {
+          nextDist[letter] = note;
+        }
+      }
+      remappedDistractors = Object.keys(nextDist).length > 0 ? nextDist : undefined;
+    }
+
     return {
       ...q,
       options: opts,
       correctIndex: targetIdx,
+      distractorExplanations: remappedDistractors,
     };
   });
 }
@@ -1298,7 +1498,13 @@ export function validateFlashcardsBatch(
     const front = String(rec.front || '').replace(/\s+/g, ' ').trim();
     const back = String(rec.back || '').replace(/\s+/g, ' ').trim();
 
-    if (front.length < 8 || back.length < 12) {
+    if (front.length < 10 || back.length < 22) {
+      rejectedCount++;
+      continue;
+    }
+    // Reject overly trivial 1-3 word shallow definition flashcards
+    const backWords = back.split(/\s+/).filter(Boolean);
+    if (backWords.length < 4) {
       rejectedCount++;
       continue;
     }
@@ -1348,9 +1554,16 @@ export function validateFlashcardsBatch(
     }
 
     const located = locateSourceReference(anchors, `${front} ${back}`);
-    const rawDiff = String(rec.difficulty || 'medium').toLowerCase();
-    const difficulty: CognitiveDifficulty =
-      rawDiff === 'easy' ? 'easy' : rawDiff === 'hard' ? 'hard' : 'medium';
+    const rawDiff = String(rec.difficulty || '').toLowerCase();
+    const cardType = inferFlashcardCategory(front, back, rec.cardType);
+    const inferredDiff: CognitiveDifficulty =
+      rawDiff === 'easy' || rawDiff === 'medium' || rawDiff === 'hard'
+        ? (rawDiff as CognitiveDifficulty)
+        : cardType === 'analysis' || cardType === 'comparison'
+        ? 'hard'
+        : cardType === 'concept'
+        ? 'easy'
+        : 'medium';
 
     const card: FlashcardItem = {
       id: `fc_${hashCompact(`${params.sourceFingerprint || params.course}|${frontNorm}`)}`,
@@ -1361,20 +1574,41 @@ export function validateFlashcardsBatch(
       sourceSection: String(rec.sourceSection || located.sourceSection || '').trim() || undefined,
       sourcePage: String(rec.sourcePage || located.sourcePage || '').trim() || undefined,
       conceptKey: computeConceptKey(front, String(rec.topic || ''), back),
-      difficulty,
+      difficulty: inferredDiff,
+      cardType,
       examTip: rec.examTip ? String(rec.examTip).trim() : undefined,
     };
 
     accepted.push(card);
     acceptedTokenPairs.push({ frontNorm, frontSet, backSet });
-    if (accepted.length >= params.requestedCount) break;
+  }
+
+  // Rebalance flashcards toward 20% easy / 50% medium / 30% hard cognitive distribution when oversupplied
+  let finalCards = accepted;
+  if (accepted.length > params.requestedCount) {
+    const quota = computeFlashcardDifficultyQuota(params.requestedCount, 'mixed');
+    const buckets: Record<CognitiveDifficulty, FlashcardItem[]> = { easy: [], medium: [], hard: [] };
+    for (const c of accepted) {
+      buckets[c.difficulty || 'medium'].push(c);
+    }
+    const picked: FlashcardItem[] = [
+      ...buckets.easy.splice(0, quota.easy),
+      ...buckets.medium.splice(0, quota.medium),
+      ...buckets.hard.splice(0, quota.hard),
+    ];
+    const leftover = [...buckets.medium, ...buckets.hard, ...buckets.easy];
+    while (picked.length < params.requestedCount && leftover.length > 0) {
+      const next = leftover.shift();
+      if (next) picked.push(next);
+    }
+    finalCards = picked;
   }
 
   return {
-    accepted: accepted.slice(0, params.requestedCount),
+    accepted: finalCards.slice(0, params.requestedCount),
     rejectedCount,
     historyExcludedCount,
-    missingCount: Math.max(0, params.requestedCount - accepted.length),
+    missingCount: Math.max(0, params.requestedCount - finalCards.length),
   };
 }
 

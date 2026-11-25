@@ -995,7 +995,7 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Right: Günlük Bilgi Yarışması (pure typography, Lucide line icons, zero decorative trophy graphics) */}
+          {/* Right: Günlük Bilgi Yarışması */}
           <div
             data-tour="dashboard-trivia"
             className={cn(
@@ -1009,6 +1009,31 @@ const Dashboard = () => {
               aria-hidden="true"
               className="pointer-events-none absolute -right-10 -top-12 h-44 w-44 rounded-full bg-sky-300/15 blur-3xl"
             />
+            {/* Subtle vector ring + thin-stroke Trophy icon watermark (Lucide line icon) */}
+            <div
+              aria-hidden="true"
+              className={cn(
+                'pointer-events-none absolute -right-3 top-[46%] flex h-28 w-28 -translate-y-1/2 items-center justify-center rounded-full border opacity-80 sm:-right-4 sm:top-[56%] sm:h-40 sm:w-40 sm:opacity-100',
+                isNovember10
+                  ? 'border-zinc-400/15 bg-zinc-400/10'
+                  : 'border-sky-200/15 bg-sky-300/10',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex h-20 w-20 items-center justify-center rounded-full border sm:h-28 sm:w-28',
+                  isNovember10 ? 'border-zinc-400/20' : 'border-sky-200/20',
+                )}
+              >
+                <Trophy
+                  className={cn(
+                    'h-10 w-10 sm:h-14 sm:w-14',
+                    isNovember10 ? 'text-zinc-300/45' : 'text-sky-200/50',
+                  )}
+                  strokeWidth={1.35}
+                />
+              </div>
+            </div>
 
             <div className="relative z-10 flex h-full flex-col justify-between gap-4">
               <div className="space-y-1.5">

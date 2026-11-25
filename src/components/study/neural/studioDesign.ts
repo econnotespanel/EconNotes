@@ -7,10 +7,10 @@
  */
 
 export const STUDIO_PANEL_SHELL =
-  'flex h-full min-h-[520px] w-full min-w-0 flex-col overflow-hidden rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card shadow-[var(--panel-shadow)] xl:h-[calc(100dvh-10.75rem)] xl:min-h-[600px]';
+  'flex h-full min-h-[500px] w-full min-w-0 flex-col overflow-hidden rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card shadow-[var(--panel-shadow)] xl:min-h-0';
 
 export const STUDIO_PANEL_HEADER =
-  'flex h-14 shrink-0 items-center justify-between gap-2.5 border-b border-slate-200/80 dark:border-slate-800/80 bg-card px-4';
+  'flex h-12 shrink-0 items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-800/80 bg-card px-3.5';
 
 export const STUDIO_PANEL_HEADER_ICON =
   'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-blue-200/80 bg-blue-50 text-blue-600 dark:border-blue-500/25 dark:bg-blue-500/15 dark:text-blue-400';
@@ -55,7 +55,7 @@ export const STUDIO_SEGMENTED_WRAP =
   'inline-flex items-center gap-1 rounded-full border border-slate-200/90 dark:border-slate-800 bg-slate-100/80 dark:bg-slate-900/70 p-1';
 
 export const STUDIO_SEGMENTED_ITEM_ACTIVE =
-  'rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm';
+  'whitespace-nowrap rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm';
 
 export const STUDIO_SEGMENTED_ITEM_IDLE =
-  'rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground';
+  'whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground';

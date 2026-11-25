@@ -548,6 +548,82 @@ export const COURSE_PROFILES: CourseProfile[] = [
     ],
   },
   {
+    id: 'osmanli_iktisat_tarihi',
+    courseName: 'Osmanlı İktisat Tarihi',
+    disciplineLabel: 'Tarih & İktisat Tarihi',
+    domainMode: 'verbal',
+    examStyleHint:
+      'Osmanlı iktisadi dünya görüşünü (iaşecilik, gelenekçilik, fiskalizm), toprak-vergi sistemlerini (tımar, iltizam, malikâne, esham), lonca/gedik/narh kurumlarını, dış ticaret-kapitülasyonları ve 19. yüzyıl borçlanma sürecini kronolojik ve neden-sonuç ilişkileriyle ayrıntılı açıkla.',
+    titleAliases: [
+      'osmanli iktisat tarihi',
+      'osmanli iktisat',
+      'osmanli ekonomi tarihi',
+      'osmanli ekonomisi',
+      'osmanli iktisadi yapisi',
+      'ottoman economic history',
+    ],
+    strongPhrases: [
+      'osmanli iktisat tarihi',
+      'osmanli iktisat',
+      'osmanli ekonomisi',
+      'osmanli maliyesi',
+      'iasecilik',
+      'gelenekcilik',
+      'fiskalizm',
+      'timar sistemi',
+      'iltizam sistemi',
+      'malikane sistemi',
+      'esham sistemi',
+      'lonca teskilati',
+      'gedik sistemi',
+      'narh sistemi',
+      'baltalimani ticaret antlasmasi',
+      'duyunu umumiye',
+      'kapitulasyonlar',
+      'miri arazi',
+      'vakif sistemi',
+      'sikkenin tagsisi',
+      'kavaim',
+      'bank-i osmani',
+      'tahrir defterleri',
+      'celali isyanlari',
+      'yed-i vahid',
+      'cifthane sistemi',
+    ],
+    terms: [
+      'osmanli',
+      'timar',
+      'iltizam',
+      'multezim',
+      'malikane',
+      'esham',
+      'lonca',
+      'ahi',
+      'gedik',
+      'narh',
+      'kapan',
+      'avariz',
+      'cizye',
+      'osur',
+      'harac',
+      'akce',
+      'tagsisi',
+      'tagsis',
+      'baltalimani',
+      'tanzimat',
+      'vakif',
+      'reaya',
+      'miri',
+      'dirlik',
+      'zeamet',
+      'has',
+      'mukataa',
+      'muhassil',
+      'kaime',
+      'borclanma',
+    ],
+  },
+  {
     id: 'iktisat_tarihi',
     courseName: 'İktisat Tarihi',
     disciplineLabel: 'Tarih & İktisat Tarihi',
@@ -571,11 +647,6 @@ export const COURSE_PROFILES: CourseProfile[] = [
       'adam smith',
       'uluslarin zenginligi',
       'david ricardo',
-      'osmanli iktisat',
-      'timar sistemi',
-      'iltizam',
-      'lonca sistemi',
-      'kapitulasyonlar',
       'izmir iktisat kongresi',
       'devletcilik',
       'bretton woods',
@@ -584,18 +655,14 @@ export const COURSE_PROFILES: CourseProfile[] = [
     terms: [
       'feodalizm',
       'kapitalizm',
-      'lonca',
-      'vakif',
-      'narh',
-      'iaşecilik',
+      'iasecilik',
       'gelenekcilik',
       'fiskalizm',
-      'duyunu umumiye',
-      'baltalimani',
-      'tanzimat',
       'proletarya',
       'buhar makinesi',
       'tarim devrimi',
+      'altin standardi',
+      'keynesyen devrim',
     ],
   },
   // --- HUKUK DALLARI ---
@@ -1440,7 +1507,7 @@ export const COURSE_PROFILES: CourseProfile[] = [
       'sekil degistirme',
       'elastiklik modulu',
       'empedans',
-      'direnç',
+      'direnc',
       'kondansator',
       'bobin',
       'transfer fonksiyonu',
@@ -1609,7 +1676,7 @@ export const COURSE_PROFILES: CourseProfile[] = [
       'farmakoloji',
       'histoloji',
       'embriyoloji',
-      'immünoloji',
+      'immunoloji',
       'mikrobiyoloji',
       'biyokimya',
       'semptom',
@@ -2367,8 +2434,8 @@ export function detectCourseIdentity(params: {
       contentTop &&
         (!matchedExplicit || contentTop.profile.id !== matchedExplicit.id) &&
         foldTurkishToAscii(contentTop.profile.courseName) !== foldTurkishToAscii(explicitCourseClean) &&
-        ((contentTop.titleHit && contentTop.contentScore >= 10) || contentTop.contentScore >= 14) &&
-        explicitContentScore < contentTop.contentScore * 0.45,
+        ((contentTop.titleHit && contentTop.contentScore >= 8) || contentTop.contentScore >= 13) &&
+        (explicitContentScore === 0 || explicitContentScore < contentTop.contentScore * 0.45),
     );
 
     if (hasStrongContentConflict && contentTop) {
@@ -2377,7 +2444,7 @@ export function detectCourseIdentity(params: {
         discipline: contentTop.profile.disciplineLabel,
         domainMode: estimateDomainModeFromText(rawText, contentTop.profile.domainMode),
         examStyleHint: contentTop.profile.examStyleHint,
-        confidence: contentTop.titleHit || contentTop.contentScore >= 18 ? 'high' : 'medium',
+        confidence: contentTop.titleHit || contentTop.contentScore >= 16 ? 'high' : 'medium',
         needsConfirmation: false,
         candidates: Array.from(
           new Set([
@@ -2389,6 +2456,37 @@ export function detectCourseIdentity(params: {
         evidence: [
           ...contentTop.evidence.slice(0, 3),
           `Belge içeriği kayıtlı etiketle ("${explicitCourseClean}") çeliştiği için gerçek ders içeriğe göre düzeltildi`,
+        ],
+        score: contentTop.contentScore,
+      };
+    }
+
+    // If unconfirmed metadata tag has ZERO evidence in title & body while the body has real content
+    // pointing to a different subject, ask the user instead of blindly trusting a stale/wrong tag!
+    if (
+      explicitContentScore === 0 &&
+      rawText.length >= 250 &&
+      contentTop &&
+      (!matchedExplicit || contentTop.profile.id !== matchedExplicit.id) &&
+      contentTop.contentScore >= 6.5
+    ) {
+      return {
+        course: null,
+        discipline: null,
+        domainMode: estimateDomainModeFromText(rawText, contentTop.profile.domainMode),
+        examStyleHint: contentTop.profile.examStyleHint,
+        confidence: 'uncertain',
+        needsConfirmation: true,
+        candidates: Array.from(
+          new Set([
+            contentTop.profile.courseName,
+            explicitCourseClean,
+            ...scoredByContent.filter((s) => s.contentScore >= 4).slice(0, 2).map((s) => s.profile.courseName),
+          ]),
+        ).slice(0, 4),
+        evidence: [
+          `Kayıtlı etiket ("${explicitCourseClean}") belge içeriğiyle doğrulanamadı; lütfen gerçek dersi onaylayın`,
+          ...contentTop.evidence.slice(0, 2),
         ],
         score: contentTop.contentScore,
       };

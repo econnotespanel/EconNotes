@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  BookOpen,
   CheckCircle2,
   HelpCircle,
   Layers,
@@ -13,6 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { reviewSrsCard, syncSrsCardsFromMaterials, type ReviewQuality } from '@/lib/neural/studyPlanner';
+import {
+  FLASHCARD_CATEGORY_LABELS,
+  inferFlashcardCategory,
+} from '@/lib/studyQualityEngine';
 import { cn } from '@/lib/utils';
 import type { FlashcardItem, StudyMaterial } from '@/types/study';
 
@@ -32,13 +37,25 @@ export function NeuralFlashcardWorkspace({
     [material.content],
   );
 
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
   const [order, setOrder] = useState<number[]>([]);
   const [cursor, setCursor] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [mastered, setMastered] = useState<Record<number, boolean>>({});
 
+  const difficultyCounts = useMemo(() => {
+    const counts = { all: sourceCards.length, easy: 0, medium: 0, hard: 0 };
+    for (const c of sourceCards) {
+      if (c.difficulty === 'easy') counts.easy++;
+      else if (c.difficulty === 'hard') counts.hard++;
+      else counts.medium++;
+    }
+    return counts;
+  }, [sourceCards]);
+
   useEffect(() => {
+    setDifficultyFilter('all');
     setOrder(sourceCards.map((_, i) => i));
     setCursor(0);
     setFlipped(false);
@@ -46,6 +63,19 @@ export function NeuralFlashcardWorkspace({
     setMastered({});
     syncSrsCardsFromMaterials([material]);
   }, [material, sourceCards]);
+
+  useEffect(() => {
+    const filtered = sourceCards
+      .map((c, i) => ({ c, i }))
+      .filter(({ c }) =>
+        difficultyFilter === 'all' ? true : (c.difficulty || 'medium') === difficultyFilter,
+      )
+      .map(({ i }) => i);
+    setOrder(filtered.length > 0 ? filtered : sourceCards.map((_, i) => i));
+    setCursor(0);
+    setFlipped(false);
+    setShowHint(false);
+  }, [difficultyFilter, sourceCards]);
 
   if (sourceCards.length === 0) {
     return (
@@ -56,7 +86,9 @@ export function NeuralFlashcardWorkspace({
   }
 
   const cardIdx = order[cursor] ?? 0;
-  const card = sourceCards[cardIdx];
+  const card = sourceCards[cardIdx] || sourceCards[0];
+  const cardTypeKey = inferFlashcardCategory(card.front, card.back, card.cardType);
+  const cardTypeLabel = FLASHCARD_CATEGORY_LABELS[cardTypeKey];
   const masteredCount = Object.values(mastered).filter(Boolean).length;
   const pct = Math.round((masteredCount / sourceCards.length) * 100);
 
@@ -74,7 +106,7 @@ export function NeuralFlashcardWorkspace({
   const advanceCard = () => {
     setFlipped(false);
     setShowHint(false);
-    setCursor((c) => (c + 1 < sourceCards.length ? c + 1 : 0));
+    setCursor((c) => (c + 1 < order.length ? c + 1 : 0));
   };
 
   const handleSm2Rate = (quality: ReviewQuality) => {
@@ -92,40 +124,72 @@ export function NeuralFlashcardWorkspace({
 
   return (
     <div className="space-y-4">
-      {/* Header Progress HUD */}
-      <div className="neural-card flex flex-wrap items-center justify-between gap-3 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="gap-1 text-xs">
-            <Layers className="h-3.5 w-3.5 text-emerald-500" />
-            Kart {cursor + 1} / {sourceCards.length}
-          </Badge>
-          {card.topic && (
-            <Badge variant="secondary" className="text-xs">
-              {card.topic}
+      {/* Header Progress HUD + Difficulty Filter */}
+      <div className="neural-card space-y-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" className="gap-1 text-xs">
+              <Layers className="h-3.5 w-3.5 text-emerald-500" />
+              Kart {cursor + 1} / {order.length}
             </Badge>
-          )}
-          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-300">
-            {masteredCount}/{sourceCards.length} öğrenildi (%{pct})
-          </span>
+            <Badge variant="outline" className="border-primary/30 bg-primary/10 text-xs font-semibold text-primary">
+              {cardTypeLabel}
+            </Badge>
+            {card.topic && (
+              <Badge variant="secondary" className="text-xs">
+                {card.topic}
+              </Badge>
+            )}
+            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-300">
+              {masteredCount}/{sourceCards.length} öğrenildi (%{pct})
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleShuffle} className="gap-1.5 text-xs">
+              <Shuffle className="h-3.5 w-3.5" />
+              Karıştır
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                onAskCoach(`"${card.front}" kartındaki kavramı gerçek hayat veya vaka örneğiyle anlatır mısın?`)
+              }
+              className="gap-1.5 text-xs text-primary"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              Koça Sor
+            </Button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={handleShuffle} className="gap-1.5 text-xs">
-            <Shuffle className="h-3.5 w-3.5" />
-            Karıştır
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              onAskCoach(`"${card.front}" kartındaki kavramı gerçek hayat veya vaka örneğiyle anlatır mısın?`)
-            }
-            className="gap-1.5 text-xs text-primary"
-          >
-            <HelpCircle className="h-3.5 w-3.5" />
-            Koça Sor
-          </Button>
+        {/* Difficulty Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(
+            [
+              ['all', `Tümü (${difficultyCounts.all})`],
+              ['easy', `Temel (${difficultyCounts.easy})`],
+              ['medium', `Orta (${difficultyCounts.medium})`],
+              ['hard', `İleri (${difficultyCounts.hard})`],
+            ] as const
+          ).map(([level, label]) => (
+            <button
+              key={level}
+              type="button"
+              disabled={level !== 'all' && difficultyCounts[level] === 0}
+              onClick={() => setDifficultyFilter(level)}
+              className={cn(
+                'rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-40',
+                difficultyFilter === level
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border/70 bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -150,7 +214,7 @@ export function NeuralFlashcardWorkspace({
         >
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-semibold uppercase tracking-wider text-primary">
-              {flipped ? 'Akademik Cevap & Açıklama' : 'Soru / Kavram'}
+              {flipped ? 'Akademik Cevap & Açıklama' : `${cardTypeLabel} · Soru / İstem`}
             </span>
             <span className="flex items-center gap-1">
               <RotateCw className="h-3.5 w-3.5" />
@@ -187,27 +251,46 @@ export function NeuralFlashcardWorkspace({
             )}
           </div>
 
-          <div className="flex items-center justify-between">
-            {card.hint && !flipped ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowHint((s) => !s);
-                }}
-                className="gap-1.5 text-xs text-amber-500"
-              >
-                <Lightbulb className="h-3.5 w-3.5" />
-                {showHint ? 'İpucunu Gizle' : 'İpucu Göster'}
-              </Button>
-            ) : (
-              <span className="text-[11px] text-muted-foreground">
-                SM-2 aralıklı tekrar ile senkronize
-              </span>
-            )}
-            <Badge variant="outline" className="text-[10px]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {card.hint && !flipped ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowHint((s) => !s);
+                  }}
+                  className="gap-1.5 text-xs text-amber-500"
+                >
+                  <Lightbulb className="h-3.5 w-3.5" />
+                  {showHint ? 'İpucunu Gizle' : 'İpucu Göster'}
+                </Button>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">
+                  SM-2 aralıklı tekrar ile senkronize
+                </span>
+              )}
+              {(card.sourceSection || card.sourcePage) && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10.5px] text-muted-foreground">
+                  <BookOpen className="h-3 w-3 shrink-0" />
+                  {card.sourceSection || 'Kaynak'}
+                  {card.sourcePage ? ` · ${card.sourcePage}` : ''}
+                </span>
+              )}
+            </div>
+            <Badge
+              variant="outline"
+              className={cn(
+                'text-[10px]',
+                card.difficulty === 'hard'
+                  ? 'border-rose-500/40 text-rose-600 dark:text-rose-400'
+                  : card.difficulty === 'easy'
+                  ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                  : 'border-amber-500/40 text-amber-600 dark:text-amber-400',
+              )}
+            >
               {card.difficulty === 'hard' ? 'İleri' : card.difficulty === 'easy' ? 'Temel' : 'Orta'}
             </Badge>
           </div>

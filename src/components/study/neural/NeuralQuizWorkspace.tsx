@@ -43,6 +43,7 @@ export function NeuralQuizWorkspace({
   const [openGrades, setOpenGrades] = useState<Record<number, OpenEndedGradeResult>>({});
   const [gradingIdx, setGradingIdx] = useState<number | null>(null);
   const [finished, setFinished] = useState(false);
+  const [onlyWrongFilter, setOnlyWrongFilter] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
 
   useEffect(() => {
@@ -51,6 +52,7 @@ export function NeuralQuizWorkspace({
     setOpenAnswers({});
     setOpenGrades({});
     setFinished(false);
+    setOnlyWrongFilter(false);
     setElapsedSec(0);
   }, [material.id]);
 
@@ -366,11 +368,11 @@ export function NeuralQuizWorkspace({
           </div>
         )}
 
-        {/* Instant Explanation + Coach Action */}
+        {/* Instant Explanation + Wrong Option Breakdown + Coach Action */}
         {showInstantFeedback && q.explanation && (
-          <div className="rounded-xl border border-cyan-500/35 bg-cyan-500/10 p-3.5 text-xs space-y-1.5">
+          <div className="rounded-xl border border-cyan-500/35 bg-cyan-500/10 p-3.5 text-xs space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="font-bold text-cyan-600 dark:text-cyan-300">Akademik Çözüm & Açıklama</p>
+              <p className="font-bold text-cyan-600 dark:text-cyan-300">Akademik Çözüm &amp; Açıklama</p>
               {(q.sourceSection || q.sourcePage) && (
                 <span className="text-[11px] text-muted-foreground">
                   Kaynak: {q.sourceSection || q.topic || 'Ders Notu'}
@@ -379,6 +381,31 @@ export function NeuralQuizWorkspace({
               )}
             </div>
             <AcademicMarkdown content={q.explanation} className="text-xs leading-relaxed" />
+            {q.distractorExplanations && Object.keys(q.distractorExplanations).length > 0 && (
+              <div className="space-y-1.5 border-t border-cyan-500/20 pt-2">
+                <p className="text-[11px] font-bold text-foreground">Yanlış Şıklar Neden Hatalı?</p>
+                <div className="space-y-1">
+                  {Object.entries(q.distractorExplanations).map(([letter, reason]) => {
+                    const letterIdx = letter.charCodeAt(0) - 65;
+                    const wasChosenWrong = chosenOption === letterIdx && letterIdx !== q.correctIndex;
+                    return (
+                      <div
+                        key={letter}
+                        className={cn(
+                          'rounded-lg border px-2.5 py-1.5 text-[11px] leading-relaxed',
+                          wasChosenWrong
+                            ? 'border-destructive/40 bg-destructive/10 text-foreground'
+                            : 'border-border/50 bg-background/60 text-muted-foreground',
+                        )}
+                      >
+                        <span className="font-bold text-foreground">{letter} Şıkkı: </span>
+                        {reason}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -423,17 +450,156 @@ export function NeuralQuizWorkspace({
         </div>
       </div>
 
-      {/* Results Banner */}
-      {finished && (
-        <div className="neural-card border-emerald-500/40 bg-emerald-500/10 p-5 text-center">
-          <p className="text-lg font-extrabold text-emerald-600 dark:text-emerald-300">
-            Sınav Tamamlandı: {computeTotalCorrect()} / {questions.length} Doğru
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Skorunuz Çalışma Stüdyosu ilerlemenize ve Zayıf Konu Isı Haritasına işlendi.
-          </p>
-        </div>
-      )}
+      {/* Rich Post-Exam Performance & Topic Diagnostic Dashboard */}
+      {finished && (() => {
+        const totalCorrect = computeTotalCorrect();
+        const scorePct = Math.round((totalCorrect / Math.max(1, questions.length)) * 100);
+        const wrongIndices: number[] = [];
+        const diffStats: Record<'easy' | 'medium' | 'hard', { correct: number; total: number }> = {
+          easy: { correct: 0, total: 0 },
+          medium: { correct: 0, total: 0 },
+          hard: { correct: 0, total: 0 },
+        };
+        const topicMap = new Map<string, { correct: number; total: number }>();
+
+        questions.forEach((item, idx) => {
+          const itemMc =
+            item.type !== 'short_answer' && Array.isArray(item.options) && item.options.length > 0;
+          const ok = itemMc
+            ? selectedMc[idx] === item.correctIndex
+            : (openGrades[idx]?.score ?? 0) >= 60;
+          if (!ok) wrongIndices.push(idx);
+          const d = item.difficulty || 'medium';
+          diffStats[d].total++;
+          if (ok) diffStats[d].correct++;
+          const topicKey = (item.topic || item.sourceSection || 'Genel Konu').trim();
+          const cur = topicMap.get(topicKey) || { correct: 0, total: 0 };
+          cur.total++;
+          if (ok) cur.correct++;
+          topicMap.set(topicKey, cur);
+        });
+
+        const topicRows = Array.from(topicMap.entries())
+          .map(([topic, s]) => ({
+            topic,
+            correct: s.correct,
+            total: s.total,
+            pct: Math.round((s.correct / Math.max(1, s.total)) * 100),
+          }))
+          .sort((a, b) => a.pct - b.pct);
+
+        return (
+          <div
+            data-testid="quiz-performance-dashboard"
+            className="neural-card space-y-4 border-emerald-500/35 bg-card p-5"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
+              <div>
+                <p className="text-lg font-extrabold text-foreground">
+                  Sınav Sonucu: {totalCorrect} / {questions.length} Doğru (%{scorePct})
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Süre: {timeStr} · {wrongIndices.length} yanlış/boş · İlerlemeniz Çalışma Stüdyosu
+                  analizlerine işlendi.
+                </p>
+              </div>
+              {wrongIndices.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={onlyWrongFilter ? 'default' : 'outline'}
+                  onClick={() => {
+                    const next = !onlyWrongFilter;
+                    setOnlyWrongFilter(next);
+                    if (next && wrongIndices[0] !== undefined) {
+                      setCurrentIdx(wrongIndices[0]);
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  {onlyWrongFilter
+                    ? 'Tüm Soruları Göster'
+                    : `Yanlış/Boş Sorulara Git (${wrongIndices.length})`}
+                </Button>
+              )}
+            </div>
+
+            {/* Difficulty Breakdown */}
+            <div className="grid grid-cols-3 gap-2.5">
+              {(
+                [
+                  ['easy', 'Kolay'],
+                  ['medium', 'Orta'],
+                  ['hard', 'Zor'],
+                ] as const
+              ).map(([lvl, label]) => {
+                const st = diffStats[lvl];
+                const p = st.total > 0 ? Math.round((st.correct / st.total) * 100) : null;
+                return (
+                  <div
+                    key={lvl}
+                    className="rounded-xl border border-border/70 bg-muted/20 p-3 text-center"
+                  >
+                    <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
+                    <p className="mt-0.5 text-sm font-bold text-foreground">
+                      {st.total > 0 ? `${st.correct}/${st.total} (%${p})` : '—'}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Topic-by-Topic Breakdown */}
+            {topicRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-foreground">Konu Bazlı Başarı Dağılımı</p>
+                <div className="space-y-1.5">
+                  {topicRows.map((row) => (
+                    <div
+                      key={row.topic}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate font-semibold text-foreground">{row.topic}</span>
+                          <span
+                            className={cn(
+                              'shrink-0 font-bold',
+                              row.pct >= 75
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : row.pct >= 50
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-rose-600 dark:text-rose-400',
+                            )}
+                          >
+                            {row.correct}/{row.total} (%{row.pct})
+                          </span>
+                        </div>
+                        <Progress value={row.pct} className="mt-1.5 h-1.5" />
+                      </div>
+                      {row.pct < 70 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            onAskCoach(
+                              `"${row.topic}" konusunda sınavda hata yaptım. Temel mantığını ve sınav tuzaklarını sade şekilde özetler misin?`,
+                            )
+                          }
+                          className="h-7 shrink-0 px-2 text-[11px] text-primary"
+                        >
+                          Koçla Pekiştir
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

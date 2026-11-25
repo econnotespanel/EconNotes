@@ -16,6 +16,7 @@ import {
 import {
   buildAvoidanceAndRotationPlan,
   computeDifficultyQuota,
+  computeFlashcardDifficultyQuota,
   loadSourceFlashcardHistory,
   loadSourceQuestionHistory,
   recordValidatedFlashcardsToHistory,
@@ -43,6 +44,7 @@ import type {
   StudyTopicPriorityItem,
   SummaryContent,
   SummarySection,
+  VideoScenarioPlan,
 } from '@/types/study';
 
 export interface OrchestrationResult {
@@ -495,6 +497,7 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
       "sampleAnswer": "",
       "rubric": [],
       "explanation": "Doğru şıkkın neden doğru olduğunu kaynak nottaki dayanağıyla açıklayan 2-3 cümle.",
+      "distractorExplanations": { "A": "A şıkkının neden hatalı olduğu (1 kısa cümle)", "C": "C şıkkının neden hatalı olduğu", "D": "D şıkkının neden hatalı olduğu" },
       "topic": "Nottaki ilgili konu başlığı",
       "sourceSection": "Belgedeki ilgili başlık",
       "sourcePage": "Sayfa/Slayt no (varsa)",
@@ -517,6 +520,7 @@ function buildStrictFlashcardsPrompt(
   },
 ): string {
   const count = Math.min(Math.max(options?.targetCount ?? settings.cardCount ?? 14, 2), 30);
+  const fcQuota = computeFlashcardDifficultyQuota(count, settings.difficulty || 'mixed');
   const multiRule =
     bundle?.isMultiCourse && bundle.sourceCourses?.length
       ? `\nÇOKLU DERS KURALI: Her kartı kendi dersine ait tut ve "topic" alanında "[Ders Adı] — Konu" kullan (${bundle.sourceCourses.join(', ')}).`
@@ -535,24 +539,35 @@ function buildStrictFlashcardsPrompt(
   const digestHint = bundle?.canonicalAnalysisDigest
     ? `\nORTAK KAYNAK ANALİZİ:\n${bundle.canonicalAnalysisDigest.slice(0, 3_000)}`
     : '';
-  return `Görev: Yalnızca yüklenen ders notuna ve ortak kaynak analizine dayanarak tam ${count} adet özgün, tekrarsız, sınav tekrarında gerçekten işe yarayan Türkçe çalışma kartı (flashcard) üret.${multiRule}${priorityRule}${avoidRule}${
+  return `Görev: Yalnızca yüklenen ders notuna ve ortak kaynak analizine dayanarak tam ${count} adet özgün, tekrarsız, yüzeysel olmayan, üniversite sınavına gerçekten hazırlayan Türkçe çalışma kartı (flashcard) üret.${multiRule}${priorityRule}${avoidRule}${
     options?.generationNonce ? `\nOTURUM: ${options.generationNonce}` : ''
   }${digestHint}
+ZORLUK DAĞILIMI (%20 TEMEL / %50 ORTA / %30 İLERİ):
+- ${fcQuota.easy} adet "easy" (Temel kavram & ayırıcı tanım)
+- ${fcQuota.medium} adet "medium" (Mekanizma, neden–sonuç, teori/ilke veya uygulama)
+- ${fcQuota.hard} adet "hard" (Karşılaştırma, varsayım bozulması, vaka analizi veya ileri değerlendirme)
+
+8 KART TÜRÜNÜ DENGELİ KULLAN ("cardType"):
+"concept" | "theory" | "comparison" | "cause_effect" | "formula_model" | "case_study" | "applied" | "analysis"
+
 KESİN KURALLAR:
 1. Sadece bu ders notunda yer alan gerçek dersin kavram, tanım, teori, formül, karşılaştırma ve mekanizmalarını kullan; başka bir dersin bilgilerini ASLA ekleme.
-2. Belgenin başından sonuna tüm önemli başlıkları kapsa; aynı kavramı iki kartta tekrarlama.
-3. Ön yüz (front) net, kesintisiz ("..." olmadan) bir soru veya kavram olsun; arka yüz (back) sade, doğru ve kaynakla birebir uyumlu bir cevap olsun.
+2. YÜZEYSEL TEK KELİMELİK TANIM KARTI YASAKTIR: Arka yüz ("back") en az 1-2 doyurucu akademik cümle ve ayırt edici mantık içermelidir.
+3. Belgenin başından sonuna tüm önemli başlıkları kapsa; aynı kavramı iki kartta tekrarlama.
+4. Ön yüz (front) net, kesintisiz ("..." olmadan) düşündürücü bir soru/istem olsun.
 YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
 {
   "cards": [
     {
-      "front": "Net soru veya kavram?",
-      "back": "Anlaşılır, doğru ve net cevap.",
+      "front": "Net, akademik ve düşündürücü soru/istem?",
+      "back": "Anlaşılır, derin, kaynağa sadık akademik cevap ve ayırt edici mantık.",
       "hint": "Kısa hatırlatıcı ipucu",
       "topic": "Nottaki ilgili başlık",
       "sourceSection": "Belgedeki başlık",
       "sourcePage": "Sayfa/Slayt (varsa)",
-      "difficulty": "easy | medium | hard"
+      "cardType": "concept | theory | comparison | cause_effect | formula_model | case_study | applied | analysis",
+      "difficulty": "easy | medium | hard",
+      "examTip": "Sınavda sorulursa dikkat edilecek kritik ayrım"
     }
   ]
 }`;
@@ -566,6 +581,7 @@ function buildStrictVideoPrompt(
     partIndex?: number;
     totalParts?: number;
     sceneRangeHint?: string;
+    scenarioPlan?: VideoScenarioPlan;
   },
 ): string {
   const lockedTheme = resolveVideoThemeForCourse(
@@ -574,6 +590,25 @@ function buildStrictVideoPrompt(
     bundle?.combinedText || '',
   );
   const extra = customPrompt?.trim() ? `\nÖğrencinin özel isteği: ${customPrompt.trim()}` : '';
+  const scenarioPlanBlock = options?.scenarioPlan
+    ? `\nÖĞRENCİNİN ONAYLADIĞI VİDEO SENARYO VE BÖLÜM PLANI (BU SIRAYA VE ŞEMA TİPLERİNE SADIK KAL):
+- Ders Başlığı: ${options.scenarioPlan.lessonTitle}
+- Anlatım Tarzı: ${
+        options.scenarioPlan.narrationStyle === 'exam_focus'
+          ? 'Sınav Odaklı Stratejik'
+          : options.scenarioPlan.narrationStyle === 'feynman'
+          ? 'Yalın & Adım Adım (Feynman)'
+          : 'Akademik Ders Anlatımı'
+      }
+- Öğrenme Hedefleri: ${options.scenarioPlan.learningObjectives.join(' | ')}
+- Planlanan Sahneler:
+${options.scenarioPlan.chapters
+  .map(
+    (ch, idx) =>
+      `  ${idx + 1}. "${ch.title}" [Şema: ${ch.diagramType}] — Odak: ${ch.focusNotes}`,
+  )
+  .join('\n')}`
+    : '';
   const multiRule =
     bundle?.isMultiCourse && bundle.sourceCourses?.length
       ? `\nÇOKLU DERS İZOLASYONU: Farklı derslerin (${bundle.sourceCourses.join(', ')}) sahnelerini ayrı tut ve her sahne başlığında [Ders Adı] belirt.`
@@ -602,7 +637,7 @@ function buildStrictVideoPrompt(
             : ''
         }.`;
 
-  return `Görev: Yüklenen ders notundan ve ortak kaynak analizinden Dr. Deniz (anlatıcı akademisyen) ile Barış (soru soran öğrenci) arasında geçen, ekranda net okunabilir, ses-görsel-altyazı tam uyumlu ve %100 kaynağa sadık Türkçe Video Ders JSON'u üret.${partRule}${extra}${multiRule}${warningRule}${digestHint}
+  return `Görev: Yüklenen ders notundan ve ortak kaynak analizinden Dr. Deniz (anlatıcı akademisyen) ile Barış (soru soran öğrenci) arasında geçen, ekranda net okunabilir, ses-görsel-altyazı tam uyumlu ve %100 kaynağa sadık Türkçe Video Ders JSON'u üret.${partRule}${scenarioPlanBlock}${extra}${multiRule}${warningRule}${digestHint}
 KESİN KURALLAR:
 1. %100 KAYNAK VE DERS SADAKATİ: Yalnızca yüklenen ders notundaki gerçek kavram, teori, model, formül, tablo ve örnekleri anlat. Kaynakta bulunmayan veya başka bir derse ait terimleri ASLA ekleme. Klişe giriş/dolgu cümlelerini ("Merhaba arkadaşlar", "Akıllı tahtamızda", "Harika bir soru") KESİNLİKLE yazma.
 2. SES–GÖRSEL–ALTYAZI BİREBİR UYUMU: Her sahnedeki "diagramData.nodes" kartlarında yer alan 3-4 kavram, o sahnenin "turns" konuşmalarında BİZZAT anlatılan ve açıklanan kavramlarla birebir aynı olmalıdır. Ekranda konuşulmayan başlık veya kavram gösterilmemelidir.
@@ -2126,6 +2161,7 @@ export async function generateMaterialWithOrchestration(
     sourceMode: 'ai' as const,
     deepResearch: settings.deepResearch,
     sourceFingerprint: bundle.sourceFingerprint,
+    sourceIds: bundle.sourceIds || bundle.sources.map((s) => s.id),
     analyzedCourses: bundle.sourceCourses,
     isMultiCourse: bundle.isMultiCourse,
     qualityVerified: true,
@@ -2625,6 +2661,8 @@ export async function generateMaterialWithOrchestration(
     customPrompt: settings.customPrompt || undefined,
     examFocus: settings.examFocus || undefined,
     sourceFingerprint: bundle.sourceFingerprint,
+    sourceIds: bundle.sourceIds || bundle.sources.map((s) => s.id),
+    videoScenarioPlan: settings.videoScenarioPlan || undefined,
     images: bundle.images.length > 0 ? bundle.images : undefined,
     audio: bundle.audio,
   });
@@ -2661,6 +2699,7 @@ export async function generateMaterialWithOrchestration(
             partIndex: c,
             totalParts: videoChunks.length,
             sceneRangeHint: '2-3',
+            scenarioPlan: settings.videoScenarioPlan,
           }),
           preferPro: true,
           images: c === 0 ? bundle.images : undefined,
@@ -2700,7 +2739,9 @@ export async function generateMaterialWithOrchestration(
         title: bundle.title,
         course: resolvedCourse,
         noteContext: bundle.combinedText,
-        taskPrompt: buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle),
+        taskPrompt: buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle, {
+          scenarioPlan: settings.videoScenarioPlan,
+        }),
         preferPro: true,
         images: bundle.images,
       });
@@ -2716,7 +2757,9 @@ export async function generateMaterialWithOrchestration(
   if (bundle.images.length === 0 && bundle.combinedText.trim().length >= 30) {
     onProgress?.(74, 'Bulut yapay zekâ üzerinden video ders sahneleri doğrulanıyor...');
     const pubVideo = await invokePublicJsonFallback(
-      buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle),
+      buildStrictVideoPrompt(resolvedCourse, settings.customPrompt, bundle, {
+        scenarioPlan: settings.videoScenarioPlan,
+      }),
       `DERS: ${resolvedCourse}\nBAŞLIK: ${bundle.title}\n\nKAYNAK DERS NOTU (YALNIZCA BU METNE SADIK KAL):\n${sampleUniformContext(
         bundle.combinedText,
         14_500,

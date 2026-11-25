@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BookOpen,
   Check,
   ChevronDown,
   FolderOpen,
+  Layers,
   MessageSquareText,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Plus,
   Sparkles,
@@ -30,6 +35,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { COMMON_UNIVERSITY_COURSES } from '@/lib/courseDetector';
 import type { CanonicalSourceAnalysis } from '@/lib/studySourceAnalysis';
 import { cn } from '@/lib/utils';
@@ -59,12 +71,62 @@ import {
 } from './studioDesign';
 
 const EMOJI_CHOICES = ['📘', '🧠', '🎯', '📐', '⚖️', '🧬', '💻', '📊', '📚', '✨'];
+const PANEL_LAYOUT_STORAGE_KEY = 'econnotes_studio_panel_layout_v2';
+const DEFAULT_LEFT_WIDTH = 252;
+const DEFAULT_RIGHT_WIDTH = 284;
+const MIN_LEFT_WIDTH = 220;
+const MAX_LEFT_WIDTH = 420;
+const MIN_RIGHT_WIDTH = 256;
+const MAX_RIGHT_WIDTH = 440;
+
+interface StudioPanelLayoutState {
+  leftWidth: number;
+  rightWidth: number;
+  leftCollapsed: boolean;
+  rightCollapsed: boolean;
+}
+
+function loadPanelLayout(): StudioPanelLayoutState {
+  if (typeof window === 'undefined') {
+    return {
+      leftWidth: DEFAULT_LEFT_WIDTH,
+      rightWidth: DEFAULT_RIGHT_WIDTH,
+      leftCollapsed: false,
+      rightCollapsed: false,
+    };
+  }
+  try {
+    const raw = window.localStorage.getItem(PANEL_LAYOUT_STORAGE_KEY);
+    if (!raw) throw new Error('empty');
+    const parsed = JSON.parse(raw) as Partial<StudioPanelLayoutState>;
+    return {
+      leftWidth: Math.min(
+        MAX_LEFT_WIDTH,
+        Math.max(MIN_LEFT_WIDTH, Number(parsed.leftWidth) || DEFAULT_LEFT_WIDTH),
+      ),
+      rightWidth: Math.min(
+        MAX_RIGHT_WIDTH,
+        Math.max(MIN_RIGHT_WIDTH, Number(parsed.rightWidth) || DEFAULT_RIGHT_WIDTH),
+      ),
+      leftCollapsed: Boolean(parsed.leftCollapsed),
+      rightCollapsed: Boolean(parsed.rightCollapsed),
+    };
+  } catch {
+    return {
+      leftWidth: DEFAULT_LEFT_WIDTH,
+      rightWidth: DEFAULT_RIGHT_WIDTH,
+      leftCollapsed: false,
+      rightCollapsed: false,
+    };
+  }
+}
 
 interface NotebookStudioWorkspaceProps {
   userId: string;
   notebooks: StudioNotebook[];
   activeNotebook: StudioNotebook;
   canonicalAnalysis: CanonicalSourceAnalysis;
+  focusMode?: boolean;
   onSelectNotebook: (id: string) => void;
   onCreateNotebook: (params: { title: string; course: string; emoji: string }) => void;
   onRenameNotebook: (id: string, title: string, course: string) => void;
@@ -94,6 +156,10 @@ interface NotebookStudioWorkspaceProps {
   pendingCourseConfirmType: MaterialType | null;
   onCancelPendingCourseConfirm: () => void;
   onConfirmCoursesAndContinue: (assignments: Record<string, string>) => void;
+  pendingMultiCourseType?: MaterialType | null;
+  onCancelMultiCourseConfirm?: () => void;
+  onIsolateCourseAndContinue?: (courseName: string) => void;
+  onConfirmMultiCourseAndContinue?: () => void;
   onExtractRemoteNoteFile: (note: NoteSourceOption) => Promise<ExtractedSourceItem>;
   onSavedLiveMaterial: (mat: StudyMaterial) => void;
   onSendMessage: (params: {
@@ -118,6 +184,7 @@ export function NotebookStudioWorkspace({
   notebooks,
   activeNotebook,
   canonicalAnalysis,
+  focusMode = false,
   onSelectNotebook,
   onCreateNotebook,
   onRenameNotebook,
@@ -147,6 +214,10 @@ export function NotebookStudioWorkspace({
   pendingCourseConfirmType,
   onCancelPendingCourseConfirm,
   onConfirmCoursesAndContinue,
+  pendingMultiCourseType = null,
+  onCancelMultiCourseConfirm,
+  onIsolateCourseAndContinue,
+  onConfirmMultiCourseAndContinue,
   onExtractRemoteNoteFile,
   onSavedLiveMaterial,
   onSendMessage,
@@ -162,6 +233,69 @@ export function NotebookStudioWorkspace({
   onPromotePinnedToSource,
 }: NotebookStudioWorkspaceProps) {
   const [mobilePanel, setMobilePanel] = useState<'sources' | 'chat' | 'studio'>('chat');
+  const [mobileDrawer, setMobileDrawer] = useState<'sources' | 'studio' | null>(null);
+  const [panelLayout, setPanelLayout] = useState<StudioPanelLayoutState>(() => loadPanelLayout());
+  const [draggingSide, setDraggingSide] = useState<'left' | 'right' | null>(null);
+  const dragOriginRef = useRef<{ startX: number; startWidth: number }>({
+    startX: 0,
+    startWidth: DEFAULT_LEFT_WIDTH,
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PANEL_LAYOUT_STORAGE_KEY, JSON.stringify(panelLayout));
+    } catch {
+      // ignore storage quota
+    }
+  }, [panelLayout]);
+
+  const startResize = useCallback(
+    (side: 'left' | 'right', clientX: number) => {
+      dragOriginRef.current = {
+        startX: clientX,
+        startWidth: side === 'left' ? panelLayout.leftWidth : panelLayout.rightWidth,
+      };
+      setDraggingSide(side);
+    },
+    [panelLayout.leftWidth, panelLayout.rightWidth],
+  );
+
+  useEffect(() => {
+    if (!draggingSide) return;
+    const handlePointerMove = (e: PointerEvent) => {
+      const delta = e.clientX - dragOriginRef.current.startX;
+      if (draggingSide === 'left') {
+        const nextWidth = Math.min(
+          MAX_LEFT_WIDTH,
+          Math.max(MIN_LEFT_WIDTH, Math.round(dragOriginRef.current.startWidth + delta)),
+        );
+        setPanelLayout((prev) => ({ ...prev, leftWidth: nextWidth, leftCollapsed: false }));
+      } else {
+        const nextWidth = Math.min(
+          MAX_RIGHT_WIDTH,
+          Math.max(MIN_RIGHT_WIDTH, Math.round(dragOriginRef.current.startWidth - delta)),
+        );
+        setPanelLayout((prev) => ({ ...prev, rightWidth: nextWidth, rightCollapsed: false }));
+      }
+    };
+    const handlePointerUp = () => setDraggingSide(null);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [draggingSide]);
+
+  const toggleLeftPanel = () =>
+    setPanelLayout((prev) => ({ ...prev, leftCollapsed: !prev.leftCollapsed }));
+  const toggleRightPanel = () =>
+    setPanelLayout((prev) => ({ ...prev, rightCollapsed: !prev.rightCollapsed }));
+
   const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [addSourceTab, setAddSourceTab] = useState<'upload' | 'notes' | 'paste' | 'live'>('upload');
   const [mindMapOpen, setMindMapOpen] = useState(false);
@@ -397,15 +531,84 @@ export function NotebookStudioWorkspace({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Desktop panel collapse / expand controls */}
+          <div className="hidden items-center gap-1 xl:flex">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-testid="studio-toggle-left-panel"
+              onClick={toggleLeftPanel}
+              title={panelLayout.leftCollapsed ? 'Kaynaklar panelini aç' : 'Kaynaklar panelini daralt'}
+              className="h-8 gap-1.5 rounded-xl px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+            >
+              {panelLayout.leftCollapsed ? (
+                <PanelLeftOpen className="h-3.5 w-3.5 text-primary" />
+              ) : (
+                <PanelLeftClose className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden 2xl:inline">Kaynaklar</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-testid="studio-toggle-right-panel"
+              onClick={toggleRightPanel}
+              title={panelLayout.rightCollapsed ? 'YZ Araçları panelini aç' : 'YZ Araçları panelini daralt'}
+              className="h-8 gap-1.5 rounded-xl px-2.5 text-xs font-medium text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+            >
+              {panelLayout.rightCollapsed ? (
+                <PanelRightOpen className="h-3.5 w-3.5 text-primary" />
+              ) : (
+                <PanelRightClose className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden 2xl:inline">YZ Araçları</span>
+            </Button>
+          </div>
+
+          {/* Tablet/Mobile quick overlay drawer buttons */}
+          <div className="flex items-center gap-1 xl:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="studio-mobile-sources-drawer-btn"
+              onClick={() => setMobileDrawer('sources')}
+              className={cn(STUDIO_BTN_SECONDARY, 'h-8 gap-1 px-2.5 text-[11px]')}
+              title="Kaynaklar çekmecesini aç"
+            >
+              <FolderOpen className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">Kaynaklar</span>
+              {activeNotebook.sources.length > 0 && (
+                <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary">
+                  {activeNotebook.sources.length}
+                </span>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid="studio-mobile-tools-drawer-btn"
+              onClick={() => setMobileDrawer('studio')}
+              className={cn(STUDIO_BTN_SECONDARY, 'h-8 gap-1 px-2.5 text-[11px]')}
+              title="Yapay Zekâ Araçları çekmecesini aç"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              <span className="hidden sm:inline">Araçlar</span>
+            </Button>
+          </div>
+
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => setNewNbOpen(true)}
-            className={cn(STUDIO_BTN_SECONDARY, 'gap-1.5')}
+            className={cn(STUDIO_BTN_SECONDARY, 'h-8 gap-1.5')}
           >
-            <Plus className="h-4 w-4 text-primary" />
+            <Plus className="h-3.5 w-3.5 text-primary" />
             <span className="hidden sm:inline">Yeni Defter</span>
             <span className="sm:hidden">Yeni</span>
           </Button>
@@ -448,10 +651,56 @@ export function NotebookStudioWorkspace({
         ))}
       </div>
 
-      {/* Synchronized 3-Panel Responsive Desktop Grid (>= 1280px) */}
-      <div className="grid min-w-0 w-full grid-cols-1 items-stretch gap-3.5 xl:grid-cols-[276px_minmax(0,1fr)_316px] 2xl:grid-cols-[296px_minmax(0,1fr)_336px]">
-        {/* LEFT PANEL: Kaynaklar */}
-        <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'sources' && 'hidden xl:block')}>
+      {/* Resizable & Collapsible 3-Panel Full-Width Desktop Stage (>= 1280px) */}
+      <div
+        data-testid="studio-workspace-stage"
+        className={cn(
+          'flex w-full min-w-0 flex-col gap-3 xl:flex-row xl:items-stretch xl:gap-0',
+          focusMode
+            ? 'xl:h-[calc(100dvh-8.2rem)] xl:min-h-[520px]'
+            : 'xl:h-[calc(100dvh-11.2rem)] xl:min-h-[540px]',
+        )}
+      >
+        {/* LEFT PANEL: Kaynaklar (or collapsed rail on desktop) */}
+        {panelLayout.leftCollapsed ? (
+          <div
+            data-testid="studio-left-rail"
+            className="hidden h-full w-11 shrink-0 flex-col items-center justify-between rounded-[20px] border border-slate-200/85 bg-card py-3 shadow-[var(--panel-shadow)] dark:border-slate-800/90 xl:mr-2 xl:flex"
+          >
+            <button
+              type="button"
+              onClick={toggleLeftPanel}
+              title="Kaynaklar panelini genişlet"
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-primary transition-colors hover:bg-primary/10"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+            <div className="flex flex-col items-center gap-2">
+              <FolderOpen className="h-4 w-4 text-muted-foreground" />
+              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                {activeNotebook.sources.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => openAddSource('upload')}
+              title="Kaynak ekle"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary dark:border-slate-800"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+
+        <div
+          data-testid="studio-left-panel"
+          style={{ ['--studio-left-w' as string]: `${panelLayout.leftWidth}px` }}
+          className={cn(
+            'min-w-0 overflow-hidden xl:h-full xl:w-[var(--studio-left-w)] xl:shrink-0',
+            mobilePanel !== 'sources' && 'hidden xl:block',
+            panelLayout.leftCollapsed && 'xl:hidden',
+          )}
+        >
           <NotebookSourcesPanel
             userId={userId}
             sources={activeNotebook.sources}
@@ -474,8 +723,59 @@ export function NotebookStudioWorkspace({
           />
         </div>
 
-        {/* CENTER PANEL: Çalışma Alanı (AI Öğretmen · Kaynak İçeriği · Özetler) */}
-        <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'chat' && 'hidden xl:block')}>
+        {/* Left Drag Resize Splitter */}
+        {!panelLayout.leftCollapsed && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Kaynaklar paneli genişliğini ayarla"
+            aria-valuenow={panelLayout.leftWidth}
+            aria-valuemin={MIN_LEFT_WIDTH}
+            aria-valuemax={MAX_LEFT_WIDTH}
+            tabIndex={0}
+            data-testid="studio-resize-left"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              startResize('left', e.clientX);
+            }}
+            onDoubleClick={() =>
+              setPanelLayout((prev) => ({ ...prev, leftWidth: DEFAULT_LEFT_WIDTH }))
+            }
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowRight') {
+                setPanelLayout((prev) => ({
+                  ...prev,
+                  leftWidth: Math.min(MAX_LEFT_WIDTH, prev.leftWidth + 16),
+                }));
+              } else if (e.key === 'ArrowLeft') {
+                setPanelLayout((prev) => ({
+                  ...prev,
+                  leftWidth: Math.max(MIN_LEFT_WIDTH, prev.leftWidth - 16),
+                }));
+              }
+            }}
+            title="Sürükleyerek boyutlandır (Çift tıkla: varsayılan)"
+            className="group hidden w-2.5 shrink-0 cursor-col-resize items-center justify-center focus:outline-none xl:flex"
+          >
+            <div
+              className={cn(
+                'h-12 w-1 rounded-full transition-all',
+                draggingSide === 'left'
+                  ? 'h-20 w-1.5 bg-primary'
+                  : 'bg-slate-300/70 group-hover:h-16 group-hover:bg-primary/70 dark:bg-slate-700/80',
+              )}
+            />
+          </div>
+        )}
+
+        {/* CENTER PANEL: Çalışma Alanı (Always widest flex-1 main workspace) */}
+        <div
+          data-testid="studio-center-panel"
+          className={cn(
+            'min-w-0 flex-1 overflow-hidden xl:h-full',
+            mobilePanel !== 'chat' && 'hidden xl:block',
+          )}
+        >
           <NotebookTutorChat
             notebookTitle={activeNotebook.title}
             notebookEmoji={activeNotebook.emoji}
@@ -499,8 +799,61 @@ export function NotebookStudioWorkspace({
           />
         </div>
 
-        {/* RIGHT PANEL: Yapay Zekâ Araçları */}
-        <div className={cn('min-w-0 overflow-hidden', mobilePanel !== 'studio' && 'hidden xl:block')}>
+        {/* Right Drag Resize Splitter */}
+        {!panelLayout.rightCollapsed && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Yapay Zekâ Araçları paneli genişliğini ayarla"
+            aria-valuenow={panelLayout.rightWidth}
+            aria-valuemin={MIN_RIGHT_WIDTH}
+            aria-valuemax={MAX_RIGHT_WIDTH}
+            tabIndex={0}
+            data-testid="studio-resize-right"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              startResize('right', e.clientX);
+            }}
+            onDoubleClick={() =>
+              setPanelLayout((prev) => ({ ...prev, rightWidth: DEFAULT_RIGHT_WIDTH }))
+            }
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowLeft') {
+                setPanelLayout((prev) => ({
+                  ...prev,
+                  rightWidth: Math.min(MAX_RIGHT_WIDTH, prev.rightWidth + 16),
+                }));
+              } else if (e.key === 'ArrowRight') {
+                setPanelLayout((prev) => ({
+                  ...prev,
+                  rightWidth: Math.max(MIN_RIGHT_WIDTH, prev.rightWidth - 16),
+                }));
+              }
+            }}
+            title="Sürükleyerek boyutlandır (Çift tıkla: varsayılan)"
+            className="group hidden w-2.5 shrink-0 cursor-col-resize items-center justify-center focus:outline-none xl:flex"
+          >
+            <div
+              className={cn(
+                'h-12 w-1 rounded-full transition-all',
+                draggingSide === 'right'
+                  ? 'h-20 w-1.5 bg-primary'
+                  : 'bg-slate-300/70 group-hover:h-16 group-hover:bg-primary/70 dark:bg-slate-700/80',
+              )}
+            />
+          </div>
+        )}
+
+        {/* RIGHT PANEL: Yapay Zekâ Araçları (or collapsed rail on desktop) */}
+        <div
+          data-testid="studio-right-panel"
+          style={{ ['--studio-right-w' as string]: `${panelLayout.rightWidth}px` }}
+          className={cn(
+            'min-w-0 overflow-hidden xl:h-full xl:w-[var(--studio-right-w)] xl:shrink-0',
+            mobilePanel !== 'studio' && 'hidden xl:block',
+            panelLayout.rightCollapsed && 'xl:hidden',
+          )}
+        >
           <NotebookToolsPanel
             activeSourceCount={activeSourceCount}
             canonicalAnalysis={canonicalAnalysis}
@@ -528,7 +881,217 @@ export function NotebookStudioWorkspace({
             onPromotePinnedToSource={onPromotePinnedToSource}
           />
         </div>
+
+        {panelLayout.rightCollapsed ? (
+          <div
+            data-testid="studio-right-rail"
+            className="hidden h-full w-11 shrink-0 flex-col items-center justify-between rounded-[20px] border border-slate-200/85 bg-card py-3 shadow-[var(--panel-shadow)] dark:border-slate-800/90 xl:ml-2 xl:flex"
+          >
+            <button
+              type="button"
+              onClick={toggleRightPanel}
+              title="YZ Araçları panelini genişlet"
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-primary transition-colors hover:bg-primary/10"
+            >
+              <PanelRightOpen className="h-4 w-4" />
+            </button>
+            <div className="flex flex-col items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                {notebookMaterials.length}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onGenerateType('summary')}
+              title="Hızlı Özet Başlat"
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary dark:border-slate-800"
+            >
+              <BookOpen className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
       </div>
+
+      {/* Tablet / Mobile Quick Slide-Over Drawers (< 1280px) */}
+      <Sheet
+        open={mobileDrawer === 'sources'}
+        onOpenChange={(open) => !open && setMobileDrawer(null)}
+      >
+        <SheetContent
+          side="left"
+          className="flex h-[100dvh] w-[min(92vw,380px)] max-w-none flex-col p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Kaynaklar</SheetTitle>
+            <SheetDescription>Yüklenen ders notları ve kaynak seçimi</SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 pt-4">
+            <NotebookSourcesPanel
+              userId={userId}
+              sources={activeNotebook.sources}
+              checkedSourceIds={activeNotebook.checkedSourceIds}
+              checkedMaterialIds={activeNotebook.checkedMaterialIds}
+              ownNotes={ownNotes}
+              platformNotes={platformNotes}
+              materials={allMaterials}
+              addDialogOpen={addSourceOpen}
+              onAddDialogOpenChange={setAddSourceOpen}
+              addDialogInitialTab={addSourceTab}
+              onAddSources={onAddSources}
+              onRemoveSource={onRemoveSource}
+              onToggleSource={onToggleSource}
+              onToggleAllSources={onToggleAllSources}
+              onToggleMaterialSource={onToggleMaterialSource}
+              onEditSourceCourse={(src) => {
+                setMobileDrawer(null);
+                setEditingCourseSource(src);
+              }}
+              onExtractRemoteNoteFile={onExtractRemoteNoteFile}
+              onSavedLiveMaterial={onSavedLiveMaterial}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet
+        open={mobileDrawer === 'studio'}
+        onOpenChange={(open) => !open && setMobileDrawer(null)}
+      >
+        <SheetContent
+          side="right"
+          className="flex h-[100dvh] w-[min(92vw,390px)] max-w-none flex-col p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Yapay Zekâ Araçları</SheetTitle>
+            <SheetDescription>Özet, Videolu Ders, Deneme Sınavı ve Çalışma Kartları</SheetDescription>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 pt-4">
+            <NotebookToolsPanel
+              activeSourceCount={activeSourceCount}
+              canonicalAnalysis={canonicalAnalysis}
+              notebookMaterials={notebookMaterials}
+              allMaterials={allMaterials}
+              pinnedNotes={activeNotebook.pinnedNotes}
+              progress={progress}
+              dueCardsCount={dueCardsCount}
+              settings={settings}
+              onSettingsChange={onSettingsChange}
+              isGenerating={isGenerating}
+              generationPct={generationPct}
+              generationLabel={generationLabel}
+              activeSummaryJob={activeSummaryJob}
+              onOpenSummaryProgress={() => {
+                setMobileDrawer(null);
+                onOpenSummaryProgress?.();
+              }}
+              onGenerateType={(type) => {
+                setMobileDrawer(null);
+                onGenerateType(type);
+              }}
+              onRequestCourseConfirm={() => {
+                setMobileDrawer(null);
+                openConfirmForUnconfirmed();
+              }}
+              onOpenMindMap={() => {
+                setMobileDrawer(null);
+                setMindMapOpen(true);
+              }}
+              onOpenPlanner={() => {
+                setMobileDrawer(null);
+                onOpenPlanner();
+              }}
+              onOpenExamSim={() => {
+                setMobileDrawer(null);
+                onOpenExamSim();
+              }}
+              onOpenMaterial={(mat) => {
+                setMobileDrawer(null);
+                onOpenMaterial(mat);
+              }}
+              onDeleteMaterial={onDeleteMaterial}
+              onAddManualNote={onAddManualNote}
+              onDeletePinnedNote={onDeletePinnedNote}
+              onPromotePinnedToSource={onPromotePinnedToSource}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Multi-Course Merge Approval Dialog */}
+      <Dialog
+        open={Boolean(pendingMultiCourseType && canonicalAnalysis.isMultiCourse)}
+        onOpenChange={(open) => !open && onCancelMultiCourseConfirm?.()}
+      >
+        <DialogContent
+          data-testid="multi-course-confirm-dialog"
+          className="flex max-h-[86dvh] w-[calc(100vw-1.5rem)] max-w-lg flex-col overflow-hidden rounded-2xl"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Layers className="h-4 w-4 text-amber-500" />
+              Farklı Derslere Ait Kaynaklar Seçildi
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Seçili kaynaklar {canonicalAnalysis.distinctCourses.length} farklı derse ait görünüyor.
+              EconNotes farklı derslerin kavramlarını birbirine karıştırmaz; tek bir dersi izole edip
+              devam edebilir veya tüm dersleri ayrı başlıklar altında birlikte analiz etmeyi
+              onaylayabilirsin.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
+            {canonicalAnalysis.distinctCourses.map((courseName) => {
+              const matchingProfiles = canonicalAnalysis.profiles.filter(
+                (p) => p.resolvedCourse === courseName,
+              );
+              return (
+                <div
+                  key={courseName}
+                  className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-foreground">{courseName}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {matchingProfiles.length} kaynak:{' '}
+                      {matchingProfiles.map((p) => p.source.name).join(', ')}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onIsolateCourseAndContinue?.(courseName)}
+                    className="h-8 shrink-0 rounded-xl text-[11px] font-semibold"
+                  >
+                    Yalnızca Bu Dersi Analiz Et
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter className="gap-2 border-t border-border/60 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onCancelMultiCourseConfirm?.()}
+            >
+              Vazgeç
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              data-testid="multi-course-merge-approve-btn"
+              onClick={() => onConfirmMultiCourseAndContinue?.()}
+              className="bg-gradient-to-r from-[#174ec4] to-[#2e78f6] text-white"
+            >
+              Ayrı Başlıklarla Birlikte Analiz Et
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Interactive Mind Map Dialog */}
       <NotebookMindMapDialog

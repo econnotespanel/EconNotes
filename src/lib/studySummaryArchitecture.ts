@@ -178,6 +178,24 @@ export function getDisciplineSummaryGuidance(
   }
 
   if (
+    /\b(osmanli iktisat tarihi|iktisat tarihi|ekonomi tarihi|osmanli tarihi|tarih)\b/.test(
+      folded,
+    )
+  ) {
+    return {
+      disciplineFamily: 'economics',
+      structureFocus:
+        'İktisat Tarihi & Osmanlı İktisat Tarihi odak yapısı: Temel iktisadi ilkeleri (iaşecilik, gelenekçilik, fiskalizm), toprak ve maliye kurumlarını (tımar, iltizam, malikâne, esham, lonca, narh), tarihsel dönemleşmeyi, neden–sonuç dönüşümlerini ve dış ticaret/antlaşma kırılmalarını (kapitülasyonlar, Baltalimanı, Düyun-ı Umumiye) kronolojik ve kurumsal derinlikle açıkla.',
+      formulaRule:
+        'Tarihsel ve kurumsal içerikte yapay matematiksel formül uydurma; yalnızca kaynakta açıkça yer alan mali oranları/istatistikleri koru, bunun yerine "Kurumsal İşleyiş, Dönemler ve Neden-Sonuç Zincirleri"ni netleştir.',
+      comparisonHint:
+        'Karşılaştırma tablosunda kurumları ve dönemleri (örn. Tımar vs İltizam vs Malikâne, Klasik Dönem vs 19. Yüzyıl Liberalleşme) amaç, vergi toplama mekanizması ve uzun vadeli iktisadi sonuçları bakımından kıyasla.',
+      examFocusHint:
+        'Ezberlenecekler (kurum adları, temel vergi/arazi türleri, antlaşma tarihleri ve kavram tanımları) ile Yorumlanacaklar (kurumsal dönüşümlerin iktisadi nedenleri, fiyat devrimi/enflasyon etkileri ve merkezi otorite–maliye ilişkisi) ayrımını açıkça göster.',
+    };
+  }
+
+  if (
     /\b(para teorisi|para politikasi|iktisat|ekonomi|makro|mikro|maliye|uluslararasi iktisat|kalkinma|turizm ekonomisi|finans|bankacilik)\b/.test(
       folded,
     )

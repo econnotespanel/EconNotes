@@ -33,6 +33,7 @@ import {
   Subtitles,
   Trash2,
   Trophy,
+  Video,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -208,6 +209,9 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [activeOverlay, setActiveOverlay] = useState<ActiveOverlay>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isRecordingWebm, setIsRecordingWebm] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<BlobPart[]>([]);
 
   const [a11y, setA11y] = useState<AccessibilitySettings>(() => {
     try {
@@ -691,6 +695,91 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
     }
   };
 
+  const handleToggleWebmRecording = () => {
+    if (isRecordingWebm) {
+      try {
+        mediaRecorderRef.current?.stop();
+      } catch {
+        setIsRecordingWebm(false);
+      }
+      return;
+    }
+
+    const canvas = canvasRef.current;
+    if (
+      !canvas ||
+      typeof canvas.captureStream !== 'function' ||
+      typeof MediaRecorder === 'undefined'
+    ) {
+      toast.info(
+        'Bu tarayıcı doğrudan WebM sahne kaydını desteklemiyor. Ders notu PDF / HTML dışa aktarımını kullanabilirsiniz.',
+      );
+      return;
+    }
+
+    try {
+      const stream = canvas.captureStream(30);
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9'
+        : MediaRecorder.isTypeSupported('video/webm')
+        ? 'video/webm'
+        : '';
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) {
+          recordedChunksRef.current.push(ev.data);
+        }
+      };
+      recorder.onstop = () => {
+        setIsRecordingWebm(false);
+        stream.getTracks().forEach((tr) => tr.stop());
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        recordedChunksRef.current = [];
+        if (blob.size < 1024) return;
+        const slug = (studio.title || 'video-ders')
+          .toLocaleLowerCase('tr-TR')
+          .replace(/[^a-z0-9çğıöşü]+/gi, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 48);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `econnotes-${slug || 'video-ders'}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+        toast.success('Video ders kaydı (.webm) indirildi.');
+      };
+      mediaRecorderRef.current = recorder;
+      recorder.start(500);
+      setIsRecordingWebm(true);
+      if (!isPlaying) {
+        togglePlay();
+      }
+      toast.info('Sahne kaydı başladı. Kaydı tamamlayıp indirmek için tekrar "Kaydı Bitir" butonuna tıklayın.');
+    } catch {
+      setIsRecordingWebm(false);
+      toast.error('WebM video kaydı başlatılamadı.');
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      try {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch {
+        // ignore cleanup error
+      }
+    };
+  }, []);
+
   const overallPercent = totalDurationSec > 0 ? Math.round((completedScenes.size / scenes.length) * 100) : 0;
 
   const studioTree = (
@@ -810,6 +899,23 @@ export const NeuralVideoStudio: React.FC<NeuralVideoStudioProps> = ({
             className="h-8 w-8 p-0 text-slate-300 hover:bg-white/10"
           >
             <Search className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={isRecordingWebm ? 'destructive' : 'ghost'}
+            onClick={handleToggleWebmRecording}
+            title={isRecordingWebm ? 'Video Kaydını Durdur ve İndir (.webm)' : 'Videoyu Kaydet ve İndir (.webm)'}
+            className={
+              isRecordingWebm
+                ? 'h-8 gap-1.5 px-2.5 text-xs animate-pulse'
+                : 'hidden sm:inline-flex h-8 gap-1.5 px-2.5 text-xs text-slate-200 hover:bg-white/10'
+            }
+          >
+            <Video className="h-3.5 w-3.5" />
+            <span className="hidden lg:inline">
+              {isRecordingWebm ? 'Kaydı Bitir' : 'Video Kaydet'}
+            </span>
           </Button>
           <Button
             type="button"

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -83,6 +83,39 @@ export function SummaryAnalysisProgressView({
     job.status === 'completed'
       ? 100
       : Math.min(99, Math.max(0, Math.round(job.progressPct || 0)));
+
+  // Real elapsed timer & real throughput-based ETA (NEVER artificial/fake countdown)
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (job.status !== 'processing' || !isLiveInMemory) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [job.status, isLiveInMemory]);
+
+  const timingInfo = useMemo(() => {
+    const startMs = Date.parse(job.startedAt || '');
+    if (!Number.isFinite(startMs)) return { elapsedLabel: null, etaLabel: null };
+    const endRef =
+      job.status === 'completed' && job.completedAt
+        ? Date.parse(job.completedAt)
+        : nowMs;
+    const elapsedSec = Math.max(0, Math.floor((endRef - startMs) / 1000));
+    const fmt = (sec: number) => {
+      if (sec < 60) return `${sec} sn`;
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return s > 0 ? `${m} dk ${s} sn` : `${m} dk`;
+    };
+    const elapsedLabel = fmt(elapsedSec);
+    if (job.status !== 'processing' || !isLiveInMemory || safePct < 8 || elapsedSec < 2) {
+      return { elapsedLabel, etaLabel: null };
+    }
+    const remainingSec = Math.max(2, Math.round((elapsedSec / safePct) * (100 - safePct)));
+    return {
+      elapsedLabel,
+      etaLabel: `~${fmt(Math.min(remainingSec, 3600))}`,
+    };
+  }, [job.startedAt, job.completedAt, job.status, isLiveInMemory, safePct, nowMs]);
 
   const activeStageDef =
     SUMMARY_PIPELINE_STAGES.find((s) => s.stage === job.currentStage) || SUMMARY_PIPELINE_STAGES[0];
@@ -175,6 +208,16 @@ export function SummaryAnalysisProgressView({
                 <Layers className="h-3.5 w-3.5 text-primary" />
                 Bölüm analizi: {job.completedChunks} / {job.totalChunks}
               </span>
+              {timingInfo.elapsedLabel && (
+                <span
+                  data-testid="summary-eta-indicator"
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+                >
+                  <Clock className="h-3.5 w-3.5 text-primary" />
+                  Geçen: {timingInfo.elapsedLabel}
+                  {timingInfo.etaLabel ? ` · Tahmini kalan: ${timingInfo.etaLabel}` : ''}
+                </span>
+              )}
             </div>
           </div>
 

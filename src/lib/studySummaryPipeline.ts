@@ -1152,6 +1152,7 @@ export async function runMultiStageAcademicSummaryPipeline(params: {
       faculty: settings.faculty,
       isLargeBundle: totalPages >= 12 || plan.profile.totalWords >= 2800,
       sourceFingerprint: bundle.sourceFingerprint,
+      sourceIds: bundle.sourceIds || bundle.sources.map((s) => s.id),
       analyzedCourses: bundle.sourceCourses,
       isMultiCourse: bundle.isMultiCourse,
       jobId,

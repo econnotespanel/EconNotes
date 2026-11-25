@@ -397,6 +397,8 @@ class SummaryJobManager {
     notebookId?: string;
     bundle: ProcessedStudyBundle;
     settings: StudioGenerationSettings;
+    university?: string | null;
+    department?: string | null;
     forceNew?: boolean;
     onCompleted?: (material: StudyMaterial, job: SummaryJobState) => void;
   }): Promise<{ job: SummaryJobState; promise: Promise<StudyMaterial | null>; deduplicated: boolean }> {
@@ -453,6 +455,7 @@ class SummaryJobManager {
       userId: params.userId,
       notebookId: params.notebookId,
       sourceFingerprint: fp,
+      sourceIds: params.bundle.sourceIds || params.bundle.sources.map((s) => s.id),
       title: params.bundle.title,
       course: params.bundle.course || params.bundle.detectedCourse || '',
       disciplineFamily: 'general',
@@ -485,7 +488,14 @@ class SummaryJobManager {
     });
     void this.syncJobToServer(job);
 
-    const promise = this.executeJob(job, params.bundle, params.settings, [], params.onCompleted);
+    const promise = this.executeJob(
+      job,
+      params.bundle,
+      params.settings,
+      [],
+      params.onCompleted,
+      { university: params.university || null, department: params.department || null },
+    );
     this.runningPromises.set(job.id, promise);
     return { job, promise, deduplicated: false };
   }
@@ -564,6 +574,7 @@ class SummaryJobManager {
     settings: StudioGenerationSettings,
     existingCheckpoints: SummaryChunkCheckpoint[],
     onCompleted?: (material: StudyMaterial, job: SummaryJobState) => void,
+    userContext?: { university?: string | null; department?: string | null },
   ): Promise<StudyMaterial | null> {
     const controller = new AbortController();
     this.abortControllers.set(initialJob.id, controller);
@@ -590,6 +601,9 @@ class SummaryJobManager {
           generateAcademicSummaryPdfBytes({
             title: meta.title,
             course: meta.course,
+            university: userContext?.university || null,
+            department: userContext?.department || null,
+            sourceFileNames: bundle.sources.map((s) => s.name).filter(Boolean),
             createdAt: meta.createdAt,
             summary,
           }),
@@ -632,6 +646,7 @@ class SummaryJobManager {
       const resolvedCourse = result.plan.profile.courseName || bundle.course || bundle.detectedCourse || null;
       const examProfileMeta: Record<string, unknown> = {
         sourceFingerprint: bundle.sourceFingerprint,
+        sourceIds: bundle.sourceIds || bundle.sources.map((s) => s.id),
         analyzedCourses: bundle.sourceCourses,
         isMultiCourse: bundle.isMultiCourse,
         summaryJobId: currentJob.id,

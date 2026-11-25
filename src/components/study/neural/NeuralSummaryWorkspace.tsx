@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   downloadAcademicSummaryPdf,
   saveAcademicSummaryPdfToDevice,
@@ -82,6 +83,7 @@ export function NeuralSummaryWorkspace({
   isSavingToAccount = false,
   onAskCoach,
 }: NeuralSummaryWorkspaceProps) {
+  const { profile } = useAuth();
   const c: SummaryContent = useMemo(
     () => ({
       overview: material.content?.overview || '',
@@ -173,6 +175,11 @@ export function NeuralSummaryWorkspace({
     setSavedConfirmed(Boolean(material.id));
   }, [material.id]);
 
+  const pdfSourceFileNames = useMemo(() => {
+    const names = (c.sourceCourseBreakdown || []).map((b) => b.sourceName).filter(Boolean);
+    return names.length > 0 ? names : [material.title];
+  }, [c.sourceCourseBreakdown, material.title]);
+
   const handleDownloadPdf = async () => {
     if (pdfBusy) return;
     setPdfBusy('download');
@@ -182,6 +189,9 @@ export function NeuralSummaryWorkspace({
         {
           title: material.title,
           course: material.course || c.disciplineTag,
+          university: profile?.university || null,
+          department: profile?.department || null,
+          sourceFileNames: pdfSourceFileNames,
           createdAt: material.created_at,
           summary: c,
         },
@@ -204,6 +214,9 @@ export function NeuralSummaryWorkspace({
         {
           title: material.title,
           course: material.course || c.disciplineTag,
+          university: profile?.university || null,
+          department: profile?.department || null,
+          sourceFileNames: pdfSourceFileNames,
           createdAt: material.created_at,
           summary: c,
         },

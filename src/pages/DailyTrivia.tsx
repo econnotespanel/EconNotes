@@ -4,16 +4,18 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  Award,
   BookOpen,
   CheckCircle2,
   Clock,
   Crown,
   Flag,
-  Flame,
   Home,
+  ListChecks,
   Loader2,
   LogIn,
   MinusCircle,
+  Play,
   ShieldAlert,
   Sparkles,
   Square,
@@ -24,6 +26,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
+import { TriviaArenaBackdrop, TriviaHeroBannerPattern } from '@/components/trivia/TriviaArenaBackdrop';
 import { TriviaAudioControls } from '@/components/trivia/TriviaAudioControls';
 import {
   isTurkishTtsSupported,
@@ -140,6 +143,7 @@ export default function DailyTrivia() {
 
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [entryTransition, setEntryTransition] = useState<'idle' | 'leaving' | 'launching'>('idle');
   const [finishing, setFinishing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -791,15 +795,28 @@ export default function DailyTrivia() {
   const handleStart = async () => {
     if (!user || starting) return;
     unlockTriviaAudio();
+    const reduceMotion = audioPrefsRef.current.reducedMotion;
     setStarting(true);
+    if (!reduceMotion) {
+      setEntryTransition('leaving');
+    }
     setErrorMsg(null);
     const { data, error } = await invokeDailyTrivia<TriviaStartResponse>({ action: 'start' });
-    setStarting(false);
 
     if (error || !data) {
+      setStarting(false);
+      setEntryTransition('idle');
       toast.error(error || 'Yarışma başlatılamadı.');
       void fetchStatus();
       return;
+    }
+
+    playTriviaSound('start', audioPrefsRef.current);
+
+    // Brief, sleek launch curtain (skipped immediately when reducedMotion is enabled)
+    if (!reduceMotion) {
+      setEntryTransition('launching');
+      await new Promise((resolve) => window.setTimeout(resolve, 320));
     }
 
     syncClock(data.serverNowIso);
@@ -818,7 +835,8 @@ export default function DailyTrivia() {
     setCurrentIdx(0);
     setReturnWarning(null);
     markActiveTriviaRunInSession(user.id, data.quizDate, data.attempt.id);
-    playTriviaSound('start', audioPrefsRef.current);
+    setStarting(false);
+    setEntryTransition('idle');
     toast.success('Yarışma başladı. 15 dakikan var, bol şans!');
   };
 
@@ -1071,28 +1089,43 @@ export default function DailyTrivia() {
 
   if (authLoading || loading) {
     return (
-      <div className="safe-area-screen flex flex-col items-center justify-center bg-background p-6 text-muted-foreground">
-        <Loader2 className="h-7 w-7 animate-spin text-primary" />
-        <p className="mt-3 text-sm font-medium">Yarışma hazırlanıyor...</p>
+      <div className="safe-area-screen relative flex flex-col items-center justify-center overflow-hidden bg-background p-6 text-muted-foreground">
+        <TriviaArenaBackdrop variant="lobby" />
+        <div className="relative z-10 flex flex-col items-center gap-3 rounded-3xl border border-slate-200/80 bg-white/90 px-8 py-7 shadow-lg backdrop-blur-xl dark:border-blue-400/15 dark:bg-[#0b1730]/90">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#174ec4]/10 text-[#174ec4] dark:bg-blue-500/15 dark:text-blue-400">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">Yarışma hazırlanıyor...</p>
+        </div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="safe-area-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md rounded-3xl border-border/70 p-6 text-center shadow-xl">
-          <CardContent className="space-y-4 p-2">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-              <Trophy className="h-7 w-7" />
+      <div className="safe-area-screen relative flex items-center justify-center overflow-hidden bg-background p-4">
+        <TriviaArenaBackdrop variant="lobby" />
+        <Card className="relative z-10 w-full max-w-md overflow-hidden rounded-[26px] border-slate-200/90 bg-white/95 shadow-[0_24px_60px_-18px_rgba(11,42,110,0.22)] backdrop-blur-xl dark:border-blue-400/20 dark:bg-[#0b1730]/95">
+          <div className="relative overflow-hidden bg-gradient-to-br from-[#061a44] via-[#0f3484] to-[#1f62e8] px-6 py-8 text-center text-white">
+            <TriviaHeroBannerPattern />
+            <div className="relative z-10 flex flex-col items-center space-y-3">
+              <EconLogo allWhite className="h-[25px] w-[112px] justify-center" />
+              <div className="flex h-13 w-13 items-center justify-center rounded-2xl border border-white/25 bg-white/10 backdrop-blur-md">
+                <Trophy className="h-6 w-6 text-sky-200" />
+              </div>
+              <h1 className="text-xl font-extrabold tracking-tight">
+                Günlük Genel Kültür Bilgi Yarışması
+              </h1>
             </div>
-            <h1 className="text-xl font-extrabold text-foreground">
-              Günlük Genel Kültür Bilgi Yarışması
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Her gün yenilenen 15 genel kültür sorusuyla bilgini test etmek için giriş yap.
+          </div>
+          <CardContent className="space-y-4 p-6 text-center">
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Her gün yenilenen sorularla bilgini test et, XP kazan! Katılmak için EconNotes hesabınla giriş yap.
             </p>
-            <Button onClick={() => navigate('/login')} className="w-full gap-2 rounded-xl">
+            <Button
+              onClick={() => navigate('/login')}
+              className="h-12 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#0d3385] via-[#174ec4] to-[#2563eb] text-sm font-bold text-white shadow-md hover:brightness-105"
+            >
               <LogIn className="h-4 w-4" />
               Giriş Yap
             </Button>
@@ -1105,6 +1138,9 @@ export default function DailyTrivia() {
   const currentQuestion = questions[currentIdx] || null;
   const isLastQuestion = currentIdx === TRIVIA_TOTAL_QUESTIONS - 1;
   const progressPct = Math.round((answeredCount / TRIVIA_TOTAL_QUESTIONS) * 100);
+  const remainingTimePct = isInProgress
+    ? Math.max(0, Math.min(100, (remainingMs / TRIVIA_TIME_LIMIT_MS) * 100))
+    : 100;
 
   const resultCorrect = attempt?.correctCount ?? 0;
   const resultBlank =
@@ -1112,37 +1148,44 @@ export default function DailyTrivia() {
   const resultWrong =
     attempt?.wrongCount ?? Math.max(0, answers.length - resultCorrect);
 
+  const backdropVariant: 'lobby' | 'quiz' | 'result' | 'grand_prize' | 'cancelled' = isInProgress
+    ? 'quiz'
+    : attempt?.status === 'cancelled' || attempt?.status === 'expired'
+    ? 'cancelled'
+    : attempt?.status === 'completed'
+    ? attempt.grandPrizeAwarded
+      ? 'grand_prize'
+      : 'result'
+    : 'lobby';
+
   return (
     <div
       className={cn(
-        'relative min-h-[100dvh] overflow-x-clip bg-background text-foreground selection:bg-primary/20',
+        'relative min-h-[100dvh] overflow-x-clip bg-background text-foreground selection:bg-[#1f62e8]/20',
         audioPrefs.reducedMotion && 'trivia-reduced-motion',
       )}
       style={{
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 2rem)',
       }}
     >
-      {/* Subtle Premium Cobalt & Gold Quiz-Show Ambiance */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-36 left-1/3 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-gradient-to-br from-[#003791]/20 via-blue-500/10 to-transparent blur-[110px]" />
-        <div className="absolute bottom-0 right-0 h-[360px] w-[500px] rounded-full bg-gradient-to-tl from-amber-500/15 via-cyan-500/10 to-transparent blur-[120px]" />
-      </div>
+      {/* Architectural Navy / Electric-Blue CSS+SVG Arena Backdrop */}
+      <TriviaArenaBackdrop variant={backdropVariant} />
 
-      {/* iPhone Safe-Area Aware Standalone Header (Solid Surface to Prevent iOS 26 PWA Top-Edge Blur) */}
+      {/* iPhone Safe-Area Aware Standalone Header (Solid Surface to Prevent iOS PWA Top-Edge Blur) */}
       <header className="sticky top-0 z-30 w-full">
         <div
-          className="border-b border-border/80 bg-background"
+          className="border-b border-slate-200/85 bg-white dark:border-blue-400/15 dark:bg-[#071229]"
           style={{
             paddingTop: 'calc(env(safe-area-inset-top, 0px) + var(--ios-pwa-top-buffer, 0px))',
             paddingLeft: 'env(safe-area-inset-left, 0px)',
             paddingRight: 'env(safe-area-inset-right, 0px)',
           }}
         >
-          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-x-3 gap-y-2.5 px-3.5 py-2.5 sm:h-16 sm:flex-nowrap sm:px-4 sm:py-0">
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3.5 py-2.5 sm:h-16 sm:flex-nowrap sm:px-5 sm:py-0">
             <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <EconLogo className="h-[22px] w-[99px] shrink-0 justify-center -translate-y-[2px] sm:h-[26px] sm:w-[117px] sm:-translate-y-[3px]" />
-              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-border sm:h-5" />
-              <span className="whitespace-nowrap text-xs font-bold leading-none tracking-tight text-foreground sm:text-sm sm:leading-none">
+              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700 sm:h-5" />
+              <span className="truncate text-xs font-bold leading-none tracking-tight text-foreground sm:text-sm">
                 Günlük Bilgi Yarışması
               </span>
             </div>
@@ -1150,18 +1193,31 @@ export default function DailyTrivia() {
             <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
               {isInProgress ? (
                 <>
-                  <TriviaAudioControls prefs={audioPrefs} onChange={handleAudioPrefsChange} compact />
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span
+                      data-testid="trivia-header-qcount"
+                      className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-200/90 bg-slate-50 px-2.5 text-xs font-extrabold tabular-nums text-foreground dark:border-blue-400/20 dark:bg-[#0d1c3a]"
+                    >
+                      <ListChecks className="h-3.5 w-3.5 text-[#174ec4] dark:text-blue-400" />
+                      <span>
+                        Soru {currentIdx + 1} / {TRIVIA_TOTAL_QUESTIONS}
+                      </span>
+                    </span>
+                    <TriviaAudioControls prefs={audioPrefs} onChange={handleAudioPrefsChange} compact />
+                  </div>
+
                   <div
                     role="timer"
                     aria-live="off"
+                    data-testid="trivia-timer"
                     className={cn(
-                      'inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 font-mono text-sm font-black tabular-nums transition-colors sm:h-10 sm:rounded-2xl sm:px-3.5 sm:text-lg',
+                      'inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border px-3 font-mono text-sm font-black tabular-nums transition-colors sm:h-10 sm:px-3.5 sm:text-base',
                       warnTime
                         ? 'animate-pulse border-rose-500/60 bg-rose-500/15 text-rose-600 dark:text-rose-400'
-                        : 'border-primary/35 bg-primary/10 text-primary',
+                        : 'border-[#1f62e8]/30 bg-blue-50/90 text-[#0d3385] dark:border-blue-400/30 dark:bg-blue-500/15 dark:text-blue-200',
                     )}
                   >
-                    <Timer className="h-4 w-4 shrink-0 sm:h-5 sm:w-5" />
+                    <Timer className="h-4 w-4 shrink-0" />
                     <span>{formatTriviaClock(remainingMs)}</span>
                   </div>
                 </>
@@ -1169,7 +1225,7 @@ export default function DailyTrivia() {
                 <>
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     <TriviaAudioControls prefs={audioPrefs} onChange={handleAudioPrefsChange} compact />
-                    <span className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary tabular-nums">
+                    <span className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#1f62e8]/25 bg-blue-50/90 px-3 text-xs font-bold tabular-nums text-[#174ec4] dark:border-blue-400/25 dark:bg-blue-500/15 dark:text-blue-300">
                       <Sparkles className="h-3.5 w-3.5 shrink-0" />
                       <span>{userPoints.toLocaleString('tr-TR')} XP</span>
                     </span>
@@ -1179,7 +1235,7 @@ export default function DailyTrivia() {
                     variant="outline"
                     size="sm"
                     onClick={() => navigate('/')}
-                    className="h-8 shrink-0 gap-1.5 whitespace-nowrap rounded-xl px-2.5 text-xs"
+                    className="h-9 shrink-0 gap-1.5 whitespace-nowrap rounded-xl border-slate-200/90 bg-white/90 px-3 text-xs font-semibold hover:border-[#1f62e8]/45 hover:text-[#174ec4] dark:border-blue-400/20 dark:bg-[#0d1c3a] dark:hover:border-blue-400/45 dark:hover:text-blue-300"
                   >
                     <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
                     <span>Ana Sayfa</span>
@@ -1188,9 +1244,29 @@ export default function DailyTrivia() {
               )}
             </div>
           </div>
+
+          {/* Continuous Visual Remaining-Time Bar during Active Quiz */}
+          {isInProgress && (
+            <div className="h-1 w-full bg-slate-100 dark:bg-slate-800/80" aria-hidden="true">
+              <div
+                className={cn(
+                  'h-full transition-[width] duration-700 ease-linear',
+                  warnTime
+                    ? 'bg-gradient-to-r from-rose-500 via-amber-500 to-rose-500'
+                    : 'bg-gradient-to-r from-[#0d3385] via-[#1f62e8] to-[#38bdf8]',
+                )}
+                style={{ width: `${remainingTimePct}%` }}
+              />
+            </div>
+          )}
+
           {warnTime && (
-            <div className="border-t border-rose-500/30 bg-rose-500/10 px-4 py-1.5 text-center text-xs font-bold text-rose-600 dark:text-rose-400">
-              Son 2 dakika! Süre dolduğunda yarışma otomatik olarak sonuçlanır.
+            <div
+              data-testid="trivia-two-min-banner"
+              className="flex items-center justify-center gap-2 border-t border-rose-500/25 bg-rose-50/95 px-4 py-1.5 text-center text-xs font-bold text-rose-700 dark:bg-rose-950/75 dark:text-rose-300"
+            >
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span>Son 2 dakika! Süre dolduğunda cevapların güvenle sonuçlandırılır.</span>
             </div>
           )}
         </div>
@@ -1198,7 +1274,10 @@ export default function DailyTrivia() {
 
       {/* Main Standalone Arena */}
       <main
-        className="relative z-10 mx-auto max-w-3xl space-y-5 px-4 py-5 sm:py-8"
+        className={cn(
+          'relative z-10 mx-auto space-y-5 px-4 py-5 sm:py-8',
+          isInProgress ? 'max-w-4xl' : 'max-w-3xl',
+        )}
         style={{
           paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
           paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
@@ -1206,18 +1285,18 @@ export default function DailyTrivia() {
       >
         {/* Live 2-Hour Grand Prize Active Banner */}
         {activeUnlimitedPass && !isInProgress && (
-          <div className="flex flex-col gap-3 rounded-2xl border-2 border-amber-500/40 bg-gradient-to-r from-amber-500/15 via-card to-orange-500/10 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-2xl border border-amber-400/45 bg-gradient-to-r from-amber-50/95 via-white/95 to-blue-50/90 p-4 shadow-sm backdrop-blur-md dark:border-amber-400/35 dark:from-amber-500/15 dark:via-[#0b1730]/95 dark:to-blue-500/10 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-md">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-sm">
                 <Crown className="h-5 w-5" />
               </div>
               <div>
                 <p className="text-sm font-extrabold text-foreground">
-                  2 Saatlik Sınırsız Not Erişimi Aktif!
+                  2 Saatlik Sınırsız Not Erişimi Aktif
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Kalan süre:{' '}
-                  <strong className="font-mono text-amber-600 dark:text-amber-400">
+                  <strong className="font-mono text-amber-700 dark:text-amber-300">
                     {activeUnlimitedPass.remaining}
                   </strong>
                 </p>
@@ -1227,60 +1306,115 @@ export default function DailyTrivia() {
               type="button"
               size="sm"
               onClick={() => navigate('/notes')}
-              className="shrink-0 gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:opacity-95"
+              className="h-10 shrink-0 gap-1.5 rounded-xl bg-gradient-to-r from-[#0d3385] to-[#1f62e8] px-4 font-bold text-white shadow-sm hover:brightness-105"
             >
               <BookOpen className="h-3.5 w-3.5" />
-              Notlara Git
+              Ders Notlarına Git
             </Button>
           </div>
         )}
 
         {errorMsg && (
-          <Card className="rounded-2xl border-destructive/40 bg-destructive/5">
-            <CardContent className="flex flex-col items-center gap-3 p-6 text-center">
-              <AlertTriangle className="h-8 w-8 text-destructive" />
+          <Card className="rounded-3xl border-destructive/35 bg-white/95 shadow-lg dark:bg-[#0b1730]/95">
+            <CardContent className="flex flex-col items-center gap-3 p-7 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
               <p className="text-sm font-semibold text-foreground">{errorMsg}</p>
-              <Button size="sm" variant="outline" onClick={() => void fetchStatus()}>
+              <Button size="sm" variant="outline" onClick={() => void fetchStatus()} className="rounded-xl">
                 Tekrar Dene
               </Button>
             </CardContent>
           </Card>
         )}
 
-        {/* ==================== 1. LOBBY (NOT STARTED YET) ==================== */}
-        {!errorMsg && !attempt && (
-          <Card className="trivia-anim-enter overflow-hidden rounded-3xl border-border/80 bg-card/95 shadow-xl">
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#001a4d] via-[#003791] to-[#0066cc] px-6 py-8 text-center text-white sm:px-10 sm:py-11">
-              <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/75 to-transparent" />
-              <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-cyan-400/25 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-amber-400/20 blur-3xl" />
-              <div className="relative z-10 flex flex-col items-center space-y-3.5">
+        {/* ==================== 1B. BRIEF LAUNCH CURTAIN TRANSITION ==================== */}
+        {!errorMsg && !attempt && entryTransition === 'launching' && (
+          <div
+            data-testid="trivia-launch-curtain"
+            className="trivia-anim-launch mx-auto flex min-h-[380px] max-w-xl flex-col items-center justify-center rounded-[28px] border border-[#1f62e8]/30 bg-gradient-to-br from-[#061a44] via-[#0e3282] to-[#1f62e8] p-8 text-center text-white shadow-[0_24px_70px_-20px_rgba(13,51,133,0.55)]"
+          >
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/25 bg-white/10 backdrop-blur-md">
+              <Sparkles className="h-7 w-7 text-sky-200" />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200">
+              EconNotes Günlük Yarışma
+            </p>
+            <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Yarışma Başlıyor
+            </h2>
+            <p className="mt-2 text-sm text-blue-100/90">
+              15 Soru · 15 Dakika · Her doğru cevap 25 XP
+            </p>
+          </div>
+        )}
+
+        {/* ==================== 1. LOBBY / ENTRY SCREEN (NOT STARTED YET) ==================== */}
+        {!errorMsg && !attempt && entryTransition !== 'launching' && (
+          <Card
+            data-testid="trivia-lobby"
+            className={cn(
+              'overflow-hidden rounded-[28px] border border-slate-200/90 bg-white/95 shadow-[0_24px_65px_-22px_rgba(11,42,110,0.22)] backdrop-blur-xl dark:border-blue-400/20 dark:bg-[#0b1730]/95 dark:shadow-[0_24px_65px_-22px_rgba(0,0,0,0.65)]',
+              entryTransition === 'leaving' ? 'trivia-anim-lobby-exit' : 'trivia-anim-enter',
+            )}
+          >
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#061a44] via-[#0e3282] to-[#1f62e8] px-6 py-9 text-center text-white sm:px-10 sm:py-12">
+              <TriviaHeroBannerPattern />
+              <div className="relative z-10 flex flex-col items-center space-y-4">
                 <EconLogo
                   allWhite
-                  className="h-[26px] w-[117px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.22)] sm:h-[27px] sm:w-[121px]"
+                  className="h-[26px] w-[117px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.2)] sm:h-[28px] sm:w-[126px]"
                 />
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-300/35 bg-gradient-to-br from-amber-400/25 via-white/15 to-white/5 shadow-inner backdrop-blur-md">
-                  <Trophy className="h-7 w-7 text-amber-300" />
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/25 bg-white/15 shadow-inner backdrop-blur-md">
+                  <Trophy className="h-7 w-7 text-sky-100" strokeWidth={1.9} />
                 </div>
-                <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                  Günlük Genel Kültür Bilgi Yarışması
-                </h1>
-                <p className="mx-auto max-w-md text-sm leading-relaxed text-blue-100/95 sm:text-base">
-                  Her gün sana özel 15 genel kültür sorusuyla bilgini test et!
-                </p>
+                <div className="space-y-2">
+                  <h1 className="text-2xl font-extrabold tracking-tight sm:text-[32px] sm:leading-[1.18]">
+                    Günlük Genel Kültür Bilgi Yarışması
+                  </h1>
+                  <p className="mx-auto max-w-md text-sm font-medium leading-relaxed text-blue-100/95 sm:text-base">
+                    Her gün yenilenen sorularla bilgini test et, XP kazan!
+                  </p>
+                </div>
               </div>
             </div>
 
-            <CardContent className="space-y-5 p-5 sm:p-7">
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
-                <div className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/25 px-3 py-3.5 text-center sm:flex-col sm:gap-1 sm:py-4">
-                  <span className="text-xl font-extrabold tabular-nums text-foreground sm:text-2xl">15 Soru</span>
+            <CardContent className="space-y-6 p-5 sm:p-8">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/85 bg-slate-50/80 px-4 py-4 dark:border-blue-400/15 dark:bg-[#0f1f3f]/75 sm:flex-col sm:justify-center sm:gap-2 sm:py-5 sm:text-center">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-200/80 bg-blue-50 text-[#174ec4] dark:border-blue-400/25 dark:bg-blue-500/15 dark:text-blue-300">
+                    <ListChecks className="h-5 w-5" strokeWidth={2} />
+                  </div>
+                  <div className="text-left sm:text-center">
+                    <p className="text-lg font-extrabold tracking-tight tabular-nums text-foreground sm:text-xl">
+                      15 Soru
+                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">Güne özel seçki</p>
+                  </div>
                 </div>
-                <div className="flex items-center justify-center gap-2 rounded-2xl border border-border/70 bg-muted/25 px-3 py-3.5 text-center sm:flex-col sm:gap-1 sm:py-4">
-                  <span className="text-xl font-extrabold tabular-nums text-foreground sm:text-2xl">15 Dakika</span>
+
+                <div className="flex items-center gap-3.5 rounded-2xl border border-slate-200/85 bg-slate-50/80 px-4 py-4 dark:border-blue-400/15 dark:bg-[#0f1f3f]/75 sm:flex-col sm:justify-center sm:gap-2 sm:py-5 sm:text-center">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-200/80 bg-blue-50 text-[#174ec4] dark:border-blue-400/25 dark:bg-blue-500/15 dark:text-blue-300">
+                    <Clock className="h-5 w-5" strokeWidth={2} />
+                  </div>
+                  <div className="text-left sm:text-center">
+                    <p className="text-lg font-extrabold tracking-tight tabular-nums text-foreground sm:text-xl">
+                      15 Dakika
+                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">Toplam yarışma süresi</p>
+                  </div>
                 </div>
-                <div className="flex items-center justify-center gap-2 rounded-2xl border border-primary/25 bg-primary/[0.06] px-3 py-3.5 text-center sm:flex-col sm:gap-1 sm:py-4">
-                  <span className="text-sm font-extrabold text-primary sm:text-base">Her doğru cevap 25 XP</span>
+
+                <div className="flex items-center gap-3.5 rounded-2xl border border-[#1f62e8]/30 bg-blue-50/75 px-4 py-4 dark:border-blue-400/30 dark:bg-blue-500/15 sm:flex-col sm:justify-center sm:gap-2 sm:py-5 sm:text-center">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#1f62e8]/30 bg-[#174ec4]/10 text-[#174ec4] dark:border-blue-400/30 dark:bg-blue-500/20 dark:text-blue-300">
+                    <Sparkles className="h-5 w-5" strokeWidth={2} />
+                  </div>
+                  <div className="text-left sm:text-center">
+                    <p className="text-sm font-extrabold tracking-tight text-[#0d3385] dark:text-blue-200 sm:text-[15px]">
+                      Her doğru cevap 25 XP
+                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">15/15’te 375 XP</p>
+                  </div>
                 </div>
               </div>
 
@@ -1288,17 +1422,18 @@ export default function DailyTrivia() {
                 type="button"
                 size="lg"
                 disabled={starting}
+                data-testid="trivia-start-btn"
                 onClick={() => void handleStart()}
-                className="h-14 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] text-base font-extrabold text-white shadow-lg shadow-primary/25 hover:opacity-95"
+                className="h-14 w-full gap-2.5 rounded-2xl bg-gradient-to-r from-[#0a2970] via-[#174ec4] to-[#2563eb] text-base font-extrabold text-white shadow-[0_14px_32px_-10px_rgba(23,78,196,0.55)] transition-all hover:brightness-105 active:scale-[0.995]"
               >
                 {starting ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin" />
-                    Hazırlanıyor...
+                    Yarışma Hazırlanıyor...
                   </>
                 ) : (
                   <>
-                    <Flame className="h-5 w-5 text-amber-300" />
+                    <Play className="h-4 w-4 fill-current" />
                     Yarışmaya Başla
                   </>
                 )}
@@ -1309,45 +1444,45 @@ export default function DailyTrivia() {
 
         {/* ==================== 2. ACTIVE QUIZ ==================== */}
         {!errorMsg && isInProgress && currentQuestion && (
-          <div className="relative space-y-4">
+          <div data-testid="trivia-active-quiz" className="trivia-anim-arena-reveal relative space-y-4">
             {/* Return Warning Alert (after returning within 5s) */}
             {returnWarning && (
-              <div className="flex items-start gap-2.5 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-700 dark:text-amber-300">
+              <div className="flex items-start gap-2.5 rounded-2xl border border-amber-500/40 bg-amber-50/95 p-3.5 text-xs text-amber-800 shadow-sm dark:bg-amber-950/60 dark:text-amber-200">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                 <p className="leading-relaxed">{returnWarning}</p>
               </div>
             )}
 
-            {/* Question navigator */}
-            <Card className="rounded-2xl border-border/75 bg-card/95 shadow-sm">
-              <CardContent className="space-y-3 p-4">
+            {/* 1-15 Question Navigation & Progress Card */}
+            <Card className="rounded-[22px] border border-slate-200/90 bg-white/95 shadow-[0_10px_30px_-14px_rgba(11,42,110,0.12)] backdrop-blur-md dark:border-blue-400/15 dark:bg-[#0b1730]/95">
+              <CardContent className="space-y-3 p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span className="font-extrabold text-foreground">
-                    Soru {currentIdx + 1} / {TRIVIA_TOTAL_QUESTIONS}
-                  </span>
                   <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        'text-[11px] font-medium',
-                        saveState === 'error' ? 'text-rose-500' : 'text-muted-foreground',
-                      )}
-                    >
-                      {saveState === 'saving'
-                        ? 'Kaydediliyor...'
-                        : saveState === 'error'
-                        ? 'Kaydedilemedi, yeniden denenecek'
-                        : saveState === 'saved'
-                        ? 'Cevaplar kaydedildi'
-                        : ''}
+                    <span className="font-extrabold text-foreground">
+                      Soru {currentIdx + 1} / {TRIVIA_TOTAL_QUESTIONS}
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 font-bold tabular-nums text-primary">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span className="inline-flex items-center gap-1 rounded-full border border-[#1f62e8]/25 bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold tabular-nums text-[#174ec4] dark:border-blue-400/25 dark:bg-blue-500/15 dark:text-blue-300">
+                      <CheckCircle2 className="h-3 w-3" />
                       {answeredCount}/{TRIVIA_TOTAL_QUESTIONS} cevaplandı
                     </span>
                   </div>
+                  <span
+                    className={cn(
+                      'text-[11px] font-medium',
+                      saveState === 'error' ? 'text-rose-500' : 'text-muted-foreground',
+                    )}
+                  >
+                    {saveState === 'saving'
+                      ? 'Kaydediliyor...'
+                      : saveState === 'error'
+                      ? 'Kaydedilemedi, yeniden denenecek'
+                      : saveState === 'saved'
+                      ? 'Cevaplar kaydedildi'
+                      : `Kalan süre: ${formatTriviaClock(remainingMs)}`}
+                  </span>
                 </div>
 
-                <Progress value={progressPct} className="h-2" />
+                <Progress value={progressPct} className="h-2 bg-slate-100 dark:bg-slate-800/80" />
 
                 <div className="grid grid-cols-5 gap-2 sm:grid-cols-[repeat(15,minmax(0,1fr))] sm:gap-1.5">
                   {Array.from({ length: TRIVIA_TOTAL_QUESTIONS }).map((_, idx) => {
@@ -1362,44 +1497,45 @@ export default function DailyTrivia() {
                         aria-label={`Soru ${idx + 1}${isAnswered ? ' cevaplandı' : ' boş'}${isFlagged ? ' işaretli' : ''}`}
                         aria-current={isCur ? 'step' : undefined}
                         className={cn(
-                          'relative flex h-10 items-center justify-center rounded-xl border text-xs font-bold tabular-nums transition-all sm:h-9',
+                          'relative flex h-10 items-center justify-center rounded-xl border text-xs font-extrabold tabular-nums transition-all sm:h-9',
                           isFlagged
-                            ? 'border-amber-500 bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                            ? 'border-amber-500/80 bg-amber-500/15 text-amber-800 hover:bg-amber-500/25 dark:text-amber-300'
                             : isAnswered
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-dashed border-border bg-background text-muted-foreground hover:border-primary/50',
-                          isCur && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
+                            ? 'border-[#174ec4] bg-[#174ec4] text-white shadow-xs hover:bg-[#1f62e8]'
+                            : 'border-slate-200/90 bg-slate-50/80 text-slate-600 hover:border-[#1f62e8]/50 hover:text-foreground dark:border-slate-700/80 dark:bg-[#0f1f3f]/70 dark:text-slate-300',
+                          isCur &&
+                            'ring-2 ring-[#2563eb] ring-offset-2 ring-offset-white dark:ring-blue-400 dark:ring-offset-[#0b1730]',
                         )}
                       >
                         {idx + 1}
                         {isFlagged && isAnswered && (
-                          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background" />
+                          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-[#1f62e8] ring-2 ring-white dark:ring-[#0b1730]" />
                         )}
                       </button>
                     );
                   })}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-medium text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded bg-primary" /> Cevaplandı
+                    <span className="h-2.5 w-2.5 rounded-sm bg-[#174ec4]" /> Cevaplandı
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded border border-dashed border-muted-foreground" /> Boş
+                    <span className="h-2.5 w-2.5 rounded-sm border border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-800" /> Boş
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded bg-amber-500" /> İşaretli
+                    <span className="h-2.5 w-2.5 rounded-sm bg-amber-500" /> İşaretli
                   </span>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Question Card */}
+            {/* Elevated High-Contrast Question Card */}
             <Card
               key={currentIdx}
               className={cn(
-                'trivia-anim-enter relative overflow-hidden rounded-3xl border-border/80 bg-card/95 shadow-xl transition-all',
-                warnTime && 'border-rose-500/45 ring-1 ring-rose-500/20',
+                'trivia-anim-enter relative overflow-hidden rounded-[26px] border border-slate-200/95 bg-white shadow-[0_20px_50px_-20px_rgba(11,42,110,0.18)] transition-all dark:border-blue-400/20 dark:bg-[#0b1730] dark:shadow-[0_24px_60px_-22px_rgba(0,0,0,0.65)]',
+                warnTime && 'border-rose-500/50 ring-1 ring-rose-500/25',
                 awayActive && 'pointer-events-none select-none blur-md',
               )}
             >
@@ -1409,11 +1545,12 @@ export default function DailyTrivia() {
                   'pointer-events-none h-1 w-full bg-gradient-to-r',
                   warnTime
                     ? 'from-rose-500 via-amber-400 to-rose-500'
-                    : 'from-[#003791] via-[#0070d1] to-amber-400/80',
+                    : 'from-[#061a44] via-[#1f62e8] to-[#60a5fa]',
                 )}
               />
-              <CardContent className="space-y-5 p-5 sm:p-7">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardContent className="space-y-6 p-5 sm:p-8">
+                {/* Category, Difficulty, TTS & Flag Controls */}
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       variant="outline"
@@ -1428,7 +1565,7 @@ export default function DailyTrivia() {
                       {DIFFICULTY_LABELS[currentQuestion.difficulty].label}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     {ttsSupported && (
                       <Button
                         type="button"
@@ -1445,18 +1582,18 @@ export default function DailyTrivia() {
                             : 'Soruyu Türkçe dinle'
                         }
                         className={cn(
-                          'h-8 gap-1.5 rounded-xl text-xs font-semibold transition-colors',
+                          'h-9 gap-1.5 rounded-xl border-slate-200/90 text-xs font-semibold transition-colors dark:border-blue-400/20',
                           isSpeaking
-                            ? 'border-primary bg-primary/15 text-primary hover:bg-primary/20'
+                            ? 'border-[#1f62e8] bg-blue-50 text-[#174ec4] dark:bg-blue-500/20 dark:text-blue-200'
                             : !audioPrefs.masterEnabled || !audioPrefs.ttsEnabled
                             ? 'opacity-60'
-                            : 'hover:border-primary/50 hover:text-primary',
+                            : 'hover:border-[#1f62e8]/50 hover:text-[#174ec4]',
                         )}
                       >
                         {isSpeaking ? (
                           <Square className="h-3 w-3 fill-current" />
                         ) : (
-                          <Volume2 className="h-3.5 w-3.5 text-primary" />
+                          <Volume2 className="h-3.5 w-3.5 text-[#174ec4] dark:text-blue-400" />
                         )}
                         <span>{isSpeaking ? 'Durdur' : 'Dinle'}</span>
                       </Button>
@@ -1468,9 +1605,9 @@ export default function DailyTrivia() {
                       onClick={handleToggleFlag}
                       aria-pressed={flagged.has(currentIdx)}
                       className={cn(
-                        'h-8 gap-1.5 rounded-xl text-xs font-semibold',
+                        'h-9 gap-1.5 rounded-xl border-slate-200/90 text-xs font-semibold dark:border-blue-400/20',
                         flagged.has(currentIdx) &&
-                          'border-amber-500 bg-amber-500/15 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300',
+                          'border-amber-500 bg-amber-500/15 text-amber-800 hover:bg-amber-500/20 dark:text-amber-300',
                       )}
                     >
                       <Flag className={cn('h-3.5 w-3.5', flagged.has(currentIdx) && 'fill-current')} />
@@ -1479,12 +1616,13 @@ export default function DailyTrivia() {
                   </div>
                 </div>
 
-                <h2 className="text-base font-bold leading-relaxed text-foreground sm:text-xl">
+                {/* High-Readability Question Stem */}
+                <h2 className="text-[18px] font-bold leading-[1.52] tracking-[-0.01em] text-foreground sm:text-[22px]">
                   {currentQuestion.question}
                 </h2>
 
-                {/* 4 Options (A, B, C, D) */}
-                <div className="space-y-2.5">
+                {/* 4 Equal-Standard Option Cards (A, B, C, D) */}
+                <div className="grid grid-cols-1 gap-3">
                   {currentQuestion.options.map((opt, idx) => {
                     const isSelected = selected[currentIdx] === idx;
                     const justPicked = isSelected && lastSelectedOption === idx;
@@ -1496,27 +1634,29 @@ export default function DailyTrivia() {
                         onClick={() => handleSelectOption(idx)}
                         aria-pressed={isSelected}
                         className={cn(
-                          'group flex w-full items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all sm:p-4',
+                          'group flex min-h-[60px] w-full items-center gap-3.5 rounded-2xl border px-4 py-3.5 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] sm:min-h-[64px] sm:px-5 sm:py-4',
                           isSelected
-                            ? 'border-primary bg-primary/10 ring-1 ring-primary/40 shadow-sm'
-                            : 'border-border/80 bg-background/75 hover:border-primary/50 hover:bg-primary/[0.04]',
+                            ? 'border-[#1f62e8] bg-blue-50/90 ring-1 ring-[#1f62e8]/35 shadow-sm dark:border-blue-400 dark:bg-blue-500/20 dark:ring-blue-400/35'
+                            : 'border-slate-200/90 bg-slate-50/55 hover:border-[#1f62e8]/55 hover:bg-blue-50/45 dark:border-blue-400/15 dark:bg-[#0f1f3f]/65 dark:hover:border-blue-400/45 dark:hover:bg-blue-500/10',
                           justPicked && 'trivia-anim-select',
                         )}
                       >
                         <span
                           className={cn(
-                            'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-xs font-extrabold transition-colors',
+                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-xs font-extrabold transition-colors',
                             isSelected
-                              ? 'border-primary bg-primary text-primary-foreground'
-                              : 'border-border/80 bg-muted/60 text-foreground group-hover:border-primary/50',
+                              ? 'border-[#174ec4] bg-[#174ec4] text-white shadow-xs dark:border-blue-400 dark:bg-blue-500'
+                              : 'border-slate-200/95 bg-white text-slate-700 group-hover:border-[#1f62e8]/50 group-hover:text-[#174ec4] dark:border-slate-700 dark:bg-[#0b1730] dark:text-slate-200 dark:group-hover:border-blue-400/50',
                           )}
                         >
                           {OPTION_LETTERS[idx]}
                         </span>
-                        <span className="flex-1 text-sm font-medium leading-snug text-foreground">
+                        <span className="flex-1 text-[15px] font-medium leading-snug text-foreground sm:text-base">
                           {opt}
                         </span>
-                        {isSelected && <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />}
+                        {isSelected && (
+                          <CheckCircle2 className="h-5 w-5 shrink-0 text-[#174ec4] dark:text-blue-400" />
+                        )}
                       </button>
                     );
                   })}
@@ -1524,19 +1664,21 @@ export default function DailyTrivia() {
 
                 {/* Last question: answer status review */}
                 {isLastQuestion && (
-                  <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4">
-                    <p className="text-sm font-extrabold text-foreground">Cevap Durumu</p>
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="rounded-xl border border-primary/25 bg-primary/[0.06] py-2">
-                        <p className="text-lg font-extrabold tabular-nums text-primary">{answeredCount}</p>
+                  <div className="space-y-3 rounded-2xl border border-slate-200/85 bg-slate-50/80 p-4 dark:border-blue-400/15 dark:bg-[#0f1f3f]/70">
+                    <p className="text-sm font-extrabold text-foreground">Cevap Özeti</p>
+                    <div className="grid grid-cols-3 gap-2.5 text-center text-xs">
+                      <div className="rounded-xl border border-[#1f62e8]/25 bg-blue-50/80 py-2.5 dark:border-blue-400/25 dark:bg-blue-500/15">
+                        <p className="text-lg font-extrabold tabular-nums text-[#174ec4] dark:text-blue-300">
+                          {answeredCount}
+                        </p>
                         <p className="text-muted-foreground">Cevaplanan</p>
                       </div>
-                      <div className="rounded-xl border border-border/70 bg-background py-2">
+                      <div className="rounded-xl border border-slate-200/85 bg-white py-2.5 dark:border-slate-700/80 dark:bg-[#0b1730]">
                         <p className="text-lg font-extrabold tabular-nums text-foreground">{blankIndexes.length}</p>
                         <p className="text-muted-foreground">Boş</p>
                       </div>
-                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.07] py-2">
-                        <p className="text-lg font-extrabold tabular-nums text-amber-600 dark:text-amber-400">
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] py-2.5">
+                        <p className="text-lg font-extrabold tabular-nums text-amber-700 dark:text-amber-300">
                           {flaggedIndexes.length}
                         </p>
                         <p className="text-muted-foreground">İşaretli</p>
@@ -1550,7 +1692,7 @@ export default function DailyTrivia() {
                             key={i}
                             type="button"
                             onClick={() => goToQuestion(i)}
-                            className="h-7 min-w-7 rounded-lg border border-dashed border-border bg-background px-2 font-bold tabular-nums text-foreground hover:border-primary"
+                            className="h-7 min-w-7 rounded-lg border border-dashed border-slate-300 bg-white px-2 font-bold tabular-nums text-foreground hover:border-[#1f62e8] dark:border-slate-600 dark:bg-[#0b1730]"
                           >
                             {i + 1}
                           </button>
@@ -1565,7 +1707,7 @@ export default function DailyTrivia() {
                             key={i}
                             type="button"
                             onClick={() => goToQuestion(i)}
-                            className="h-7 min-w-7 rounded-lg border border-amber-500 bg-amber-500/15 px-2 font-bold tabular-nums text-amber-700 dark:text-amber-300"
+                            className="h-7 min-w-7 rounded-lg border border-amber-500 bg-amber-500/15 px-2 font-bold tabular-nums text-amber-800 dark:text-amber-300"
                           >
                             {i + 1}
                           </button>
@@ -1580,14 +1722,14 @@ export default function DailyTrivia() {
                   </div>
                 )}
 
-                {/* Prev / Next / Finish */}
-                <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-4">
+                {/* Prev / Next / Finish Action Bar */}
+                <div className="flex items-center justify-between gap-3 border-t border-slate-200/80 pt-5 dark:border-blue-400/15">
                   <Button
                     type="button"
                     variant="outline"
                     disabled={currentIdx === 0 || finishing}
                     onClick={() => goToQuestion(currentIdx - 1)}
-                    className="h-11 gap-2 rounded-xl font-bold"
+                    className="h-12 gap-2 rounded-xl border-slate-200/90 px-4 font-bold dark:border-blue-400/20 sm:px-5"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     <span>Önceki Soru</span>
@@ -1598,7 +1740,7 @@ export default function DailyTrivia() {
                       type="button"
                       disabled={finishing}
                       onClick={() => setConfirmFinishOpen(true)}
-                      className="h-11 gap-2 rounded-xl bg-gradient-to-r from-[#003791] to-[#0070d1] font-extrabold text-white hover:opacity-95"
+                      className="h-12 gap-2 rounded-xl bg-gradient-to-r from-[#0a2970] via-[#174ec4] to-[#2563eb] px-5 font-extrabold text-white shadow-md hover:brightness-105 sm:px-6"
                     >
                       {finishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trophy className="h-4 w-4" />}
                       Yarışmayı Bitir
@@ -1608,7 +1750,7 @@ export default function DailyTrivia() {
                       type="button"
                       disabled={finishing}
                       onClick={() => goToQuestion(currentIdx + 1)}
-                      className="h-11 gap-2 rounded-xl font-bold"
+                      className="h-12 gap-2 rounded-xl bg-gradient-to-r from-[#0d3385] via-[#174ec4] to-[#2563eb] px-5 font-bold text-white shadow-sm hover:brightness-105 sm:px-6"
                     >
                       <span>Sonraki Soru</span>
                       <ArrowRight className="h-4 w-4" />
@@ -1620,7 +1762,7 @@ export default function DailyTrivia() {
 
             {/* Finish confirmation (always requires explicit approval) */}
             <AlertDialog open={confirmFinishOpen} onOpenChange={setConfirmFinishOpen}>
-              <AlertDialogContent className="rounded-3xl">
+              <AlertDialogContent className="rounded-3xl border-slate-200/90 dark:border-blue-400/20">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Yarışmayı bitirmek istiyor musun?</AlertDialogTitle>
                   <AlertDialogDescription asChild>
@@ -1643,8 +1785,13 @@ export default function DailyTrivia() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Sorulara Dön</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void finishQuiz(false)}>Evet, Bitir</AlertDialogAction>
+                  <AlertDialogCancel className="rounded-xl">Sorulara Dön</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => void finishQuiz(false)}
+                    className="rounded-xl bg-gradient-to-r from-[#0d3385] to-[#1f62e8] text-white"
+                  >
+                    Evet, Bitir
+                  </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -1652,26 +1799,31 @@ export default function DailyTrivia() {
             {/* Auto-finish / finishing overlay */}
             {finishing && (
               <div className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm font-semibold text-foreground">
-                  {timeIsUp ? 'Süre doldu, sonuçlar hesaplanıyor...' : 'Sonuçlar hesaplanıyor...'}
-                </p>
+                <div className="flex flex-col items-center gap-3 rounded-3xl border border-slate-200/80 bg-white px-8 py-6 shadow-xl dark:border-blue-400/20 dark:bg-[#0b1730]">
+                  <Loader2 className="h-8 w-8 animate-spin text-[#174ec4] dark:text-blue-400" />
+                  <p className="text-sm font-semibold text-foreground">
+                    {timeIsUp ? 'Süre doldu, sonuçlar hesaplanıyor...' : 'Sonuçlar hesaplanıyor...'}
+                  </p>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* ==================== 2B. 5-SECOND AWAY COUNTDOWN OVERLAY (in_progress OR grace_period) ==================== */}
+        {/* ==================== 2B. 5-SECOND AWAY COUNTDOWN OVERLAY ==================== */}
         {!errorMsg && isActiveQuiz && awayActive && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#001d52]/75 p-4 backdrop-blur-md">
-            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-border/80 bg-card text-center shadow-2xl">
-              <div className="bg-gradient-to-br from-[#001d52] via-[#003791] to-[#0055b8] px-6 py-5 text-white">
-                <div className="mx-auto mb-2.5 flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl border border-rose-300/35 bg-rose-500/20 text-rose-100">
-                  <ShieldAlert className="h-6 w-6" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#040d22]/75 p-4 backdrop-blur-md">
+            <div className="w-full max-w-md overflow-hidden rounded-[26px] border border-slate-200/90 bg-white text-center shadow-2xl dark:border-blue-400/20 dark:bg-[#0b1730]">
+              <div className="relative overflow-hidden bg-gradient-to-br from-[#061a44] via-[#0e3282] to-[#174ec4] px-6 py-6 text-white">
+                <TriviaHeroBannerPattern />
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="mb-3 flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl border border-rose-300/40 bg-rose-500/20 text-rose-100">
+                    <ShieldAlert className="h-6 w-6" />
+                  </div>
+                  <h2 className="text-lg font-extrabold tracking-tight">
+                    Yarışma Ekranından Ayrıldınız
+                  </h2>
                 </div>
-                <h2 className="text-lg font-extrabold tracking-tight">
-                  Yarışma Ekranından Ayrıldınız
-                </h2>
               </div>
               <div className="space-y-4 p-6">
                 <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
@@ -1687,7 +1839,7 @@ export default function DailyTrivia() {
                     window.focus();
                     void handleReturn('button_click');
                   }}
-                  className="h-11 w-full rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] font-extrabold text-white hover:opacity-95"
+                  className="h-12 w-full rounded-2xl bg-gradient-to-r from-[#0a2970] via-[#174ec4] to-[#2563eb] font-extrabold text-white hover:brightness-105"
                 >
                   Yarışmaya Geri Dön
                 </Button>
@@ -1698,9 +1850,9 @@ export default function DailyTrivia() {
 
         {/* ==================== 2C. GRACE PERIOD VERIFICATION FALLBACK ==================== */}
         {!errorMsg && attempt?.status === 'grace_period' && !awayActive && (
-          <Card className="rounded-3xl border-border/80 bg-card/95 p-8 text-center shadow-xl">
+          <Card className="rounded-[26px] border-slate-200/90 bg-white/95 p-8 text-center shadow-xl dark:border-blue-400/20 dark:bg-[#0b1730]/95">
             <CardContent className="flex flex-col items-center gap-3 p-0">
-              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              <Loader2 className="h-7 w-7 animate-spin text-[#174ec4] dark:text-blue-400" />
               <p className="text-sm font-semibold text-foreground">
                 Yarışma oturumunuz doğrulanıyor...
               </p>
@@ -1710,18 +1862,16 @@ export default function DailyTrivia() {
 
         {/* ==================== 3. CANCELLED / EXPIRED SCREEN ==================== */}
         {!errorMsg && (attempt?.status === 'cancelled' || attempt?.status === 'expired') && (
-          <Card className="trivia-anim-enter overflow-hidden rounded-3xl border-border/80 bg-card/95 shadow-xl">
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#001a4d] via-[#003791] to-[#0055b8] px-5 py-7 text-center text-white sm:px-8 sm:py-8">
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-rose-300/65 to-transparent"
-              />
-              <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-rose-400/20 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-cyan-400/20 blur-3xl" />
-              <div className="relative z-10 flex flex-col items-center space-y-3">
+          <Card
+            data-testid="trivia-cancelled"
+            className="trivia-anim-enter overflow-hidden rounded-[28px] border border-slate-200/90 bg-white/95 shadow-[0_24px_65px_-22px_rgba(11,42,110,0.22)] backdrop-blur-xl dark:border-blue-400/20 dark:bg-[#0b1730]/95 dark:shadow-[0_24px_65px_-22px_rgba(0,0,0,0.65)]"
+          >
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#061a44] via-[#0d2d73] to-[#174ec4] px-6 py-8 text-center text-white sm:px-9 sm:py-10">
+              <TriviaHeroBannerPattern />
+              <div className="relative z-10 flex flex-col items-center space-y-3.5">
                 <EconLogo
                   allWhite
-                  className="h-[26px] w-[117px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.22)] sm:h-[27px] sm:w-[121px]"
+                  className="h-[25px] w-[112px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.2)] sm:h-[27px] sm:w-[121px]"
                 />
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-300/40 bg-rose-500/20 text-rose-100 shadow-inner backdrop-blur-md">
                   {attempt.status === 'expired' ? (
@@ -1730,37 +1880,36 @@ export default function DailyTrivia() {
                     <ShieldAlert className="h-7 w-7" />
                   )}
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
                     {attempt.status === 'expired' ? 'Yarışma Süresi Doldu' : 'Yarışma İptal Edildi'}
                   </h1>
-                  <p className="mx-auto max-w-md text-xs leading-relaxed text-blue-100/95 sm:text-sm">
-                    {attempt.cancelMessage ||
-                      (attempt.status === 'expired'
-                        ? '15 dakikalık yarışma süresi dolduğu için oturum sonlandı.'
-                        : 'Yarışma sırasında 5 saniye içerisinde geri dönülmediği için katılımınız iptal edildi.')}
+                  <p className="mx-auto max-w-md text-sm leading-relaxed text-blue-100/95">
+                    {attempt.status === 'expired'
+                      ? '15 dakikalık yarışma süresi dolduğu için oturum sonlandı.'
+                      : 'Yarışma sırasında belirtilen süre içerisinde geri dönmediğiniz için katılımınız iptal edildi.'}
                   </p>
                 </div>
               </div>
             </div>
 
-            <CardContent className="space-y-4 p-5 sm:space-y-5 sm:p-7">
-              <div className="flex flex-col items-center justify-between gap-2 rounded-2xl border border-rose-500/25 bg-rose-500/[0.06] px-5 py-4 text-center sm:flex-row sm:text-left">
+            <CardContent className="space-y-4 p-5 sm:space-y-5 sm:p-8">
+              <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-rose-500/25 bg-rose-50/85 px-5 py-4 text-center dark:border-rose-400/25 dark:bg-rose-500/10 sm:flex-row sm:text-left">
                 <div className="space-y-0.5">
-                  <p className="text-xs font-bold uppercase tracking-wider text-rose-600/85 dark:text-rose-400">
-                    Ödül Durumu
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                    Katılım &amp; Ödül Durumu
                   </p>
                   <p className="text-sm font-semibold text-foreground">
-                    Bu yarışma için XP ve ödül kazanılamadı.
+                    Bu yarışma için XP ve ödül kazanılmadı.
                   </p>
                 </div>
-                <span className="inline-flex shrink-0 items-center rounded-xl border border-rose-500/30 bg-rose-500/10 px-3.5 py-1.5 text-lg font-black tabular-nums text-rose-600 dark:text-rose-400">
+                <span className="inline-flex shrink-0 items-center rounded-xl border border-rose-500/30 bg-white px-4 py-1.5 text-lg font-black tabular-nums text-rose-600 shadow-2xs dark:bg-[#0b1730] dark:text-rose-400">
                   0 XP
                 </span>
               </div>
 
-              <div className="flex items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.05] px-4 py-3 text-xs font-semibold text-foreground sm:text-sm">
-                <Clock className="h-4 w-4 shrink-0 text-primary" />
+              <div className="flex items-center justify-center gap-2.5 rounded-2xl border border-[#1f62e8]/20 bg-blue-50/70 px-4 py-3.5 text-xs font-semibold text-foreground dark:border-blue-400/20 dark:bg-blue-500/10 sm:text-sm">
+                <Clock className="h-4 w-4 shrink-0 text-[#174ec4] dark:text-blue-400" />
                 <span className="tabular-nums">{renewalInfo.label}</span>
               </div>
 
@@ -1768,7 +1917,7 @@ export default function DailyTrivia() {
                 <Button
                   type="button"
                   onClick={() => navigate('/')}
-                  className="h-11 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] px-6 font-extrabold text-white shadow-md shadow-primary/20 hover:opacity-95 sm:w-auto sm:min-w-[200px]"
+                  className="h-12 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#0a2970] via-[#174ec4] to-[#2563eb] px-6 font-extrabold text-white shadow-md hover:brightness-105 sm:w-auto sm:min-w-[210px]"
                 >
                   <Home className="h-4 w-4" />
                   Ana Sayfaya Dön
@@ -1777,9 +1926,9 @@ export default function DailyTrivia() {
                   type="button"
                   variant="outline"
                   onClick={() => navigate('/notes')}
-                  className="h-11 w-full gap-2 rounded-2xl px-5 font-semibold sm:w-auto"
+                  className="h-12 w-full gap-2 rounded-2xl border-slate-200/90 px-5 font-semibold dark:border-blue-400/20 sm:w-auto"
                 >
-                  <BookOpen className="h-4 w-4 text-primary" />
+                  <BookOpen className="h-4 w-4 text-[#174ec4] dark:text-blue-400" />
                   Ders Notlarına Git
                 </Button>
               </div>
@@ -1787,153 +1936,175 @@ export default function DailyTrivia() {
           </Card>
         )}
 
-        {/* ==================== 4. RESULT SCREEN ==================== */}
+        {/* ==================== 4. COMPLETION / RESULT SCREEN ==================== */}
         {!errorMsg && attempt?.status === 'completed' && (
           <Card
+            data-testid="trivia-results"
             className={cn(
-              'trivia-anim-enter overflow-hidden rounded-3xl bg-card/95 shadow-xl',
+              'trivia-anim-enter overflow-hidden rounded-[28px] bg-white/95 shadow-[0_24px_65px_-22px_rgba(11,42,110,0.22)] backdrop-blur-xl dark:bg-[#0b1730]/95 dark:shadow-[0_24px_65px_-22px_rgba(0,0,0,0.65)]',
               attempt.grandPrizeAwarded
-                ? 'border-2 border-amber-400/60 shadow-amber-500/10'
-                : 'border-border/80',
+                ? 'border-2 border-amber-400/65 dark:border-amber-400/50'
+                : 'border border-slate-200/90 dark:border-blue-400/20',
             )}
           >
             <div
               className={cn(
-                'relative overflow-hidden px-5 py-6 text-center text-white sm:px-8 sm:py-8',
+                'relative overflow-hidden px-6 py-8 text-center text-white sm:px-10 sm:py-10',
                 attempt.grandPrizeAwarded
-                  ? 'bg-gradient-to-br from-[#001a4d] via-[#003791] to-amber-500'
-                  : 'bg-gradient-to-br from-[#001a4d] via-[#003791] to-[#0066cc]',
+                  ? 'bg-gradient-to-br from-[#06183f] via-[#0e3282] to-[#1a4fb8]'
+                  : 'bg-gradient-to-br from-[#061a44] via-[#0e3282] to-[#1f62e8]',
               )}
             >
-              <div
-                aria-hidden="true"
-                className={cn(
-                  'pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent to-transparent',
-                  attempt.grandPrizeAwarded ? 'via-amber-200/85' : 'via-cyan-200/60',
-                )}
-              />
+              <TriviaHeroBannerPattern goldAccent={Boolean(attempt.grandPrizeAwarded)} />
               {attempt.grandPrizeAwarded && (
                 <div
                   aria-hidden="true"
                   className="trivia-anim-shimmer pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-amber-200/20 to-transparent"
                 />
               )}
-              <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/25 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-14 -left-10 h-40 w-40 rounded-full bg-amber-400/20 blur-3xl" />
-              <div className="relative z-10 flex flex-col items-center space-y-3">
+              <div className="relative z-10 flex flex-col items-center space-y-3.5">
                 <EconLogo
                   allWhite
-                  className="h-[26px] w-[117px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.22)] sm:h-[27px] sm:w-[121px]"
+                  className="h-[25px] w-[112px] justify-center drop-shadow-[0_1px_2px_rgba(0,0,0,0.2)] sm:h-[27px] sm:w-[121px]"
                 />
                 <div
                   className={cn(
                     'flex h-14 w-14 items-center justify-center rounded-2xl border shadow-inner backdrop-blur-md',
                     attempt.grandPrizeAwarded
-                      ? 'trivia-anim-correct border-amber-200/50 bg-amber-400/25 text-amber-200'
-                      : 'border-white/25 bg-white/15 text-cyan-200',
+                      ? 'trivia-anim-correct border-amber-300/60 bg-amber-400/20 text-amber-200'
+                      : 'border-white/25 bg-white/15 text-sky-100',
                   )}
                 >
                   {attempt.grandPrizeAwarded ? (
-                    <Crown className="h-7 w-7" />
+                    <Crown className="h-7 w-7" strokeWidth={1.9} />
                   ) : (
-                    <Trophy className="h-7 w-7" />
+                    <Award className="h-7 w-7" strokeWidth={1.9} />
                   )}
                 </div>
-                <div className="space-y-1">
+
+                {attempt.grandPrizeAwarded && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/50 bg-amber-400/15 px-3.5 py-1 text-xs font-extrabold tracking-wide text-amber-200">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    15/15 Kusursuz Başarı
+                  </span>
+                )}
+
+                <div className="space-y-1.5">
                   <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                    {attempt.grandPrizeAwarded
-                      ? '15/15 Mükemmel Başarı!'
-                      : attempt.timedOut
-                      ? 'Süre Doldu'
-                      : 'Yarışma Tamamlandı'}
+                    Yarışma Tamamlandı
                   </h1>
                   <p className="mx-auto max-w-md text-xs leading-relaxed text-blue-100/95 sm:text-sm">
                     {attempt.grandPrizeAwarded
-                      ? 'Tüm soruları doğru bildin! 375 XP ve 2 saatlik sınırsız not erişimi kazandın.'
+                      ? '15 sorunun tamamını doğru yanıtladın. 375 XP ve 2 saatlik sınırsız not erişimi hesabına tanımlandı.'
                       : attempt.timedOut
-                      ? 'Süre dolduğunda kaydedilmiş cevapların değerlendirildi.'
-                      : 'Bugünkü 15 soruluk genel kültür yarışmasını tamamladın.'}
+                      ? 'Yarışma süresi dolduğunda kaydedilmiş cevapların değerlendirildi.'
+                      : 'Bugünkü 15 soruluk genel kültür yarışmasını başarıyla tamamladın.'}
                   </p>
                 </div>
               </div>
             </div>
 
-            <CardContent className="space-y-4 p-5 sm:space-y-5 sm:p-7">
-              {/* Prominent Earned XP Showcase */}
-              <div
-                className={cn(
-                  'flex flex-col items-center justify-between gap-3 rounded-2xl border px-5 py-4 text-center sm:flex-row sm:px-6 sm:text-left',
-                  attempt.grandPrizeAwarded
-                    ? 'border-amber-500/40 bg-gradient-to-r from-amber-500/[0.12] via-[#003791]/[0.06] to-amber-500/10'
-                    : 'border-primary/25 bg-gradient-to-r from-[#003791]/[0.08] via-[#0055b8]/[0.05] to-cyan-500/[0.08]',
-                )}
-              >
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-primary/80">
-                    Kazanılan XP
-                  </p>
-                  <p className="mt-0.5 text-3xl font-black tracking-tight tabular-nums text-primary sm:text-4xl">
-                    +{attempt.xpEarned} XP
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-center gap-1.5 sm:items-end">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-background/80 px-3 py-1 text-xs font-semibold tabular-nums text-foreground">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    {resultCorrect} doğru × {TRIVIA_XP_PER_CORRECT} XP
-                  </span>
-                  {attempt.grandPrizeAwarded && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-xs font-extrabold text-amber-700 dark:text-amber-300">
-                      <Crown className="h-3.5 w-3.5" />
-                      2 Saatlik Sınırsız Not Erişimi Aktif
+            <CardContent className="space-y-5 p-5 sm:space-y-6 sm:p-8">
+              {/* Special 15/15 Grand Prize Achievement Panel */}
+              {attempt.grandPrizeAwarded && (
+                <div
+                  data-testid="trivia-grand-prize-panel"
+                  className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-amber-400/50 bg-gradient-to-r from-amber-50/95 via-white to-blue-50/90 px-5 py-4 text-center dark:border-amber-400/40 dark:from-amber-500/15 dark:via-[#0d1c3a] dark:to-blue-500/15 sm:flex-row sm:text-left"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-amber-400/50 bg-amber-400/15 text-amber-700 dark:text-amber-300">
+                      <Crown className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-extrabold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                        Büyük Ödül Kazanıldı · 15/15
+                      </p>
+                      <p className="text-sm font-bold text-foreground">
+                        375 XP + 2 Saatlik Sınırsız Not Erişimi Aktif
+                      </p>
+                    </div>
+                  </div>
+                  {activeUnlimitedPass && (
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-400/45 bg-amber-500/15 px-3 py-1.5 font-mono text-xs font-extrabold tabular-nums text-amber-800 dark:text-amber-200">
+                      <Clock className="h-3.5 w-3.5" />
+                      {activeUnlimitedPass.remaining}
                     </span>
                   )}
                 </div>
-              </div>
+              )}
 
-              {/* Balanced Correct / Wrong / Blank Stat Cards */}
-              <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.07] px-3 py-3.5 text-center">
-                  <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              {/* 4 Balanced KPI Stat Cards: Doğru / Yanlış / Boş / Kazanılan XP */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-50/75 px-3.5 py-4 text-center dark:border-emerald-400/25 dark:bg-emerald-500/10">
+                  <div className="mx-auto mb-1.5 flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
-                  <p className="text-2xl font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+                  <p className="text-2xl font-black tabular-nums text-emerald-700 dark:text-emerald-300">
                     {resultCorrect}
                   </p>
-                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
-                    Doğru
-                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-muted-foreground">Doğru</p>
                 </div>
 
-                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/[0.06] px-3 py-3.5 text-center">
-                  <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                <div className="rounded-2xl border border-rose-500/25 bg-rose-50/70 px-3.5 py-4 text-center dark:border-rose-400/25 dark:bg-rose-500/10">
+                  <div className="mx-auto mb-1.5 flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400">
                     <XCircle className="h-4 w-4" />
                   </div>
                   <p className="text-2xl font-black tabular-nums text-rose-600 dark:text-rose-400">
                     {resultWrong}
                   </p>
-                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
-                    Yanlış
-                  </p>
+                  <p className="mt-0.5 text-xs font-semibold text-muted-foreground">Yanlış</p>
                 </div>
 
-                <div className="rounded-2xl border border-border/75 bg-muted/30 px-3 py-3.5 text-center">
-                  <div className="mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <div className="rounded-2xl border border-slate-200/90 bg-slate-50/85 px-3.5 py-4 text-center dark:border-slate-700/80 dark:bg-[#0f1f3f]/75">
+                  <div className="mx-auto mb-1.5 flex h-8 w-8 items-center justify-center rounded-xl bg-slate-200/70 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300">
                     <MinusCircle className="h-4 w-4" />
                   </div>
                   <p className="text-2xl font-black tabular-nums text-foreground">
                     {resultBlank}
                   </p>
-                  <p className="mt-0.5 text-[11px] font-semibold text-muted-foreground sm:text-xs">
-                    Boş
+                  <p className="mt-0.5 text-xs font-semibold text-muted-foreground">Boş</p>
+                </div>
+
+                <div
+                  className={cn(
+                    'rounded-2xl border px-3.5 py-4 text-center',
+                    attempt.grandPrizeAwarded
+                      ? 'border-amber-400/45 bg-amber-50/80 dark:border-amber-400/35 dark:bg-amber-500/15'
+                      : 'border-[#1f62e8]/30 bg-blue-50/80 dark:border-blue-400/30 dark:bg-blue-500/15',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'mx-auto mb-1.5 flex h-8 w-8 items-center justify-center rounded-xl',
+                      attempt.grandPrizeAwarded
+                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                        : 'bg-[#174ec4]/15 text-[#174ec4] dark:text-blue-300',
+                    )}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <p
+                    className={cn(
+                      'text-2xl font-black tabular-nums',
+                      attempt.grandPrizeAwarded
+                        ? 'text-amber-700 dark:text-amber-300'
+                        : 'text-[#174ec4] dark:text-blue-300',
+                    )}
+                  >
+                    +{attempt.xpEarned} XP
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                    {resultCorrect} × {TRIVIA_XP_PER_CORRECT} XP
                   </p>
                 </div>
               </div>
 
               {/* 1-15 Question-by-Question Answer Summary */}
-              <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/20 p-4">
+              <div className="space-y-3 rounded-2xl border border-slate-200/85 bg-slate-50/75 p-4 dark:border-blue-400/15 dark:bg-[#0f1f3f]/65 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-extrabold text-foreground">Soru Bazında Cevap Özeti</p>
+                  <p className="text-xs font-extrabold text-foreground sm:text-sm">
+                    1–15 Soru Sonuç Özeti
+                  </p>
                   <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" /> Doğru
@@ -1968,16 +2139,16 @@ export default function DailyTrivia() {
                         aria-label={`Soru ${idx + 1}: ${stateLabel}`}
                         title={`Soru ${idx + 1}: ${stateLabel}`}
                         className={cn(
-                          'flex h-9 items-center justify-center rounded-xl border text-xs font-extrabold tabular-nums transition-all sm:h-8',
+                          'flex h-10 items-center justify-center rounded-xl border text-xs font-extrabold tabular-nums transition-all sm:h-9',
                           state === 'correct' &&
                             'border-emerald-500/45 bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300',
                           state === 'wrong' &&
                             'border-rose-500/45 bg-rose-500/15 text-rose-700 hover:bg-rose-500/25 dark:text-rose-300',
                           state === 'blank' &&
-                            'border-dashed border-border bg-background/80 text-muted-foreground hover:border-primary/40',
+                            'border-dashed border-slate-300 bg-white text-muted-foreground hover:border-[#1f62e8]/50 dark:border-slate-600 dark:bg-[#0b1730]',
                           isInspected && state === 'correct' && 'trivia-anim-correct ring-2 ring-emerald-500/60',
                           isInspected && state === 'wrong' && 'trivia-anim-wrong ring-2 ring-rose-500/60',
-                          isInspected && state === 'blank' && 'ring-2 ring-primary/40',
+                          isInspected && state === 'blank' && 'ring-2 ring-[#1f62e8]/45',
                         )}
                       >
                         {idx + 1}
@@ -1993,13 +2164,13 @@ export default function DailyTrivia() {
                     <div
                       key={inspectedAnswerIdx}
                       className={cn(
-                        'trivia-anim-enter flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs',
+                        'trivia-anim-enter flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-xs',
                         state === 'correct' &&
-                          'border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+                          'border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300',
                         state === 'wrong' &&
                           'border-rose-500/35 bg-rose-500/10 text-rose-700 dark:text-rose-300',
                         state === 'blank' &&
-                          'border-border/75 bg-background/80 text-muted-foreground',
+                          'border-slate-200/90 bg-white text-muted-foreground dark:border-slate-700 dark:bg-[#0b1730]',
                       )}
                     >
                       <span className="font-bold">
@@ -2019,35 +2190,35 @@ export default function DailyTrivia() {
               </div>
 
               {/* Next Daily Quiz Renewal Countdown */}
-              <div className="flex items-center justify-center gap-2 rounded-2xl border border-primary/20 bg-primary/[0.05] px-4 py-3 text-xs font-semibold text-foreground sm:text-sm">
-                <Clock className="h-4 w-4 shrink-0 text-primary" />
+              <div className="flex items-center justify-center gap-2.5 rounded-2xl border border-[#1f62e8]/20 bg-blue-50/70 px-4 py-3.5 text-xs font-semibold text-foreground dark:border-blue-400/20 dark:bg-blue-500/10 sm:text-sm">
+                <Clock className="h-4 w-4 shrink-0 text-[#174ec4] dark:text-blue-400" />
                 <span className="tabular-nums">{renewalInfo.label}</span>
               </div>
 
-              {/* Unified Action Row */}
-              <div className="flex flex-col gap-2.5 pt-1 sm:flex-row sm:justify-center">
-                <Button
-                  type="button"
-                  onClick={() => navigate('/notes')}
-                  className="h-11 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#003791] via-[#0055b8] to-[#0070d1] px-5 font-extrabold text-white shadow-md shadow-primary/20 hover:opacity-95 sm:w-auto"
-                >
-                  <BookOpen className="h-4 w-4" />
-                  {attempt.grandPrizeAwarded ? 'Sınırsız Notlara Git' : 'Ders Notlarına Git'}
-                </Button>
+              {/* Standardized 3-Button Action Row */}
+              <div className="grid grid-cols-1 gap-2.5 pt-1 sm:grid-cols-3">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => navigate('/points')}
-                  className="h-11 w-full gap-2 rounded-2xl px-5 font-semibold sm:w-auto"
+                  className="h-12 w-full gap-2 rounded-2xl border-slate-200/90 font-semibold hover:border-[#1f62e8]/50 hover:text-[#174ec4] dark:border-blue-400/20 dark:hover:border-blue-400/45 dark:hover:text-blue-300"
                 >
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  Puan Geçmişim
+                  <Sparkles className="h-4 w-4 text-[#174ec4] dark:text-blue-400" />
+                  Puan Geçmişi
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => navigate('/notes')}
+                  className="h-12 w-full gap-2 rounded-2xl bg-gradient-to-r from-[#0a2970] via-[#174ec4] to-[#2563eb] font-extrabold text-white shadow-md hover:brightness-105"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Ders Notlarına Git
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => navigate('/')}
-                  className="h-11 w-full gap-2 rounded-2xl px-5 font-semibold sm:w-auto"
+                  className="h-12 w-full gap-2 rounded-2xl border-slate-200/90 font-semibold hover:border-[#1f62e8]/50 hover:text-[#174ec4] dark:border-blue-400/20 dark:hover:border-blue-400/45 dark:hover:text-blue-300"
                 >
                   <Home className="h-4 w-4" />
                   Ana Sayfaya Dön

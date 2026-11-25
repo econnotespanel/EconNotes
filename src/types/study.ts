@@ -167,6 +167,7 @@ export interface SummaryJobState {
   userId: string;
   notebookId?: string;
   sourceFingerprint: string;
+  sourceIds?: string[];
   title: string;
   course: string;
   disciplineFamily: SummaryDocumentProfile['disciplineFamily'];
@@ -221,6 +222,7 @@ export interface SummaryContent {
     faculty?: string;
     isLargeBundle?: boolean;
     sourceFingerprint?: string;
+    sourceIds?: string[];
     analyzedCourses?: string[];
     isMultiCourse?: boolean;
     jobId?: string;
@@ -244,6 +246,8 @@ export interface QuizQuestion {
   sampleAnswer?: string;
   rubric?: string[];
   explanation?: string;
+  /** Option-level explanations of why specific wrong options are incorrect (keyed by 'A'|'B'|'C'|'D' or index) */
+  distractorExplanations?: Record<string, string>;
   topic?: string;
   sourceSection?: string;
   sourcePage?: string;
@@ -274,6 +278,7 @@ export interface QuizContent {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
     sourceFingerprint?: string;
+    sourceIds?: string[];
     analyzedCourses?: string[];
     isMultiCourse?: boolean;
   };
@@ -288,6 +293,16 @@ export interface OpenEndedGradeResult {
   improvedAnswer: string;
 }
 
+export type FlashcardCategory =
+  | 'concept'
+  | 'theory'
+  | 'comparison'
+  | 'cause_effect'
+  | 'formula_model'
+  | 'case_study'
+  | 'applied'
+  | 'analysis';
+
 export interface FlashcardItem {
   id?: string;
   front: string;
@@ -298,7 +313,25 @@ export interface FlashcardItem {
   sourcePage?: string;
   conceptKey?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
+  cardType?: FlashcardCategory;
   examTip?: string;
+}
+
+export interface VideoScenarioChapter {
+  id: string;
+  title: string;
+  focusNotes: string;
+  diagramType: 'visual' | 'table' | 'comparison' | 'timeline' | 'curve' | 'scenario' | 'structure' | 'network';
+  pageHint?: string;
+}
+
+export interface VideoScenarioPlan {
+  lessonTitle: string;
+  courseName: string;
+  learningObjectives: string[];
+  chapters: VideoScenarioChapter[];
+  narrationStyle: 'academic' | 'exam_focus' | 'feynman';
+  speechPace: 'calm' | 'normal' | 'brisk';
 }
 
 export interface FlashcardsContent {
@@ -308,6 +341,7 @@ export interface FlashcardsContent {
     sourceMode?: 'ai' | 'fallback' | 'local';
     deepResearch?: boolean;
     sourceFingerprint?: string;
+    sourceIds?: string[];
     analyzedCourses?: string[];
     isMultiCourse?: boolean;
   };
@@ -333,6 +367,7 @@ export type StudyContentPayload = Partial<SummaryContent> &
       faculty?: string;
       isLargeBundle?: boolean;
       sourceFingerprint?: string;
+      sourceIds?: string[];
       analyzedCourses?: string[];
       isMultiCourse?: boolean;
       qualityVerified?: boolean;
@@ -421,6 +456,7 @@ export interface ProcessedStudyBundle {
   extractionWarnings?: string[];
   canonicalAnalysisDigest?: string;
   sourceFingerprint?: string;
+  sourceIds?: string[];
   combinedText: string;
   totalWords: number;
   totalChars: number;
@@ -451,6 +487,7 @@ export interface StudioGenerationSettings {
   generationNonce?: string;
   previousQuestions?: QuizQuestion[];
   previousFlashcards?: FlashcardItem[];
+  videoScenarioPlan?: VideoScenarioPlan;
 }
 
 export interface NotebookAttachmentImage {

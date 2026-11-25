@@ -81,6 +81,14 @@ interface GenerateReq {
   priorityTopics?: string[];
   generationNonce?: string;
   sourceFingerprint?: string;
+  sourceIds?: string[];
+  videoScenarioPlan?: {
+    lessonTitle?: string;
+    courseName?: string;
+    learningObjectives?: string[];
+    chapters?: Array<{ title: string; focusNotes?: string; diagramType?: string }>;
+    narrationStyle?: string;
+  };
   targetSectionRange?: string;
   minWordsPerSection?: number;
   maxWordsPerSection?: number;
@@ -804,9 +812,10 @@ ${customDirective}${priorityBlock}${avoidBlock}
 
 KURALLAR:
 1. YALNIZCA bu kaynaktaki gerçek dersin kavram, tanım, teori, formül ve ayrımlarından kart üret; başka bir dersin bilgilerini KESİNLİKLE karıştırma.
-2. Kartların yarısı kavramsal derinlik/karşılaştırma ("Neden?", "Farkı nedir?", "Koşulu/unsuru nedir?"), kalanı kaynaktaki formül ($...$), mekanizma ve sınav tuzağı sormalıdır (sözel derslerde uydurma formül ekleme).
-3. Belgenin başından sonuna tüm önemli başlıkları dengeli dağıt; aynı kavramı farklı kelimelerle iki kez sorma ve "..." ile kesik ön yüz yazma.
-4. YALNIZCA geçerli JSON döndür:
+2. Kartların dağılımı %20 "easy" (temel kavram), %50 "medium" (mekanizma/uygulama/neden-sonuç), %30 "hard" (karşılaştırma/analiz/varsayım) olacak şekilde bilişsel derinlik sağla. Tek kelimelik yüzeysel kartlar YASAKTIR.
+3. 8 kart türünü ("cardType") dengeli kullan: "concept" | "theory" | "comparison" | "cause_effect" | "formula_model" | "case_study" | "applied" | "analysis".
+4. Belgenin başından sonuna tüm önemli başlıkları dengeli dağıt; aynı kavramı farklı kelimelerle iki kez sorma ve "..." ile kesik ön yüz yazma.
+5. YALNIZCA geçerli JSON döndür:
 {
   "cards": [
     {
@@ -816,6 +825,7 @@ KURALLAR:
       "topic": "Kaynaktaki alt konu (çoklu derste [Ders Adı] — Konu)",
       "sourceSection": "Belgedeki ilgili başlık",
       "sourcePage": "Sayfa/Slayt no (varsa)",
+      "cardType": "concept" | "theory" | "comparison" | "cause_effect" | "formula_model" | "case_study" | "applied" | "analysis",
       "difficulty": "easy" | "medium" | "hard",
       "examTip": "Sınavda sorulursa dikkat edilecek kritik tuzak veya püf noktası"
     }
@@ -887,6 +897,7 @@ KESİN KURALLAR:
       "sampleAnswer": "Açık uçlu ise tam puanlık net örnek cevap",
       "rubric": ["Puanlama kriteri 1", "Puanlama kriteri 2"],
       "explanation": "Doğru cevabın nota dayalı anlaşılır açıklaması",
+      "distractorExplanations": { "B": "B şıkkının neden yanlış olduğu", "C": "C şıkkının neden yanlış olduğu", "D": "D şıkkının neden yanlış olduğu" },
       "topic": "Nottaki ilgili alt konu (çoklu derste [Ders Adı] — Konu)",
       "sourceSection": "Belgedeki konu başlığı",
       "sourcePage": "Sayfa/Slayt no (varsa)",
@@ -907,9 +918,23 @@ KESİN KURALLAR:
   }
 
   // --- VIDEO (High-readability, strictly source-faithful, visual-narration-subtitle synchronized) ---
+  const videoPlanDirective =
+    req.videoScenarioPlan && Array.isArray(req.videoScenarioPlan.chapters) && req.videoScenarioPlan.chapters.length > 0
+      ? `\nÖĞRENCİNİN ONAYLADIĞI SENARYO VE BÖLÜM PLANI (BU BÖLÜMLERİ VE ŞEMA TÜRLERİNİ TAKİP ET):
+- Başlık: ${String(req.videoScenarioPlan.lessonTitle || noteTitle).slice(0, 160)}
+- Hedefler: ${(req.videoScenarioPlan.learningObjectives || []).slice(0, 5).map((o) => String(o).slice(0, 140)).join(' | ')}
+- Bölümler:
+${req.videoScenarioPlan.chapters
+  .slice(0, 8)
+  .map(
+    (ch, i) =>
+      `  ${i + 1}. ${String(ch.title || '').slice(0, 120)} [Şema: ${String(ch.diagramType || 'visual')}] — ${String(ch.focusNotes || '').slice(0, 200)}`,
+  )
+  .join('\n')}`
+      : '';
   const system = `Sen tüm üniversite dersleri için ders notlarını yüksek okunabilirlikli, %100 konuya ve ortak kaynak analizine sadık, ses-görsel-altyazı birebir uyumlu etkileşimli video derslere dönüştüren akademik senaristsin.
 Verilen ders materyalinden 5-8 sahneli, Dr. Deniz (anlatıcı akademisyen) ile Barış (meraklı öğrenci) arasında geçen doğal, akıcı ve %100 not içeriğine bağlı Türkçe Video Ders paketi oluştur.
-${multiCourseDirective}
+${multiCourseDirective}${videoPlanDirective}
 ${styleInstruction}
 ${customDirective}
 
@@ -1161,6 +1186,18 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
             topic: c.topic ? String(c.topic).trim() : req.course || 'Genel',
             sourceSection: c.sourceSection ? String(c.sourceSection).trim() : undefined,
             sourcePage: c.sourcePage ? String(c.sourcePage).trim() : undefined,
+            cardType: [
+              'concept',
+              'theory',
+              'comparison',
+              'cause_effect',
+              'formula_model',
+              'case_study',
+              'applied',
+              'analysis',
+            ].includes(c.cardType)
+              ? c.cardType
+              : undefined,
             difficulty: ['easy', 'medium', 'hard'].includes(c.difficulty) ? c.difficulty : 'medium',
             examTip: c.examTip ? String(c.examTip).trim() : undefined,
           }))
@@ -1223,6 +1260,18 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
             const explanation = String(q.explanation || '').trim();
             if (explanation.length < 16) return null;
 
+            const cleanedDistractors: Record<string, string> = {};
+            if (q.distractorExplanations && typeof q.distractorExplanations === 'object') {
+              const correctLetter = String.fromCharCode(65 + rawCorrect);
+              for (const [k, v] of Object.entries(q.distractorExplanations as Record<string, unknown>)) {
+                const letter = k.trim().toUpperCase();
+                const text = String(v || '').trim();
+                if (/^[A-D]$/.test(letter) && letter !== correctLetter && text.length >= 6) {
+                  cleanedDistractors[letter] = text;
+                }
+              }
+            }
+
             seenStems.add(normStem);
             return {
               type: 'multiple_choice',
@@ -1230,6 +1279,8 @@ function normalizeMaterialContent(materialType: GenerateReq['materialType'], sta
               options: opts,
               correctIndex: rawCorrect,
               explanation,
+              distractorExplanations:
+                Object.keys(cleanedDistractors).length > 0 ? cleanedDistractors : undefined,
               topic: q.topic ? String(q.topic).trim() : req.course || 'Genel',
               sourceSection: q.sourceSection ? String(q.sourceSection).trim() : undefined,
               sourcePage: q.sourcePage ? String(q.sourcePage).trim() : undefined,

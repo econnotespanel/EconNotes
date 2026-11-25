@@ -40,9 +40,11 @@ export function TriviaAudioControls({
           aria-label="Ses ve görünüm ayarları"
           title="Ses ve animasyon ayarları"
           className={cn(
-            'relative h-8 shrink-0 gap-1.5 rounded-xl border-border/80 bg-background/80 text-xs font-semibold transition-colors',
-            compact ? 'w-8 px-0 sm:w-auto sm:px-2.5' : 'px-2.5',
-            !isMuted && prefs.musicEnabled && 'border-primary/45 bg-primary/10 text-primary',
+            'relative h-9 shrink-0 gap-1.5 rounded-xl border-slate-200/90 bg-white/90 text-xs font-semibold text-slate-700 transition-colors hover:border-[#1f62e8]/50 hover:text-[#174ec4] dark:border-blue-400/20 dark:bg-[#0d1b38]/90 dark:text-slate-200 dark:hover:border-blue-400/45 dark:hover:text-blue-300',
+            compact ? 'w-9 px-0 sm:w-auto sm:px-3' : 'px-3',
+            !isMuted &&
+              prefs.musicEnabled &&
+              'border-[#1f62e8]/50 bg-blue-50/90 text-[#174ec4] dark:border-blue-400/45 dark:bg-blue-500/15 dark:text-blue-300',
           )}
         >
           {isMuted ? (

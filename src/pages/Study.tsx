@@ -13,6 +13,7 @@ import { NeuralReportDialog } from '@/components/study/neural/NeuralReportDialog
 import { NeuralWorkspaceFrame } from '@/components/study/neural/NeuralWorkspaceFrame';
 import { NotebookStudioWorkspace } from '@/components/study/neural/NotebookStudioWorkspace';
 import { SummaryAnalysisProgressView } from '@/components/study/neural/SummaryAnalysisProgressView';
+import { VideoScenarioPreviewDialog } from '@/components/study/neural/VideoScenarioPreviewDialog';
 import { useNeuralEngine } from '@/components/study/neural/useNeuralEngine';
 import { Button } from '@/components/ui/button';
 import {
@@ -76,6 +77,7 @@ import type {
   StudyMaterial,
   StudyProgressRow,
   SummaryJobState,
+  VideoScenarioPlan,
 } from '@/types/study';
 
 const NeuralVideoStudioLazy = lazy(() => import('@/components/study/neural/NeuralVideoStudio'));
@@ -113,7 +115,7 @@ function normalizeTab(tab: NeuralTabId | null): NeuralTabId {
 }
 
 export default function Study() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const engine = useNeuralEngine();
@@ -141,6 +143,10 @@ export default function Study() {
   const [generationPct, setGenerationPct] = useState(0);
   const [generationLabel, setGenerationLabel] = useState('');
   const [pendingCourseConfirmType, setPendingCourseConfirmType] = useState<MaterialType | null>(null);
+  const [pendingMultiCourseType, setPendingMultiCourseType] = useState<MaterialType | null>(null);
+  const [videoScenarioOpen, setVideoScenarioOpen] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
   const [convertingTo, setConvertingTo] = useState<MaterialType | null>(null);
   const [expandingSectionIdx, setExpandingSectionIdx] = useState<number | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -343,6 +349,42 @@ export default function Study() {
   }, [refreshSrsCards]);
 
   const dueCards = useMemo(() => getDueSrsCards(srsCards), [srsCards]);
+
+  // Sync browser Fullscreen API state (explicit user click ONLY — never auto-invoked)
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsBrowserFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const handleToggleFocusMode = useCallback(() => {
+    setFocusMode((prev) => {
+      const next = !prev;
+      if (!next && document.fullscreenElement && typeof document.exitFullscreen === 'function') {
+        void document.exitFullscreen().catch(() => {});
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleBrowserFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) {
+        if (typeof document.exitFullscreen === 'function') {
+          await document.exitFullscreen();
+        }
+      } else if (typeof document.documentElement.requestFullscreen === 'function') {
+        await document.documentElement.requestFullscreen();
+        setFocusMode(true);
+      } else {
+        setFocusMode((prev) => !prev);
+      }
+    } catch {
+      setFocusMode((prev) => !prev);
+    }
+  }, []);
 
   // 60-minute study break wellness reminder
   useEffect(() => {
@@ -862,12 +904,20 @@ export default function Study() {
 
   const handleNotebookGenerateType = async (
     targetType: MaterialType,
-    overrideCourseAssignments?: Record<string, string>,
+    options?: {
+      overrideCourseAssignments?: Record<string, string>;
+      allowMultiCourse?: boolean;
+      isolateCourse?: string;
+      videoScenarioPlan?: VideoScenarioPlan;
+      skipVideoScenarioDialog?: boolean;
+    },
   ) => {
     if (!user || !activeNotebook) {
       toast.error('Materyal üretmek için giriş yapmalısınız.');
       return;
     }
+
+    const overrideCourseAssignments = options?.overrideCourseAssignments;
 
     const checkedSources = activeNotebook.sources
       .filter((s) => activeNotebook.checkedSourceIds.includes(s.id))
@@ -902,7 +952,18 @@ export default function Study() {
         };
       });
 
-    const allSelectedSources = [...checkedSources, ...checkedMatSources];
+    let allSelectedSources = [...checkedSources, ...checkedMatSources];
+    if (options?.isolateCourse) {
+      const targetCourse = options.isolateCourse;
+      const isolated = allSelectedSources.filter((src) => {
+        const analyzed = enrichSourceWithCourseDetection(src);
+        return (analyzed.course || analyzed.detectedCourse) === targetCourse;
+      });
+      if (isolated.length > 0) {
+        allSelectedSources = isolated;
+      }
+    }
+
     if (allSelectedSources.length === 0) {
       toast.info('Üretim yapmak için önce sol panelden en az 1 ders notu, PDF veya slayt ekleyip seçin.');
       return;
@@ -914,9 +975,21 @@ export default function Study() {
       allMaterials: materials,
     });
 
-    // If any source's course is uncertain and not confirmed yet, ask the user instead of guessing!
+    // Gate 1: If any source's course is uncertain and not confirmed yet, ask the user instead of guessing!
     if (!overrideCourseAssignments && freshAnalysis.hasUnconfirmedCourses) {
       setPendingCourseConfirmType(targetType);
+      return;
+    }
+
+    // Gate 2: Multi-Course Merge Approval — NEVER silently blend distinct courses without explicit user confirmation!
+    if (!options?.allowMultiCourse && !options?.isolateCourse && freshAnalysis.isMultiCourse) {
+      setPendingMultiCourseType(targetType);
+      return;
+    }
+
+    // Gate 3: Pre-production Video Scenario & Chapter Plan Preview/Editor before generating a Video Lesson
+    if (targetType === 'video' && !options?.skipVideoScenarioDialog && !options?.videoScenarioPlan) {
+      setVideoScenarioOpen(true);
       return;
     }
 
@@ -944,6 +1017,7 @@ export default function Study() {
       generationNonce: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       previousQuestions: targetType === 'quiz' ? priorQuestions : undefined,
       previousFlashcards: targetType === 'flashcards' ? priorFlashcards : undefined,
+      videoScenarioPlan: targetType === 'video' ? options?.videoScenarioPlan : undefined,
     };
     setSettings(nextSettings);
 
@@ -957,6 +1031,8 @@ export default function Study() {
         notebookId: activeNotebook.id,
         bundle,
         settings: nextSettings,
+        university: profile?.university || null,
+        department: profile?.department || null,
         onCompleted: (saved, completedJob) => {
           setMaterials((prev) => [saved, ...prev.filter((m) => m.id !== saved.id)]);
           updateActiveNotebook((nb) => ({
@@ -999,6 +1075,7 @@ export default function Study() {
       const resolvedSavedCourse = bundle.course || bundle.detectedCourse || null;
       const examProfileMeta: Record<string, unknown> = {
         sourceFingerprint: freshAnalysis.fingerprint,
+        sourceIds: bundle.sourceIds || [],
         analyzedCourses: freshAnalysis.distinctCourses,
         isMultiCourse: freshAnalysis.isMultiCourse,
       };
@@ -1007,6 +1084,17 @@ export default function Study() {
         examProfileMeta.pedagogicalStyle = nextSettings.pedagogicalStyle;
       }
 
+      const enrichedContent = {
+        ...(result.content || {}),
+        metadata: {
+          ...((result.content as Record<string, any>)?.metadata || {}),
+          sourceFingerprint: freshAnalysis.fingerprint,
+          sourceIds: bundle.sourceIds || [],
+          analyzedCourses: freshAnalysis.distinctCourses,
+          isMultiCourse: freshAnalysis.isMultiCourse,
+        },
+      };
+
       const { data, error } = await supabase
         .from('study_materials')
         .insert({
@@ -1014,9 +1102,12 @@ export default function Study() {
           source_type: noteSource?.originType === 'platform' ? 'platform' : 'own',
           source_note_id: noteSource?.originNoteId || null,
           material_type: targetType,
-          title: bundle.title,
+          title:
+            targetType === 'video' && options?.videoScenarioPlan?.lessonTitle
+              ? options.videoScenarioPlan.lessonTitle
+              : bundle.title,
           course: resolvedSavedCourse,
-          content: result.content as unknown as Json,
+          content: enrichedContent as unknown as Json,
           model: result.model,
           exam_profile: examProfileMeta as unknown as Json,
         })
@@ -1059,8 +1150,46 @@ export default function Study() {
       handleUpdateSourceCourse(srcId, courseName);
     });
     if (target) {
-      void handleNotebookGenerateType(target, assignments);
+      void handleNotebookGenerateType(target, { overrideCourseAssignments: assignments });
     }
+  };
+
+  const handleIsolateCourseAndContinue = (courseName: string) => {
+    const target = pendingMultiCourseType;
+    setPendingMultiCourseType(null);
+    updateActiveNotebook((nb) => {
+      const keepIds = nb.sources
+        .filter((s) => {
+          const analyzed = enrichSourceWithCourseDetection(s);
+          return (analyzed.course || analyzed.detectedCourse) === courseName;
+        })
+        .map((s) => s.id);
+      return {
+        ...nb,
+        course: courseName,
+        checkedSourceIds: keepIds.length > 0 ? keepIds : nb.checkedSourceIds,
+      };
+    });
+    if (target) {
+      void handleNotebookGenerateType(target, { isolateCourse: courseName });
+    }
+  };
+
+  const handleConfirmMultiCourseAndContinue = () => {
+    const target = pendingMultiCourseType;
+    setPendingMultiCourseType(null);
+    if (target) {
+      void handleNotebookGenerateType(target, { allowMultiCourse: true });
+    }
+  };
+
+  const handleConfirmVideoScenario = (plan: VideoScenarioPlan) => {
+    setVideoScenarioOpen(false);
+    void handleNotebookGenerateType('video', {
+      allowMultiCourse: true,
+      videoScenarioPlan: plan,
+      skipVideoScenarioDialog: true,
+    });
   };
 
   const handleDeleteMaterial = async (id: string) => {
@@ -1468,11 +1597,13 @@ export default function Study() {
   const isWorkspaceStage = resolvedTab === 'workspace' && !activeMaterial;
 
   return (
-    <Layout wide={isWorkspaceStage}>
+    <Layout wide={isWorkspaceStage} studioMode={isWorkspaceStage || Boolean(activeMaterial)} focusMode={focusMode}>
       <div
         className={
           isWorkspaceStage
             ? 'mx-auto w-full min-w-0'
+            : activeMaterial
+            ? 'mx-auto w-full max-w-[1600px] min-w-0 px-1 py-1 sm:px-3 sm:py-2'
             : 'mx-auto w-full max-w-7xl min-w-0 px-1 py-2 sm:px-3 sm:py-4'
         }
       >
@@ -1485,7 +1616,7 @@ export default function Study() {
             onRestartJob={() => {
               summaryJobManager.dismissActiveJob();
               setShowSummaryProgress(false);
-              void handleNotebookGenerateType('summary');
+              void handleNotebookGenerateType('summary', { allowMultiCourse: true });
             }}
             onCancelJob={(jobId) => {
               summaryJobManager.cancelRunningJob(jobId);
@@ -1535,70 +1666,83 @@ export default function Study() {
             onRecordProgress={(score, total) =>
               handleRecordProgress(activeMaterial.id, score, total)
             }
+            focusMode={focusMode}
+            onToggleFocusMode={handleToggleFocusMode}
+            isBrowserFullscreen={isBrowserFullscreen}
+            onToggleBrowserFullscreen={() => void handleToggleBrowserFullscreen()}
             onReportIssue={() => setReportOpen(true)}
           />
         ) : (
           <>
-            <ContextualTipBanner tipId="study_pdf" className="mb-3" />
+            {!focusMode && <ContextualTipBanner tipId="study_pdf" className="mb-2" />}
             <NeuralCommandShell
-            activeTab={resolvedTab}
-            onTabChange={(next) => setActiveTab(normalizeTab(next))}
-            engine={engine}
-            dueCardsCount={dueCards.length}
-            materialsCount={materials.length}
-            indexedDocsCount={indexedDocsCount}
-            onReportIssue={() => setReportOpen(true)}
-          >
-            {resolvedTab === 'workspace' && activeNotebook && (
-              <NotebookStudioWorkspace
-                userId={user.id}
-                notebooks={notebooks}
-                activeNotebook={activeNotebook}
-                canonicalAnalysis={canonicalAnalysis}
-                onSelectNotebook={setActiveNotebookId}
-                onCreateNotebook={handleCreateNotebook}
-                onRenameNotebook={handleRenameNotebook}
-                onDeleteNotebook={handleDeleteNotebook}
-                ownNotes={ownNotes}
-                platformNotes={platformNotes}
-                allMaterials={materials}
-                progress={progress}
-                dueCardsCount={dueCards.length}
-                settings={settings}
-                onSettingsChange={setSettings}
-                coachMode={coachMode}
-                onCoachModeChange={setCoachMode}
-                chatBusy={chatBusy}
-                streamingText={streamingText}
-                isGenerating={isGenerating}
-                generationPct={generationPct}
-                generationLabel={generationLabel}
-                activeSummaryJob={activeSummaryJob}
-                onOpenSummaryProgress={() => setShowSummaryProgress(true)}
-                onAddSources={handleAddNotebookSources}
-                onRemoveSource={handleRemoveNotebookSource}
-                onToggleSource={handleToggleNotebookSource}
-                onToggleAllSources={handleToggleAllNotebookSources}
-                onToggleMaterialSource={handleToggleMaterialSource}
-                onUpdateSourceCourse={handleUpdateSourceCourse}
-                pendingCourseConfirmType={pendingCourseConfirmType}
-                onCancelPendingCourseConfirm={() => setPendingCourseConfirmType(null)}
-                onConfirmCoursesAndContinue={handleConfirmCoursesAndContinue}
-                onExtractRemoteNoteFile={handleExtractRemoteNoteFile}
-                onSavedLiveMaterial={handleSavedLiveMaterial}
-                onSendMessage={handleNotebookSendMessage}
-                onPinMessage={handlePinMessage}
-                onClearChat={handleClearChat}
-                onGenerateType={(type) => void handleNotebookGenerateType(type)}
-                onOpenPlanner={() => setActiveTab('planner')}
-                onOpenExamSim={() => setActiveTab('exam')}
-                onOpenMaterial={setActiveMaterial}
-                onDeleteMaterial={handleDeleteMaterial}
-                onAddManualNote={handleAddManualNote}
-                onDeletePinnedNote={handleDeletePinnedNote}
-                onPromotePinnedToSource={handlePromotePinnedToSource}
-              />
-            )}
+              activeTab={resolvedTab}
+              onTabChange={(next) => setActiveTab(normalizeTab(next))}
+              engine={engine}
+              dueCardsCount={dueCards.length}
+              materialsCount={materials.length}
+              indexedDocsCount={indexedDocsCount}
+              focusMode={focusMode}
+              onToggleFocusMode={handleToggleFocusMode}
+              isBrowserFullscreen={isBrowserFullscreen}
+              onToggleBrowserFullscreen={() => void handleToggleBrowserFullscreen()}
+              onReportIssue={() => setReportOpen(true)}
+            >
+              {resolvedTab === 'workspace' && activeNotebook && (
+                <NotebookStudioWorkspace
+                  userId={user.id}
+                  notebooks={notebooks}
+                  activeNotebook={activeNotebook}
+                  canonicalAnalysis={canonicalAnalysis}
+                  focusMode={focusMode}
+                  onSelectNotebook={setActiveNotebookId}
+                  onCreateNotebook={handleCreateNotebook}
+                  onRenameNotebook={handleRenameNotebook}
+                  onDeleteNotebook={handleDeleteNotebook}
+                  ownNotes={ownNotes}
+                  platformNotes={platformNotes}
+                  allMaterials={materials}
+                  progress={progress}
+                  dueCardsCount={dueCards.length}
+                  settings={settings}
+                  onSettingsChange={setSettings}
+                  coachMode={coachMode}
+                  onCoachModeChange={setCoachMode}
+                  chatBusy={chatBusy}
+                  streamingText={streamingText}
+                  isGenerating={isGenerating}
+                  generationPct={generationPct}
+                  generationLabel={generationLabel}
+                  activeSummaryJob={activeSummaryJob}
+                  onOpenSummaryProgress={() => setShowSummaryProgress(true)}
+                  onAddSources={handleAddNotebookSources}
+                  onRemoveSource={handleRemoveNotebookSource}
+                  onToggleSource={handleToggleNotebookSource}
+                  onToggleAllSources={handleToggleAllNotebookSources}
+                  onToggleMaterialSource={handleToggleMaterialSource}
+                  onUpdateSourceCourse={handleUpdateSourceCourse}
+                  pendingCourseConfirmType={pendingCourseConfirmType}
+                  onCancelPendingCourseConfirm={() => setPendingCourseConfirmType(null)}
+                  onConfirmCoursesAndContinue={handleConfirmCoursesAndContinue}
+                  pendingMultiCourseType={pendingMultiCourseType}
+                  onCancelMultiCourseConfirm={() => setPendingMultiCourseType(null)}
+                  onIsolateCourseAndContinue={handleIsolateCourseAndContinue}
+                  onConfirmMultiCourseAndContinue={handleConfirmMultiCourseAndContinue}
+                  onExtractRemoteNoteFile={handleExtractRemoteNoteFile}
+                  onSavedLiveMaterial={handleSavedLiveMaterial}
+                  onSendMessage={handleNotebookSendMessage}
+                  onPinMessage={handlePinMessage}
+                  onClearChat={handleClearChat}
+                  onGenerateType={(type) => void handleNotebookGenerateType(type)}
+                  onOpenPlanner={() => setActiveTab('planner')}
+                  onOpenExamSim={() => setActiveTab('exam')}
+                  onOpenMaterial={setActiveMaterial}
+                  onDeleteMaterial={handleDeleteMaterial}
+                  onAddManualNote={handleAddManualNote}
+                  onDeletePinnedNote={handleDeletePinnedNote}
+                  onPromotePinnedToSource={handlePromotePinnedToSource}
+                />
+              )}
 
             {resolvedTab === 'library' && (
               <NeuralLibraryView
@@ -1641,6 +1785,14 @@ export default function Study() {
           </>
         )}
       </div>
+
+      <VideoScenarioPreviewDialog
+        open={videoScenarioOpen}
+        onOpenChange={setVideoScenarioOpen}
+        canonicalAnalysis={canonicalAnalysis}
+        notebookTitle={activeNotebook?.title || 'Çalışma Defterim'}
+        onConfirm={handleConfirmVideoScenario}
+      />
 
       <NeuralReportDialog
         open={reportOpen}

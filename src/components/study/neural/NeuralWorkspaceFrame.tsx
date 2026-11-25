@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Bot, Flag, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { ArrowLeft, Bot, Expand, Flag, Maximize2, Minimize2, PanelRightClose, PanelRightOpen, Shrink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,10 @@ interface NeuralWorkspaceFrameProps {
   isRegenerating: boolean;
   onSaveToAccount?: (material: StudyMaterial) => Promise<void>;
   isSavingToAccount?: boolean;
+  focusMode?: boolean;
+  onToggleFocusMode?: () => void;
+  isBrowserFullscreen?: boolean;
+  onToggleBrowserFullscreen?: () => void;
   onRecordProgress: (score: number, total: number) => Promise<void> | void;
   onReportIssue: () => void;
 }
@@ -40,6 +44,10 @@ export function NeuralWorkspaceFrame({
   isRegenerating,
   onSaveToAccount,
   isSavingToAccount,
+  focusMode = false,
+  onToggleFocusMode,
+  isBrowserFullscreen = false,
+  onToggleBrowserFullscreen,
   onRecordProgress,
   onReportIssue,
 }: NeuralWorkspaceFrameProps) {
@@ -80,6 +88,34 @@ export function NeuralWorkspaceFrame({
         </div>
 
         <div className="flex items-center gap-2">
+          {onToggleFocusMode && (
+            <Button
+              type="button"
+              variant={focusMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={onToggleFocusMode}
+              className={cn(
+                'h-9 gap-1.5 rounded-full px-3 text-xs font-semibold',
+                focusMode
+                  ? 'bg-gradient-to-r from-[#0b2a6e] to-[#1d63ed] text-white'
+                  : STUDIO_BTN_SECONDARY,
+              )}
+            >
+              {focusMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">{focusMode ? 'Odaktan Çık' : 'Odak Modu'}</span>
+            </Button>
+          )}
+          {onToggleBrowserFullscreen && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onToggleBrowserFullscreen}
+              className={cn(STUDIO_BTN_GHOST, 'hidden gap-1 sm:inline-flex')}
+            >
+              {isBrowserFullscreen ? <Shrink className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </Button>
+          )}
           <Sheet>
             <SheetTrigger asChild>
               <Button

@@ -18,14 +18,37 @@ import fontkit from '@pdf-lib/fontkit';
 import regularFontUrl from '@/assets/fonts/LiberationSans-Regular.ttf?url';
 import boldFontUrl from '@/assets/fonts/LiberationSans-Bold.ttf?url';
 import italicFontUrl from '@/assets/fonts/LiberationSans-Italic.ttf?url';
+import { ECONNOTES_LOGO_LIGHT_URI } from '@/components/study/video/econnotesBrandLogo';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import type { SummaryContent } from '@/types/study';
 
 export interface AcademicSummaryPdfInput {
   title: string;
   course?: string | null;
+  university?: string | null;
+  department?: string | null;
+  sourceFileNames?: string[];
   createdAt?: string;
   summary: SummaryContent;
+}
+
+function decodeBase64DataUriToBytes(dataUri: string): Uint8Array | null {
+  try {
+    const commaIdx = dataUri.indexOf(',');
+    const b64 = commaIdx !== -1 ? dataUri.slice(commaIdx + 1) : dataUri;
+    if (typeof atob === 'function') {
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+    if (typeof Buffer !== 'undefined') {
+      return new Uint8Array(Buffer.from(b64, 'base64'));
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 interface LoadedFonts {
@@ -438,8 +461,8 @@ export async function generateAcademicSummaryPdfBytes(
   // ==================== PAGE 1: COVER & OVERVIEW ====================
   const coverPage = pdfDoc.addPage([PAGE_W, PAGE_H]);
 
-  // Top Royal-Blue Academic Header Banner
-  const bannerH = 148;
+  // Top Royal-Blue Academic Header Banner with embedded real EconNotes PNG Logo
+  const bannerH = 166;
   coverPage.drawRectangle({
     x: 0,
     y: PAGE_H - bannerH,
@@ -455,53 +478,117 @@ export async function generateAcademicSummaryPdfBytes(
     color: COLORS.brandAccent,
   });
 
-  coverPage.drawText(`ECONNOTES ÇALIŞMA STÜDYOSU  •  AKADEMİK DERS NOTU (${APP_VERSION_LABEL})`, {
-    x: MARGIN_X,
-    y: PAGE_H - 36,
-    size: 8.5,
-    font: fontBold,
-    color: rgb(186 / 255, 230 / 255, 253 / 255),
-  });
+  // Embed crisp white EconNotes brand logo on top-left of Page 1 cover
+  let logoEmbedded = false;
+  const logoBytes = decodeBase64DataUriToBytes(ECONNOTES_LOGO_LIGHT_URI);
+  if (logoBytes) {
+    try {
+      const logoImg = await pdfDoc.embedPng(logoBytes);
+      const targetH = 22;
+      const aspect = logoImg.width > 0 && logoImg.height > 0 ? logoImg.width / logoImg.height : 4.58;
+      const targetW = Math.min(130, targetH * aspect);
+      coverPage.drawImage(logoImg, {
+        x: MARGIN_X,
+        y: PAGE_H - 42,
+        width: targetW,
+        height: targetH,
+      });
+      coverPage.drawText(formatAcademicTextForPdf(`ÇALIŞMA STÜDYOSU  •  AKADEMİK DERS ÖZETİ (${APP_VERSION_LABEL})`), {
+        x: MARGIN_X + targetW + 14,
+        y: PAGE_H - 35,
+        size: 8.2,
+        font: fontBold,
+        color: rgb(186 / 255, 230 / 255, 253 / 255),
+      });
+      logoEmbedded = true;
+    } catch {
+      logoEmbedded = false;
+    }
+  }
 
-  const coverTitleLines = wrapTextToLines(docTitle, fontBold, 20, CONTENT_W).slice(0, 2);
-  let titleY = PAGE_H - 68;
+  if (!logoEmbedded) {
+    coverPage.drawText(`ECONNOTES ÇALIŞMA STÜDYOSU  •  AKADEMİK DERS NOTU (${APP_VERSION_LABEL})`, {
+      x: MARGIN_X,
+      y: PAGE_H - 36,
+      size: 8.5,
+      font: fontBold,
+      color: rgb(186 / 255, 230 / 255, 253 / 255),
+    });
+  }
+
+  const coverTitleLines = wrapTextToLines(docTitle, fontBold, 19.5, CONTENT_W).slice(0, 2);
+  let titleY = PAGE_H - 76;
   for (const tl of coverTitleLines) {
     coverPage.drawText(tl, {
       x: MARGIN_X,
       y: titleY,
-      size: 20,
+      size: 19.5,
       font: fontBold,
       color: COLORS.white,
     });
-    titleY -= 25;
+    titleY -= 24;
   }
 
-  coverPage.drawText(
-    formatAcademicTextForPdf(
-      `Ders: ${courseLabel}   |   Analiz Tarihi: ${dateLabel}   |   ${sections.length} Bölüm`,
-    ),
-    {
-      x: MARGIN_X,
-      y: PAGE_H - bannerH + 22,
-      size: 9.5,
-      font: fontRegular,
-      color: rgb(224 / 255, 242 / 255, 254 / 255),
-    },
-  );
+  const academicContextParts = [
+    `Ders: ${courseLabel}`,
+    `Tarih: ${dateLabel}`,
+    `${sections.length} Bölüm`,
+  ];
+  coverPage.drawText(formatAcademicTextForPdf(academicContextParts.join('   |   ')), {
+    x: MARGIN_X,
+    y: PAGE_H - bannerH + 34,
+    size: 9.4,
+    font: fontBold,
+    color: rgb(224 / 255, 242 / 255, 254 / 255),
+  });
 
-  let coverY = PAGE_H - bannerH - 26;
+  const uniDeptParts = [input.university, input.department]
+    .map((v) => (v || '').trim())
+    .filter(Boolean);
+  if (uniDeptParts.length > 0) {
+    coverPage.drawText(
+      formatAcademicTextForPdf(uniDeptParts.join('  •  ')).slice(0, 96),
+      {
+        x: MARGIN_X,
+        y: PAGE_H - bannerH + 18,
+        size: 8.6,
+        font: fontRegular,
+        color: rgb(186 / 255, 230 / 255, 253 / 255),
+      },
+    );
+  }
 
-  // Document metadata summary box
+  let coverY = PAGE_H - bannerH - 22;
+
+  // Document metadata summary box (includes source file names, pages, terms & quality score)
+  const sourceFilesClean = (
+    input.sourceFileNames && input.sourceFileNames.length > 0
+      ? input.sourceFileNames
+      : (summary.sourceCourseBreakdown || []).map((b) => b.sourceName)
+  )
+    .map((n) => formatAcademicTextForPdf(n))
+    .filter(Boolean);
+
   const statsParts = [
-    `İncelenen Kaynak: ${summary.documentProfile?.totalPagesOrSlides || summary.metadata?.sourceStats?.pagesOrSlides || 1} sayfa/slayt`,
-    `Bölüm Sayısı: ${sections.length}`,
-    `Kavram Sözlüğü: ${summary.keyTerms?.length || 0} terim`,
+    `Kaynak Sayfası: ${summary.documentProfile?.totalPagesOrSlides || summary.metadata?.sourceStats?.pagesOrSlides || 1} sayfa/slayt`,
+    `Bölüm: ${sections.length}`,
+    `Sözlük: ${summary.keyTerms?.length || 0} terim`,
   ];
   if (summary.qualityAudit) {
-    statsParts.push(`Kalite & Kapsam: %${summary.qualityAudit.overallScore} (Başlık Kapsamı: %${summary.qualityAudit.headingCoveragePct})`);
+    statsParts.push(`Kalite & Kapsam: %${summary.qualityAudit.overallScore} (Başlık: %${summary.qualityAudit.headingCoveragePct})`);
   }
 
-  const metaBoxH = 44;
+  const metaLineText = [
+    statsParts.join('  •  '),
+    sourceFilesClean.length > 0
+      ? `Kaynak Belge${sourceFilesClean.length > 1 ? 'ler' : ''}: ${sourceFilesClean.slice(0, 3).join(', ')}${sourceFilesClean.length > 3 ? ` (+${sourceFilesClean.length - 3})` : ''}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const metaLines = wrapTextToLines(metaLineText, fontBold, 8.6, CONTENT_W - 22).slice(0, 3);
+  const metaBoxH = Math.max(42, 16 + metaLines.length * 13.5);
   coverPage.drawRectangle({
     x: MARGIN_X,
     y: coverY - metaBoxH,
@@ -511,17 +598,16 @@ export async function generateAcademicSummaryPdfBytes(
     borderColor: COLORS.borderLight,
     borderWidth: 0.8,
   });
-  const metaLines = wrapTextToLines(statsParts.join('  •  '), fontBold, 8.8, CONTENT_W - 22);
-  metaLines.slice(0, 2).forEach((ml, idx) => {
+  metaLines.forEach((ml, idx) => {
     coverPage.drawText(ml, {
       x: MARGIN_X + 11,
-      y: coverY - 17 - idx * 14,
-      size: 8.8,
-      font: fontBold,
-      color: COLORS.brandDark,
+      y: coverY - 17 - idx * 13.5,
+      size: 8.6,
+      font: idx === 0 ? fontBold : fontRegular,
+      color: idx === 0 ? COLORS.brandDark : COLORS.textBody,
     });
   });
-  coverY -= metaBoxH + 20;
+  coverY -= metaBoxH + 18;
 
   // Executive Overview on Cover Page
   coverPage.drawText('GENEL ÇERÇEVE VE YÖNETİCİ ÖZETİ', {
@@ -1140,7 +1226,7 @@ export async function generateAcademicSummaryPdfBytes(
   const allPages = pdfDoc.getPages();
   const totalPdfPages = allPages.length;
   const headerLeft = formatAcademicTextForPdf(`EconNotes Çalışma Stüdyosu  •  ${courseLabel}`).slice(0, 82);
-  const footerLeft = formatAcademicTextForPdf(docTitle).slice(0, 72);
+  const footerLeft = formatAcademicTextForPdf(`EconNotes  •  ${docTitle}`).slice(0, 76);
 
   allPages.forEach((p, pageIdx) => {
     const pageNum = pageIdx + 1;

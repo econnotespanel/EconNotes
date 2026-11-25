@@ -1,3 +1,4 @@
+import { enrichSourceWithCourseDetection } from '@/lib/studySourceAnalysis';
 import type { ExtractedSourceItem, StudioNotebook } from '@/types/study';
 
 const STORAGE_KEY_PREFIX = 'econnotes_studio_notebooks_v1_';
@@ -77,20 +78,38 @@ export function loadUserNotebooks(userId: string): StudioNotebook[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((nb: Partial<StudioNotebook>, idx: number) => ({
-          id: nb.id || `nb-restored-${idx}`,
-          title: nb.title || 'Çalışma Defterim',
-          course: nb.course || '',
-          emoji: nb.emoji || pickNotebookEmoji(idx),
-          createdAt: nb.createdAt || new Date().toISOString(),
-          updatedAt: nb.updatedAt || new Date().toISOString(),
-          sources: Array.isArray(nb.sources) ? nb.sources : [],
-          checkedSourceIds: Array.isArray(nb.checkedSourceIds) ? nb.checkedSourceIds : [],
-          checkedMaterialIds: Array.isArray(nb.checkedMaterialIds) ? nb.checkedMaterialIds : [],
-          materialIds: Array.isArray(nb.materialIds) ? nb.materialIds : [],
-          pinnedNotes: Array.isArray(nb.pinnedNotes) ? nb.pinnedNotes : [],
-          messages: Array.isArray(nb.messages) ? nb.messages : [],
-        }));
+        return parsed.map((nb: Partial<StudioNotebook>, idx: number) => {
+          const rawSources = Array.isArray(nb.sources) ? nb.sources : [];
+          // Self-heal any previously cached sources whose course was not explicitly confirmed by user
+          // so stale cross-notebook course labels (e.g. "Turizm Ekonomisi" on Ottoman Economic History) never linger
+          const healedSources = rawSources.map((src) =>
+            src && !src.courseConfirmedByUser ? enrichSourceWithCourseDetection(src) : src,
+          );
+          const distinctCourses = Array.from(
+            new Set(healedSources.map((s) => s?.course).filter((c): c is string => Boolean(c))),
+          );
+          const reconciledNotebookCourse =
+            distinctCourses.length === 1
+              ? distinctCourses[0]
+              : healedSources.length > 0
+              ? ''
+              : nb.course || '';
+
+          return {
+            id: nb.id || `nb-restored-${idx}`,
+            title: nb.title || 'Çalışma Defterim',
+            course: reconciledNotebookCourse,
+            emoji: nb.emoji || pickNotebookEmoji(idx),
+            createdAt: nb.createdAt || new Date().toISOString(),
+            updatedAt: nb.updatedAt || new Date().toISOString(),
+            sources: healedSources,
+            checkedSourceIds: Array.isArray(nb.checkedSourceIds) ? nb.checkedSourceIds : [],
+            checkedMaterialIds: Array.isArray(nb.checkedMaterialIds) ? nb.checkedMaterialIds : [],
+            materialIds: Array.isArray(nb.materialIds) ? nb.materialIds : [],
+            pinnedNotes: Array.isArray(nb.pinnedNotes) ? nb.pinnedNotes : [],
+            messages: Array.isArray(nb.messages) ? nb.messages : [],
+          };
+        });
       }
     }
   } catch {
