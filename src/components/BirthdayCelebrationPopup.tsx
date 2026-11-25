@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import EconLogo from '@/components/EconLogo';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import {
   getBirthdayStatus,
@@ -25,6 +26,7 @@ export const openBirthdayCelebrationModal = () => {
 
 const BirthdayCelebrationPopup = () => {
   const { user, profile, loading } = useAuth();
+  const { isTourOpen } = useOnboarding();
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
@@ -38,6 +40,7 @@ const BirthdayCelebrationPopup = () => {
       setStatus(next);
       if (
         !loading &&
+        !isTourOpen &&
         user &&
         next.birthDate &&
         next.isBirthdayToday &&
@@ -60,7 +63,7 @@ const BirthdayCelebrationPopup = () => {
       window.removeEventListener('econnotes:birthdate-updated', refresh);
       window.removeEventListener('econnotes:open-birthday-celebration', handleManualOpen);
     };
-  }, [user, profile, loading]);
+  }, [user, profile, loading, isTourOpen]);
 
   if (!user || (!status.isBirthdayToday && !open)) return null;
 

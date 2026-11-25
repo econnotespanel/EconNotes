@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import {
   BeforeInstallPromptEvent,
   dismissMobilePrompt,
@@ -37,7 +38,8 @@ interface MobileHomeScreenPromptProps {
 }
 
 const MobileHomeScreenPrompt = ({ splashActive = false }: MobileHomeScreenPromptProps) => {
-  const { user } = useAuth();
+  const { user, isApproved, isAdmin } = useAuth();
+  const { isTourOpen } = useOnboarding();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -87,6 +89,8 @@ const MobileHomeScreenPrompt = ({ splashActive = false }: MobileHomeScreenPrompt
     dismissed ||
     splashActive ||
     isSidebarOpen ||
+    isTourOpen ||
+    Boolean(user && !isApproved && !isAdmin) ||
     location.pathname === '/install' ||
     location.pathname === '/welcome';
 

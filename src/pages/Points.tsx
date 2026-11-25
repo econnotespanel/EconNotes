@@ -1,5 +1,6 @@
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
+import ContextualTipBanner from '@/components/onboarding/ContextualTipBanner';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -297,6 +298,8 @@ const Points = () => {
             </div>
           }
         />
+
+        <ContextualTipBanner tipId="points_xp" />
 
         {/* KPI Summary Row — Zero Truncation on Narrow Mobile */}
         <div className="grid grid-cols-2 max-[359px]:grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-4">

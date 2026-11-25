@@ -1,5 +1,6 @@
-import React from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import WaitingRoomScreen from '@/components/WaitingRoomScreen';
 
@@ -16,8 +17,40 @@ const UNAPPROVED_ACCESSIBLE_PATHS = [
 ];
 
 export const ApprovalGate: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, profile, isAdmin, isApproved, loading } = useAuth();
+  const { user, isAdmin, isApproved, loading } = useAuth();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const wasWaitingRef = useRef<{ userId: string | null; waiting: boolean }>({
+    userId: null,
+    waiting: false,
+  });
+
+  useEffect(() => {
+    if (loading || !user?.id) {
+      if (!user?.id) {
+        wasWaitingRef.current = { userId: null, waiting: false };
+      }
+      return;
+    }
+
+    if (wasWaitingRef.current.userId !== user.id) {
+      wasWaitingRef.current = { userId: user.id, waiting: !isApproved && !isAdmin };
+      return;
+    }
+
+    if (wasWaitingRef.current.waiting && isApproved) {
+      wasWaitingRef.current = { userId: user.id, waiting: false };
+      toast.success('Hesabınız onaylandı!', {
+        description: "EconNotes'un tüm özelliklerine erişiminiz açıldı.",
+        duration: 6000,
+      });
+      if (pathname !== '/' && pathname !== '/welcome') {
+        navigate('/', { replace: true });
+      }
+    } else if (!isApproved && !isAdmin) {
+      wasWaitingRef.current = { userId: user.id, waiting: true };
+    }
+  }, [isAdmin, isApproved, loading, navigate, pathname, user?.id]);
 
   if (loading) {
     return (

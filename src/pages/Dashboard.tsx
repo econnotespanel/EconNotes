@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ClipboardList,
   Clock,
+  Compass,
   FileText,
   Flame,
   Gift,
@@ -28,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
 import { usePoints } from '@/hooks/usePoints';
@@ -136,6 +138,13 @@ const FILE_BADGE_CLASSES: Record<'blue' | 'orange' | 'indigo' | 'teal' | 'slate'
 
 const Dashboard = () => {
   const { profile, user } = useAuth();
+  const {
+    state: onboardingState,
+    isTourOpen,
+    totalSteps,
+    resumeTour,
+    skipTour,
+  } = useOnboarding();
   const navigate = useNavigate();
   const { quota } = useDownloadQuota();
   const { points, leaderboard, loading: pointsLoading } = usePoints(100);
@@ -563,8 +572,48 @@ const Dashboard = () => {
           </Card>
         ))}
 
+        {/* Paused Guided Tour Resume Strip (shown only if user closed tour mid-way) */}
+        {!isTourOpen && onboardingState.status === 'in_progress' && (
+          <div
+            role="status"
+            data-testid="resume-tour-banner"
+            className="flex flex-col gap-3 rounded-[20px] border border-blue-200/90 bg-blue-50/75 px-4 py-3 text-sm shadow-sm dark:border-blue-500/30 dark:bg-blue-500/10 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#174ec4] text-white">
+                <Compass className="h-4 w-4" />
+              </span>
+              <p className="min-w-0 text-xs font-medium text-foreground sm:text-sm">
+                Platform turu{' '}
+                <strong className="font-bold">
+                  Adım {onboardingState.currentStep + 1}/{totalSteps}
+                </strong>{' '}
+                aşamasında kaydedildi. İstediğin zaman kaldığın yerden devam edebilirsin.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={resumeTour}
+                className="h-9 rounded-full bg-gradient-to-r from-[#0b2a6e] via-[#174ec4] to-[#2563eb] px-4 text-xs font-semibold text-white hover:brightness-105"
+              >
+                Tura Devam Et
+              </Button>
+              <button
+                type="button"
+                aria-label="Hatırlatmayı kapat"
+                onClick={skipTour}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Conditional First-Login Welcome & Eye-Rest Notices */}
-        {showWelcome && (
+        {showWelcome && !isTourOpen && onboardingState.status !== 'in_progress' && (
           <div className="flex items-center justify-between gap-3 rounded-[20px] border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
             <div className="flex items-center gap-3 min-w-0">
               <Sparkles className="h-4 w-4 shrink-0 text-primary" />
@@ -647,6 +696,7 @@ const Dashboard = () => {
 
         {/* 1. HERO WELCOME BANNER + COMPACT HORIZONTAL ACADEMIC CALENDAR CARD */}
         <section
+          data-tour="dashboard-hero"
           aria-label="Karşılama alanı"
           className={cn(
             'relative overflow-hidden rounded-[22px] sm:rounded-[24px] px-4 py-4 sm:px-7 sm:py-6 text-white shadow-[0_14px_34px_-12px_rgba(7,26,66,0.45)]',
@@ -774,6 +824,7 @@ const Dashboard = () => {
 
         {/* 2. FOUR KPI STAT CARDS — ZERO TRUNCATION ON 360px+ MOBILE SCREENS */}
         <section
+          data-tour="dashboard-stats"
           aria-label="Özet istatistikler"
           className="grid grid-cols-2 max-[359px]:grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-4"
         >
@@ -946,6 +997,7 @@ const Dashboard = () => {
 
           {/* Right: Günlük Bilgi Yarışması (pure typography, Lucide line icons, zero decorative trophy graphics) */}
           <div
+            data-tour="dashboard-trivia"
             className={cn(
               'relative flex flex-col justify-between overflow-hidden rounded-[22px] p-4 sm:p-6 text-white shadow-[0_14px_34px_-10px_rgba(12,46,115,0.45)] lg:col-span-6',
               isNovember10
@@ -1261,6 +1313,7 @@ const Dashboard = () => {
 
           {/* Right: Liderlik Tablosu (Gerçek Veritabanı XP Sıralaması) */}
           <DashboardLeaderboardCard
+            dataTour="dashboard-leaderboard"
             leaderboard={leaderboard}
             currentUserId={user?.id}
             currentUserName={displayName}

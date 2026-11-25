@@ -14,6 +14,7 @@ interface DashboardLeaderboardCardProps {
   isNovember10?: boolean;
   onViewAll: () => void;
   className?: string;
+  dataTour?: string;
 }
 
 const getInitials = (name: string) => {
@@ -52,6 +53,7 @@ const DashboardLeaderboardCard = ({
   isNovember10 = false,
   onViewAll,
   className,
+  dataTour,
 }: DashboardLeaderboardCardProps) => {
   const topRows = leaderboard.slice(0, 5);
   const currentUserEntry = currentUserId
@@ -159,6 +161,7 @@ const DashboardLeaderboardCard = ({
 
   return (
     <div
+      data-tour={dataTour}
       className={cn(
         'flex flex-col justify-between rounded-[22px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-4 sm:p-5 shadow-[0_6px_24px_rgba(15,23,42,0.035)]',
         className,

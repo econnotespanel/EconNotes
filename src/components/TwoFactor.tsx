@@ -724,8 +724,10 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
   const { config } = useSiteConfig();
   const [verifiedForUserId, setVerifiedForUserId] = useState<string | null>(null);
 
+  const userId = user?.id ?? null;
+
   const check = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setVerifiedForUserId(null);
       setStarted(false);
       setSent(false);
@@ -738,7 +740,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     setState('checking');
     const [t, p, aal, sid] = await Promise.all([
       verifiedTotp(),
-      smsPhone(user.id),
+      smsPhone(userId),
       supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
       currentSessionId(),
     ]);
@@ -746,11 +748,11 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     setPhone(p);
     if (t.length === 0 && !p) {
       if (isAdmin) return setState('enroll');
-      setVerifiedForUserId(user.id);
+      setVerifiedForUserId(userId);
       return setState('ok');
     }
     if (aal.data?.currentLevel === 'aal2') {
-      setVerifiedForUserId(user.id);
+      setVerifiedForUserId(userId);
       return setState('ok');
     }
     if (p && sid) {
@@ -758,10 +760,10 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
         .from('sms_2fa_sessions')
         .select('session_id')
         .eq('session_id', sid)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .maybeSingle();
       if (data) {
-        setVerifiedForUserId(user.id);
+        setVerifiedForUserId(userId);
         return setState('ok');
       }
     }
@@ -773,7 +775,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     setTimeLeft(CODE_WINDOW_SECONDS);
     setMethod(t.length ? 'totp' : 'sms');
     setState('challenge');
-  }, [user, isAdmin]);
+  }, [userId, isAdmin]);
 
   useEffect(() => { if (!loading) void check(); }, [loading, check]);
 

@@ -6,6 +6,7 @@ import { rememberReturningAccount } from '@/lib/returningAccount';
 import { detectClientDevice, formatLoginDetails, serializeLoginMetadata } from '@/lib/deviceInfo';
 import { isLegacyUser, isUserApproved } from '@/lib/approvalUtils';
 import { clearAllUserClientState } from '@/lib/sessionCleanup';
+import { markFirstLoginDetected } from '@/lib/onboarding';
 
 interface Profile {
   id: string;
@@ -18,10 +19,12 @@ interface Profile {
   trivia_unlimited_until?: string | null;
   wheel_bonus_quota?: number | null;
   wheel_unlimited_until?: string | null;
+  onboarding_state?: Record<string, unknown> | null;
   avatar_url: string | null;
   approval_status?: 'pending' | 'approved' | 'rejected' | string;
   approved_at?: string | null;
   approved_by?: string | null;
+  rejection_reason?: string | null;
   last_login: string | null;
   created_at: string;
   updated_at: string;
@@ -182,6 +185,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const previousLogin = data.last_login ? new Date(data.last_login).getTime() : null;
       const inactiveSince = Date.now() - INACTIVE_DAYS * 24 * 60 * 60 * 1000;
       const tourKey = `econnotes_return_tour_${RETURN_TOUR_VERSION}_${userId}`;
+      if (previousLogin === null) {
+        markFirstLoginDetected(userId);
+      }
       if (detectInactivity && previousLogin && previousLogin < inactiveSince && !localStorage.getItem(tourKey)) {
         sessionStorage.setItem('econnotes_return_tour_pending', '1');
       }
@@ -200,6 +206,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profileError) {
         console.error('OAuth profile could not be created:', profileError);
       } else if (createdProfile) {
+        markFirstLoginDetected(userId);
         resolvedName = createdProfile.full_name || profileName;
         setProfile({ ...createdProfile, last_login: new Date().toISOString() } as Profile);
       }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Clock, Crown, Trophy, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import {
   getDailyRenewalInfo,
   getTriviaUnlimitedRemainingLabel,
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils';
  */
 const DailyTriviaLauncher = () => {
   const { user, profile } = useAuth();
+  const { isTourOpen } = useOnboarding();
   const navigate = useNavigate();
   const location = useLocation();
   const [dismissed, setDismissed] = useState(false);
@@ -44,7 +46,7 @@ const DailyTriviaLauncher = () => {
     return () => window.clearInterval(id);
   }, []);
 
-  if (!user || dismissed || location.pathname !== '/') return null;
+  if (!user || dismissed || isTourOpen || location.pathname !== '/') return null;
 
   const nowDate = new Date(nowTick);
   const unlimitedActive = isTriviaUnlimitedActive(user, profile as any, nowDate);

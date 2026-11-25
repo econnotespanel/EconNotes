@@ -41,6 +41,7 @@ type LinkItem = {
   label: string;
   icon: typeof Home;
   path: string;
+  tourId?: string;
   badge?: number;
   isNew?: boolean;
   isBeta?: boolean;
@@ -159,7 +160,11 @@ const Sidebar = () => {
       if (e.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', onKey);
-    const t = setTimeout(() => firstItemRef.current?.focus(), 120);
+    const t = setTimeout(() => {
+      if (document.documentElement.dataset.econnotesTourActive !== 'true') {
+        firstItemRef.current?.focus();
+      }
+    }, 120);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
@@ -168,22 +173,22 @@ const Sidebar = () => {
   }, [open]);
 
   const primary: LinkItem[] = [
-    { label: 'Ana Sayfa', icon: Home, path: '/' },
-    { label: 'Notlar', icon: FileText, path: '/notes' },
-    { label: 'Duyurular', icon: Megaphone, path: '/announcements', badge: unreadAnnouncements },
-    { label: 'Mesajlar', icon: MessageSquare, path: '/messages', badge: unreadMessages },
+    { label: 'Ana Sayfa', icon: Home, path: '/', tourId: 'sidebar-nav-home' },
+    { label: 'Notlar', icon: FileText, path: '/notes', tourId: 'sidebar-nav-notes' },
+    { label: 'Duyurular', icon: Megaphone, path: '/announcements', tourId: 'sidebar-nav-announcements', badge: unreadAnnouncements },
+    { label: 'Mesajlar', icon: MessageSquare, path: '/messages', tourId: 'sidebar-nav-messages', badge: unreadMessages },
   ];
 
   const tools: LinkItem[] = [
-    { label: 'Çalışma Stüdyosu', icon: GraduationCap, path: '/study', isNew: true },
+    { label: 'Çalışma Stüdyosu', icon: GraduationCap, path: '/study', tourId: 'sidebar-nav-study', isNew: true },
     { label: 'KPSS Merkezi', icon: Target, path: '/kpss', tagLabel: 'EconKPSS' },
     { label: 'Canlı Ders', icon: Video, path: '/live-class' },
     { label: 'Akademik Asistan', icon: Bot, path: '/assistant' },
   ];
 
   const account: LinkItem[] = [
-    { label: 'Puan Geçmişim', icon: Sparkles, path: '/points', isNew: true },
-    { label: 'Destek Merkezi', icon: LifeBuoy, path: '/support', isBeta: true, badge: unreadSupport },
+    { label: 'Puan Geçmişim', icon: Sparkles, path: '/points', tourId: 'sidebar-nav-points', isNew: true },
+    { label: 'Destek Merkezi', icon: LifeBuoy, path: '/support', tourId: 'sidebar-nav-support', isBeta: true, badge: unreadSupport },
   ];
 
   const visible = (items: LinkItem[]) => items.filter((l) => isAdmin || isPageEnabled(l.path));
@@ -200,6 +205,7 @@ const Sidebar = () => {
         key={link.path}
         ref={isFirst ? firstItemRef : undefined}
         type="button"
+        data-tour={link.tourId}
         onClick={() => navigate(link.path)}
         aria-current={active ? 'page' : undefined}
         className={cn(
@@ -300,7 +306,22 @@ const Sidebar = () => {
           </div>
         )}
         <div className="flex flex-col gap-1">
-          {items.map((l, i) => renderItem(l, isFirstSection && i === 0))}
+          {isFirstSection ? (
+            <>
+              {items
+                .filter((l) => l.path !== '/announcements' && l.path !== '/messages')
+                .map((l, i) => renderItem(l, i === 0))}
+              {items.some((l) => l.path === '/announcements' || l.path === '/messages') && (
+                <div data-tour="sidebar-nav-comms" className="flex flex-col gap-1">
+                  {items
+                    .filter((l) => l.path === '/announcements' || l.path === '/messages')
+                    .map((l) => renderItem(l, false))}
+                </div>
+              )}
+            </>
+          ) : (
+            items.map((l, i) => renderItem(l, isFirstSection && i === 0))
+          )}
         </div>
       </div>
     );

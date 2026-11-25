@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Coffee, Loader2, LogIn, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import Layout from '@/components/Layout';
+import ContextualTipBanner from '@/components/onboarding/ContextualTipBanner';
 import { NeuralCommandShell, type NeuralTabId } from '@/components/study/neural/NeuralCommandShell';
 import { NeuralEnginePanelView } from '@/components/study/neural/NeuralEnginePanelView';
 import { NeuralExamSimView } from '@/components/study/neural/NeuralExamSimView';
@@ -1537,7 +1538,9 @@ export default function Study() {
             onReportIssue={() => setReportOpen(true)}
           />
         ) : (
-          <NeuralCommandShell
+          <>
+            <ContextualTipBanner tipId="study_pdf" className="mb-3" />
+            <NeuralCommandShell
             activeTab={resolvedTab}
             onTabChange={(next) => setActiveTab(normalizeTab(next))}
             engine={engine}
@@ -1635,6 +1638,7 @@ export default function Study() {
 
             {resolvedTab === 'engine' && <NeuralEnginePanelView engine={engine} />}
           </NeuralCommandShell>
+          </>
         )}
       </div>
 

@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import {
   Check,
   Clock3,
+  Compass,
   LifeBuoy,
   Loader2,
   MessageCircle,
   MessageSquareText,
+  Play,
   Plus,
   Search,
   Send,
@@ -20,6 +22,7 @@ import { toast } from 'sonner';
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -152,6 +155,13 @@ const categoryLabel = (value: SupportTicketCategory, isAdminInitiated = false) =
 
 const Support = () => {
   const { user, profile, isAdmin, loading: authLoading } = useAuth();
+  const {
+    state: onboardingState,
+    totalSteps,
+    canResumeTour,
+    startTour,
+    resumeTour,
+  } = useOnboarding();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTicket = searchParams.get('ticket');
@@ -696,13 +706,49 @@ const Support = () => {
           }
         />
 
-        <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200/85 dark:border-slate-800 bg-card px-4 py-2.5 text-xs text-muted-foreground shadow-sm sm:w-fit">
-          <Clock3 className="h-4 w-4 shrink-0 text-primary" />
-          <span>
-            {isAdmin
-              ? 'Mesajlar bölümündeki kişisel arkadaş sohbetleriniz Destek Merkezi’nde görünmez; yalnızca buradan başlatılan resmi destek görüşmeleri yer alır.'
-              : 'Gönderdiğiniz talepleri ve yönetici yanıtlarını buradan anlık olarak takip edebilirsiniz.'}
-          </span>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200/85 dark:border-slate-800 bg-card px-4 py-2.5 text-xs text-muted-foreground shadow-sm sm:max-w-2xl">
+            <Clock3 className="h-4 w-4 shrink-0 text-primary" />
+            <span>
+              {isAdmin
+                ? 'Mesajlar bölümündeki kişisel arkadaş sohbetleriniz Destek Merkezi’nde görünmez; yalnızca buradan başlatılan resmi destek görüşmeleri yer alır.'
+                : 'Gönderdiğiniz talepleri ve yönetici yanıtlarını buradan anlık olarak takip edebilirsiniz.'}
+            </span>
+          </div>
+
+          <div
+            data-testid="support-platform-tour-card"
+            className="flex flex-wrap items-center gap-2 rounded-2xl border border-blue-200/85 bg-blue-50/70 px-3.5 py-2 shadow-sm dark:border-blue-500/25 dark:bg-blue-500/10"
+          >
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0b2a6e] dark:text-blue-200">
+              <Compass className="h-4 w-4 shrink-0 text-[#174ec4] dark:text-blue-400" />
+              <span>Rehberli Platform Turu</span>
+            </span>
+            {canResumeTour && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={resumeTour}
+                className="h-8 gap-1.5 rounded-full bg-gradient-to-r from-[#0b2a6e] via-[#174ec4] to-[#2563eb] px-3.5 text-xs font-semibold text-white hover:brightness-105"
+              >
+                <Play className="h-3 w-3 fill-current" />
+                <span>Devam Et ({onboardingState.currentStep + 1}/{totalSteps})</span>
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant={canResumeTour ? 'outline' : 'default'}
+              onClick={() => startTour({ fromBeginning: true })}
+              className={
+                canResumeTour
+                  ? 'h-8 rounded-full px-3.5 text-xs font-semibold'
+                  : 'h-8 rounded-full bg-gradient-to-r from-[#0b2a6e] via-[#174ec4] to-[#2563eb] px-4 text-xs font-semibold text-white hover:brightness-105'
+              }
+            >
+              <span>{canResumeTour ? 'Baştan Başlat' : 'Platformu Tanı'}</span>
+            </Button>
+          </div>
         </div>
 
         {loadError && (

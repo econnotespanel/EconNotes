@@ -324,6 +324,7 @@ const MobileBottomNav = () => {
                 <button
                   key={item.id}
                   type="button"
+                  data-tour={`mobile-nav-${item.id}`}
                   aria-current={isActive ? 'page' : undefined}
                   aria-label={item.label}
                   onClick={() => {

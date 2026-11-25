@@ -1,6 +1,7 @@
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert, Cake } from 'lucide-react';
+import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert, Cake, Compass, RotateCcw, Play, CheckCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import BadgesCard from '@/components/BadgesCard';
 import { TwoFactorCard } from '@/components/TwoFactor';
@@ -21,6 +22,14 @@ import { openBirthdayCelebrationModal } from '@/components/BirthdayCelebrationPo
 
 const Profile = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
+  const {
+    state: onboardingState,
+    totalSteps,
+    canResumeTour,
+    startTour,
+    resumeTour,
+    resetTips,
+  } = useOnboarding();
   const navigate = useNavigate();
   const location = useLocation();
   const [editing, setEditing] = useState(false);
@@ -340,6 +349,74 @@ const Profile = () => {
                     <Switch checked={hideSurname} disabled={savingPrivacy} onCheckedChange={toggleHideSurname} />
                   </div>
                 </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card" data-testid="profile-platform-tour-card">
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex items-start gap-3.5 min-w-0">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0b2a6e] to-[#2563eb] text-white shadow-sm">
+                <Compass className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-bold tracking-tight text-foreground">Platformu Tanı</h3>
+                  {onboardingState.status === 'completed' ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Tur Tamamlandı
+                    </span>
+                  ) : canResumeTour ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                      Adım {onboardingState.currentStep + 1}/{totalSteps} kaydedildi
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground dark:border-slate-700">
+                      Rehberli Tur ({totalSteps} Adım)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                  Ana Sayfa, Notlar, Çalışma Stüdyosu, Günlük Bilgi Yarışması ve hesap araçlarını gerçek arayüz üzerinde adım adım keşfet.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {canResumeTour && (
+                <Button
+                  type="button"
+                  onClick={resumeTour}
+                  className="h-10 rounded-full bg-gradient-to-r from-[#0b2a6e] via-[#174ec4] to-[#2563eb] px-5 text-xs font-semibold text-white hover:brightness-105"
+                >
+                  <Play className="h-3.5 w-3.5 fill-current" />
+                  <span>Devam Et (Adım {onboardingState.currentStep + 1}/{totalSteps})</span>
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant={canResumeTour ? 'outline' : 'cta'}
+                onClick={() => startTour({ fromBeginning: true })}
+                className="h-10 rounded-full px-5 text-xs font-semibold"
+              >
+                <Compass className="h-3.5 w-3.5" />
+                <span>{onboardingState.status === 'completed' || canResumeTour ? 'Turu Baştan Başlat' : 'Platformu Tanı'}</span>
+              </Button>
+              {onboardingState.dismissedTips.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    resetTips();
+                    toast.success('Sayfa içi ipuçları yeniden etkinleştirildi.');
+                  }}
+                  className="h-10 rounded-full px-3.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>İpuçlarını Sıfırla</span>
+                </Button>
               )}
             </div>
           </CardContent>

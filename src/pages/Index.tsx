@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +13,7 @@ import EconLogo from '@/components/EconLogo';
 
 const Index = () => {
   const { user, loading, isAdmin } = useAuth();
+  const { shouldShowWelcomeAuto } = useOnboarding();
   const navigate = useNavigate();
   const { systemOpen, closedUntil, closureTitle, closureMessage, closureImageUrl, closureMode } = useSystemStatus();
   const [loadTimedOut, setLoadTimedOut] = useState(false);
@@ -73,6 +75,10 @@ const Index = () => {
   if (sessionStorage.getItem('econnotes_return_tour_pending') === '1') {
     sessionStorage.removeItem('econnotes_return_tour_pending');
     return <Navigate to="/welcome?mode=return" replace />;
+  }
+
+  if (shouldShowWelcomeAuto) {
+    return <Navigate to="/welcome" replace />;
   }
 
   return <Dashboard />;

@@ -1,5 +1,6 @@
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
+import ContextualTipBanner from '@/components/onboarding/ContextualTipBanner';
 import SignedImage from '@/components/SignedImage';
 import EconLogo from '@/components/EconLogo';
 import NotePreviewViewer from '@/components/NotePreviewViewer';
@@ -1072,6 +1073,7 @@ const Notes = () => {
               {!confirmUpload ? (
                 <>
                   <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+                    <ContextualTipBanner tipId="notes_upload" compact />
                     <div className="space-y-1.5">
                       <Label className="text-xs font-semibold text-foreground/90">Başlık *</Label>
                       <Input className="rounded-xl bg-background/70" value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} placeholder="Not başlığı" />
@@ -1252,6 +1254,8 @@ const Notes = () => {
             </DialogContent>
           </Dialog>
         </div>
+
+        <ContextualTipBanner tipId="notes_search" />
 
         <section className="relative overflow-hidden rounded-[20px] border border-slate-200/85 dark:border-slate-800/90 bg-card p-4 shadow-[var(--panel-shadow)] sm:p-5">
           <div className="flex flex-col gap-3 lg:flex-row">

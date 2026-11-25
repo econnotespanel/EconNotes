@@ -128,6 +128,15 @@ const ContentNotificationListener = () => {
         notifyAnnouncementsUpdated();
       }
 
+      // Suppress intrusive in-app toast & chime during the Welcome screen or active Guided Platform Tour
+      const isOnboardingSurface =
+        typeof document !== 'undefined' &&
+        (document.documentElement.dataset.econnotesTourActive === 'true' ||
+          window.location.pathname === '/welcome');
+      if (isOnboardingSurface) {
+        return;
+      }
+
       // 3. Play subtle audio chime (internally throttled to once every 2s)
       playChime();
 

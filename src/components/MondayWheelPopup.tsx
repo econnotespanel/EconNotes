@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import EconLogo from '@/components/EconLogo';
 import econEMark from '@/assets/econnotes-e-mark.png';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import {
   executeLuckyWheelSpin,
@@ -120,6 +121,7 @@ function createClientSpinRequestId(): string {
 
 const MondayWheelPopup = () => {
   const { user, profile, isAdmin, loading, refreshProfile } = useAuth();
+  const { isTourOpen } = useOnboarding();
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
@@ -480,7 +482,7 @@ const MondayWheelPopup = () => {
   const cx = 160;
   const cy = 160;
   const r = 136;
-  const showFloatingLauncher = !launcherDismissed && location.pathname === '/';
+  const showFloatingLauncher = !launcherDismissed && !isTourOpen && location.pathname === '/';
 
   return (
     <>

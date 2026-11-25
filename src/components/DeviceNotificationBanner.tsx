@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { Bell, BellRing, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -18,6 +19,7 @@ import {
 
 const DeviceNotificationBanner = () => {
   const { user } = useAuth();
+  const { isTourOpen } = useOnboarding();
   const [visible, setVisible] = useState(false);
   const [isIOSWeb, setIsIOSWeb] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -126,8 +128,8 @@ const DeviceNotificationBanner = () => {
     }
   };
 
-  // Never overlap MobileHomeScreenPrompt or open mobile sidebar
-  if (!visible || pwaPromptOpen || isSidebarOpen) return null;
+  // Never overlap MobileHomeScreenPrompt, open mobile sidebar, or active guided tour
+  if (!visible || pwaPromptOpen || isSidebarOpen || isTourOpen) return null;
 
   return (
     <aside

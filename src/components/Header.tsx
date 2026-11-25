@@ -14,7 +14,9 @@ import {
   Shield,
   Info,
   X,
+  Compass,
 } from 'lucide-react';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import EconLogo from '@/components/EconLogo';
@@ -56,6 +58,7 @@ import { requestOneSignalPermission, syncOneSignalSubscription } from '@/lib/one
 
 const Header = () => {
   const { user, profile, signOut, isAdmin } = useAuth();
+  const { canResumeTour, startTour, resumeTour } = useOnboarding();
   const { theme, toggleTheme } = useTheme();
   const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
@@ -327,6 +330,7 @@ const Header = () => {
             {/* Points Pill Button */}
             <button
               type="button"
+              data-tour="header-points"
               onClick={() => navigate('/points')}
               title={`${formattedPoints} Puan${points?.current_streak ? ` • ${points.current_streak} günlük seri` : ''}`}
               className={cn(
@@ -355,6 +359,7 @@ const Header = () => {
               <PopoverTrigger asChild>
                 <button
                   type="button"
+                  data-tour="header-notifications"
                   aria-label="Bildirimler"
                   title="Bildirimler"
                   className="relative flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-200/70 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
@@ -472,6 +477,7 @@ const Header = () => {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
+                  data-tour="header-profile"
                   aria-label="Profil menüsü"
                   title={displayName}
                   className={cn(
@@ -518,6 +524,16 @@ const Header = () => {
                       <span>Yönetici Paneli</span>
                     </DropdownMenuItem>
                   )}
+                  <DropdownMenuItem
+                    onClick={() => {
+                      if (canResumeTour) resumeTour();
+                      else startTour({ fromBeginning: true });
+                    }}
+                    className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full px-3 text-[13px] font-medium text-foreground focus:bg-slate-100/90 focus:text-slate-950 dark:focus:bg-slate-800/80 dark:focus:text-white"
+                  >
+                    <Compass className="h-4 w-4 shrink-0 text-primary" />
+                    <span>Platformu Tanı</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => navigate('/about')}
                     className="flex h-10 cursor-pointer items-center gap-2.5 rounded-full px-3 text-[13px] font-medium text-foreground focus:bg-slate-100/90 focus:text-slate-950 dark:focus:bg-slate-800/80 dark:focus:text-white"

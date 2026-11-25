@@ -6,6 +6,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { OnboardingProvider } from "@/contexts/OnboardingContext";
+import GuidedPlatformTour from "@/components/onboarding/GuidedPlatformTour";
 import ForcePasswordChange from "@/components/ForcePasswordChange";
 import { MfaGate } from "@/components/TwoFactor";
 import AdminMessageListener from "@/components/AdminMessageListener";
@@ -121,6 +123,7 @@ const App = () => {
               <OfflineBanner />
               {showSplash && <SplashScreen onFinish={handleSplashFinish} />}
               <BrowserRouter>
+                <OnboardingProvider>
                 <IosPwaTopBarFix />
                 <ScrollToTop />
                 <Suspense fallback={<RouteLoader />}>
@@ -133,6 +136,7 @@ const App = () => {
                         <SupportNotificationListener />
                         <BirthDatePromptModal />
                         <DailyWelcomePosterModal />
+                        <GuidedPlatformTour />
                         <Routes>
                         <Route path="/" element={<Index />} />
                         <Route path="/login" element={<Login />} />
@@ -161,6 +165,7 @@ const App = () => {
                     </MfaGate></PasswordChangeGate>
                   </SystemGate>
                 </Suspense>
+                </OnboardingProvider>
               </BrowserRouter>
             </TooltipProvider>
           </AuthProvider>
