@@ -30,7 +30,7 @@ const LIVE_CLASS_RULES = [
 ];
 
 const LiveClass = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [roomName, setRoomName] = useState('');
   const [isLive, setIsLive] = useState(false);
@@ -39,28 +39,32 @@ const LiveClass = () => {
   const [acceptChecked, setAcceptChecked] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { navigate('/login'); return; }
     const checkLive = async () => {
       const { data } = await supabase.from('announcements')
-        .select('*')
+        .select('content')
         .ilike('title', '%Canlı Ders%')
         .order('created_at', { ascending: false })
         .limit(1);
       if (data && data.length > 0) {
-        const match = data[0].content.match(/Oda: (.+)/);
-        if (match) {
+        const match = data[0].content.match(/Oda:\s*([A-Za-z0-9_-]{4,64})/);
+        if (match && match[1]) {
           setRoomName(match[1]);
           setIsLive(true);
         }
       }
     };
-    checkLive();
-    // Admin bypasses rules
+    void checkLive();
     if (isAdmin) setRulesAccepted(true);
-  }, [user]);
+  }, [user, authLoading, isAdmin, navigate]);
 
   const startClass = async () => {
-    const room = `econotes-${Date.now()}`;
+    const rand =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)
+        : Math.random().toString(36).slice(2, 12);
+    const room = `econotes-${Date.now()}-${rand}`;
     setRoomName(room);
     setIsLive(true);
 

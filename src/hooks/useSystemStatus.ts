@@ -95,26 +95,30 @@ export const useSystemStatus = (): SystemStatus => {
     const interval = setInterval(checkSystem, 30000);
 
     let channel: ReturnType<typeof supabase.channel> | null = null;
+    let lastBroadcastRefresh = 0;
     try {
+      const channelName = `system-status-db-${Math.random().toString(36).slice(2, 10)}`;
       channel = supabase
-        .channel('public-system-status')
-        .on('broadcast', { event: 'system-maintenance' }, (payload) => {
-          if (payload?.payload?.is_system_open !== undefined) {
-            setState((prev) => ({
-              ...prev,
-              systemOpen: Boolean(payload.payload.is_system_open),
-            }));
-          }
-          window.dispatchEvent(new Event('econnotes:system-changed'));
-          void checkSystem();
-        })
+        .channel(channelName)
+        // SECURITY: Only trust RLS-verified Postgres updates to system_settings; never mutate UI directly from unverified Broadcast!
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'system_settings' },
+          () => {
+            const now = Date.now();
+            if (now - lastBroadcastRefresh > 1500) {
+              lastBroadcastRefresh = now;
+              void checkSystem();
+            }
+          },
+        )
         .subscribe((status) => {
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.warn('Sistem bakım yayını kullanılamıyor; periyodik kontrol sürdürülecek.');
+            console.warn('Sistem durum kanalı kullanılamıyor; periyodik kontrol sürdürülecek.');
           }
         });
     } catch (error) {
-      console.warn('Sistem bakım yayını başlatılamadı; periyodik kontrol sürdürülecek.', error);
+      console.warn('Sistem durum kanalı başlatılamadı; periyodik kontrol sürdürülecek.', error);
     }
 
     const onVisible = () => {

@@ -1,6 +1,7 @@
 import { Suspense, lazy, useState, useCallback, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { registerQueryClientClearer } from "@/lib/sessionCleanup";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -54,28 +55,53 @@ const queryClient = new QueryClient({
   },
 });
 
+registerQueryClientClearer(() => {
+  queryClient.clear();
+});
+
 const PasswordChangeGate = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   if (loading) return <>{children}</>;
-  const mustChange = Boolean(
-    user && (user.app_metadata?.must_change_password || user.user_metadata?.must_change_password)
-  );
+  // Strictly check server-controlled app_metadata (never client-mutable user_metadata)
+  const mustChange = Boolean(user && user.app_metadata?.must_change_password);
   if (mustChange) {
     return <ForcePasswordChange />;
   }
   return <>{children}</>;
 };
 
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <RouteLoader />;
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+};
+
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, isAdmin, loading } = useAuth();
+  if (loading) return <RouteLoader />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 const App = () => {
   const [showSplash, setShowSplash] = useState(() => {
-    const shown = sessionStorage.getItem('econotes_splash_shown');
-    return !shown;
+    try {
+      const shown = sessionStorage.getItem('econnotes_splash_shown');
+      return !shown;
+    } catch {
+      return false;
+    }
   });
 
   const handleSplashFinish = useCallback(() => {
-    sessionStorage.setItem('econotes_splash_shown', 'true');
+    try {
+      sessionStorage.setItem('econnotes_splash_shown', 'true');
+    } catch {
+      // ignore storage restrictions
+    }
     setShowSplash(false);
-    prefetchRoutes();
   }, []);
 
   useEffect(() => {
@@ -113,21 +139,21 @@ const App = () => {
                         <Route path="/register" element={<Register />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
                         <Route path="/reset-password" element={<ResetPassword />} />
-                        <Route path="/notes" element={<PageGuard path="/notes"><Notes /></PageGuard>} />
-                        <Route path="/announcements" element={<PageGuard path="/announcements"><Announcements /></PageGuard>} />
-                        <Route path="/profile" element={<PageGuard path="/profile"><Profile /></PageGuard>} />
-                        <Route path="/messages" element={<PageGuard path="/messages"><Messages /></PageGuard>} />
-                        <Route path="/admin" element={<AdminPanel />} />
+                        <Route path="/notes" element={<ProtectedRoute><PageGuard path="/notes"><Notes /></PageGuard></ProtectedRoute>} />
+                        <Route path="/announcements" element={<ProtectedRoute><PageGuard path="/announcements"><Announcements /></PageGuard></ProtectedRoute>} />
+                        <Route path="/profile" element={<ProtectedRoute><PageGuard path="/profile"><Profile /></PageGuard></ProtectedRoute>} />
+                        <Route path="/messages" element={<ProtectedRoute><PageGuard path="/messages"><Messages /></PageGuard></ProtectedRoute>} />
+                        <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
                         <Route path="/about" element={<PageGuard path="/about"><About /></PageGuard>} />
-                        <Route path="/assistant" element={<PageGuard path="/assistant"><AcademicAssistant /></PageGuard>} />
-                        <Route path="/study" element={<PageGuard path="/study"><Study /></PageGuard>} />
-                        <Route path="/kpss" element={<PageGuard path="/kpss"><Kpss /></PageGuard>} />
+                        <Route path="/assistant" element={<ProtectedRoute><PageGuard path="/assistant"><AcademicAssistant /></PageGuard></ProtectedRoute>} />
+                        <Route path="/study" element={<ProtectedRoute><PageGuard path="/study"><Study /></PageGuard></ProtectedRoute>} />
+                        <Route path="/kpss" element={<ProtectedRoute><PageGuard path="/kpss"><Kpss /></PageGuard></ProtectedRoute>} />
                         <Route path="/welcome" element={<Welcome />} />
-                        <Route path="/points" element={<PageGuard path="/points"><Points /></PageGuard>} />
-                        <Route path="/live-class" element={<PageGuard path="/live-class"><LiveClass /></PageGuard>} />
-                        <Route path="/support" element={<Support />} />
-                        <Route path="/gunluk-yarisma" element={<DailyTrivia />} />
-                        <Route path="/daily-trivia" element={<DailyTrivia />} />
+                        <Route path="/points" element={<ProtectedRoute><PageGuard path="/points"><Points /></PageGuard></ProtectedRoute>} />
+                        <Route path="/live-class" element={<ProtectedRoute><PageGuard path="/live-class"><LiveClass /></PageGuard></ProtectedRoute>} />
+                        <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+                        <Route path="/gunluk-yarisma" element={<ProtectedRoute><DailyTrivia /></ProtectedRoute>} />
+                        <Route path="/daily-trivia" element={<ProtectedRoute><DailyTrivia /></ProtectedRoute>} />
                         <Route path="/install" element={<Install />} />
                         <Route path="*" element={<NotFound />} />
                         </Routes>

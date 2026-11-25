@@ -1,9 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
+  enforceRateLimit,
   getAuthenticatedUser,
   isTrustedOrigin,
   jsonResponse,
   preflightResponse,
+  readJsonBody,
+  RequestError,
 } from '../_shared/request-security.ts';
 
 const ALLOWED_XP_AMOUNTS = new Set([100, 200, 300, 400, 500]);
@@ -171,13 +174,14 @@ async function creditXpViaAtomicOrSafeFallback(
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return preflightResponse(req);
   if (!isTrustedOrigin(req)) return jsonResponse(req, { error: 'Geçersiz kaynak.' }, 403);
+  if (req.method !== 'POST') return jsonResponse(req, { error: 'Yalnızca POST desteklenir.' }, 405);
 
   const json = (body: unknown, status = 200) => jsonResponse(req, body, status);
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const token = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
-    if (!token) return json({ error: 'Yetkisiz.' }, 401);
+    const authUser = await getAuthenticatedUser(req);
+    if (!authUser?.id) return json({ error: 'Oturum geçersiz.' }, 401);
+    const authUserId = authUser.id;
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -185,26 +189,10 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
 
-    let authUserId: string | null = (await getAuthenticatedUser(req))?.id ?? null;
-    if (!authUserId) {
-      const { data: userData, error: userErr } = await admin.auth.getUser(token);
-      if (!userErr && userData?.user?.id) {
-        authUserId = userData.user.id;
-      }
-    }
-    if (!authUserId) return json({ error: 'Oturum geçersiz.' }, 401);
+    await enforceRateLimit(admin, `lucky_wheel:${authUserId}`, 25, 300);
 
-    let payload: Record<string, unknown> = {};
-    try {
-      const parsed = await req.json();
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        payload = parsed as Record<string, unknown>;
-      }
-    } catch {
-      return json({ error: 'Geçersiz istek.' }, 400);
-    }
-
-    const action = typeof payload.action === 'string' ? payload.action : 'legacy_claim';
+    const payload = await readJsonBody<Record<string, unknown>>(req, 4_096);
+    const action = typeof payload.action === 'string' ? payload.action.trim() : '';
 
     // ==================== ACTION: STATUS ====================
     if (action === 'status') {
@@ -215,11 +203,11 @@ Deno.serve(async (req) => {
         return json({ ok: true, ...(statusData as Record<string, unknown>) });
       }
 
-      // Graceful fallback if new RPC is not yet deployed
+      // Graceful server-authoritative fallback (NEVER trusts client-writable user_metadata!)
       const info = getIstanbulWheelInfo(new Date());
       const { data: isAdminRaw } = await admin.rpc('is_admin', { _user_id: authUserId });
       const isAdmin = Boolean(isAdminRaw);
-      const [ptsRes, evRes, authUserRes] = await Promise.all([
+      const [ptsRes, evRes, profileRes] = await Promise.all([
         admin.from('user_points').select('points').eq('user_id', authUserId).maybeSingle(),
         admin
           .from('point_events')
@@ -228,20 +216,25 @@ Deno.serve(async (req) => {
           .eq('reason', `monday_wheel:${info.dateStr}`)
           .limit(1)
           .maybeSingle(),
-        admin.auth.admin.getUserById(authUserId),
+        admin
+          .from('profiles')
+          .select('wheel_bonus_quota, wheel_unlimited_until')
+          .eq('user_id', authUserId)
+          .maybeSingle(),
       ]);
 
-      const meta = (authUserRes.data?.user?.user_metadata || {}) as Record<string, unknown>;
-      const metaDate = String(meta.monday_wheel_last_date || '');
-      const metaRewardId = String(meta.monday_wheel_last_reward || '');
-      const hasSpunToday = Boolean(evRes.data) || metaDate === info.dateStr;
-      const segId = evRes.data?.amount
-        ? `xp_${evRes.data.amount}`
-        : metaDate === info.dateStr
-          ? metaRewardId
-          : null;
+      const hasSpunToday = Boolean(evRes.data);
+      const segId = evRes.data?.amount ? `xp_${evRes.data.amount}` : null;
       const seg = WHEEL_SEGMENTS.find((s) => s.id === segId) || null;
       const userPoints = Number((ptsRes.data as { points?: number } | null)?.points ?? 0);
+      const prof = (profileRes.data || {}) as {
+        wheel_bonus_quota?: number | null;
+        wheel_unlimited_until?: string | null;
+      };
+      const unlimitedIso =
+        prof.wheel_unlimited_until && Date.parse(prof.wheel_unlimited_until) > Date.now()
+          ? prof.wheel_unlimited_until
+          : null;
 
       return json({
         ok: true,
@@ -253,11 +246,8 @@ Deno.serve(async (req) => {
         canSpinNow: (info.isMonday || isAdmin) && !hasSpunToday,
         nextResetAtIso: isAdmin ? info.nextDayResetIso : info.nextMondayResetIso,
         userPoints,
-        wheelBonusQuota: Number(meta.wheel_bonus_quota || 0),
-        wheelUnlimitedUntil:
-          typeof meta.wheel_unlimited_until === 'number' && meta.wheel_unlimited_until > Date.now()
-            ? new Date(meta.wheel_unlimited_until).toISOString()
-            : null,
+        wheelBonusQuota: Math.max(0, Number(prof.wheel_bonus_quota || 0)),
+        wheelUnlimitedUntil: unlimitedIso,
         spin: seg
           ? {
               id: `legacy-${info.dateStr}`,
@@ -270,10 +260,7 @@ Deno.serve(async (req) => {
               xpCredited: Boolean(evRes.data) || seg.type !== 'xp',
               pointsAfter: userPoints,
               quotaBonusAdded: seg.type === 'extra_quota' ? seg.amount : 0,
-              unlimitedExpiresAt:
-                seg.type === 'unlimited_day' && typeof meta.wheel_unlimited_until === 'number'
-                  ? new Date(meta.wheel_unlimited_until).toISOString()
-                  : null,
+              unlimitedExpiresAt: seg.type === 'unlimited_day' ? unlimitedIso : null,
               createdAt: evRes.data?.created_at ?? new Date().toISOString(),
             }
           : null,
@@ -287,44 +274,29 @@ Deno.serve(async (req) => {
           ? payload.clientRequestId.trim().slice(0, 120)
           : null;
 
-      // Primary path: single PostgreSQL atomic transaction with UNIQUE (user_id, daily_period) & advisory lock
       const { data: spinData, error: spinErr } = await admin.rpc('spin_lucky_wheel', {
         _client_request_id: clientRequestId,
         _actor_user_id: authUserId,
       });
 
       if (!spinErr && spinData) {
-        const resObj = spinData as Record<string, unknown>;
-        const spin = resObj.spin as Record<string, unknown> | undefined;
-        // Mirror summary into user_metadata best-effort for offline/legacy badge components
-        if (spin) {
-          try {
-            const { data: authUserRes } = await admin.auth.admin.getUserById(authUserId);
-            const existingMeta = (authUserRes?.user?.user_metadata || {}) as Record<string, unknown>;
-            const nextMeta: Record<string, unknown> = {
-              ...existingMeta,
-              monday_wheel_last_date: resObj.dailyPeriod,
-              monday_wheel_last_reward: spin.segmentId,
-              wheel_bonus_quota: resObj.wheelBonusQuota ?? existingMeta.wheel_bonus_quota ?? 0,
-            };
-            if (typeof resObj.wheelUnlimitedUntil === 'string' && resObj.wheelUnlimitedUntil) {
-              nextMeta.wheel_unlimited_until = Date.parse(resObj.wheelUnlimitedUntil);
-            }
-            await admin.auth.admin.updateUserById(authUserId, { user_metadata: nextMeta });
-          } catch (metaErr) {
-            console.warn('claim-wheel-xp metadata mirror warning:', metaErr);
-          }
-        }
-        return json(resObj);
+        return json(spinData as Record<string, unknown>);
       }
 
       if (spinErr && !String(spinErr.message || '').includes('spin_lucky_wheel')) {
-        const msg = spinErr.message || 'Çark çevrilemedi.';
-        const status = msg.includes('Pazartesi') ? 403 : 400;
-        return json({ ok: false, error: msg }, status);
+        const isMondayRule = String(spinErr.message || '').includes('Pazartesi');
+        return json(
+          {
+            ok: false,
+            error: isMondayRule
+              ? 'Şans Çarkı yalnızca Pazartesi günleri çevrilebilir.'
+              : 'Çark çevirme işlemi tamamlanamadı.',
+          },
+          isMondayRule ? 403 : 400,
+        );
       }
 
-      // Fallback path when SQL migration is not yet applied on DB
+      // Server-authoritative fallback if spin_lucky_wheel migration is not yet deployed
       const info = getIstanbulWheelInfo(new Date());
       const { data: isAdminRaw } = await admin.rpc('is_admin', { _user_id: authUserId });
       const isAdmin = Boolean(isAdminRaw);
@@ -335,20 +307,20 @@ Deno.serve(async (req) => {
       const reason = `monday_wheel:${info.dateStr}`;
       const txId = `wheel:${authUserId}:${info.dateStr}`;
 
-      const [existingEvRes, authUserRes] = await Promise.all([
+      const [existingEvRes, profileRes] = await Promise.all([
         admin.from('point_events').select('id, amount, created_at').eq('user_id', authUserId).eq('reason', reason).limit(1).maybeSingle(),
-        admin.auth.admin.getUserById(authUserId),
+        admin.from('profiles').select('wheel_bonus_quota, wheel_unlimited_until').eq('user_id', authUserId).maybeSingle(),
       ]);
-      const existingMeta = (authUserRes.data?.user?.user_metadata || {}) as Record<string, unknown>;
-      const alreadySpunMeta = String(existingMeta.monday_wheel_last_date || '') === info.dateStr;
+      const prof = (profileRes.data || {}) as {
+        wheel_bonus_quota?: number | null;
+        wheel_unlimited_until?: string | null;
+      };
 
-      if (existingEvRes.data || alreadySpunMeta) {
+      if (existingEvRes.data) {
         const { data: ptsRow } = await admin.from('user_points').select('points').eq('user_id', authUserId).maybeSingle();
         const curPts = Number((ptsRow as { points?: number } | null)?.points ?? 0);
-        const existingSegId = existingEvRes.data?.amount
-          ? `xp_${existingEvRes.data.amount}`
-          : String(existingMeta.monday_wheel_last_reward || 'xp_100');
-        const existingSeg = WHEEL_SEGMENTS.find((s) => s.id === existingSegId) ?? WHEEL_SEGMENTS[1];
+        const existingSeg =
+          WHEEL_SEGMENTS.find((s) => s.id === `xp_${existingEvRes.data?.amount}`) ?? WHEEL_SEGMENTS[1];
         return json({
           ok: true,
           alreadySpun: true,
@@ -357,10 +329,10 @@ Deno.serve(async (req) => {
           dailyPeriod: info.dateStr,
           nextResetAtIso: isAdmin ? info.nextDayResetIso : info.nextMondayResetIso,
           newPointsTotal: curPts,
-          wheelBonusQuota: Number(existingMeta.wheel_bonus_quota || 0),
+          wheelBonusQuota: Math.max(0, Number(prof.wheel_bonus_quota || 0)),
           wheelUnlimitedUntil:
-            typeof existingMeta.wheel_unlimited_until === 'number' && existingMeta.wheel_unlimited_until > Date.now()
-              ? new Date(existingMeta.wheel_unlimited_until).toISOString()
+            prof.wheel_unlimited_until && Date.parse(prof.wheel_unlimited_until) > Date.now()
+              ? prof.wheel_unlimited_until
               : null,
           spin: {
             id: `legacy-${info.dateStr}`,
@@ -374,14 +346,14 @@ Deno.serve(async (req) => {
             pointsAfter: curPts,
             quotaBonusAdded: existingSeg.type === 'extra_quota' ? existingSeg.amount : 0,
             unlimitedExpiresAt: null,
-            createdAt: existingEvRes.data?.created_at ?? new Date().toISOString(),
+            createdAt: existingEvRes.data.created_at ?? new Date().toISOString(),
           },
         });
       }
 
       const chosen = pickServerWeightedSegment();
       let newPointsTotal = 0;
-      let bonusQuota = Number(existingMeta.wheel_bonus_quota || 0);
+      let bonusQuota = Math.max(0, Number(prof.wheel_bonus_quota || 0));
       let unlimitedUntilIso: string | null = null;
 
       if (chosen.type === 'xp') {
@@ -396,28 +368,20 @@ Deno.serve(async (req) => {
           { segment_id: chosen.id, daily_period: info.dateStr },
         );
         if (credit.error) {
-          return json({ ok: false, error: credit.error }, 500);
+          return json({ ok: false, error: 'Ödül puanı işlenemedi.' }, 500);
         }
         newPointsTotal = credit.points;
       } else {
         const { data: ptsRow } = await admin.from('user_points').select('points').eq('user_id', authUserId).maybeSingle();
         newPointsTotal = Number((ptsRow as { points?: number } | null)?.points ?? 0);
+        if (chosen.type === 'extra_quota') {
+          bonusQuota += chosen.amount;
+          await admin.from('profiles').update({ wheel_bonus_quota: bonusQuota }).eq('user_id', authUserId);
+        } else if (chosen.type === 'unlimited_day') {
+          unlimitedUntilIso = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+          await admin.from('profiles').update({ wheel_unlimited_until: unlimitedUntilIso }).eq('user_id', authUserId);
+        }
       }
-
-      const nextMeta: Record<string, unknown> = {
-        ...existingMeta,
-        monday_wheel_last_date: info.dateStr,
-        monday_wheel_last_reward: chosen.id,
-      };
-      if (chosen.type === 'extra_quota') {
-        bonusQuota += chosen.amount;
-        nextMeta.wheel_bonus_quota = bonusQuota;
-      } else if (chosen.type === 'unlimited_day') {
-        const expiresMs = Date.now() + 24 * 60 * 60 * 1000;
-        nextMeta.wheel_unlimited_until = expiresMs;
-        unlimitedUntilIso = new Date(expiresMs).toISOString();
-      }
-      await admin.auth.admin.updateUserById(authUserId, { user_metadata: nextMeta });
 
       return json({
         ok: true,
@@ -446,72 +410,28 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ==================== ACTION: RECONCILE (Verified Historical Missing XP) ====================
+    // ==================== ACTION: RECONCILE (Server-Authoritative Tables Only) ====================
     if (action === 'reconcile') {
-      const { data: recRows, error: recErr } = await admin.rpc('reconcile_missing_gamification_xp', {
+      const { data: recRes, error: recErr } = await admin.rpc('reconcile_missing_gamification_xp', {
         _apply: true,
-        _target_user_id: authUserId,
+        _only_user_id: authUserId,
       });
-      if (!recErr && Array.isArray(recRows)) {
-        const creditedXp = recRows.reduce(
-          (sum, r) => sum + ((r as { applied?: boolean; missing_xp?: number }).applied ? Number((r as { missing_xp?: number }).missing_xp || 0) : 0),
-          0,
-        );
-        const { data: ptsRow } = await admin.from('user_points').select('points').eq('user_id', authUserId).maybeSingle();
-        return json({
-          ok: true,
-          creditedXp,
-          items: recRows,
-          userPoints: Number((ptsRow as { points?: number } | null)?.points ?? 0),
-        });
-      }
-      return json({ ok: true, creditedXp: 0, items: [] });
+      const { data: ptsRow } = await admin.from('user_points').select('points').eq('user_id', authUserId).maybeSingle();
+      const totalReconciled = !recErr && recRes && typeof recRes === 'object'
+        ? Number((recRes as { total_xp_reconciled?: number }).total_xp_reconciled || 0)
+        : 0;
+      return json({
+        ok: true,
+        creditedXp: totalReconciled,
+        userPoints: Number((ptsRow as { points?: number } | null)?.points ?? 0),
+      });
     }
 
-    // ==================== LEGACY CLAIM PATH (Backwards Compatibility) ====================
-    const amount = Number(payload.amount);
-    if (!Number.isInteger(amount) || !ALLOWED_XP_AMOUNTS.has(amount)) {
-      return json({ error: 'Geçersiz çark XP miktarı.' }, 400);
-    }
-
-    const { dateStr, isMonday } = getIstanbulWheelInfo(new Date());
-    const { data: isAdminRaw } = await admin.rpc('is_admin', { _user_id: authUserId });
-    const isAdmin = Boolean(isAdminRaw);
-
-    if (!isMonday && !isAdmin) {
-      return json({ error: 'Şans çarkı yalnızca Pazartesi günleri çevrilebilir.' }, 403);
-    }
-
-    const reason = `monday_wheel:${dateStr}`;
-    const txId =
-      typeof payload.transactionId === 'string' && payload.transactionId.trim()
-        ? payload.transactionId.trim().slice(0, 120)
-        : `wheel:${authUserId}:${dateStr}`;
-
-    const credit = await creditXpViaAtomicOrSafeFallback(
-      admin,
-      authUserId,
-      amount,
-      reason,
-      txId,
-      'lucky_wheel',
-      null,
-      { daily_period: dateStr, legacy_claim: true },
-    );
-
-    if (credit.error) {
-      return json({ error: credit.error }, 500);
-    }
-
-    return json({
-      ok: true,
-      already_claimed: credit.alreadyCredited,
-      awarded: credit.awarded,
-      points: credit.points,
-      transactionId: txId,
-    });
+    // SECURITY: Legacy client-supplied amount/transactionId claim path permanently removed!
+    return json({ error: 'Geçersiz çark işlemi.' }, 400);
   } catch (e) {
-    console.error('claim-wheel-xp error', e);
-    return json({ error: e instanceof Error ? e.message : 'Bilinmeyen hata.' }, 500);
+    if (e instanceof RequestError) return json({ error: e.message }, e.status);
+    console.error('claim-wheel-xp error');
+    return json({ error: 'Çark işlemi sırasında bir hata oluştu.' }, 500);
   }
 });

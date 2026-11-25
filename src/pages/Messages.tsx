@@ -116,8 +116,11 @@ const Messages = () => {
   };
 
   const fetchAllUsers = async () => {
-    const { data } = await supabase.from('profiles').select('*');
-    setAllUsers((data || []).filter(p => p.user_id !== user?.id));
+    const { data } = await supabase
+      .from('profiles')
+      .select('user_id, full_name, avatar_url, university, department, last_login')
+      .limit(300);
+    setAllUsers((data || []).filter((p) => p.user_id !== user?.id));
   };
 
   const fetchMessages = async (friendUserId: string) => {
@@ -157,7 +160,7 @@ const Messages = () => {
   }, [user]);
 
   useEffect(() => {
-    if (blockedUsers.length >= 0 && user) fetchFriends();
+    if (blockedUsers.length > 0 && user) fetchFriends();
   }, [blockedUsers]);
 
   useEffect(() => {
@@ -268,15 +271,23 @@ const Messages = () => {
   };
 
   const sendFileMessage = async (file: File) => {
-    const ext = file.name.split('.').pop();
-    const path = `messages/${user!.id}/${Date.now()}.${ext}`;
-    const { error: uploadErr } = await supabase.storage.from('notes').upload(path, file);
+    const { validateUploadFile, buildSafeStoragePath } = await import('@/lib/fileSecurity');
+    const validation = await validateUploadFile(file, 'message');
+    if (!validation.ok || !validation.safeExtension) {
+      toast.error(validation.error || 'Bu dosya türü mesajlarda gönderilemez.');
+      return;
+    }
+    const path = buildSafeStoragePath(`messages/${user!.id}`, validation.safeExtension);
+    const { error: uploadErr } = await supabase.storage
+      .from('notes')
+      .upload(path, file, { contentType: validation.normalizedMime });
     if (uploadErr) { toast.error('Dosya gönderilemedi.'); return; }
 
+    const safeDisplayName = file.name.replace(/[\[\]()]/g, '').slice(0, 120);
     const { error } = await supabase.from('messages').insert({
       sender_id: user!.id,
       receiver_id: selectedFriend.user_id,
-      content: `📎 [Dosya: ${file.name}](${path})`,
+      content: `📎 [Dosya: ${safeDisplayName}](${path})`,
     });
     if (error) { toast.error('Mesaj gönderilemedi.'); return; }
     fetchMessages(selectedFriend.user_id);
@@ -330,6 +341,14 @@ const Messages = () => {
     const fileMatch = visibleContent.match(/📎 \[Dosya: (.+?)\]\((.+?)\)/);
     if (fileMatch) {
       const [, fileName, fileUrl] = fileMatch;
+      // SECURITY: Strictly ensure DM attachment paths stay inside `messages/<uuid>/<file>` (prevents arbitrary private bucket reads!)
+      const isValidMessagePath =
+        /^messages\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/i.test(fileUrl.trim()) &&
+        !fileUrl.includes('..') &&
+        !/\.(html?|svg|xhtml|xml|js|php|exe)$/i.test(fileUrl);
+      if (!isValidMessagePath) {
+        return <span className="text-xs italic text-muted-foreground">[Güvenlik politikası gereği geçersiz dosya bağlantısı engellendi]</span>;
+      }
       const isImage = /\.(png|jpg|jpeg|gif|webp)$/i.test(fileName);
       return (
         <div>

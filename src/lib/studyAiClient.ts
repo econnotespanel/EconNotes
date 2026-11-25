@@ -53,8 +53,6 @@ export interface OrchestrationResult {
 
 export type ProgressCallback = (pct: number, label: string) => void;
 
-const PUBLIC_REASONING_URL = 'https://text.pollinations.ai/openai';
-
 function extractJsonLoose(raw: string): Record<string, unknown> | null {
   if (!raw || typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -1139,57 +1137,13 @@ YANITINI YALNIZCA GEÇERLİ JSON OLARAK DÖNDÜR:
   return { content: summary, model: usedModel, sourceMode: 'ai' };
 }
 
-async function postPublicJsonAttempt(
-  systemPrompt: string,
-  userPrompt: string,
-  useResponseFormat: boolean,
-  temperature = 0.28,
-): Promise<Record<string, unknown> | null> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 38_000);
-    const bodyPayload: Record<string, unknown> = {
-      model: 'openai',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt.slice(0, 15_500) },
-      ],
-      temperature,
-    };
-    if (useResponseFormat) {
-      bodyPayload.response_format = { type: 'json_object' };
-    }
-    const res = await fetch(PUBLIC_REASONING_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bodyPayload),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const json = await res.json();
-    const text = json?.choices?.[0]?.message?.content;
-    if (typeof text !== 'string' || !text.trim()) return null;
-    return extractJsonLoose(text);
-  } catch {
-    return null;
-  }
-}
-
 async function invokePublicJsonFallback(
-  systemPrompt: string,
-  userPrompt: string,
-  temperature = 0.28,
+  _systemPrompt: string,
+  _userPrompt: string,
+  _temperature = 0.28,
 ): Promise<Record<string, unknown> | null> {
-  const first = await postPublicJsonAttempt(systemPrompt, userPrompt, true, temperature);
-  if (first) return first;
-  // Bazı genel uç noktalar response_format: json_object ile 400 döndürür; kısıtsız JSON istemiyle tekrar dene
-  return postPublicJsonAttempt(
-    `${systemPrompt}\n\nKRİTİK: Yalnızca ham JSON nesnesi ({...}) döndür, ek sohbet veya markdown açıklaması yazma.`,
-    userPrompt,
-    false,
-    temperature,
-  );
+  // SECURITY: Disabled forwarding private student study notes to unauthenticated public AI endpoints.
+  return null;
 }
 
 function averageSectionWords(sections: SummarySection[]): number {
@@ -1814,13 +1768,13 @@ async function generateSummaryMapReduce(
 
   if (blueprintRes && blueprintRes.sourceMode === 'ai' && Array.isArray(blueprintRes.content?.sectionsPlan)) {
     const blueprint = blueprintRes.content;
-    const plan: Array<{
+    const plan = blueprint.sectionsPlan as Array<{
       index: number;
       title: string;
       pageRange?: string;
       focusPoints?: string[];
       keyConcepts?: string[];
-    }> = blueprint.sectionsPlan;
+    }>;
 
     const batchSize = 3;
     const batches: typeof plan[] = [];
@@ -2875,7 +2829,7 @@ export async function gradeOpenEndedAnswer(params: {
   });
 
   if (edgeRes?.content && typeof edgeRes.content.score === 'number') {
-    return edgeRes.content as OpenEndedGradeResult;
+    return edgeRes.content as unknown as OpenEndedGradeResult;
   }
 
   // Tier-1.5 Live Server AI rubric grading
@@ -3052,42 +3006,9 @@ export async function askStudyCoach(params: {
       ? 'DERİN ARAŞTIRMA MODU: Teorik arka plan, varsa formüller ve alana özgü somut vaka örneğiyle derinlemesine açıkla. Notta olmayan bilgileri [Not Dışı Genel Bilgi] diye açıkça işaretle.'
       : 'NET VE KAYNAKLI ANLATIM: Doğrudan nottaki içeriğe dayanarak sade, net, adım adım ve pekiştirici Türkçe yanıt ver.';
 
-  try {
-    const res = await fetch(PUBLIC_REASONING_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'openai',
-        messages: [
-          {
-            role: 'system',
-            content: `Sen EconNotes Akıl Hocası'sın. Ders/Alan: ${params.course || 'Üniversite Dersi'} | Materyal: ${
-              params.materialTitle
-            }.
-${modeNote}
-KESİN DOĞRULUK KURALI:
-- Yalnızca aşağıdaki ders notu/slayt içeriğine ve bu bilim dalının doğrulanmış akademik bilgisine sadık kal.
-- Uydurma veri, konu dışı alakasız bölüm örnekleri veya boş dolgu cümleler KESİNLİKLE YASAKTIR.
-- Sorulan bilgi notta geçmiyorsa "Yüklediğin notta bu bilgi doğrudan geçmiyor." diyerek dürüstçe belirt.
-
-DERS NOTU / SLAYT BAĞLAMI:
-${focusedContext}`,
-          },
-          ...params.messages.slice(-10),
-        ],
-        temperature: 0.25,
-      }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const content = json?.choices?.[0]?.message?.content;
-      if (typeof content === 'string' && content.trim()) {
-        return { reply: content.trim(), model: 'EconNotes Akıl Hocası' };
-      }
-    }
-  } catch {
-    // Ignore and fall back to grounded local excerpt
-  }
+  // SECURITY: Never send private student study materials to unauthenticated public endpoints
+  // (fall back directly to grounded local excerpt below when authenticated Edge Functions are offline).
+  void modeNote;
 
   // Tier-3 Honest Grounded Excerpt Fallback (never hallucinates even if cloud is temporarily busy)
   if (focusedContext.trim().length > 40) {

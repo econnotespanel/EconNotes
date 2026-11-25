@@ -294,8 +294,9 @@ export default function Study() {
             .order('created_at', { ascending: false }),
           supabase
             .from('notes')
-            .select('id, title, course, description, department, semester, file_url, file_name, file_type')
+            .select('id, title, course, description, department, semester, file_url, file_name, file_type, has_password')
             .eq('status', 'approved')
+            .or('has_password.is.null,has_password.eq.false')
             .order('created_at', { ascending: false })
             .limit(400),
         ]);

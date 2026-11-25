@@ -286,40 +286,45 @@ async function renderScannedPdfToImages(
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerMod.default;
 
   const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  // SECURITY (CVE-2024-4367): strictly disable PDF.js eval font compilation
+  const pdf = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false, disableFontFace: true }).promise;
   const pageCount = Math.min(pdf.numPages, maxPages);
   const rendered: AssistantImageItem[] = [];
 
-  for (let i = 1; i <= pageCount; i++) {
-    onProgress?.(
-      30 + Math.round((i / pageCount) * 65),
-      `Taranmış PDF sayfası hazırlanıyor (${i}/${pageCount})...`,
-    );
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 1.6 });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(viewport.width);
-    canvas.height = Math.round(viewport.height);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) continue;
+  try {
+    for (let i = 1; i <= pageCount; i++) {
+      onProgress?.(
+        30 + Math.round((i / pageCount) * 65),
+        `Taranmış PDF sayfası hazırlanıyor (${i}/${pageCount})...`,
+      );
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.6 });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(viewport.width);
+      canvas.height = Math.round(viewport.height);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) continue;
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport }).promise;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport }).promise;
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-    const base64Data = dataUrl.split(',')[1] || '';
-    if (base64Data) {
-      rendered.push({
-        id: makeId(),
-        kind: 'image',
-        name: `${file.name} (Sayfa ${i})`,
-        mimeType: 'image/jpeg',
-        base64Data,
-        previewUrl: dataUrl,
-        sizeLabel: formatFileSize(Math.round((base64Data.length * 3) / 4)),
-      });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+      const base64Data = dataUrl.split(',')[1] || '';
+      if (base64Data) {
+        rendered.push({
+          id: makeId(),
+          kind: 'image',
+          name: `${file.name} (Sayfa ${i})`,
+          mimeType: 'image/jpeg',
+          base64Data,
+          previewUrl: dataUrl,
+          sizeLabel: formatFileSize(Math.round((base64Data.length * 3) / 4)),
+        });
+      }
     }
+  } finally {
+    await pdf.destroy().catch(() => {});
   }
 
   return rendered;

@@ -1,11 +1,15 @@
 // KPSS Çalışma Merkezi — AI ile çıkabilecek konular, konu özeti, çözümlü test ve kart üretimi
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
+  ANTI_INJECTION_SYSTEM_GUARD,
+  enforceRateLimit,
   getAuthenticatedUser,
   isTrustedOrigin,
   jsonResponse,
   preflightResponse,
   readJsonBody,
   RequestError,
+  wrapUntrustedPromptData,
 } from '../_shared/request-security.ts';
 import {
   createChatCompletion,
@@ -172,7 +176,15 @@ Deno.serve(async (req) => {
 
   try {
     const user = await getAuthenticatedUser(req);
-    if (!user) return jsonResponse(req, { error: 'Bu işlem için giriş yapmalısınız.' }, 401);
+    if (!user?.id) return jsonResponse(req, { error: 'Bu işlem için giriş yapmalısınız.' }, 401);
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const adminClient =
+      supabaseUrl && serviceKey
+        ? createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+        : null;
+    await enforceRateLimit(adminClient, `generate_kpss:${user.id}`, 15, 600);
 
     const body = await readJsonBody<KpssRequest>(req, 1_048_576);
     if (!body?.type || !schemas[body.type] || !body.subject) {
@@ -195,8 +207,8 @@ Deno.serve(async (req) => {
     const result = await createChatCompletion({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: userText },
+        { role: 'system', content: `${system}\n\n${ANTI_INJECTION_SYSTEM_GUARD}` },
+        { role: 'user', content: wrapUntrustedPromptData('kpss_request', userText) },
       ],
       tools: [{
         type: 'function',
@@ -207,17 +219,18 @@ Deno.serve(async (req) => {
         },
       }],
       tool_choice: { type: 'function', function: { name: 'emit_kpss_material' } },
+      allowPublicFallback: false,
     });
 
     if (!result.parsedJson) {
       return jsonResponse(req, { error: 'Materyal üretilemedi, tekrar deneyin.' }, 502);
     }
 
-    return jsonResponse(req, { content: result.parsedJson, model: result.model });
+    return jsonResponse(req, { content: result.parsedJson, model: 'EconNotes KPSS AI' });
   } catch (error) {
     if (error instanceof RequestError) return jsonResponse(req, { error: error.message }, error.status);
     if (error instanceof OpenAIGatewayError) return jsonResponse(req, { error: error.message }, error.status);
-    console.error('generate-kpss request failed:', error);
+    console.error('generate-kpss request failed');
     return jsonResponse(req, { error: 'İstek işlenemedi.' }, 500);
   }
 });

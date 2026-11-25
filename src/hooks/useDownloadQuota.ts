@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { isBirthdayUnlimitedActive } from '@/lib/birthdayPerk';
-import { getWheelBonusQuota, isWheelUnlimitedActive } from '@/lib/mondayWheel';
-import { getTriviaUnlimitedUntil, isTriviaUnlimitedActive } from '@/lib/dailyTrivia';
 
 export interface DownloadQuota {
   approved_uploads: number;
@@ -19,6 +16,11 @@ export interface DownloadQuota {
   wheel_bonus_quota?: number;
 }
 
+/**
+ * Strictly derives download quota & active perks from server-authoritative sources
+ * (`get_download_quota` RPC + `profiles` table columns). Never trusts `localStorage`
+ * or client-writable `user_metadata`, and fails CLOSED when the quota RPC errors.
+ */
 export const useDownloadQuota = () => {
   const { user, profile } = useAuth();
   const [quota, setQuota] = useState<DownloadQuota | null>(null);
@@ -30,58 +32,81 @@ export const useDownloadQuota = () => {
       setLoading(false);
       return;
     }
-    const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
-    const wheelProfile = profile as { wheel_bonus_quota?: number | null; wheel_unlimited_until?: string | null } | null;
-    const wheelUnlimited = isWheelUnlimitedActive(user, new Date(), wheelProfile);
-    const triviaUnlimited = isTriviaUnlimitedActive(user, profile as { trivia_unlimited_until?: string | null } | null);
-    const triviaUntil = getTriviaUnlimitedUntil(user, profile as { trivia_unlimited_until?: string | null } | null);
-    const wheelBonus = getWheelBonusQuota(user, wheelProfile);
-    const serverProfileWheelBonus = Math.max(0, Number(wheelProfile?.wheel_bonus_quota || 0));
+
+    const p = profile as {
+      birth_date?: string | null;
+      wheel_bonus_quota?: number | null;
+      wheel_unlimited_until?: string | null;
+      trivia_unlimited_until?: string | null;
+    } | null;
+
+    const nowMs = Date.now();
+    const triviaUntilMs = p?.trivia_unlimited_until ? Date.parse(p.trivia_unlimited_until) : 0;
+    const wheelUntilMs = p?.wheel_unlimited_until ? Date.parse(p.wheel_unlimited_until) : 0;
+    const triviaUnlimited = Number.isFinite(triviaUntilMs) && triviaUntilMs > nowMs;
+    const wheelUnlimited = Number.isFinite(wheelUntilMs) && wheelUntilMs > nowMs;
+    const wheelBonus = Math.max(0, Number(p?.wheel_bonus_quota || 0));
+
+    let birthdayUnlimited = false;
+    if (p?.birth_date && /^\d{4}-\d{2}-\d{2}/.test(p.birth_date)) {
+      try {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Europe/Istanbul',
+          month: '2-digit',
+          day: '2-digit',
+        }).formatToParts(new Date());
+        const m = parts.find((x) => x.type === 'month')?.value;
+        const d = parts.find((x) => x.type === 'day')?.value;
+        if (m && d && p.birth_date.slice(5, 10) === `${m}-${d}`) {
+          birthdayUnlimited = true;
+        }
+      } catch {
+        birthdayUnlimited = false;
+      }
+    }
 
     const { data, error } = await supabase.rpc('get_download_quota', { _user_id: user.id });
-    if (!error && data && data.length > 0) {
-      const nextQuota = data[0] as DownloadQuota;
-      const baseAllowed = Math.max(0, nextQuota.allowed_downloads);
-      // Avoid double-counting wheel_bonus_quota when get_download_quota already adds profiles.wheel_bonus_quota
-      const uncountedClientWheelBonus = Math.max(0, wheelBonus - serverProfileWheelBonus);
-      const totalAllowed = baseAllowed + uncountedClientWheelBonus;
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const row = data[0] as Record<string, unknown>;
+      const isAdmin = Boolean(row.is_admin);
+      const totalDownloads = Math.max(0, Number(row.total_downloads ?? 0));
+      const allowed = Math.max(0, Number(row.total_quota ?? row.allowed_downloads ?? 0));
+      const remaining = Math.max(0, Number(row.remaining ?? Math.max(allowed - totalDownloads, 0)));
       const normalized: DownloadQuota = {
-        ...nextQuota,
-        allowed_downloads: totalAllowed,
+        approved_uploads: Math.max(0, Number(row.approved_uploads ?? 0)),
+        total_downloads: totalDownloads,
+        allowed_downloads: allowed,
+        remaining,
+        is_admin: isAdmin,
         is_birthday_unlimited: birthdayUnlimited,
         is_wheel_unlimited: wheelUnlimited,
         is_trivia_unlimited: triviaUnlimited,
-        trivia_unlimited_until: triviaUnlimited ? triviaUntil : 0,
+        trivia_unlimited_until: triviaUnlimited ? triviaUntilMs : 0,
         wheel_bonus_quota: wheelBonus,
+        can_download: isAdmin || remaining > 0 || birthdayUnlimited || wheelUnlimited || triviaUnlimited,
       };
-      normalized.remaining = Math.max(totalAllowed - normalized.total_downloads, 0);
-      normalized.can_download =
-        normalized.is_admin ||
-        birthdayUnlimited ||
-        wheelUnlimited ||
-        triviaUnlimited ||
-        normalized.total_downloads < totalAllowed;
       setQuota(normalized);
-    } else if (birthdayUnlimited || wheelUnlimited || triviaUnlimited) {
+    } else {
+      // Fail CLOSED on quota RPC error (never grant unlimited quota from client cache!)
       setQuota({
         approved_uploads: 0,
         total_downloads: 0,
-        allowed_downloads: 999,
-        remaining: 999,
-        can_download: true,
+        allowed_downloads: 0,
+        remaining: 0,
+        can_download: false,
         is_admin: false,
-        is_birthday_unlimited: birthdayUnlimited,
-        is_wheel_unlimited: wheelUnlimited,
-        is_trivia_unlimited: triviaUnlimited,
-        trivia_unlimited_until: triviaUnlimited ? triviaUntil : 0,
-        wheel_bonus_quota: wheelBonus,
+        is_birthday_unlimited: false,
+        is_wheel_unlimited: false,
+        is_trivia_unlimited: false,
+        trivia_unlimited_until: 0,
+        wheel_bonus_quota: 0,
       });
     }
     setLoading(false);
   }, [user, profile]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
     window.addEventListener('econnotes:birthdate-updated', refresh);
     window.addEventListener('econnotes:wheel-updated', refresh);
     window.addEventListener('econnotes:trivia-updated', refresh);
@@ -92,7 +117,6 @@ export const useDownloadQuota = () => {
     };
   }, [refresh]);
 
-  // Real-time auto-expiry timer: restore normal quota the exact moment the 2-hour trivia pass expires
   useEffect(() => {
     const until = quota?.trivia_unlimited_until || 0;
     if (!until) return;

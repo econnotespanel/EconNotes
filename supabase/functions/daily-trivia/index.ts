@@ -1,9 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
+  enforceRateLimit,
   getAuthenticatedUser,
   isTrustedOrigin,
   jsonResponse,
   preflightResponse,
+  readJsonBody,
+  RequestError,
 } from '../_shared/request-security.ts';
 import { createChatCompletion } from '../_shared/openai-gateway.ts';
 import {
@@ -828,13 +831,14 @@ function getCancelMessage(reason: string | null | undefined): string {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return preflightResponse(req);
   if (!isTrustedOrigin(req)) return jsonResponse(req, { error: 'Geçersiz kaynak.' }, 403);
+  if (req.method !== 'POST') return jsonResponse(req, { error: 'Yalnızca POST desteklenir.' }, 405);
 
   const json = (body: unknown, status = 200) => jsonResponse(req, body, status);
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const token = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
-    if (!token) return json({ error: 'Yetkisiz. Lütfen giriş yapın.' }, 401);
+    const authUser = await getAuthenticatedUser(req);
+    if (!authUser?.id) return json({ error: 'Oturum geçersiz. Lütfen tekrar giriş yapın.' }, 401);
+    const authUserId = authUser.id;
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -842,29 +846,13 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
 
-    let authUserId: string | null = (await getAuthenticatedUser(req))?.id ?? null;
-    if (!authUserId) {
-      const { data: userData, error: userErr } = await admin.auth.getUser(token);
-      if (!userErr && userData?.user?.id) {
-        authUserId = userData.user.id;
-      }
-    }
-    if (!authUserId) return json({ error: 'Oturum geçersiz.' }, 401);
+    await enforceRateLimit(admin, `daily_trivia:${authUserId}`, 120, 300);
 
-    let body: Record<string, unknown> = {};
-    try {
-      const parsed = await req.json();
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        body = parsed as Record<string, unknown>;
-      }
-    } catch {
-      body = {};
-    }
-
+    const body = await readJsonBody<Record<string, unknown>>(req, 16_384);
     const action = String(body.action || 'status');
     const { dateStr: quizDate, resetsAtIso } = getIstanbulDateParts(new Date());
 
-    // Fetch current user's active 2-hour unlimited pass (if any) + perfect win count
+    // Fetch current user's active 2-hour unlimited pass (strictly from DB profiles — NEVER user_metadata!)
     const [profileRes, attemptRes, perfectCountRes, userPtsRes] = await Promise.all([
       admin.from('profiles').select('trivia_unlimited_until').eq('user_id', authUserId).maybeSingle(),
       admin
@@ -883,29 +871,14 @@ Deno.serve(async (req) => {
 
     if (attemptRes.error && attemptRes.error.message.includes('daily_trivia_attempts')) {
       return json(
-        {
-          error: 'Günlük Bilgi Yarışması veritabanı tablosu henüz hazır değil. Lütfen kısa süre sonra tekrar deneyin.',
-          migrationPending: true,
-        },
+        { error: 'Günlük Bilgi Yarışması hizmeti şu anda bakımda. Lütfen kısa süre sonra tekrar deneyin.' },
         503,
       );
     }
 
     let attempt = attemptRes.data as Record<string, any> | null;
-    let rawUnlimitedUntil = (profileRes.data as { trivia_unlimited_until?: string | null } | null)
+    const rawUnlimitedUntil = (profileRes.data as { trivia_unlimited_until?: string | null } | null)
       ?.trivia_unlimited_until;
-    if (!rawUnlimitedUntil) {
-      try {
-        const { data: authUserLookup } = await admin.auth.admin.getUserById(authUserId);
-        const metaUntil = (authUserLookup?.user?.user_metadata as Record<string, unknown> | undefined)
-          ?.trivia_unlimited_until;
-        if (typeof metaUntil === 'string' && metaUntil.trim()) {
-          rawUnlimitedUntil = metaUntil;
-        }
-      } catch {
-        // ignore metadata lookup errors
-      }
-    }
     const activeUnlimitedUntil =
       rawUnlimitedUntil && Date.parse(rawUnlimitedUntil) > Date.now()
         ? rawUnlimitedUntil
@@ -1714,13 +1687,18 @@ Deno.serve(async (req) => {
           409,
         );
       }
+      if (attempt.status === 'grace_period') {
+        return json({ error: 'Yarışma ekranına geri dönüş doğrulanmadan yarışma tamamlanamaz.' }, 409);
+      }
+      // Server-authoritative timeout determination (never trust client body.timedOut to bypass expiry!)
       const expired = isAttemptExpired(attempt) || Date.now() >= attemptDeadlineMs(attempt) - 1500;
-      return json(await finalizeAttempt(Boolean(body.timedOut) && expired));
+      return json(await finalizeAttempt(expired));
     }
 
     return json({ error: 'Bilinmeyen işlem.' }, 400);
   } catch (e) {
-    console.error('daily-trivia error:', e);
-    return json({ error: e instanceof Error ? e.message : 'Beklenmeyen bir hata oluştu.' }, 500);
+    if (e instanceof RequestError) return json({ error: e.message }, e.status);
+    console.error('daily-trivia error');
+    return json({ error: 'Beklenmeyen bir hata oluştu.' }, 500);
   }
 });

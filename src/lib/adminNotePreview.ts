@@ -187,15 +187,28 @@ export function detectPreviewFileKind(params: {
     return 'doc_legacy';
   }
 
+  // SECURITY: Never classify SVG or HTML/XML as active previewable image/text (prevents same-origin blob: XSS)
+  if (
+    ext === 'svg' ||
+    ext === 'html' ||
+    ext === 'htm' ||
+    ext === 'xhtml' ||
+    ext === 'xml' ||
+    mime.includes('svg') ||
+    mime.includes('html')
+  ) {
+    return 'unsupported';
+  }
+
   if (
     mime.startsWith('image/') ||
-    ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'].includes(ext)
+    ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'].includes(ext)
   ) {
     return 'image';
   }
 
   if (
-    mime.startsWith('text/') ||
+    mime === 'text/plain' ||
     ['txt', 'md', 'csv', 'json'].includes(ext)
   ) {
     return 'text';
@@ -239,11 +252,11 @@ function decodeXmlEntities(input: string): string {
     .replace(/&apos;/g, "'")
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => {
       const code = parseInt(hex, 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
     })
     .replace(/&#(\d+);/g, (_, dec) => {
       const code = parseInt(dec, 10);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : '';
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
     });
 }
 
@@ -259,8 +272,6 @@ function guessMediaMime(fileName: string): string {
       return 'image/gif';
     case 'webp':
       return 'image/webp';
-    case 'svg':
-      return 'image/svg+xml';
     case 'bmp':
       return 'image/bmp';
     default:
@@ -270,7 +281,8 @@ function guessMediaMime(fileName: string): string {
 
 function isPreviewableMedia(fileName: string): boolean {
   const ext = getExtension(fileName);
-  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
+  // Strictly raster image formats only (never SVG)
+  return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'].includes(ext);
 }
 
 function extractDrawingParagraphs(xml: string): string[] {
@@ -577,11 +589,12 @@ function getEffectiveMimeForBlob(kind: PreviewFileKind, rawType?: string | null,
   if (kind === 'pptx') return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
   if (kind === 'docx') return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   if (kind === 'image') {
-    if (rawType && rawType.startsWith('image/')) return rawType;
+    const clean = (rawType || '').split(';')[0].trim().toLowerCase();
+    if (/^image\/(png|jpe?g|webp|gif|bmp)$/.test(clean)) return clean;
     return guessMediaMime(fileName || 'image.png');
   }
-  if (kind === 'text') return rawType && rawType.startsWith('text/') ? rawType : 'text/plain; charset=utf-8';
-  return rawType || 'application/octet-stream';
+  if (kind === 'text') return 'text/plain; charset=utf-8';
+  return 'application/octet-stream';
 }
 
 function isLegacyExternalHostUrl(rawUrl: string): boolean {

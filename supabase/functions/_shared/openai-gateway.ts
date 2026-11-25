@@ -401,51 +401,13 @@ export async function createChatCompletion(options: OpenAIChatOptions): Promise<
 
       lastErr = new OpenAIGatewayError('AI servisi boş yanıt döndürdü.', 502);
     } catch (err) {
-      console.error(`AI Gateway network failure [${selectedModel}]:`, err);
-      lastErr = new OpenAIGatewayError('AI servisine bağlanılamadı.', 502, err);
+      console.error(`AI Gateway network failure [${selectedModel}]`);
+      lastErr = new OpenAIGatewayError('AI servisine bağlanılamadı.', 502);
     }
   }
 
-  // Emergency zero-key reasoning fallback when configured keys are exhausted or unavailable
-  if (
-    !hasMultimodalImages &&
-    !options.tools &&
-    !options.jsonSchema &&
-    options.allowPublicFallback !== false
-  ) {
-    try {
-      const pubRes = await fetch('https://text.pollinations.ai/openai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'openai',
-          messages: options.messages,
-          temperature: options.temperature ?? 0.25,
-          ...(options.responseFormat === 'json_object'
-            ? { response_format: { type: 'json_object' } }
-            : {}),
-        }),
-        signal: AbortSignal.timeout(Math.min(requestTimeoutMs, 40_000)),
-      });
-      if (pubRes.ok) {
-        const pubData = await pubRes.json();
-        const pubText = pubData?.choices?.[0]?.message?.content;
-        if (typeof pubText === 'string' && pubText.trim().length > 0) {
-          const parsed =
-            options.responseFormat === 'json_object' ? extractJsonFromText(pubText) : undefined;
-          return {
-            content: pubText.trim(),
-            parsedJson: parsed,
-            usage: pubData.usage,
-            model: 'econnotes-reasoning',
-          };
-        }
-      }
-    } catch {
-      // Ignore fallback error and surface original gateway error below
-    }
-  }
-
+  // SECURITY: Never forward private user documents, transcripts, or prompts to unauthenticated
+  // public third-party endpoints. Surface controlled gateway error instead.
   throw lastErr ?? new OpenAIGatewayError('AI servisi yanıt vermedi.', 502);
 }
 

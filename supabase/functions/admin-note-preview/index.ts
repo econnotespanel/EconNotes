@@ -1,15 +1,18 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
+  enforceRateLimit,
   getAuthenticatedUser,
   isTrustedOrigin,
   jsonResponse,
   preflightResponse,
   readJsonBody,
   RequestError,
+  STRICT_UUID_RE,
 } from '../_shared/request-security.ts';
 
 const NOTES_BUCKET = 'notes';
 const DEFAULT_EXPIRES_IN = 900; // 15 minutes short-lived signed URL
+const ALLOWED_LEGACY_HOSTS = new Set(['sfgbftkteezptmvjgxrs.supabase.co']);
 
 function safeDecode(value: string): string {
   try {
@@ -19,11 +22,30 @@ function safeDecode(value: string): string {
   }
 }
 
+function isSafeOwnedObjectPath(path: string, ownerUserId?: string | null): boolean {
+  if (!path || path.includes('..') || path.includes('\\') || /[\x00-\x1f]/.test(path)) {
+    return false;
+  }
+  const clean = path.replace(/^\/+/, '');
+  // Reject active web execution file types from ever being signed for preview
+  if (/\.(html?|svg|xhtml|xml|js|mjs|cjs|php|exe|bat|cmd|ps1|sh)$/i.test(clean)) {
+    return false;
+  }
+  if (ownerUserId && STRICT_UUID_RE.test(ownerUserId)) {
+    return clean.startsWith(`${ownerUserId}/`);
+  }
+  return false;
+}
+
 /**
- * Normalizes a stored `notes.file_url` value (relative path or full Supabase Storage URL)
- * into ordered, deduplicated candidate object paths within the private `notes` bucket.
+ * Normalizes a stored `notes.file_url` value into deduplicated, owner-scoped object paths
+ * within the private `notes` bucket.
  */
-function extractPathCandidates(rawUrlOrPath?: string | null, bucket = NOTES_BUCKET): string[] {
+function extractPathCandidates(
+  rawUrlOrPath: string | null | undefined,
+  ownerUserId: string | null | undefined,
+  bucket = NOTES_BUCKET,
+): string[] {
   if (!rawUrlOrPath || typeof rawUrlOrPath !== 'string') return [];
   const trimmed = rawUrlOrPath.trim();
   if (!trimmed) return [];
@@ -32,7 +54,7 @@ function extractPathCandidates(rawUrlOrPath?: string | null, bucket = NOTES_BUCK
   const push = (p: string | null | undefined) => {
     if (!p) return;
     const cleaned = p.replace(/^\/+/, '').trim();
-    if (cleaned && !candidates.includes(cleaned)) {
+    if (cleaned && isSafeOwnedObjectPath(cleaned, ownerUserId) && !candidates.includes(cleaned)) {
       candidates.push(cleaned);
     }
   };
@@ -82,9 +104,13 @@ Deno.serve(async (req) => {
   const json = (body: unknown, status = 200) => jsonResponse(req, body, status);
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const token = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
-    if (!token) return json({ error: 'Yetkisiz. Lütfen yönetici hesabıyla giriş yapın.', code: 'UNAUTHORIZED' }, 401);
+    const actor = await getAuthenticatedUser(req);
+    if (!actor?.id) {
+      return json(
+        { error: 'Oturum geçersiz veya süresi dolmuş. Lütfen tekrar giriş yapın.', code: 'INVALID_SESSION' },
+        401,
+      );
+    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -92,31 +118,16 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 1. Validate caller JWT strictly on server
-    let authUserId: string | null = (await getAuthenticatedUser(req))?.id ?? null;
-    if (!authUserId) {
-      const { data: userData, error: userErr } = await admin.auth.getUser(token);
-      if (!userErr && userData?.user?.id) {
-        authUserId = userData.user.id;
-      }
-    }
-    if (!authUserId) {
-      return json({ error: 'Oturum geçersiz veya süresi dolmuş. Lütfen tekrar giriş yapın.', code: 'INVALID_SESSION' }, 401);
-    }
-
-    // 2. Enforce administrator authorization server-side via public.is_admin
-    const { data: isAdmin, error: roleErr } = await admin.rpc('is_admin', { _user_id: authUserId });
+    const { data: isAdmin, error: roleErr } = await admin.rpc('is_admin', { _user_id: actor.id });
     if (roleErr || !isAdmin) {
-      return json(
-        { error: 'Bu işlem için yetkili yönetici hesabı gerekir.', code: 'FORBIDDEN' },
-        403,
-      );
+      return json({ error: 'Bu işlem için yetkili yönetici hesabı gerekir.', code: 'FORBIDDEN' }, 403);
     }
 
-    // 3. Parse request body safely
+    await enforceRateLimit(admin, `admin_note_preview:${actor.id}`, 90, 300);
+
     const body = await readJsonBody<{ noteId?: string; expiresIn?: number }>(req, 8 * 1024);
     const noteId = typeof body.noteId === 'string' ? body.noteId.trim() : '';
-    if (!noteId || !/^[0-9a-f-]{32,40}$/i.test(noteId)) {
+    if (!STRICT_UUID_RE.test(noteId)) {
       return json({ error: 'Geçerli bir not kimliği (noteId) gönderilmedi.', code: 'INVALID_NOTE_ID' }, 400);
     }
 
@@ -126,7 +137,6 @@ Deno.serve(async (req) => {
         ? Math.floor(requestedExpiry)
         : DEFAULT_EXPIRES_IN;
 
-    // 4. Fetch authoritative note record (regardless of status or 72h revision deadline expiration)
     const { data: note, error: noteErr } = await admin
       .from('notes')
       .select(
@@ -136,7 +146,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (noteErr) {
-      return json({ error: `Not kaydı okunamadı: ${noteErr.message}`, code: 'DB_ERROR' }, 500);
+      console.error('admin-note-preview db error');
+      return json({ error: 'Not kaydı okunamadı.', code: 'DB_ERROR' }, 500);
     }
     if (!note) {
       return json({ error: 'İncelenmek istenen not veritabanında bulunamadı.', code: 'NOTE_NOT_FOUND' }, 404);
@@ -145,24 +156,20 @@ Deno.serve(async (req) => {
     const rawFileUrl = typeof note.file_url === 'string' ? note.file_url.trim() : '';
     if (!rawFileUrl) {
       return json(
-        {
-          error: 'Bu not kaydına bağlı yüklenmiş bir dosya yolu (file_url) bulunmuyor.',
-          code: 'NO_FILE_URL',
-          note,
-        },
+        { error: 'Bu not kaydına bağlı yüklenmiş bir dosya bulunmuyor.', code: 'NO_FILE_URL', note },
         404,
       );
     }
 
-    // 5. Resolve Storage object path & generate short-lived signed URL via service_role
-    const candidates = extractPathCandidates(rawFileUrl, NOTES_BUCKET);
+    // Strictly scope signing to the note uploader's own storage prefix (blocks cross-user path spoofing)
+    const candidates = extractPathCandidates(rawFileUrl, note.user_id, NOTES_BUCKET);
     let signedUrl: string | null = null;
     let resolvedPath: string | null = null;
     let fileSize: number | null = null;
     let storageMimeType: string | null = null;
-    let lastStorageError = '';
 
     const trySign = async (candidatePath: string): Promise<boolean> => {
+      if (!isSafeOwnedObjectPath(candidatePath, note.user_id)) return false;
       const { data: signedData, error: signErr } = await admin.storage
         .from(NOTES_BUCKET)
         .createSignedUrl(candidatePath, expiresIn);
@@ -171,9 +178,6 @@ Deno.serve(async (req) => {
         resolvedPath = candidatePath;
         return true;
       }
-      if (signErr?.message) {
-        lastStorageError = signErr.message;
-      }
       return false;
     };
 
@@ -181,21 +185,16 @@ Deno.serve(async (req) => {
       if (await trySign(candidate)) break;
     }
 
-    // 6. Read-only folder lookup under uploader's folder if exact path had case/encoding drift
-    if (!signedUrl && note.user_id) {
-      const targetBasename = (candidates[0] || rawFileUrl).split('/').pop()?.toLowerCase() || '';
+    // Fallback: folder lookup strictly inside note.user_id's folder
+    if (!signedUrl && note.user_id && STRICT_UUID_RE.test(String(note.user_id))) {
+      const targetBasename = (candidates[0] || rawFileUrl).split('/').pop()?.split('?')[0]?.toLowerCase() || '';
       const folderPrefix = String(note.user_id);
-      const { data: listed } = await admin.storage
-        .from(NOTES_BUCKET)
-        .list(folderPrefix, { limit: 200 });
+      const { data: listed } = await admin.storage.from(NOTES_BUCKET).list(folderPrefix, { limit: 200 });
 
       if (Array.isArray(listed) && listed.length > 0 && targetBasename) {
         const matched = listed.find((item) => {
           const itemLower = String(item.name || '').toLowerCase();
-          return (
-            itemLower === targetBasename ||
-            safeDecode(itemLower) === safeDecode(targetBasename)
-          );
+          return itemLower === targetBasename || safeDecode(itemLower) === safeDecode(targetBasename);
         });
         if (matched?.name) {
           const fullFolderPath = `${folderPrefix}/${matched.name}`;
@@ -208,7 +207,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Retrieve object metadata (file size / mimetype) cleanly when resolved
     if (resolvedPath && fileSize === null) {
       const slashIdx = resolvedPath.lastIndexOf('/');
       const folder = slashIdx >= 0 ? resolvedPath.slice(0, slashIdx) : '';
@@ -222,19 +220,23 @@ Deno.serve(async (req) => {
         if (typeof meta?.size === 'number') fileSize = meta.size;
         if (typeof meta?.mimetype === 'string' && meta.mimetype) storageMimeType = meta.mimetype;
       } catch {
-        // Metadata lookup is best-effort
+        // best-effort metadata lookup
       }
     }
 
-    // 7. If not found in current project bucket, check if file_url is an external legacy URL
+    // Strictly allow ONLY explicit allowlisted legacy storage hosts over HTTPS (no arbitrary external URLs!)
     if (!signedUrl) {
       let externalLegacyUrl: string | null = null;
-      if (/^https?:\/\//i.test(rawFileUrl)) {
+      if (/^https:\/\//i.test(rawFileUrl)) {
         try {
           const parsedRaw = new URL(rawFileUrl);
-          const parsedCurrent = new URL(supabaseUrl);
-          if (parsedRaw.host !== parsedCurrent.host) {
-            externalLegacyUrl = rawFileUrl;
+          if (
+            parsedRaw.protocol === 'https:' &&
+            ALLOWED_LEGACY_HOSTS.has(parsedRaw.hostname.toLowerCase()) &&
+            parsedRaw.pathname.includes('/storage/v1/object/') &&
+            !/\.(html?|svg|xhtml|xml|js)(\?.*)?$/i.test(parsedRaw.pathname)
+          ) {
+            externalLegacyUrl = parsedRaw.toString();
           }
         } catch {
           // ignore
@@ -244,9 +246,9 @@ Deno.serve(async (req) => {
       if (externalLegacyUrl) {
         return json({
           signedUrl: externalLegacyUrl,
-          resolvedPath: candidates[0] || rawFileUrl,
+          resolvedPath: candidates[0] || '',
           expiresIn,
-          fileName: note.file_name || rawFileUrl.split('/').pop() || 'Belge',
+          fileName: note.file_name || 'Belge',
           fileType: note.file_type || storageMimeType || null,
           fileSize,
           isExternalLegacyUrl: true,
@@ -257,12 +259,8 @@ Deno.serve(async (req) => {
       return json(
         {
           error:
-            lastStorageError && !/not found/i.test(lastStorageError)
-              ? `Depolama dosyasına erişilemedi: ${lastStorageError}`
-              : 'Bu nota ait dosya depolama alanında (Storage) bulunamadı. Dosya yükleme sırasında yarıda kesilmiş veya silinmiş olabilir.',
+            'Bu nota ait dosya depolama alanında (Storage) bulunamadı veya güvenli dosya formatında değil.',
           code: 'OBJECT_NOT_FOUND',
-          triedPaths: candidates,
-          detail: lastStorageError || 'Object not found',
           note,
         },
         404,
@@ -283,13 +281,7 @@ Deno.serve(async (req) => {
     if (err instanceof RequestError) {
       return json({ error: err.message, code: 'BAD_REQUEST' }, err.status);
     }
-    console.error('admin-note-preview error:', err);
-    return json(
-      {
-        error: err instanceof Error ? err.message : 'Belge önizleme bağlantısı oluşturulamadı.',
-        code: 'INTERNAL_ERROR',
-      },
-      500,
-    );
+    console.error('admin-note-preview error');
+    return json({ error: 'Belge önizleme bağlantısı oluşturulamadı.', code: 'INTERNAL_ERROR' }, 500);
   }
 });

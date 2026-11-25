@@ -488,24 +488,45 @@ const AdminPanel = () => {
 
   const toggleUploadRestriction = async () => {
     const newState = !noteUploadRestricted;
-    await supabase.from('system_settings').update({ note_upload_restricted: newState } as any).not('id', 'is', null);
+    const { error } = await supabase
+      .from('system_settings')
+      .update({ note_upload_restricted: newState } as any)
+      .not('id', 'is', null);
+    if (error) {
+      toast.error('Ayar güncellenemedi.');
+      return;
+    }
     setNoteUploadRestricted(newState);
     toast.success(newState ? 'Saat kısıtı açıldı' : 'Saat kısıtı kaldırıldı');
   };
 
   const toggleViewRestriction = async () => {
     const newState = !noteViewRestricted;
-    await supabase.from('system_settings').update({ note_view_restricted: newState } as any).not('id', 'is', null);
+    const { error } = await supabase
+      .from('system_settings')
+      .update({ note_view_restricted: newState } as any)
+      .not('id', 'is', null);
+    if (error) {
+      toast.error('Ayar güncellenemedi.');
+      return;
+    }
     setNoteViewRestricted(newState);
     toast.success(newState ? 'Önizleme kotası açıldı.' : 'Önizleme kotası kapatıldı.');
   };
 
   const updateAcademicWeek = async () => {
-    await supabase.from('system_settings').update({ 
-      academic_week: academicWeek ? parseInt(academicWeek) : null, 
-      academic_week_label: academicWeekLabel || null,
-      academic_semester: academicSemester || 'Güz',
-    } as any).not('id', 'is', null);
+    const { error } = await supabase
+      .from('system_settings')
+      .update({
+        academic_week: academicWeek ? parseInt(academicWeek) : null,
+        academic_week_label: academicWeekLabel || null,
+        academic_semester: academicSemester || 'Güz',
+      } as any)
+      .not('id', 'is', null);
+    if (error) {
+      toast.error('Akademik hafta güncellenemedi.');
+      return;
+    }
     toast.success('Akademik hafta güncellendi!');
   };
 
@@ -710,17 +731,22 @@ const AdminPanel = () => {
   };
   const approveAllLegacyUsers = async () => {
     const t = toast.loading('Önceki kayıtlı kullanıcılar onaylanıyor...');
-    const { error } = await supabase.from('profiles').update({
-      approval_status: 'approved',
-      approved_at: new Date().toISOString(),
-      approved_by: user!.id,
-    } as any).eq('approval_status', 'pending');
+    // SECURITY: Strictly filter legacy users registered BEFORE Waiting Room launch (never approve brand-new unvetted signups!)
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        approval_status: 'approved',
+        approved_at: new Date().toISOString(),
+        approved_by: user!.id,
+      } as any)
+      .eq('approval_status', 'pending')
+      .lt('created_at', '2026-11-11T00:00:00Z');
     toast.dismiss(t);
     if (error) {
       toast.error('Onaylama işlemi başarısız: ' + error.message);
       return;
     }
-    toast.success('Mevcut tüm kayıtlı kullanıcılar başarıyla onaylandı!');
+    toast.success('Bekleme odası öncesi mevcut kayıtlı kullanıcılar başarıyla onaylandı!');
     fetchAll();
   };
   const rejectUser = async (userId: string, userName: string) => {
@@ -1345,7 +1371,7 @@ const AdminPanel = () => {
                         <th className="p-3">Son Giriş & Cihaz</th>
                         <th className="p-3 hidden sm:table-cell">Akademik Bilgi</th>
                         <th className="p-3 hidden md:table-cell">Rol & Kayıt</th>
-                        <th className="p-3 text-right sticky right-0 bg-muted/95 backdrop-blur-md shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.3)]">İşlemler</th>
+                        <th className="p-3 text-right md:sticky md:right-0 bg-muted/95 backdrop-blur-md md:shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.3)]">İşlemler</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/40">
@@ -1431,8 +1457,8 @@ const AdminPanel = () => {
                               </div>
                             </td>
 
-                            {/* 5. İşlemler (Sticky Right - Her zaman ekranda görünür) */}
-                            <td className="p-3 align-top text-right sticky right-0 bg-card/95 backdrop-blur-md shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.3)] min-w-[190px]">
+                            {/* 5. İşlemler (Desktop Sticky Right - Mobilde içeriği kapatmaz) */}
+                            <td className="p-3 align-top text-right md:sticky md:right-0 bg-card/95 backdrop-blur-md md:shadow-[-6px_0_12px_-4px_rgba(0,0,0,0.3)] min-w-[190px]">
                               <div className="flex items-center justify-end gap-1 flex-wrap sm:flex-nowrap">
                                 {isPending && (
                                   <>

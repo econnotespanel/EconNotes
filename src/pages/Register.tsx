@@ -73,6 +73,10 @@ const Register = () => {
 
   const handleSocialRegister = async (provider: 'google' | 'apple') => {
     if (oauthLoading || loading) return;
+    if (!acceptRules) {
+      toast.error('Sosyal giriş ile kayıt olmadan önce lütfen platform kurallarını onaylayın.');
+      return;
+    }
     const label = provider === 'google' ? 'Google' : 'Apple';
     setOauthLoading(provider);
     try {
@@ -110,7 +114,7 @@ const Register = () => {
   };
 
   const validatePassword = (password: string) => {
-    if (password.length < 6) return 'Şifre en az 6 karakter olmalıdır.';
+    if (password.length < 8) return 'Şifre en az 8 karakter olmalıdır.';
     if (!/[A-Z]/.test(password)) return 'Şifre en az 1 büyük harf içermelidir.';
     if (!/[0-9]/.test(password)) return 'Şifre en az 1 rakam içermelidir.';
     return null;

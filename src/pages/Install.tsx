@@ -173,10 +173,10 @@ const Install = () => {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => navigate("/dashboard")}
+                  onClick={() => navigate("/study")}
                   className="border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-200"
                 >
-                  Çalışma Paneli
+                  Çalışma Stüdyosu
                 </Button>
               </div>
             </CardContent>

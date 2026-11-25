@@ -28,7 +28,9 @@ const esc = (s: unknown) =>
   String(s ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const letter = (i: number) => String.fromCharCode(65 + i);
 

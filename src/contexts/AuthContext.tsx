@@ -5,6 +5,7 @@ import { APP_VERSION } from '@/lib/version';
 import { rememberReturningAccount } from '@/lib/returningAccount';
 import { detectClientDevice, formatLoginDetails, serializeLoginMetadata } from '@/lib/deviceInfo';
 import { isLegacyUser, isUserApproved } from '@/lib/approvalUtils';
+import { clearAllUserClientState } from '@/lib/sessionCleanup';
 
 interface Profile {
   id: string;
@@ -92,17 +93,23 @@ const getOAuthFullName = (user: OAuthNameSource, fallback = '') => {
   return 'EconNotes Kullanıcısı';
 };
 
-// Capture OAuth redirect tokens/errors synchronously before React Router mounts and mutates location.hash.
+// Capture OAuth redirect tokens/errors strictly from URL #hash (NEVER from query string to prevent session fixation / log leakage).
 const captureInitialOAuthCallback = () => {
   if (typeof window === 'undefined') {
-    return { tokens: null as { access_token: string; refresh_token: string } | null, errorMessage: null as string | null };
+    return {
+      tokens: null as { access_token: string; refresh_token: string } | null,
+      errorMessage: null as string | null,
+      isRecovery: false,
+    };
   }
   const hashRaw = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
   const hashParams = new URLSearchParams(hashRaw);
   const searchParams = new URLSearchParams(window.location.search);
+  const isRecovery = hashParams.get('type') === 'recovery' || searchParams.get('type') === 'recovery';
 
-  const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
-  const refreshToken = hashParams.get('refresh_token') || searchParams.get('refresh_token');
+  // SECURITY: Never accept bearer tokens from location.search (query string)
+  const accessToken = hashParams.get('access_token');
+  const refreshToken = hashParams.get('refresh_token');
   const errorCode = hashParams.get('error') || searchParams.get('error');
   const errorDesc = hashParams.get('error_description') || searchParams.get('error_description');
 
@@ -110,20 +117,22 @@ const captureInitialOAuthCallback = () => {
     return {
       tokens: { access_token: accessToken, refresh_token: refreshToken },
       errorMessage: null,
+      isRecovery,
     };
   }
   if (errorCode || errorDesc) {
     return {
       tokens: null,
       errorMessage: errorDesc || errorCode,
+      isRecovery,
     };
   }
-  return { tokens: null, errorMessage: null };
+  return { tokens: null, errorMessage: null, isRecovery };
 };
 
 const initialOAuthCallback = captureInitialOAuthCallback();
 
-const cleanOAuthParamsFromUrl = () => {
+const cleanOAuthParamsFromUrl = (preserveRecovery = false) => {
   if (typeof window === 'undefined') return;
   try {
     const url = new URL(window.location.href);
@@ -131,7 +140,8 @@ const cleanOAuthParamsFromUrl = () => {
       url.searchParams.delete(key);
     }
     const cleanSearch = url.searchParams.toString();
-    const cleanUrl = url.pathname + (cleanSearch ? `?${cleanSearch}` : '');
+    const hashSuffix = preserveRecovery ? '#type=recovery' : '';
+    const cleanUrl = url.pathname + (cleanSearch ? `?${cleanSearch}` : '') + hashSuffix;
     window.history.replaceState(null, '', cleanUrl);
   } catch {
     // ignore history cleanup errors
@@ -195,13 +205,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    const { data: roleRows } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId);
-    if (Array.isArray(roleRows)) {
-      setIsAdmin(roleRows.some((r) => r.role === 'admin'));
+    // Derive admin role strictly from server-side RPC / user_roles (default false on failure)
+    let resolvedAdmin = false;
+    try {
+      const { data: rpcAdmin, error: rpcErr } = await supabase.rpc('is_admin', { _user_id: userId });
+      if (!rpcErr && typeof rpcAdmin === 'boolean') {
+        resolvedAdmin = rpcAdmin;
+      } else {
+        const { data: roleRows } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId);
+        if (Array.isArray(roleRows)) {
+          resolvedAdmin = roleRows.some((r) => r.role === 'admin');
+        }
+      }
+    } catch {
+      resolvedAdmin = false;
     }
+    setIsAdmin(resolvedAdmin);
     return resolvedName;
   };
 
@@ -210,7 +232,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut().catch(() => {});
+    await clearAllUserClientState();
     setUser(null);
     setSession(null);
     setProfile(null);
@@ -292,6 +315,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       recordVisit = true,
     ) => {
       if (!mounted) return;
+      const previousUid = session?.user?.id ?? null;
+      const nextUid = nextSession?.user?.id ?? null;
+      if (previousUid && previousUid !== nextUid) {
+        await clearAllUserClientState();
+      }
+
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       if (!nextSession?.user) {
@@ -301,15 +330,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Ana yönetici hesapları için gecikmesiz anlık yetki tanımlaması
-      const email = nextSession.user.email?.toLowerCase();
-      const isDesignatedAdmin = email === 'kaancolakogullari1@gmail.com' ||
-        email === 'kaancolakogullari9@gmail.com' ||
-        email === 'econnotespanel@gmail.com';
-      if (isDesignatedAdmin) {
-        setIsAdmin(true);
-      }
-
+      // SECURITY: Admin role is resolved exclusively from server-side DB (never hardcoded emails!)
       let resolvedName = getOAuthFullName(nextSession.user);
       try {
         const fetchedName = await fetchProfile(
@@ -355,13 +376,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (_event, nextSession) => {
         if (!initialized) return;
+        if (_event === 'SIGNED_OUT') {
+          await clearAllUserClientState();
+        }
         setLoading(false);
         const isSignIn = _event === 'SIGNED_IN';
         const shouldRecordVisit = isSignIn || _event === 'INITIAL_SESSION';
         window.setTimeout(() => {
-          void hydrateSession(session, isSignIn, isSignIn, shouldRecordVisit);
+          void hydrateSession(nextSession, isSignIn, isSignIn, shouldRecordVisit);
         }, 0);
       }
     );
@@ -410,16 +434,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (hadOAuthTokens) {
-          cleanOAuthParamsFromUrl();
+          cleanOAuthParamsFromUrl(initialOAuthCallback.isRecovery);
         }
 
         window.clearTimeout(authStartupTimer);
         await hydrateSession(activeSession, true, hadOAuthTokens, true);
-        initialized = true;
       } catch (error) {
         window.clearTimeout(authStartupTimer);
         console.error('Oturum başlatılamadı:', error);
         if (mounted) setLoading(false);
+      } finally {
+        initialized = true;
       }
     })();
 
@@ -462,7 +487,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin
   );
 
-  // Önceki kayıtlı kullanıcıların veritabanındaki onay durumunu otomatik olarak senkronize et
+  // Önceki kayıtlı kullanıcıların onay durumunu sunucu tarafı RPC üzerinden güvenli senkronize et
   useEffect(() => {
     if (
       user &&
@@ -470,18 +495,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLegacyUser(user.created_at, profile.created_at) &&
       profile.approval_status !== 'approved'
     ) {
-      supabase
-        .from('profiles')
-        .update({
-          approval_status: 'approved',
-          approved_at: new Date().toISOString(),
-        })
-        .eq('user_id', user.id)
-        .then(({ error }) => {
-          if (!error) {
+      void (supabase.rpc as any)('approve_legacy_user_if_eligible').then(
+        ({ data, error }: { data?: boolean; error?: unknown }) => {
+          if (!error && data === true) {
             setProfile((prev) => (prev ? { ...prev, approval_status: 'approved' } : prev));
           }
-        });
+        },
+      );
     }
   }, [user?.id, user?.created_at, profile?.created_at, profile?.approval_status]);
 

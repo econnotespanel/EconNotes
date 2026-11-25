@@ -1,48 +1,93 @@
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { getAuthenticatedUser } from '../_shared/request-security.ts';
+import {
+  enforceRateLimit,
+  getAuthenticatedUser,
+  isTrustedOrigin,
+  jsonResponse,
+  preflightResponse,
+  readJsonBody,
+  RequestError,
+  STRICT_UUID_RE,
+} from '../_shared/request-security.ts';
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+/** Cryptographically unbiased random temporary password generator */
+const makePassword = (): string => {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const alphabet = upper + lower + digits;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const pick = (pool: string): string => {
+    const limit = Math.floor(256 / pool.length) * pool.length;
+    const buf = new Uint8Array(1);
+    while (true) {
+      crypto.getRandomValues(buf);
+      if (buf[0] < limit) return pool[buf[0] % pool.length];
+    }
+  };
 
-const makePassword = () => {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  const bytes = crypto.getRandomValues(new Uint8Array(12));
-  let out = '';
-  for (const b of bytes) out += alphabet[b % alphabet.length];
-  return out.slice(0, 4) + '-' + out.slice(4, 8) + '-' + out.slice(8) + '7';
+  const chars: string[] = [pick(upper), pick(lower), pick(digits)];
+  while (chars.length < 12) chars.push(pick(alphabet));
+  // Fisher-Yates shuffle
+  for (let i = chars.length - 1; i > 0; i--) {
+    const buf = new Uint8Array(1);
+    const limit = Math.floor(256 / (i + 1)) * (i + 1);
+    let r = 0;
+    do {
+      crypto.getRandomValues(buf);
+      r = buf[0];
+    } while (r >= limit);
+    const j = r % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  const s = chars.join('');
+  return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
 };
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return preflightResponse(req);
+  if (!isTrustedOrigin(req.headers.get('origin'))) {
+    return jsonResponse(req, { error: 'Bu kaynaktan isteğe izin verilmiyor.' }, 403);
+  }
+  if (req.method !== 'POST') {
+    return jsonResponse(req, { error: 'Yalnızca POST desteklenir.' }, 405);
+  }
+
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const token = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
-    if (!token) return json({ error: 'Yetkisiz.' }, 401);
+    const actor = await getAuthenticatedUser(req);
+    if (!actor?.id) return jsonResponse(req, { error: 'Oturum geçersiz.' }, 401);
 
-    const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-
-    let actor = await getAuthenticatedUser(req);
-    if (!actor?.id) {
-      const { data: me } = await admin.auth.getUser(token);
-      actor = me?.user ? { id: me.user.id, email: me.user.email } : null;
-    }
-    if (!actor?.id) return json({ error: 'Oturum geçersiz.' }, 401);
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
 
     const { data: isAdmin } = await admin.rpc('is_admin', { _user_id: actor.id });
-    if (!isAdmin) return json({ error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
+    if (!isAdmin) return jsonResponse(req, { error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
 
-    const body = await req.json().catch(() => ({}));
-    const rawUserId = typeof body?.user_id === 'string' ? body.user_id : (typeof body?.userId === 'string' ? body.userId : '');
+    await enforceRateLimit(admin, `admin_reset_pw:${actor.id}`, 15, 600);
+
+    const body = await readJsonBody<{ user_id?: unknown; userId?: unknown }>(req, 4_096);
+    const rawUserId =
+      typeof body.user_id === 'string'
+        ? body.user_id
+        : typeof body.userId === 'string'
+        ? body.userId
+        : '';
     const userId = rawUserId.trim();
-    if (!UUID.test(userId)) return json({ error: 'Geçersiz kullanıcı kimliği.' }, 400);
+    if (!STRICT_UUID_RE.test(userId)) {
+      return jsonResponse(req, { error: 'Geçersiz kullanıcı kimliği.' }, 400);
+    }
+
+    // SECURITY GUARD: Block lateral admin-to-admin password reset takeover
+    const { data: targetIsAdmin } = await admin.rpc('is_admin', { _user_id: userId });
+    if (targetIsAdmin) {
+      return jsonResponse(req, { error: 'Yönetici hesaplarının şifresi bu araçla sıfırlanamaz.' }, 403);
+    }
 
     const { data: target, error: tErr } = await admin.auth.admin.getUserById(userId);
-    if (tErr || !target.user) return json({ error: 'Kullanıcı bulunamadı.' }, 404);
+    if (tErr || !target.user) return jsonResponse(req, { error: 'Kullanıcı bulunamadı.' }, 404);
 
     const tempPassword = makePassword();
     const { error: upErr } = await admin.auth.admin.updateUserById(userId, {
@@ -50,18 +95,28 @@ Deno.serve(async (req) => {
       app_metadata: { ...(target.user.app_metadata || {}), must_change_password: true },
       user_metadata: { ...(target.user.user_metadata || {}), must_change_password: true },
     });
-    if (upErr) return json({ error: 'Parola oluşturulamadı.', details: upErr.message }, 500);
+    if (upErr) {
+      console.error('admin-reset-password update failed');
+      return jsonResponse(req, { error: 'Parola oluşturulamadı.' }, 500);
+    }
 
-    // Revoke existing sessions so the old password/session cannot be reused.
+    // Revoke existing sessions so old password/JWT cannot be reused.
     await admin.auth.admin.signOut(userId, 'global').catch(() => {});
 
     await admin.from('activity_logs').insert({
-      user_id: actor.id, user_name: 'Yönetici', user_email: actor.email ?? '',
-      action: 'admin_temp_password', details: 'Kullanıcıya tek kullanımlık parola tanımlandı', entity_type: 'user', entity_id: userId,
+      user_id: actor.id,
+      user_name: 'Yönetici',
+      user_email: actor.email ?? '',
+      action: 'admin_temp_password',
+      details: 'Kullanıcıya tek kullanımlık parola tanımlandı',
+      entity_type: 'user',
+      entity_id: userId,
     });
 
-    return json({ temp_password: tempPassword, email: target.user.email });
+    return jsonResponse(req, { temp_password: tempPassword, email: target.user.email });
   } catch (e) {
-    return json({ error: 'Beklenmeyen hata.', details: String(e) }, 500);
+    if (e instanceof RequestError) return jsonResponse(req, { error: e.message }, e.status);
+    console.error('admin-reset-password failed');
+    return jsonResponse(req, { error: 'Beklenmeyen bir hata oluştu.' }, 500);
   }
 });

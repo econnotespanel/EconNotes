@@ -40,8 +40,9 @@ const SystemGate = ({ children }: { children: React.ReactNode }) => {
     return <>{children}</>;
   }
 
-  // 2. When system is closed/in maintenance:
+  // 2. When system is closed/in maintenance (wait for authLoading so admins don't get flashed MaintenanceScreen):
   if (systemOpen === false) {
+    if (authLoading) return null;
     if (!isAdmin || closureMode === 'fatal_error') {
       if (closureMode === 'fatal_error') {
         return (

@@ -513,8 +513,8 @@ export const TwoFactorCard = () => {
   };
   const removeSms = async () => {
     if (!guard() || !user) return;
-    const { error } = await (supabase as any).from('sms_2fa').delete().eq('user_id', user.id);
-    if (error) return void toast.error('Kaldırılamadı: ' + error.message);
+    const err = await sms('disable');
+    if (err) return void toast.error('Kaldırılamadı: ' + err);
     toast.success('SMS doğrulaması kaldırıldı.');
     void load();
   };
@@ -721,8 +721,12 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     return () => clearInterval(id);
   }, [state, started, success]);
 
+  const { config } = useSiteConfig();
+  const [verifiedForUserId, setVerifiedForUserId] = useState<string | null>(null);
+
   const check = useCallback(async () => {
     if (!user) {
+      setVerifiedForUserId(null);
       setStarted(false);
       setSent(false);
       setCode('');
@@ -731,6 +735,7 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
       setTimeLeft(CODE_WINDOW_SECONDS);
       return setState('ok');
     }
+    setState('checking');
     const [t, p, aal, sid] = await Promise.all([
       verifiedTotp(),
       smsPhone(user.id),
@@ -739,11 +744,26 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     ]);
     setTotp(t);
     setPhone(p);
-    if (t.length === 0 && !p) return setState(isAdmin ? 'enroll' : 'ok');
-    if (aal.data?.currentLevel === 'aal2') return setState('ok');
+    if (t.length === 0 && !p) {
+      if (isAdmin) return setState('enroll');
+      setVerifiedForUserId(user.id);
+      return setState('ok');
+    }
+    if (aal.data?.currentLevel === 'aal2') {
+      setVerifiedForUserId(user.id);
+      return setState('ok');
+    }
     if (p && sid) {
-      const { data } = await (supabase as any).from('sms_2fa_sessions').select('session_id').eq('session_id', sid).maybeSingle();
-      if (data) return setState('ok');
+      const { data } = await (supabase as any)
+        .from('sms_2fa_sessions')
+        .select('session_id')
+        .eq('session_id', sid)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (data) {
+        setVerifiedForUserId(user.id);
+        return setState('ok');
+      }
     }
     setStarted(false);
     setSent(false);
@@ -789,13 +809,21 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
       if (error) { setError(true); return toast.error('Kod hatalı.'); }
     }
     setSuccess(true);
-    setTimeout(() => setState('ok'), 900);
+    const uid = user?.id ?? null;
+    setTimeout(() => {
+      setVerifiedForUserId(uid);
+      setState('ok');
+    }, 900);
   };
 
   const switchMethod = (m: 'totp' | 'sms') => { setMethod(m); setCode(''); setError(false); };
 
-  if (loading || state === 'ok') return <>{children}</>;
-  if (state === 'checking') {
+  // Block rendering authenticated app while MFA assurance check is pending for the current user
+  const needsCheckForUser = Boolean(user && verifiedForUserId !== user.id && state === 'ok');
+  if (loading || (!user && state === 'ok') || (user && state === 'ok' && verifiedForUserId === user.id)) {
+    return <>{children}</>;
+  }
+  if (state === 'checking' || needsCheckForUser) {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-background">
         <ShieldEmblem size="sm" />
@@ -804,7 +832,6 @@ export const MfaGate = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  const { config } = useSiteConfig();
   const seasonalTheme = getSeasonalTheme(config.theme.seasonalMode || 'default');
   const isNovember10 = seasonalTheme?.id === 'november10';
 

@@ -65,18 +65,26 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     return null;
   }
 
+  const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '');
+  const isSafeCssColor = (val: string) =>
+    /^(#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla)\([0-9.,%\s/-]+\)|var\(--[a-zA-Z0-9_-]+\)|[a-zA-Z]{3,20})$/.test(
+      val.trim(),
+    );
+
   return (
     <style
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(
             ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
+${prefix} [data-chart=${safeId}] {
 ${colorConfig
   .map(([key, itemConfig]) => {
+    const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, '');
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
+    return safeKey && color && isSafeCssColor(color) ? `  --color-${safeKey}: ${color.trim()};` : null;
   })
+  .filter(Boolean)
   .join("\n")}
 }
 `,

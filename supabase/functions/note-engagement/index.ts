@@ -1,11 +1,17 @@
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { getAuthenticatedUser } from '../_shared/request-security.ts';
+import {
+  enforceRateLimit,
+  getAuthenticatedUser,
+  isTrustedOrigin,
+  jsonResponse,
+  preflightResponse,
+  readJsonBody,
+  RequestError,
+  STRICT_UUID_RE,
+} from '../_shared/request-security.ts';
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NOTE_ID_CHUNK_SIZE = 150;
-const PAGE_SIZE = 1000;
-const MAX_PAGES_PER_CHUNK = 50;
+const NOTE_ID_CHUNK_SIZE = 100;
+const MAX_REQUESTED_IDS = 300;
 
 type EngagementBody = {
   action?: 'counts' | 'record_view' | 'record_download';
@@ -21,46 +27,19 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-async function countTableByNoteIds(
-  admin: ReturnType<typeof createClient>,
-  table: 'note_views' | 'note_downloads',
-  noteIds: string[],
-): Promise<Record<string, number>> {
-  const counts: Record<string, number> = {};
-  for (const chunk of chunkArray(noteIds, NOTE_ID_CHUNK_SIZE)) {
-    for (let page = 0; page < MAX_PAGES_PER_CHUNK; page++) {
-      const from = page * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      const { data, error } = await admin
-        .from(table)
-        .select('note_id')
-        .in('note_id', chunk)
-        .range(from, to);
-
-      if (error || !Array.isArray(data) || data.length === 0) break;
-      for (const row of data) {
-        const id = (row as { note_id?: string }).note_id;
-        if (id) counts[id] = (counts[id] || 0) + 1;
-      }
-      if (data.length < PAGE_SIZE) break;
-    }
-  }
-  return counts;
-}
-
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-
-  const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
-    });
+  if (req.method === 'OPTIONS') return preflightResponse(req);
+  if (!isTrustedOrigin(req.headers.get('origin'))) {
+    return jsonResponse(req, { error: 'Bu kaynaktan isteğe izin verilmiyor.' }, 403);
+  }
+  if (req.method !== 'POST') {
+    return jsonResponse(req, { error: 'Yalnızca POST desteklenir.' }, 405);
+  }
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const token = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
-    if (!token) return json({ error: 'Yetkisiz.' }, 401);
+    const user = await getAuthenticatedUser(req);
+    if (!user?.id) return jsonResponse(req, { error: 'Oturum geçersiz.' }, 401);
+    const authUserId = user.id;
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -68,52 +47,44 @@ Deno.serve(async (req) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    let authUserId: string | null = (await getAuthenticatedUser(req))?.id ?? null;
-    if (!authUserId) {
-      const { data: userData, error: userErr } = await admin.auth.getUser(token);
-      if (!userErr && userData?.user?.id) {
-        authUserId = userData.user.id;
-      }
-    }
-    if (!authUserId) return json({ error: 'Oturum geçersiz.' }, 401);
-
-    let body: EngagementBody = {};
-    try {
-      const parsed = await req.json();
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        body = parsed as EngagementBody;
-      }
-    } catch {
-      body = {};
-    }
-
+    const body = await readJsonBody<EngagementBody>(req, 64 * 1024);
     const action = body.action ?? 'counts';
+
     const { data: isAdminRaw } = await admin.rpc('is_admin', { _user_id: authUserId });
     const isAdmin = Boolean(isAdminRaw);
 
     if (action === 'record_view' || action === 'record_download') {
       const noteId = typeof body.noteId === 'string' ? body.noteId.trim() : '';
-      if (!UUID_REGEX.test(noteId)) {
-        return json({ error: 'Geçersiz not kimliği.' }, 400);
+      if (!STRICT_UUID_RE.test(noteId)) {
+        return jsonResponse(req, { error: 'Geçersiz not kimliği.' }, 400);
       }
+
+      // Prevent automated counter inflation
+      await enforceRateLimit(admin, `note_eng:${action}:${authUserId}`, 60, 300);
 
       const { data: noteRow, error: noteErr } = await admin
         .from('notes')
-        .select('id, status, user_id')
+        .select('id, status, user_id, visibility_status, hidden_until')
         .eq('id', noteId)
         .maybeSingle();
 
       if (noteErr || !noteRow) {
-        return json({ error: 'Not bulunamadı.' }, 404);
+        return jsonResponse(req, { error: 'Not bulunamadı.' }, 404);
       }
 
-      const canAccess =
-        isAdmin ||
-        (noteRow as { status?: string }).status === 'approved' ||
-        (noteRow as { user_id?: string }).user_id === authUserId;
+      const nr = noteRow as {
+        status?: string;
+        user_id?: string;
+        visibility_status?: string;
+        hidden_until?: string | null;
+      };
+      const isVisible =
+        nr.visibility_status === 'visible' ||
+        (nr.visibility_status === 'temporary' && nr.hidden_until && Date.parse(nr.hidden_until) <= Date.now());
+      const canAccess = isAdmin || nr.user_id === authUserId || (nr.status === 'approved' && isVisible);
 
       if (!canAccess) {
-        return json({ error: 'Bu not için yetkiniz yok.' }, 403);
+        return jsonResponse(req, { error: 'Bu not için yetkiniz yok.' }, 403);
       }
 
       const targetTable = action === 'record_view' ? 'note_views' : 'note_downloads';
@@ -145,40 +116,55 @@ Deno.serve(async (req) => {
         const baseDownloads = Math.max(currentStats?.download_count ?? 0, downloadCount);
 
         if (existingRow) {
-          // Repeat view/download by the same user: increment total counter in note_stats
-          viewCount = action === 'record_view' ? baseViews + 1 : baseViews;
-          downloadCount = action === 'record_download' ? baseDownloads + 1 : baseDownloads;
-          await admin.from('note_stats').upsert(
-            {
-              note_id: noteId,
-              view_count: viewCount,
-              download_count: downloadCount,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'note_id' },
-          );
+          // Throttle repeat counter increments by the same user to max once per 10 minutes per note
+          let allowRepeatBump = false;
+          try {
+            await enforceRateLimit(admin, `note_eng_bump:${action}:${authUserId}:${noteId}`, 1, 600);
+            allowRepeatBump = true;
+          } catch {
+            allowRepeatBump = false;
+          }
+
+          if (allowRepeatBump) {
+            viewCount = action === 'record_view' ? baseViews + 1 : baseViews;
+            downloadCount = action === 'record_download' ? baseDownloads + 1 : baseDownloads;
+            await admin.from('note_stats').upsert(
+              {
+                note_id: noteId,
+                view_count: viewCount,
+                download_count: downloadCount,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'note_id' },
+            );
+          } else {
+            viewCount = baseViews;
+            downloadCount = baseDownloads;
+          }
         } else {
           viewCount = baseViews;
           downloadCount = baseDownloads;
         }
       }
 
-      return json({
+      return jsonResponse(req, {
         note_id: noteId,
         view_count: viewCount,
         download_count: downloadCount,
       });
     }
 
-    // Default action: 'counts'
+    // Default action: 'counts' — uses indexed `note_stats` only (eliminates 1M-row DoS scan!)
+    await enforceRateLimit(admin, `note_eng_counts:${authUserId}`, 60, 300);
+
     const requestedIds = Array.isArray(body.noteIds)
       ? Array.from(
           new Set(
             body.noteIds
-              .filter((id): id is string => typeof id === 'string' && UUID_REGEX.test(id.trim()))
+              .filter((id): id is string => typeof id === 'string' && STRICT_UUID_RE.test(id.trim()))
               .map((id) => id.trim()),
           ),
-        ).slice(0, 1500)
+        ).slice(0, MAX_REQUESTED_IDS)
       : [];
 
     const visibleIds: string[] = [];
@@ -197,7 +183,7 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      let query = admin.from('notes').select('id, status, user_id').limit(1500);
+      let query = admin.from('notes').select('id, status, user_id').limit(MAX_REQUESTED_IDS);
       if (!isAdmin) {
         query = query.or(`status.eq.approved,user_id.eq.${authUserId}`);
       }
@@ -209,41 +195,32 @@ Deno.serve(async (req) => {
     }
 
     if (visibleIds.length === 0) {
-      return json({ counts: {} });
+      return jsonResponse(req, { counts: {} });
     }
 
-    const statsMap: Record<string, { views: number; downloads: number }> = {};
+    const counts: Record<string, { views: number; downloads: number }> = {};
     for (const chunk of chunkArray(visibleIds, NOTE_ID_CHUNK_SIZE)) {
-      const { data: statsRows, error: statsErr } = await admin
+      const { data: statsRows } = await admin
         .from('note_stats')
         .select('note_id, view_count, download_count')
         .in('note_id', chunk);
-      if (statsErr) break;
       for (const row of statsRows || []) {
         const s = row as { note_id: string; view_count?: number; download_count?: number };
-        statsMap[s.note_id] = {
+        counts[s.note_id] = {
           views: Number(s.view_count) || 0,
           downloads: Number(s.download_count) || 0,
         };
       }
     }
 
-    const [rawViewCounts, rawDownloadCounts] = await Promise.all([
-      countTableByNoteIds(admin, 'note_views', visibleIds),
-      countTableByNoteIds(admin, 'note_downloads', visibleIds),
-    ]);
-
-    const counts: Record<string, { views: number; downloads: number }> = {};
     for (const id of visibleIds) {
-      counts[id] = {
-        views: Math.max(statsMap[id]?.views ?? 0, rawViewCounts[id] ?? 0),
-        downloads: Math.max(statsMap[id]?.downloads ?? 0, rawDownloadCounts[id] ?? 0),
-      };
+      if (!counts[id]) counts[id] = { views: 0, downloads: 0 };
     }
 
-    return json({ counts });
+    return jsonResponse(req, { counts });
   } catch (e) {
-    console.error('note-engagement error', e);
-    return json({ error: e instanceof Error ? e.message : 'Bilinmeyen hata.' }, 500);
+    if (e instanceof RequestError) return jsonResponse(req, { error: e.message }, e.status);
+    console.error('note-engagement error');
+    return jsonResponse(req, { error: 'Etkileşim verisi işlenemedi.' }, 500);
   }
 });

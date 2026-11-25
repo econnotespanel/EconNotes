@@ -294,13 +294,14 @@ const Notes = () => {
   const handlePreviewClick = async (note: any) => {
     if (!user) return;
     const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
-    const wheelUnlimited = isWheelUnlimitedActive(user);
+    const wheelUnlimited = isWheelUnlimitedActive(user, new Date(), profile as any);
     const triviaUnlimited = isTriviaUnlimitedActive(user, profile as any);
-    const wheelBonus = getWheelBonusQuota(user);
     if (viewRestricted && !isAdmin && !birthdayUnlimited && !wheelUnlimited && !triviaUnlimited) {
-      const { data } = await supabase.rpc('get_download_quota', { _user_id: user.id });
-      const q = (data && data[0]) as typeof quota;
-      const canAccess = q ? q.can_download || q.total_downloads < q.allowed_downloads + wheelBonus : true;
+      const { data, error } = await supabase.rpc('get_download_quota', { _user_id: user.id });
+      const q = !error && Array.isArray(data) && data[0] ? (data[0] as any) : null;
+      const canAccess = q
+        ? Boolean(q.is_admin || Number(q.remaining ?? 0) > 0 || q.can_download)
+        : false; // Fail CLOSED on quota RPC error
       if (!canAccess) {
         setQuotaBlockOpen(true);
         return;
@@ -436,17 +437,16 @@ const Notes = () => {
     setDownloadingNoteId(note.id);
     try {
       const birthdayUnlimited = isBirthdayUnlimitedActive(user, profile);
-      const wheelUnlimited = isWheelUnlimitedActive(user);
+      const wheelUnlimited = isWheelUnlimitedActive(user, new Date(), profile as any);
       const triviaUnlimited = isTriviaUnlimitedActive(user, profile as any);
-      const wheelBonus = getWheelBonusQuota(user);
 
       if (!isAdmin && !birthdayUnlimited && !wheelUnlimited && !triviaUnlimited) {
-        // Re-fetch quota fresh from server to avoid stale authorization or race conditions
+        // Re-fetch quota strictly from server RPC (fail CLOSED on error; never add localStorage wheelBonus!)
         const { data, error } = await supabase.rpc('get_download_quota', { _user_id: user.id });
-        const q = (data && data[0]) as typeof quota;
-        const canAccess = !error && q
-          ? q.can_download || q.total_downloads < q.allowed_downloads + wheelBonus
-          : Boolean(quota?.can_download);
+        const q = !error && Array.isArray(data) && data[0] ? (data[0] as any) : null;
+        const canAccess = q
+          ? Boolean(q.is_admin || Number(q.remaining ?? 0) > 0 || q.can_download)
+          : false;
         if (!canAccess) {
           setQuotaBlockOpen(true);
           return;
@@ -544,12 +544,17 @@ const Notes = () => {
     setUploadProgress(form.file ? 0 : 100);
     try {
       if (form.file) {
-        const ext = form.file.name.split('.').pop();
-        const path = `${user!.id}/${Date.now()}.${ext}`;
+        const { validateUploadFile, buildSafeStoragePath } = await import('@/lib/fileSecurity');
+        const validation = await validateUploadFile(form.file, 'note');
+        if (!validation.ok || !validation.safeExtension) {
+          toast.error(validation.error || 'Bu dosya güvenlik nedeniyle yüklenemedi.');
+          return;
+        }
+        const path = buildSafeStoragePath(user!.id, validation.safeExtension);
         await uploadFileWithProgress(path, form.file);
         fileUrl = path;
         fileName = form.file.name;
-        fileType = inferUploadMimeType(form.file);
+        fileType = validation.normalizedMime || inferUploadMimeType(form.file);
       }
 
       const noteData: any = {
@@ -669,7 +674,9 @@ const Notes = () => {
       twitter: `https://twitter.com/intent/tweet?text=${encoded}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareLink)}`,
     };
-    window.open(urls[platform], '_blank');
+    if (urls[platform]) {
+      window.open(urls[platform], '_blank', 'noopener,noreferrer');
+    }
   };
 
   const addComment = async (noteId: string) => {

@@ -58,10 +58,17 @@ export function NeuralReportDialog({ open, onOpenChange, materialId }: NeuralRep
     try {
       let screenshotPath: string | null = null;
       if (screenshot) {
-        const ext = screenshot.name.split('.').pop()?.toLowerCase() || 'png';
-        const path = `study-reports/${user.id}/${Date.now()}.${ext}`;
+        const { validateUploadFile, buildSafeStoragePath } = await import('@/lib/fileSecurity');
+        const validation = await validateUploadFile(screenshot, 'report');
+        if (!validation.ok || !validation.safeExtension) {
+          toast.error(validation.error || 'Desteklenmeyen ekran görüntüsü dosyası.');
+          setSubmitting(false);
+          return;
+        }
+        const path = buildSafeStoragePath(`study-reports/${user.id}`, validation.safeExtension);
         const { error: upErr } = await supabase.storage.from('notes').upload(path, screenshot, {
           upsert: false,
+          contentType: validation.normalizedMime,
         });
         if (!upErr) screenshotPath = path;
       }

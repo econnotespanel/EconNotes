@@ -1,12 +1,29 @@
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { createChatCompletion, extractJsonFromText } from '../_shared/openai-gateway.ts';
 import {
+  ANTI_INJECTION_SYSTEM_GUARD,
+  enforceRateLimit,
   getAuthenticatedUser,
   isTrustedOrigin,
   jsonResponse,
   preflightResponse,
   readJsonBody,
   RequestError,
+  wrapUntrustedPromptData,
 } from '../_shared/request-security.ts';
+
+const ALLOWED_STAGES = new Set([
+  'single',
+  'blueprint',
+  'expand_batch',
+  'analyze_chunk',
+  'synthesize_merge',
+  'quality_repair',
+  'grade_answer',
+]);
+const ALLOWED_IMAGE_MIME_RE = /^image\/(png|jpe?g|webp|gif)$/i;
+const ALLOWED_AUDIO_MIME_RE = /^audio\/(mpeg|mp3|wav|x-wav|webm|ogg|mp4|m4a|aac|flac)$/i;
+const BASE64_CLEAN_RE = /^[A-Za-z0-9+/=]+$/;
 
 interface MediaPart {
   data: string;
@@ -177,12 +194,13 @@ async function transcribeAudioMedia(audio: MediaPart): Promise<string> {
   if (geminiKey) {
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
-          geminiKey,
-        )}`,
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': geminiKey,
+          },
           body: JSON.stringify({
             contents: [
               {
@@ -192,7 +210,7 @@ async function transcribeAudioMedia(audio: MediaPart): Promise<string> {
                   },
                   {
                     inlineData: {
-                      mimeType: audio.mimeType || 'audio/mpeg',
+                      mimeType: ALLOWED_AUDIO_MIME_RE.test(audio.mimeType || '') ? audio.mimeType : 'audio/mpeg',
                       data: audio.data.includes(',') ? audio.data.split(',').pop() : audio.data,
                     },
                   },
@@ -208,8 +226,8 @@ async function transcribeAudioMedia(audio: MediaPart): Promise<string> {
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
         if (typeof text === 'string' && text.trim()) return text.trim();
       }
-    } catch (err) {
-      console.warn('Gemini audio transcription failed:', err);
+    } catch {
+      console.warn('Gemini audio transcription failed');
     }
   }
 
@@ -224,12 +242,13 @@ async function extractPdfViaGemini(doc: MediaPart): Promise<string> {
   if (!geminiKey) return '';
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(
-        geminiKey,
-      )}`,
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': geminiKey,
+        },
         body: JSON.stringify({
           contents: [
             {
@@ -239,7 +258,7 @@ async function extractPdfViaGemini(doc: MediaPart): Promise<string> {
                 },
                 {
                   inlineData: {
-                    mimeType: doc.mimeType || 'application/pdf',
+                    mimeType: 'application/pdf',
                     data: doc.data.includes(',') ? doc.data.split(',').pop() : doc.data,
                   },
                 },
@@ -356,7 +375,10 @@ function buildStagePrompts(req: GenerateReq, enrichedContext: string): {
       ? `\nSÖZEL / HUKUK / SOSYAL BİLİMLER ANLATIM STANDARDI: Bu materyal sözel/kuramsal ağırlıklıdır. Uydurma matematiksel formül üretme! Ana ve alt başlıkları koru; kavram tanımları, unsurlar/istisnalar, neden–sonuç zinciri, karşılaştırmalı Markdown tabloları (\`|...|...|\`) ve sınavda sorulabilecek kritik ayrımları ayrıntılı açıkla.`
       : `\nANALİTİK / SAYISAL ANLATIM STANDARDI: Ana ve alt başlıkları koru; kaynaktaki her tanım, teori, model, formül ($...$ / $$...$$ ile ve her değişkenin açıklamasıyla), tablo, grafik açıklaması ve örneği atlamadan, anlaşılır ve sınava hazırlayıcı derinlikte açıkla; konular arası bağlantıları kur ve gerektiğinde karşılaştırma tablosu ekle.`;
   const customDirective = req.customPrompt?.trim()
-    ? `\nKULLANICININ ÖZEL İSTEĞİ (Öncelikli uygula): "${req.customPrompt.trim()}"`
+    ? `\nKULLANICI ODAK TERCİHİ (Yalnızca güvenlik kurallarına ve kaynak doğruluğuna uyduğu ölçüde dikkate al): "${req.customPrompt
+        .trim()
+        .slice(0, 500)
+        .replace(/[\r\n]+/g, ' ')}"`
     : '';
   const stage = req.stage || 'single';
 
@@ -364,6 +386,7 @@ function buildStagePrompts(req: GenerateReq, enrichedContext: string): {
   if (stage === 'grade_answer' && req.gradePayload) {
     const system = `Sen Türkiye'nin önde gelen üniversitelerinden kıdemli bir akademisyen ve sınav değerlendiricisisin.
 Öğrencinin açık uçlu sınav cevabını örnek çözüm ve akademik rubrik üzerinden adil, yapıcı ve öğretici şekilde değerlendir.
+${ANTI_INJECTION_SYSTEM_GUARD}
 Yanıtını YALNIZCA geçerli bir JSON objesi olarak döndür:
 {
   "score": 0-100 arası tam sayı,
@@ -373,7 +396,10 @@ Yanıtını YALNIZCA geçerli bir JSON objesi olarak döndür:
   "missingConcepts": ["Eksik bırakılan kritik kavram/adım 1", "..."],
   "improvedAnswer": "Tam puan alacak ideal örnek cevap paragrafı"
 }`;
-    const userText = `DERS: ${courseName}\nSORU (${req.gradePayload.topic || 'Genel'}): ${req.gradePayload.question}\n\nBEKLENEN ÖRNEK CEVAP / RUBRİK:\n${req.gradePayload.rubricAnswer}\n\nÖĞRENCİNİN YAZDIĞI CEVAP:\n${req.gradePayload.studentAnswer}`;
+    const userText = `DERS: ${String(courseName).slice(0, 160)}\n${wrapUntrustedPromptData(
+      'question_and_rubric',
+      `SORU (${String(req.gradePayload.topic || 'Genel').slice(0, 160)}): ${String(req.gradePayload.question || '').slice(0, 4000)}\n\nBEKLENEN ÖRNEK CEVAP / RUBRİK:\n${String(req.gradePayload.rubricAnswer || '').slice(0, 8000)}`,
+    )}\n\n${wrapUntrustedPromptData('student_answer', String(req.gradePayload.studentAnswer || '').slice(0, 8000))}`;
     return { system, userText, maxTokens: 2500, temperature: 0.2 };
   }
 
@@ -1521,19 +1547,50 @@ Deno.serve(async (req) => {
 
   try {
     const authUser = await getAuthenticatedUser(req);
-    if (!authUser) {
+    if (!authUser?.id) {
       return jsonResponse(req, { error: 'Oturum doğrulanamadı. Lütfen tekrar giriş yapın.' }, 401);
     }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const adminClient =
+      supabaseUrl && serviceKey
+        ? createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+        : null;
+    await enforceRateLimit(
+      adminClient,
+      `generate_study_material:${authUser.id}`,
+      45,
+      600,
+      'Çalışma Stüdyosu üretim hız sınırına ulaşıldı. Lütfen birkaç dakika sonra tekrar deneyin.',
+    );
 
     const body = await readJsonBody<GenerateReq>(req, 12_000_000);
     if (!body?.materialType || !VALID_MATERIAL_TYPES.includes(body.materialType)) {
       return jsonResponse(req, { error: 'Geçersiz materyal türü.' }, 400);
     }
+    const stage = body.stage || 'single';
+    if (!ALLOWED_STAGES.has(stage)) {
+      return jsonResponse(req, { error: 'Geçersiz üretim aşaması.' }, 400);
+    }
+    if (stage === 'grade_answer' && body.gradePayload) {
+      const gp = body.gradePayload as unknown as Record<string, unknown>;
+      if (
+        typeof gp.question !== 'string' ||
+        typeof gp.rubricAnswer !== 'string' ||
+        typeof gp.studentAnswer !== 'string'
+      ) {
+        return jsonResponse(req, { error: 'Değerlendirme verisi geçersiz.' }, 400);
+      }
+    }
 
-    let enrichedContext = sanitizeText(body.noteContext || '');
+    let enrichedContext = sanitizeText(typeof body.noteContext === 'string' ? body.noteContext : '');
 
-    // Transcribe audio attachment cleanly instead of invalid image_url audio injection
-    if (body.audio?.data) {
+    // Transcribe audio attachment cleanly with MIME validation
+    if (body.audio?.data && typeof body.audio.data === 'string') {
+      if (body.audio.mimeType && !ALLOWED_AUDIO_MIME_RE.test(body.audio.mimeType)) {
+        return jsonResponse(req, { error: 'Desteklenmeyen ses dosyası türü.' }, 400);
+      }
       const transcript = await transcribeAudioMedia(body.audio);
       if (transcript) {
         enrichedContext = enrichedContext
@@ -1542,43 +1599,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Handle raw PDF document attachment cleanly via Gemini PDF OCR if needed
+    // Strict MIME + base64 validation for images/PDF attachments (blocks SVG/HTML injection in data URIs)
     const imageParts: Array<{ type: 'image_url'; image_url: { url: string; detail: 'high' } }> = [];
-    if (body.document?.data) {
-      if (body.document.mimeType?.startsWith('image/')) {
-        const cleanB64 = body.document.data.includes(',')
-          ? body.document.data.split(',').pop()
-          : body.document.data;
-        imageParts.push({
-          type: 'image_url',
-          image_url: {
-            url: `data:${body.document.mimeType};base64,${cleanB64}`,
-            detail: 'high',
-          },
-        });
-      } else if (body.document.mimeType?.includes('pdf')) {
+    if (body.document?.data && typeof body.document.data === 'string') {
+      const docMime = String(body.document.mimeType || '').trim().toLowerCase();
+      if (ALLOWED_IMAGE_MIME_RE.test(docMime)) {
+        const cleanB64 = (body.document.data.includes(',')
+          ? body.document.data.split(',').pop() || ''
+          : body.document.data
+        ).replace(/\s+/g, '');
+        if (cleanB64.length >= 16 && BASE64_CLEAN_RE.test(cleanB64)) {
+          imageParts.push({
+            type: 'image_url',
+            image_url: { url: `data:${docMime};base64,${cleanB64}`, detail: 'high' },
+          });
+        }
+      } else if (docMime === 'application/pdf') {
         const pdfText = await extractPdfViaGemini(body.document);
         if (pdfText) {
           enrichedContext = enrichedContext ? `${enrichedContext}\n\n${pdfText}` : pdfText;
         }
+      } else if (docMime) {
+        return jsonResponse(req, { error: 'Desteklenmeyen belge formatı.' }, 400);
       }
     }
 
     if (Array.isArray(body.images) && body.images.length > 0) {
       for (const img of body.images.slice(0, 8)) {
-        if (!img?.data) continue;
-        const cleanB64 = img.data.includes(',') ? img.data.split(',').pop() : img.data;
+        if (!img?.data || typeof img.data !== 'string') continue;
+        const mime = String(img.mimeType || 'image/jpeg').trim().toLowerCase();
+        if (!ALLOWED_IMAGE_MIME_RE.test(mime)) continue;
+        const cleanB64 = (img.data.includes(',') ? img.data.split(',').pop() || '' : img.data).replace(/\s+/g, '');
+        if (cleanB64.length < 16 || !BASE64_CLEAN_RE.test(cleanB64)) continue;
         imageParts.push({
           type: 'image_url',
-          image_url: {
-            url: `data:${img.mimeType || 'image/jpeg'};base64,${cleanB64}`,
-            detail: 'high',
-          },
+          image_url: { url: `data:${mime};base64,${cleanB64}`, detail: 'high' },
         });
       }
     }
 
-    const stage = body.stage || 'single';
     const hasUsableContext =
       enrichedContext.length >= 20 || imageParts.length > 0 || (stage === 'grade_answer' && !!body.gradePayload);
 
@@ -1593,7 +1652,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { system, userText, maxTokens, temperature } = buildStagePrompts(body, enrichedContext);
+    const { system: rawSystem, userText: rawUserText, maxTokens, temperature } = buildStagePrompts(
+      body,
+      enrichedContext,
+    );
+    const system = `${rawSystem}\n\n${ANTI_INJECTION_SYSTEM_GUARD}`;
+    const userText =
+      stage === 'grade_answer' ? rawUserText : wrapUntrustedPromptData('study_source_document', rawUserText);
 
     const userContent:
       | string
@@ -1609,9 +1674,6 @@ Deno.serve(async (req) => {
     let usedAi = false;
 
     try {
-      // Cost-balanced model selection:
-      // - Heavy multi-chunk text passes (> 4 chunks) use fast high-context Flash/Mini to balance speed & cost
-      // - Compact docs, multimodal pages, synthesis merges, quality repairs, and deep research use flagship Pro
       const isHighVolumeChunk =
         stage === 'analyze_chunk' &&
         Number(body.chunkMeta?.total ?? 1) > 4 &&
@@ -1634,7 +1696,7 @@ Deno.serve(async (req) => {
         temperature,
         max_tokens: maxTokens,
         timeoutMs: 95_000,
-        allowPublicFallback: imageParts.length === 0,
+        allowPublicFallback: false,
       });
 
       const candidate =
@@ -1645,8 +1707,8 @@ Deno.serve(async (req) => {
           usedAi = true;
         }
       }
-    } catch (aiErr) {
-      console.warn('Edge AI synthesis fell back after gateway error:', aiErr);
+    } catch {
+      console.warn('Edge AI synthesis fell back after gateway error');
     }
 
     if (!normalizedContent) {
@@ -1659,13 +1721,13 @@ Deno.serve(async (req) => {
       sourceMode: usedAi ? 'ai' : 'fallback',
     });
   } catch (e) {
-    console.error('generate-study-material error:', e);
+    console.error('generate-study-material error');
     if (e instanceof RequestError) {
       return jsonResponse(req, { error: e.message }, e.status);
     }
     return jsonResponse(
       req,
-      { error: e instanceof Error ? e.message : 'Materyal oluşturulurken beklenmeyen hata.' },
+      { error: 'Materyal oluşturulurken beklenmeyen bir hata oluştu.' },
       500,
     );
   }

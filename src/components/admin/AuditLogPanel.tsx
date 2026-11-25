@@ -72,9 +72,13 @@ const AuditLogPanel = () => {
 
   const resetFilters = () => { setAction('all'); setUserFilter('all'); setQ(''); setFrom(''); setTo(''); };
 
-  /** Exports the currently filtered rows as an Excel-friendly CSV file. */
+  /** Exports the currently filtered rows as an Excel-friendly CSV file (neutralizes CSV formula injection). */
   const exportCsv = () => {
-    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const esc = (v: unknown) => {
+      const raw = String(v ?? '');
+      const safe = /^[\s]*[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     const head = ['Tarih', 'Kullanıcı', 'E-posta', 'İşlem', 'Detay', 'Varlık Türü', 'Kayıt No'];
     const rows = filtered.map(l => [
       new Date(l.created_at).toLocaleString('tr-TR'),

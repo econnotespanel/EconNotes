@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { verifyMessageAdmins } from '@/lib/adminMessages';
 import { parseSupportMessage } from '@/lib/support';
 import { isDeviceNotificationEnabled } from '@/lib/deviceNotifications';
 
@@ -15,7 +16,7 @@ const SupportNotificationListener = () => {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages', filter: `receiver_id=eq.${user.id}` },
-        ({ new: row }) => {
+        async ({ new: row }) => {
           if (!row || typeof row.content !== 'string' || row.sender_id === user.id) return;
           if (Notification.permission !== 'granted' || !isDeviceNotificationEnabled(user.id)) return;
 
@@ -30,12 +31,19 @@ const SupportNotificationListener = () => {
               title = 'Yeni destek talebi';
               body = payload.subject;
             } else if (!isAdmin && payload.initiatedBy === 'admin') {
+              // AGENTS.md security rule: strictly verify admin sender via server-side is_admin RPC
+              const verifiedAdmins = await verifyMessageAdmins([String(row.sender_id)]).catch(() => []);
+              if (!verifiedAdmins.includes(String(row.sender_id))) return;
               title = 'EconNotes Destek Merkezi';
               body = payload.subject;
             } else {
               return;
             }
           } else if (payload.kind === 'reply') {
+            if (!isAdmin) {
+              const verifiedAdmins = await verifyMessageAdmins([String(row.sender_id)]).catch(() => []);
+              if (!verifiedAdmins.includes(String(row.sender_id))) return;
+            }
             title = isAdmin ? 'Destek talebine yeni yanıt' : 'Destek talebinize yanıt geldi';
             body = payload.message.slice(0, 120);
           } else {
@@ -45,7 +53,7 @@ const SupportNotificationListener = () => {
           const tag = `support-${payload.ticketId}`;
           const path = '/support';
 
-          if ('serviceWorker' in navigator) {
+          if ('serviceWorker' in navigator && navigator.serviceWorker?.ready) {
             navigator.serviceWorker.ready
               .then((reg) => {
                 const options: NotificationOptions & { vibrate: number[]; renotify: boolean } = {

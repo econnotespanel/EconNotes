@@ -1,1 +1,62 @@
 project_id = "htjmuzogayyufewirvlp"
+
+[auth]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+
+# Explicit per-function JWT config: functions validate sessions via auth.getUser(token)
+# in _shared/request-security.ts (allowing clean CORS preflight handling while enforcing
+# server-side session revocation & ban checks on every POST request).
+[functions.academic-assistant]
+verify_jwt = false
+
+[functions.admin-delete-user]
+verify_jwt = false
+
+[functions.admin-note-preview]
+verify_jwt = false
+
+[functions.admin-reset-password]
+verify_jwt = false
+
+[functions.admin-user-emails]
+verify_jwt = false
+
+[functions.claim-wheel-xp]
+verify_jwt = false
+
+[functions.complete-password-change]
+verify_jwt = false
+
+[functions.daily-trivia]
+verify_jwt = false
+
+[functions.delete-my-account]
+verify_jwt = false
+
+[functions.download-note]
+verify_jwt = false
+
+[functions.generate-kpss]
+verify_jwt = false
+
+[functions.generate-study-material]
+verify_jwt = false
+
+[functions.note-engagement]
+verify_jwt = false
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.sms-2fa]
+verify_jwt = false
+
+[functions.study-coach]
+verify_jwt = false
+
+[functions.summarize-live-lecture]
+verify_jwt = false

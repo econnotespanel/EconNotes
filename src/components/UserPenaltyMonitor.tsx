@@ -72,6 +72,7 @@ export const UserPenaltyMonitor = () => {
     void verifyPenalty();
 
     // 2. Realtime subscription on penalties table & direct broadcast channel
+    let lastBroadcastCheck = 0;
     const channelName = `penalty-monitor-${user.id}`;
     const channel = supabase
       .channel(channelName)
@@ -88,6 +89,10 @@ export const UserPenaltyMonitor = () => {
         }
       )
       .on('broadcast', { event: 'evict' }, () => {
+        // Throttle broadcast hints so external broadcast spam cannot trigger DB query floods
+        const now = Date.now();
+        if (now - lastBroadcastCheck < 3000) return;
+        lastBroadcastCheck = now;
         void verifyPenalty();
       })
       .subscribe();
@@ -97,18 +102,18 @@ export const UserPenaltyMonitor = () => {
       void verifyPenalty();
     }, 15000);
 
-    // 4. Tab visibility / focus check
+    // 4. Tab visibility / focus check (visibilitychange fires on document, NOT window!)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         void verifyPenalty();
       }
     };
-    window.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleVisibilityChange);
       void supabase.removeChannel(channel);
     };

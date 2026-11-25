@@ -433,7 +433,11 @@ export const AdminLoginLogTab = ({
   }, [allEvents, search, deviceFilter]);
 
   const exportCsv = () => {
-    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const esc = (v: unknown) => {
+      const raw = String(v ?? '');
+      const safe = /^[\s]*[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     const head = ['Tarih', 'Ad Soyad', 'E-posta', 'Cihaz', 'İşletim Sistemi', 'Tarayıcı', 'Uygulama Modu', 'Giriş Yöntemi'];
     const rows = filteredEvents.map((ev) =>
       [

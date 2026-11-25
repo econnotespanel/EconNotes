@@ -335,7 +335,12 @@ const Login = () => {
         ]);
         penalties = penaltyResult.data;
       } catch (requestError) {
-        console.warn('Ceza kontrolü atlandı:', requestError);
+        // SECURITY: Fail CLOSED if penalty check errors or times out so banned accounts cannot bypass enforcement
+        console.error('Ceza kontrolü doğrulanamadı:', requestError);
+        await supabase.auth.signOut().catch(() => {});
+        toast.error('Hesap güvenlik kontrolü tamamlanamadı. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.');
+        setLoading(false);
+        return;
       }
 
       if (penalties && penalties.length > 0) {

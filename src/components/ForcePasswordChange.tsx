@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import EconLogo from '@/components/EconLogo';
 import { useSiteConfig, getSeasonalTheme } from '@/contexts/SiteConfigContext';
+import { validateStrongPassword } from '@/lib/fileSecurity';
 import { cn } from '@/lib/utils';
 
 /** Shown after an admin issued a temporary password; the user must set their own new password. */
@@ -24,12 +25,9 @@ const ForcePasswordChange = () => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pw.length < 6) {
-      toast.error('Şifre en az 6 karakter olmalıdır.');
-      return;
-    }
-    if (!/[A-Z]/.test(pw) || !/\d/.test(pw)) {
-      toast.error('Şifre en az 1 büyük harf ve 1 rakam içermelidir.');
+    const pwErr = validateStrongPassword(pw);
+    if (pwErr) {
+      toast.error(pwErr);
       return;
     }
     if (pw !== pw2) {
@@ -38,19 +36,14 @@ const ForcePasswordChange = () => {
     }
     setBusy(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: pw,
-        data: { must_change_password: false }
+      // Atomic server-side password update + must_change_password clearance (prevents metadata bypass)
+      const { data, error: fnErr } = await supabase.functions.invoke('complete-password-change', {
+        body: { newPassword: pw },
       });
-      if (error) {
+      if (fnErr || data?.error) {
         setBusy(false);
-        toast.error('Şifre güncellenemedi: ' + error.message);
+        toast.error(data?.error || 'Şifre güncellenemedi. Lütfen tekrar deneyin.');
         return;
-      }
-      try {
-        await supabase.functions.invoke('complete-password-change');
-      } catch (fnErr) {
-        console.warn('complete-password-change error:', fnErr);
       }
       await supabase.auth.refreshSession();
       toast.success('Yeni şifreniz başarıyla kaydedildi! Panele yönlendiriliyorsunuz...');

@@ -56,7 +56,7 @@ export const initOneSignal = () => {
         },
         serviceWorkerPath: 'OneSignalSDKWorker.js',
         serviceWorkerParam: { scope: '/' },
-        allowLocalhostAsSecureOrigin: true,
+        allowLocalhostAsSecureOrigin: import.meta.env.DEV,
       });
 
       initializedOneSignal = OneSignal;
@@ -87,6 +87,18 @@ export const initOneSignal = () => {
  * Syncs OneSignal Web Push subscription state (opt-in / opt-out + optional external user ID)
  * strictly AFTER OneSignal.init() has finished so v16 never drops the subscription due to a race condition.
  */
+export const logoutOneSignalUser = async (): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  try {
+    const os = initializedOneSignal || (await waitForOneSignalReady(1500));
+    if (os && typeof os.logout === 'function') {
+      await os.logout();
+    }
+  } catch {
+    // ignore logout errors when push is not active
+  }
+};
+
 export const syncOneSignalSubscription = async (
   userId?: string,
   enabled: boolean = true,

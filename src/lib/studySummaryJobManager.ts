@@ -705,6 +705,28 @@ class SummaryJobManager {
       this.abortControllers.delete(initialJob.id);
     }
   }
+
+  /**
+   * Resets all in-memory jobs, PDF byte caches, and running controllers on user logout/switch
+   * so User A's summaries or PDF bytes can NEVER leak into User B's session.
+   */
+  public resetForLogout(): void {
+    for (const ctrl of this.abortControllers.values()) {
+      try {
+        ctrl.abort();
+      } catch {
+        // ignore
+      }
+    }
+    this.abortControllers.clear();
+    this.runningPromises.clear();
+    this.activeJob = null;
+    this.recentJobs = [];
+    this.completedMaterial = null;
+    this.lastPdfBytes = null;
+    this.lastPdfMaterialId = null;
+    this.emit();
+  }
 }
 
 export const summaryJobManager = new SummaryJobManager();

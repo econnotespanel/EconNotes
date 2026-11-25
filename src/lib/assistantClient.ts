@@ -36,7 +36,6 @@ interface EdgeCallResult<T = any> {
   errorMessage?: string;
 }
 
-const PUBLIC_REASONING_ENDPOINT = 'https://text.pollinations.ai/openai';
 const EDGE_COOLDOWN_STORAGE_KEY = 'econnotes_assistant_edge_cooldown_v1';
 
 let edgeUnavailableUntil = 0;
@@ -348,59 +347,10 @@ async function invokePublicReasoningStemEngine(params: {
     { role: 'user', content: userContent.slice(0, 16_000) },
   ];
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const controller = new AbortController();
-    const timer = globalThis.setTimeout(() => controller.abort(), 55_000);
-
-    try {
-      report('solve', 68, 'Matematiksel ve akademik çözüm adımları oluşturuluyor...');
-      const res = await fetch(PUBLIC_REASONING_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'openai',
-          messages,
-          temperature: 0.15,
-        }),
-        signal: controller.signal,
-      });
-
-      const rawText = await res.text();
-      globalThis.clearTimeout(timer);
-
-      if (res.ok && rawText) {
-        nextAllowedReasoningAt = Date.now() + 45_500;
-        report('verify', 94, 'LaTeX formüller ve sağlama adımları düzenleniyor...');
-        try {
-          const parsed = JSON.parse(rawText);
-          const content = parsed?.choices?.[0]?.message?.content;
-          if (typeof content === 'string' && content.trim().length > 0) {
-            return content.trim();
-          }
-        } catch {
-          if (!rawText.trim().startsWith('{') && rawText.trim().length > 0) {
-            return rawText.trim();
-          }
-        }
-      }
-
-      const retryMatch = rawText.match(/Retry after\s+(\d+)\s*s/i);
-      if ((res.status === 402 || res.status === 429) && retryMatch && attempt < 2) {
-        const waitSec = Math.min(46, Math.max(2, Number(retryMatch[1]) + 1));
-        nextAllowedReasoningAt = Date.now() + waitSec * 1000;
-        await sleepWithCountdown(waitSec, report);
-        continue;
-      }
-
-      return null;
-    } catch {
-      globalThis.clearTimeout(timer);
-      return null;
-    }
-  }
-
+  // SECURITY: Never send private student questions or documents to unauthenticated public endpoints
+  // (e.g., text.pollinations.ai). Return null so callers fall back cleanly to authenticated Edge Functions.
+  void messages;
+  void report;
   return null;
 }
 

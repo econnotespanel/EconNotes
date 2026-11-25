@@ -1,5 +1,16 @@
-import { writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+
+// Security build guard: NEVER allow raw private storage files under public/storage to be copied into dist/
+const forbiddenStorageDir = resolve('public/storage');
+if (existsSync(forbiddenStorageDir)) {
+  const entries = readdirSync(forbiddenStorageDir);
+  if (entries.length > 0) {
+    throw new Error(
+      'SECURITY BUILD BLOCK: public/storage/ contains files that would be exposed publicly in dist/. Move them to backup/ before building.',
+    );
+  }
+}
 
 const BASE_URL = 'https://econnotes.online';
 

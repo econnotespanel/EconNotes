@@ -1,20 +1,25 @@
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { getAuthenticatedUser } from '../_shared/request-security.ts';
+import {
+  enforceRateLimit,
+  getAuthenticatedUser,
+  isTrustedOrigin,
+  jsonResponse,
+  preflightResponse,
+  RequestError,
+} from '../_shared/request-security.ts';
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
-
-  const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  if (req.method === 'OPTIONS') return preflightResponse(req);
+  if (!isTrustedOrigin(req.headers.get('origin'))) {
+    return jsonResponse(req, { error: 'Bu kaynaktan isteğe izin verilmiyor.' }, 403);
+  }
+  if (req.method !== 'POST') {
+    return jsonResponse(req, { error: 'Yalnızca POST desteklenir.' }, 405);
+  }
 
   try {
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const token = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
-    if (!token) return json({ error: 'Yetkisiz.' }, 401);
+    const actor = await getAuthenticatedUser(req);
+    if (!actor?.id) return jsonResponse(req, { error: 'Oturum geçersiz.' }, 401);
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -22,18 +27,10 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
 
-    // 1) Validate JWT using shared getClaims + getUser(token), with service-client getUser(token) fallback
-    let authUserId: string | null = (await getAuthenticatedUser(req))?.id ?? null;
-    if (!authUserId) {
-      const { data: userData, error: userErr } = await admin.auth.getUser(token);
-      if (!userErr && userData?.user?.id) {
-        authUserId = userData.user.id;
-      }
-    }
-    if (!authUserId) return json({ error: 'Oturum geçersiz.' }, 401);
+    const { data: isAdmin } = await admin.rpc('is_admin', { _user_id: actor.id });
+    if (!isAdmin) return jsonResponse(req, { error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
 
-    const { data: isAdmin } = await admin.rpc('is_admin', { _user_id: authUserId });
-    if (!isAdmin) return json({ error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
+    await enforceRateLimit(admin, `admin_user_emails:${actor.id}`, 12, 300);
 
     const users: {
       id: string;
@@ -47,12 +44,14 @@ Deno.serve(async (req) => {
 
     for (let page = 1; page <= 20; page++) {
       const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-      if (error) return json({ error: error.message }, 500);
+      if (error) {
+        console.error('admin-user-emails listUsers failed');
+        return jsonResponse(req, { error: 'Kullanıcı listesi alınamadı.' }, 500);
+      }
       for (const u of data.users) {
         const identityEmail = u.identities
           ?.map((identity) => identity.identity_data?.email)
           .find((email): email is string => typeof email === 'string' && email.trim().length > 0);
-        const metadataEmail = u.user_metadata?.email;
 
         const identitySignIn =
           u.identities
@@ -76,9 +75,10 @@ Deno.serve(async (req) => {
         const primaryProvider = (u.app_metadata?.provider as string) ?? 'email';
         const providers = Array.from(new Set([...rawProviders, ...identityProviders, primaryProvider]));
 
+        // SECURITY: Never trust client-writable user_metadata.email
         users.push({
           id: u.id,
-          email: u.email ?? identityEmail ?? (typeof metadataEmail === 'string' ? metadataEmail : null),
+          email: u.email ?? identityEmail ?? null,
           created_at: u.created_at,
           last_sign_in_at: bestSignIn,
           confirmed: Boolean(u.email_confirmed_at ?? u.confirmed_at),
@@ -89,9 +89,10 @@ Deno.serve(async (req) => {
       if (data.users.length < 200) break;
     }
 
-    return json({ users });
+    return jsonResponse(req, { users });
   } catch (e) {
-    console.error('admin-user-emails error', e);
-    return json({ error: e instanceof Error ? e.message : 'Bilinmeyen hata.' }, 500);
+    if (e instanceof RequestError) return jsonResponse(req, { error: e.message }, e.status);
+    console.error('admin-user-emails error');
+    return jsonResponse(req, { error: 'Kullanıcı listesi alınamadı.' }, 500);
   }
 });

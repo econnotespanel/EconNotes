@@ -282,7 +282,12 @@ export const AdminDocumentViewer: React.FC<AdminDocumentViewerProps> = ({
   }, [resolution, noteTitle]);
 
   const handleOpenNewTab = useCallback(() => {
-    const href = resolution?.blobUrl || resolution?.signedUrl;
+    if (!resolution?.ok) return;
+    // SECURITY: Only open verified PDF or safe raster image blobs in a new tab (never HTML/SVG/active types)
+    const safeForTab =
+      resolution.fileKind === 'pdf' ||
+      (resolution.fileKind === 'image' && /^image\/(png|jpe?g|webp|gif|bmp)$/i.test(resolution.fileType || ''));
+    const href = safeForTab ? resolution.blobUrl || resolution.signedUrl : resolution.signedUrl;
     if (!href) return;
     window.open(href, '_blank', 'noopener,noreferrer');
   }, [resolution]);
@@ -692,6 +697,8 @@ export const AdminDocumentViewer: React.FC<AdminDocumentViewerProps> = ({
               <iframe
                 src={resolution.blobUrl}
                 title={noteTitle}
+                sandbox="allow-scripts allow-same-origin"
+                referrerPolicy="no-referrer"
                 className={cn(
                   'w-full rounded-xl border border-border bg-white',
                   fullscreen ? 'h-[calc(100dvh-110px)]' : 'h-[480px]',

@@ -72,7 +72,7 @@ const Profile = () => {
       })
       .eq('user_id', user!.id);
     if (error) { toast.error('Güncellenemedi.'); return; }
-    if (form.birth_date && form.birth_date !== currentBirthDate) {
+    if (form.birth_date && !currentBirthDate) {
       const bdayRes = await saveUserBirthDate(user!, form.birth_date);
       if (!bdayRes.ok) {
         toast.error(bdayRes.error || 'Doğum tarihi kaydedilemedi.');
@@ -89,8 +89,16 @@ const Profile = () => {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const path = `${user!.id}/avatar.${file.name.split('.').pop()}`;
-    const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    const { validateUploadFile, buildSafeStoragePath } = await import('@/lib/fileSecurity');
+    const validation = await validateUploadFile(file, 'avatar');
+    if (!validation.ok || !validation.safeExtension) {
+      toast.error(validation.error || 'Geçersiz görsel dosyası.');
+      return;
+    }
+    const path = buildSafeStoragePath(user!.id, validation.safeExtension);
+    const { error } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, contentType: validation.normalizedMime });
     if (error) { toast.error('Yüklenemedi.'); return; }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
     await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('user_id', user!.id);
@@ -105,8 +113,10 @@ const Profile = () => {
       toast.error('Şifreler eşleşmiyor.');
       return;
     }
-    if (passwordForm.newPass.length < 6) {
-      toast.error('Şifre en az 6 karakter olmalıdır.');
+    const { validateStrongPassword } = await import('@/lib/fileSecurity');
+    const pwErr = validateStrongPassword(passwordForm.newPass);
+    if (pwErr) {
+      toast.error(pwErr);
       return;
     }
     const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });

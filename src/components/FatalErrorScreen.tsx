@@ -136,13 +136,15 @@ export const FatalErrorScreen: React.FC<FatalErrorScreenProps> = ({
 
         <div className="flex items-center gap-3">
           {adminControls}
-          <a
-            href="/admin"
-            className="hidden sm:inline-flex items-center gap-1.5 font-mono text-xs text-white/60 hover:text-white border border-white/20 hover:border-white/50 px-3 py-1.5 rounded transition-all bg-black/20"
-          >
-            <Shield className="h-3.5 w-3.5" />
-            <span>YÖNETİCİ PANELİ</span>
-          </a>
+          {import.meta.env.DEV && (
+            <a
+              href="/admin"
+              className="hidden sm:inline-flex items-center gap-1.5 font-mono text-xs text-white/60 hover:text-white border border-white/20 hover:border-white/50 px-3 py-1.5 rounded transition-all bg-black/20"
+            >
+              <Shield className="h-3.5 w-3.5" />
+              <span>YÖNETİCİ PANELİ</span>
+            </a>
+          )}
         </div>
       </header>
 
@@ -264,7 +266,7 @@ export const FatalErrorScreen: React.FC<FatalErrorScreenProps> = ({
               <p className="text-xs sm:text-sm text-white/85 leading-relaxed font-sans">
                 Runtime could not establish a healthy application state. Administrator intervention is required before service can resume.
               </p>
-              {error?.message && (
+              {import.meta.env.DEV && error?.message && (
                 <div className="pt-3 border-t border-white/20 mt-3">
                   <span className="font-mono text-[11px] text-red-300 font-semibold block mb-1">
                     DETAIL:

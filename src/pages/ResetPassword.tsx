@@ -41,8 +41,10 @@ const ResetPassword = () => {
       toast.error('Lütfen tüm alanları doldurun.');
       return;
     }
-    if (password.length < 6) {
-      toast.error('Şifre en az 6 karakter olmalıdır.');
+    const { validateStrongPassword } = await import('@/lib/fileSecurity');
+    const pwErr = validateStrongPassword(password);
+    if (pwErr) {
+      toast.error(pwErr);
       return;
     }
     if (password !== confirmPassword) {
@@ -52,6 +54,10 @@ const ResetPassword = () => {
 
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
+    if (!error) {
+      // Revoke other active sessions after password reset
+      await supabase.auth.signOut({ scope: 'others' }).catch(() => {});
+    }
     setLoading(false);
 
     if (error) {

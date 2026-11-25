@@ -301,7 +301,9 @@ export async function prepareWatermarkedPreview(
       return URL.createObjectURL(blob);
     }
   } catch (error) {
-    console.warn('Önizleme dosya filigranlama uyarısı (orijinal dosya gösteriliyor):', error);
+    // SECURITY: Fail closed — never silently serve raw unwatermarked PDF/image URLs when watermarking fails
+    console.error('Önizleme filigranlama başarısız oldu:', error);
+    throw new Error('Güvenli filigranlı önizleme hazırlanamadı. Lütfen tekrar deneyin.');
   }
   return fileUrl;
 }

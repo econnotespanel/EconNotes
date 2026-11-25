@@ -2,7 +2,7 @@
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>EconNotes - Not Paylaşım Paneli</title>
     <meta name="description" content="Üniversite öğrencileri için tasarlanan not paylaşım platformu.">
     <meta name="author" content="EconNotes" />
@@ -74,10 +74,13 @@
             curnode = curnode.parentNode;
           }
           if (curnode && curnode.nodeName === 'A' && curnode.href && !curnode.getAttribute('download') && curnode.getAttribute('target') !== '_blank') {
-            if (curnode.href.indexOf(location.host) !== -1) {
-              e.preventDefault();
-              window.location.href = curnode.href;
-            }
+            try {
+              var parsedLink = new URL(curnode.href, location.origin);
+              if (parsedLink.origin === location.origin && (parsedLink.protocol === 'https:' || parsedLink.protocol === 'http:')) {
+                e.preventDefault();
+                window.location.href = parsedLink.href;
+              }
+            } catch (_) {}
           }
         }, false);
       }

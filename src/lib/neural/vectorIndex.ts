@@ -260,6 +260,33 @@ export async function loadAllChunks(docIds?: string[]): Promise<IndexedChunk[]> 
   return all.filter((c) => allowed.has(c.docId));
 }
 
+export async function clearAllVectorIndexData(): Promise<void> {
+  memoryStore.clear();
+  if (!hasIndexedDb()) return;
+  try {
+    const db = await openVectorDb();
+    await new Promise<void>((resolve) => {
+      try {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).clear();
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => {
+          db.close();
+          resolve();
+        };
+      } catch {
+        db.close();
+        resolve();
+      }
+    });
+  } catch {
+    // ignore cleanup error
+  }
+}
+
 export async function getIndexedDocuments(): Promise<DocumentIndexSummary[]> {
   const chunks = await loadAllChunks();
   const map = new Map<string, DocumentIndexSummary>();

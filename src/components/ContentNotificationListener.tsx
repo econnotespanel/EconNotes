@@ -174,20 +174,9 @@ const ContentNotificationListener = () => {
       });
     };
 
-    // 1. Instant real-time broadcast + database INSERT listener
+    // 1. Rely strictly on RLS-verified Postgres INSERT events (never trust unauthenticated Realtime Broadcasts!)
     const channel = supabase
-      .channel(ANNOUNCEMENT_BROADCAST_CHANNEL, {
-        config: { broadcast: { self: false } },
-      })
-      .on('broadcast', { event: 'new-announcement' }, (payload) => {
-        const ann = payload.payload as {
-          id?: string;
-          title?: string;
-          content?: string;
-          created_at?: string;
-        };
-        handleIncomingAnnouncement(ann);
-      })
+      .channel(`announcements-verified-${user.id}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'announcements' },

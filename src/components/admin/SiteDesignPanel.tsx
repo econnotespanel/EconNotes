@@ -64,10 +64,17 @@ const SiteDesignPanel = () => {
 
   const uploadLogo = async (file: File) => {
     if (!user) return;
+    const { validateUploadFile, buildSafeStoragePath } = await import('@/lib/fileSecurity');
+    const validation = await validateUploadFile(file, 'avatar');
+    if (!validation.ok || !validation.safeExtension) {
+      toast.error(validation.error || 'SVG/HTML yerine PNG, JPG veya WEBP logo yükleyin.');
+      return;
+    }
     setUploading(true);
-    const ext = file.name.split('.').pop();
-    const path = `${user.id}/logo-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+    const path = buildSafeStoragePath(user.id, validation.safeExtension);
+    const { error } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true, contentType: validation.normalizedMime });
     setUploading(false);
     if (error) { toast.error('Logo yüklenemedi: ' + error.message); return; }
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
@@ -110,7 +117,7 @@ const SiteDesignPanel = () => {
                   <Upload className="h-3.5 w-3.5" /> {uploading ? 'Yükleniyor.' : 'Dosya yükle'}
                   <input
                     type="file"
-                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    accept="image/png,image/jpeg,image/webp"
                     className="hidden"
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadLogo(f); }}
                   />

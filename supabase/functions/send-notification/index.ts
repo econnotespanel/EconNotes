@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
+  enforceRateLimit,
   getAuthenticatedUser,
   isTrustedOrigin,
   jsonResponse,
@@ -8,12 +9,33 @@ import {
   RequestError,
 } from '../_shared/request-security.ts';
 
-const ONESIGNAL_APP_ID = 'ce5179d9-cf07-4115-b29a-a7d73713818d';
+const ONESIGNAL_APP_ID = Deno.env.get('ONESIGNAL_APP_ID') || 'ce5179d9-cf07-4115-b29a-a7d73713818d';
 
 interface NotificationPayload {
-  title: string;
-  content: string;
-  url?: string;
+  title?: unknown;
+  content?: unknown;
+  url?: unknown;
+}
+
+function sanitizeNotificationUrl(rawUrl: unknown): string {
+  const fallback = 'https://econnotes.online/announcements';
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) return fallback;
+  const trimmed = rawUrl.trim();
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    return `https://econnotes.online${trimmed}`;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (
+      parsed.protocol === 'https:' &&
+      (parsed.hostname === 'econnotes.online' || parsed.hostname === 'www.econnotes.online')
+    ) {
+      return parsed.toString();
+    }
+  } catch {
+    // invalid URL -> fall back safely
+  }
+  throw new RequestError('Bildirim bağlantısı yalnızca econnotes.online adresine yönlenebilir.', 400);
 }
 
 const dispatchToOneSignal = async (
@@ -40,6 +62,7 @@ const dispatchToOneSignal = async (
       chrome_web_badge: 'https://econnotes.online/icons/icon-192x192.png',
       firefox_icon: 'https://econnotes.online/icons/icon-192x192.png',
     }),
+    signal: AbortSignal.timeout(15_000),
   });
 
   const data = await response.json().catch(() => ({}));
@@ -49,7 +72,7 @@ const dispatchToOneSignal = async (
       (data?.errors && typeof data.errors === 'object' && Object.keys(data.errors).length > 0),
   );
 
-  return { ok: response.ok && !hasErrors, status: response.status, data };
+  return { ok: response.ok && !hasErrors, status: response.status, hasSegmentError: /segment/i.test(JSON.stringify(data?.errors || '')) };
 };
 
 Deno.serve(async (req) => {
@@ -61,7 +84,7 @@ Deno.serve(async (req) => {
 
   try {
     const user = await getAuthenticatedUser(req);
-    if (!user) return jsonResponse(req, { error: 'Giriş yapmalısınız.' }, 401);
+    if (!user?.id) return jsonResponse(req, { error: 'Giriş yapmalısınız.' }, 401);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -78,33 +101,34 @@ Deno.serve(async (req) => {
       return jsonResponse(req, { error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
     }
 
+    await enforceRateLimit(adminClient, `send_notification:${user.id}`, 10, 600);
+
     const body = await readJsonBody<NotificationPayload>(req, 100_000);
-    if (!body?.title || !body?.content) {
+    const title = typeof body.title === 'string' ? body.title.replace(/<[^>]*>/g, '').trim().slice(0, 120) : '';
+    const cleanContent =
+      typeof body.content === 'string' ? body.content.replace(/<[^>]*>/g, '').trim().slice(0, 180) : '';
+
+    if (!title || !cleanContent) {
       throw new RequestError('Başlık ve içerik zorunludur.', 400);
     }
 
+    const targetUrl = sanitizeNotificationUrl(body.url);
+
     const restApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY')?.trim();
     if (!restApiKey) {
-      console.warn('ONESIGNAL_REST_API_KEY is not configured on server.');
-      return jsonResponse(req, { success: false, reason: 'ONESIGNAL_REST_API_KEY not configured' }, 200);
+      console.warn('Push service credentials not configured on server.');
+      return jsonResponse(req, { success: false, reason: 'push_not_configured' }, 200);
     }
 
-    const cleanContent = String(body.content).replace(/<[^>]*>/g, '').trim().slice(0, 180);
-    const targetUrl = body.url || 'https://econnotes.online/announcements';
-
-    // Try modern OneSignal v2 default segment first; fallback to legacy 'Subscribed Users' if segment name differs
-    let result = await dispatchToOneSignal(restApiKey, ['Total Subscriptions'], body.title, cleanContent, targetUrl);
-    if (!result.ok) {
-      const errStr = JSON.stringify(result.data?.errors || '');
-      if (/segment/i.test(errStr)) {
-        result = await dispatchToOneSignal(restApiKey, ['Subscribed Users'], body.title, cleanContent, targetUrl);
-      }
+    let result = await dispatchToOneSignal(restApiKey, ['Total Subscriptions'], title, cleanContent, targetUrl);
+    if (!result.ok && result.hasSegmentError) {
+      result = await dispatchToOneSignal(restApiKey, ['Subscribed Users'], title, cleanContent, targetUrl);
     }
 
-    return jsonResponse(req, { success: result.ok, status: result.status, data: result.data });
+    return jsonResponse(req, { success: result.ok, status: result.status });
   } catch (error) {
     if (error instanceof RequestError) return jsonResponse(req, { error: error.message }, error.status);
-    console.error('send-notification request failed:', error);
+    console.error('send-notification request failed');
     return jsonResponse(req, { error: 'Bildirim gönderilemedi.' }, 500);
   }
 });

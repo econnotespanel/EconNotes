@@ -40,11 +40,11 @@ function decodeXmlEntities(input: string): string {
     .replace(/&apos;/g, "'")
     .replace(/&#(\d+);/g, (_, dec) => {
       const code = Number(dec);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : _;
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
     })
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
       const code = parseInt(hex, 16);
-      return Number.isFinite(code) ? String.fromCodePoint(code) : _;
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
     });
 }
 
@@ -237,7 +237,8 @@ export async function extractFile(
   if (name.endsWith('.pdf') || mime === 'application/pdf') {
     onProgress?.(12, 'PDF ayrıştırılıyor...');
     const buf = await readFileAsArrayBuffer(file);
-    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    // SECURITY (CVE-2024-4367): strictly disable PDF.js eval font compilation
+    const pdf = await pdfjsLib.getDocument({ data: buf, isEvalSupported: false, disableFontFace: true }).promise;
     const total = pdf.numPages;
     const maxPages = Math.min(total, 500);
     const parts: string[] = new Array(maxPages).fill('');

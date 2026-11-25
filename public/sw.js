@@ -37,7 +37,15 @@ self.addEventListener('notificationclick', (event) => {
   if (!notifData || !notifData.econnotesLocal || !notifData.url) return;
 
   event.notification.close();
-  const targetUrl = new URL(notifData.url, self.location.origin).href;
+  let targetUrl = self.location.origin + '/';
+  try {
+    const parsed = new URL(notifData.url, self.location.origin);
+    if (parsed.origin === self.location.origin) {
+      targetUrl = parsed.href;
+    }
+  } catch {
+    targetUrl = self.location.origin + '/';
+  }
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {

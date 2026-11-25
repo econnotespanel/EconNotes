@@ -47,13 +47,12 @@ const Announcements = () => {
     setAnnouncements(data || []);
     setLoading(false);
 
-    if (user && data) {
-      for (const a of data) {
-        await supabase.from('announcement_views').upsert(
-          { announcement_id: a.id, user_id: user.id },
-          { onConflict: 'announcement_id,user_id' }
-        );
-      }
+    if (user && data && data.length > 0) {
+      // Single bulk upsert instead of N+1 sequential queries
+      await supabase.from('announcement_views').upsert(
+        data.map((a) => ({ announcement_id: a.id, user_id: user.id })),
+        { onConflict: 'announcement_id,user_id', ignoreDuplicates: true },
+      );
       notifyAnnouncementsUpdated();
     }
 
@@ -85,14 +84,21 @@ const Announcements = () => {
     let attachmentType = editingItem?.attachment_type || null;
 
     if (attachmentFile) {
+      const { validateUploadFile, buildSafeStoragePath } = await import('@/lib/fileSecurity');
+      const validation = await validateUploadFile(attachmentFile, 'announcement');
+      if (!validation.ok || !validation.safeExtension) {
+        toast.error(validation.error || 'Güvensiz veya desteklenmeyen ek dosya.');
+        return;
+      }
       setUploadingFile(true);
-      const ext = attachmentFile.name.split('.').pop();
-      const filePath = `announcements/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('notes').upload(filePath, attachmentFile);
+      const filePath = buildSafeStoragePath('announcements', validation.safeExtension);
+      const { error: uploadError } = await supabase.storage
+        .from('notes')
+        .upload(filePath, attachmentFile, { contentType: validation.normalizedMime });
       if (uploadError) { toast.error('Dosya yüklenemedi.'); setUploadingFile(false); return; }
       attachmentUrl = filePath;
       attachmentName = attachmentFile.name;
-      attachmentType = attachmentFile.type.startsWith('image/') ? 'image' : 'file';
+      attachmentType = (validation.normalizedMime || '').startsWith('image/') ? 'image' : 'file';
       setUploadingFile(false);
     }
 
@@ -169,7 +175,9 @@ const Announcements = () => {
       twitter: `https://twitter.com/intent/tweet?text=${encoded}`,
       facebook: `https://www.facebook.com/sharer/sharer.php?quote=${encoded}`,
     };
-    window.open(urls[platform], '_blank');
+    if (urls[platform]) {
+      window.open(urls[platform], '_blank', 'noopener,noreferrer');
+    }
   };
 
   const addComment = async (announcementId: string) => {
