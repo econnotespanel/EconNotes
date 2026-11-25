@@ -735,6 +735,10 @@ export type Database = {
           id: string
           last_login: string | null
           manual_download_quota: number | null
+          note_upload_quota: number | null
+          onboarding_state: Json | null
+          seen_whats_new_versions: string[]
+          starter_upload_quota_granted_at: string | null
           university: string
           updated_at: string
           user_id: string
@@ -752,6 +756,10 @@ export type Database = {
           id?: string
           last_login?: string | null
           manual_download_quota?: number | null
+          note_upload_quota?: number | null
+          onboarding_state?: Json | null
+          seen_whats_new_versions?: string[]
+          starter_upload_quota_granted_at?: string | null
           university?: string
           updated_at?: string
           user_id: string
@@ -769,6 +777,10 @@ export type Database = {
           id?: string
           last_login?: string | null
           manual_download_quota?: number | null
+          note_upload_quota?: number | null
+          onboarding_state?: Json | null
+          seen_whats_new_versions?: string[]
+          starter_upload_quota_granted_at?: string | null
           university?: string
           updated_at?: string
           user_id?: string

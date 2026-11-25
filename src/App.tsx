@@ -26,6 +26,7 @@ import SystemGate from "@/components/SystemGate";
 import ApprovalGate from "@/components/ApprovalGate";
 import BirthDatePromptModal from "@/components/BirthDatePromptModal";
 import DailyWelcomePosterModal from "@/components/DailyWelcomePosterModal";
+import WhatsNewModal from "@/components/WhatsNewModal";
 import IosPwaTopBarFix from "@/components/IosPwaTopBarFix";
 import ScrollToTop from "@/components/ScrollToTop";
 
@@ -136,6 +137,7 @@ const App = () => {
                         <SupportNotificationListener />
                         <BirthDatePromptModal />
                         <DailyWelcomePosterModal />
+                        <WhatsNewModal />
                         <GuidedPlatformTour />
                         <Routes>
                         <Route path="/" element={<Index />} />

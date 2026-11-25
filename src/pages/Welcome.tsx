@@ -304,10 +304,10 @@ const Welcome = () => {
               className="pointer-events-none absolute -right-12 -top-16 h-56 w-56 rounded-full bg-sky-400/20 blur-3xl"
             />
             <div className="relative z-10 max-w-2xl space-y-3.5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1 text-xs font-semibold text-blue-100 backdrop-blur-sm">
-                <BookOpen className="h-3.5 w-3.5 text-sky-200" />
+              <p className="inline-flex items-center gap-2 text-xs font-semibold text-white sm:text-sm">
+                <BookOpen className="h-4 w-4 shrink-0 text-white" />
                 <span>Merhaba {firstName}, hesabın hazır</span>
-              </div>
+              </p>
 
               <h1
                 id="welcome-heading"

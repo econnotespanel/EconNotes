@@ -420,6 +420,17 @@ export function shouldAutoRedirectToWelcome(params: {
   if (state.welcomeSeen || state.status !== 'not_started') return false;
   if (hasVersionedWelcomeAck(user.id)) return false;
 
+  // Never collide with the returning-user What's New flow when active in this session
+  if (typeof window !== 'undefined') {
+    try {
+      if (window.sessionStorage.getItem(`econnotes_whats_new_pending_whats_new_2026_11_25_${user.id}`) === '1') {
+        return false;
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   if (hasFirstLoginDetected(user.id)) return true;
 
   const createdMs = Math.max(

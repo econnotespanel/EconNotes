@@ -377,7 +377,7 @@ export const GuidedPlatformTour = () => {
           aria-labelledby="tour-complete-title"
           aria-describedby="tour-complete-desc"
           tabIndex={-1}
-          className="relative w-full max-w-lg overflow-hidden rounded-[26px] border border-slate-200/90 bg-card shadow-[0_24px_70px_-14px_rgba(4,13,33,0.45)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700/80"
+          className="relative w-full max-w-xl overflow-hidden rounded-[26px] border border-slate-200/90 bg-card shadow-[0_24px_70px_-14px_rgba(4,13,33,0.45)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-slate-700/80"
         >
           <div
             className={cn(
@@ -432,28 +432,28 @@ export const GuidedPlatformTour = () => {
               <div className="h-full w-full rounded-full bg-gradient-to-r from-[#0b2a6e] via-[#174ec4] to-[#3b82f6]" />
             </div>
 
-            <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={prevStep}
-                className="h-11 w-full rounded-full px-5 sm:w-auto"
+                className="order-2 h-11 w-full justify-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold sm:order-1"
               >
-                <ChevronLeft className="h-4 w-4" />
-                <span>Son Adıma Dön</span>
+                <ChevronLeft className="h-4 w-4 shrink-0" />
+                <span className="whitespace-nowrap">Son Adıma Dön</span>
               </Button>
               <Button
                 type="button"
                 onClick={completeTour}
                 className={cn(
-                  'h-12 w-full gap-2 rounded-full px-7 text-sm font-bold text-white shadow-[0_12px_26px_-8px_rgba(23,78,196,0.55)] transition-all hover:brightness-105 active:scale-[0.99] sm:w-auto',
+                  'order-1 h-11 w-full justify-center gap-1.5 rounded-full px-4 text-[13.5px] font-bold text-white shadow-[0_12px_26px_-8px_rgba(23,78,196,0.55)] transition-all hover:brightness-105 active:scale-[0.99] sm:order-2',
                   isNovember10
                     ? 'bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950'
                     : 'bg-gradient-to-r from-[#0b2a6e] via-[#174ec4] to-[#2563eb]',
                 )}
               >
-                <span>EconNotes&apos;u Keşfetmeye Başla</span>
-                <ArrowRight className="h-4 w-4" />
+                <span className="whitespace-nowrap">EconNotes&apos;u Keşfetmeye Başla</span>
+                <ArrowRight className="h-4 w-4 shrink-0" />
               </Button>
             </div>
           </div>

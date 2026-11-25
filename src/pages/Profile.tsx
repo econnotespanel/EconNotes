@@ -12,16 +12,18 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert, Cake, Compass, RotateCcw, Play, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Building, GraduationCap, Calendar, Camera, Trash2, Lock, ShieldAlert, Cake, Compass, RotateCcw, Play, CheckCircle2, Upload } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import BadgesCard from '@/components/BadgesCard';
 import { TwoFactorCard } from '@/components/TwoFactor';
 import { Switch } from '@/components/ui/switch';
 import { getBirthdayStatus, getUserBirthDate, saveUserBirthDate } from '@/lib/birthdayPerk';
 import { openBirthdayCelebrationModal } from '@/components/BirthdayCelebrationPopup';
+import { useNoteUploadQuota } from '@/hooks/useNoteUploadQuota';
 
 const Profile = () => {
   const { user, profile, signOut, refreshProfile } = useAuth();
+  const { uploadQuota } = useNoteUploadQuota();
   const {
     state: onboardingState,
     totalSteps,
@@ -309,6 +311,40 @@ const Profile = () => {
                         <p className="truncate text-sm font-semibold text-foreground">{profile?.last_login ? new Date(profile.last_login).toLocaleString('tr-TR') : '-'}</p>
                       </div>
                     </div>
+                  </div>
+
+                  <div
+                    data-testid="profile-upload-quota-card"
+                    className="flex flex-col gap-2.5 rounded-2xl border border-border/70 bg-muted/40 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                          uploadQuota.isLimited && !uploadQuota.canUpload && !uploadQuota.isPendingApproval
+                            ? 'bg-destructive/10 text-destructive'
+                            : 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400'
+                        }`}
+                      >
+                        <Upload className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-muted-foreground">Not Yükleme Hakkı</p>
+                        <p className="text-sm font-semibold text-foreground" data-testid="profile-upload-quota-value">
+                          {uploadQuota.statusLabel}
+                        </p>
+                      </div>
+                    </div>
+                    {uploadQuota.isLimited && uploadQuota.remainingUploads !== null && (
+                      <span
+                        className={`inline-flex w-fit items-center rounded-full border px-3 py-1 text-[11px] font-bold tabular-nums ${
+                          uploadQuota.remainingUploads > 0
+                            ? 'border-blue-500/30 bg-blue-500/10 text-[#174ec4] dark:text-blue-300'
+                            : 'border-destructive/30 bg-destructive/10 text-destructive'
+                        }`}
+                      >
+                        Kalan: {uploadQuota.remainingUploads} Hak
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-muted/40 p-3.5 sm:flex-row sm:items-center sm:justify-between">

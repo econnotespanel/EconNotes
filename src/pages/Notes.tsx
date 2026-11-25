@@ -43,6 +43,8 @@ import { logActivity } from '@/lib/activityLogger';
 import { downloadWithWatermark, prepareWatermarkedPreview } from '@/lib/watermark';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDownloadQuota } from '@/hooks/useDownloadQuota';
+import { useNoteUploadQuota } from '@/hooks/useNoteUploadQuota';
+import { emitUploadQuotaUpdated } from '@/lib/noteUploadQuota';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Progress } from '@/components/ui/progress';
 import { NOTE_EDITOR_SELECT, NOTE_SELECT } from '@/lib/noteColumns';
@@ -134,8 +136,9 @@ const Notes = () => {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const { theme } = useTheme();
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, isAdmin, refreshProfile } = useAuth();
   const { quota, refresh: refreshQuota } = useDownloadQuota();
+  const { uploadQuota, refresh: refreshUploadQuota } = useNoteUploadQuota();
   const [quotaBlockOpen, setQuotaBlockOpen] = useState(false);
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -493,6 +496,10 @@ const Notes = () => {
   };
 
   const openNewNoteDialog = () => {
+    if (uploadQuota.isLimited && !uploadQuota.canUpload) {
+      toast.error('Not yükleme hakkınız doldu. Yeni not yüklemek için ek yükleme hakkına ihtiyacınız var.');
+      return;
+    }
     setEditingNote(null);
     setConfirmUpload(false);
     setAcceptOwnership(false);
@@ -532,6 +539,10 @@ const Notes = () => {
       toast.error('Notun paylaşılması için izin onayı gereklidir.');
       return;
     }
+    if (!editingNote && uploadQuota.isLimited && !uploadQuota.canUpload) {
+      toast.error('Not yükleme hakkınız doldu. Yeni not yüklemek için ek yükleme hakkına ihtiyacınız var.');
+      return;
+    }
     if (!canUploadNow()) {
       toast.error('Panel güvenlik kuralları gereği not yükleme işlemleri yalnızca 09.00 - 00.00 saatleri arasında yapılabilmektedir. Bu kısıtlama, sistem güvenliğini sağlamak amacıyla uygulanmaktadır. Anlayışınız için teşekkür ederiz.', { duration: 8000 });
       return;
@@ -540,6 +551,7 @@ const Notes = () => {
     let fileUrl = editingNote?.file_url || null;
     let fileName = editingNote?.file_name || null;
     let fileType = editingNote?.file_type || null;
+    let newlyUploadedStoragePath: string | null = null;
 
     setUploading(true);
     setUploadProgress(form.file ? 0 : 100);
@@ -553,6 +565,7 @@ const Notes = () => {
         }
         const path = buildSafeStoragePath(user!.id, validation.safeExtension);
         await uploadFileWithProgress(path, form.file);
+        newlyUploadedStoragePath = path;
         fileUrl = path;
         fileName = form.file.name;
         fileType = validation.normalizedMime || inferUploadMimeType(form.file);
@@ -605,10 +618,22 @@ const Notes = () => {
           approved_by: isAdmin ? user!.id : null,
         });
         const { data: insertedData, error } = await supabase.from('notes').insert(noteData).select('id').single();
-        if (error) { toast.error('Not eklenemedi: ' + error.message); return; }
+        if (error) {
+          // Clean up orphaned file in Storage if DB insert failed; server transaction guarantees 0 upload rights lost
+          if (newlyUploadedStoragePath) {
+            void supabase.storage.from('notes').remove([newlyUploadedStoragePath]);
+          }
+          toast.error('Not eklenemedi: ' + error.message);
+          void refreshUploadQuota();
+          return;
+        }
         await logActivity(user!.id, profile?.full_name || '', user!.email || '', 'note_created', `"${form.title}" notu paylaşıldı`, 'note', insertedData?.id);
         const { awardPoints } = await import('@/hooks/usePoints');
         await awardPoints('note_upload', 25);
+        void refreshProfile();
+        void refreshUploadQuota();
+        void refreshQuota();
+        emitUploadQuotaUpdated();
         if (isAdmin) {
           toast.success('Not başarıyla yayınlandı.');
         } else {
@@ -918,12 +943,54 @@ const Notes = () => {
                       value={quota.allowed_downloads === 0 ? 100 : Math.min(100, (quota.total_downloads / Math.max(quota.allowed_downloads, 1)) * 100)}
                       className="mt-2 h-1.5"
                     />
+                    {uploadQuota.isLimited && uploadQuota.remainingUploads !== null && (
+                      <div
+                        data-testid="notes-upload-quota-badge"
+                        className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 bg-muted/40 px-3 py-2 text-xs"
+                      >
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+                          <Upload className="h-3.5 w-3.5 text-primary" />
+                          <span>Not Yükleme Hakkı</span>
+                        </span>
+                        <span
+                          className={
+                            uploadQuota.remainingUploads > 0
+                              ? 'font-bold text-primary'
+                              : 'font-bold text-destructive'
+                          }
+                        >
+                          {uploadQuota.statusLabel}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
             </CardContent>
           </Card>
         )}
+
+        {uploadQuota.isLimited &&
+          uploadQuota.remainingUploads !== null &&
+          (!quota || quota.is_birthday_unlimited || quota.is_trivia_unlimited) && (
+            <Card className="glass-card border border-primary/30" data-testid="notes-upload-quota-standalone">
+              <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3.5 text-xs">
+                <span className="inline-flex items-center gap-2 font-semibold text-foreground">
+                  <Upload className="h-4 w-4 text-primary" />
+                  <span>Not Yükleme Hakkı</span>
+                </span>
+                <span
+                  className={
+                    uploadQuota.remainingUploads > 0
+                      ? 'font-bold text-primary'
+                      : 'font-bold text-destructive'
+                  }
+                >
+                  {uploadQuota.statusLabel}
+                </span>
+              </CardContent>
+            </Card>
+          )}
 
         <AlertDialog open={quotaBlockOpen} onOpenChange={setQuotaBlockOpen}>
           <AlertDialogContent>
@@ -1063,11 +1130,21 @@ const Notes = () => {
           <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setEditingNote(null); setConfirmUpload(false); setAcceptOwnership(false); } }}>
             <DialogContent className="flex flex-col gap-0 p-0 overflow-hidden sm:p-0">
               <DialogHeader className="px-5 pt-5 pb-3.5 border-b border-border/60 bg-gradient-to-r from-primary/[0.08] via-transparent to-transparent shrink-0">
-                <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                    <FileText className="h-4 w-4" />
+                <DialogTitle className="flex items-center justify-between gap-2.5 text-base sm:text-lg">
+                  <span className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                      <FileText className="h-4 w-4" />
+                    </span>
+                    <span>{editingNote ? 'Notu Düzenle' : 'Yeni Not Ekle'}</span>
                   </span>
-                  <span>{editingNote ? 'Notu Düzenle' : 'Yeni Not Ekle'}</span>
+                  {!editingNote && uploadQuota.isLimited && uploadQuota.remainingUploads !== null && (
+                    <Badge
+                      variant="outline"
+                      className="mr-6 rounded-full border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary"
+                    >
+                      Kalan: {uploadQuota.remainingUploads} Hak
+                    </Badge>
+                  )}
                 </DialogTitle>
               </DialogHeader>
               {!confirmUpload ? (

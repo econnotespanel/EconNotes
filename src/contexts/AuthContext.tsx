@@ -6,7 +6,13 @@ import { rememberReturningAccount } from '@/lib/returningAccount';
 import { detectClientDevice, formatLoginDetails, serializeLoginMetadata } from '@/lib/deviceInfo';
 import { isLegacyUser, isUserApproved } from '@/lib/approvalUtils';
 import { clearAllUserClientState } from '@/lib/sessionCleanup';
-import { markFirstLoginDetected } from '@/lib/onboarding';
+import { markFirstLoginDetected, ONBOARDING_V2_ROLLOUT_MS } from '@/lib/onboarding';
+import {
+  evaluateWhatsNewEligibility,
+  markWhatsNewPendingForSession,
+  WHATS_NEW_CUTOFF_ISO,
+  WHATS_NEW_VERSION,
+} from '@/lib/whatsNew';
 
 interface Profile {
   id: string;
@@ -19,6 +25,9 @@ interface Profile {
   trivia_unlimited_until?: string | null;
   wheel_bonus_quota?: number | null;
   wheel_unlimited_until?: string | null;
+  note_upload_quota?: number | null;
+  starter_upload_quota_granted_at?: string | null;
+  seen_whats_new_versions?: string[] | null;
   onboarding_state?: Record<string, unknown> | null;
   avatar_url: string | null;
   approval_status?: 'pending' | 'approved' | 'rejected' | string;
@@ -185,10 +194,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const previousLogin = data.last_login ? new Date(data.last_login).getTime() : null;
       const inactiveSince = Date.now() - INACTIVE_DAYS * 24 * 60 * 60 * 1000;
       const tourKey = `econnotes_return_tour_${RETURN_TOUR_VERSION}_${userId}`;
-      if (previousLogin === null) {
+
+      // Detect What's New eligibility strictly BEFORE profiles.last_login is updated
+      let whatsNewEligible = false;
+      if (detectInactivity && authUser) {
+        let serverEligibility: { eligible: boolean; already_seen: boolean } | null = null;
+        try {
+          const { data: wnRows, error: wnErr } = await (supabase.rpc as any)(
+            'check_whats_new_eligibility',
+            {
+              _version: WHATS_NEW_VERSION,
+              _cutoff: WHATS_NEW_CUTOFF_ISO,
+            },
+          );
+          if (!wnErr && Array.isArray(wnRows) && wnRows.length > 0) {
+            serverEligibility = {
+              eligible: Boolean(wnRows[0]?.eligible),
+              already_seen: Boolean(wnRows[0]?.already_seen),
+            };
+          }
+        } catch {
+          serverEligibility = null;
+        }
+
+        whatsNewEligible = evaluateWhatsNewEligibility({
+          user: authUser,
+          profile: data as Profile,
+          serverEligibility,
+        });
+        if (whatsNewEligible) {
+          markWhatsNewPendingForSession(userId, WHATS_NEW_VERSION);
+        }
+      }
+
+      const createdCandidates = [
+        authUser?.created_at ? Date.parse(authUser.created_at) : NaN,
+        data.created_at ? Date.parse(data.created_at) : NaN,
+      ].filter((ms) => Number.isFinite(ms));
+      const accountCreatedMs = createdCandidates.length > 0 ? Math.min(...createdCandidates) : NaN;
+      const isNewOnboardingAccount =
+        Boolean((data as Profile).starter_upload_quota_granted_at) ||
+        (Number.isFinite(accountCreatedMs) && accountCreatedMs >= ONBOARDING_V2_ROLLOUT_MS);
+
+      if (previousLogin === null && !whatsNewEligible && isNewOnboardingAccount) {
         markFirstLoginDetected(userId);
       }
-      if (detectInactivity && previousLogin && previousLogin < inactiveSince && !localStorage.getItem(tourKey)) {
+      if (
+        detectInactivity &&
+        !whatsNewEligible &&
+        previousLogin &&
+        previousLogin < inactiveSince &&
+        !localStorage.getItem(tourKey)
+      ) {
         sessionStorage.setItem('econnotes_return_tour_pending', '1');
       }
       if (detectInactivity && email) {
