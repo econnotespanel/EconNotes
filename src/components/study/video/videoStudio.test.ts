@@ -64,7 +64,8 @@ describe('video studio sceneModel & speechEngine', () => {
     expect(diagramTypes.has('visual')).toBe(true);
     expect(diagramTypes.has('shapes')).toBe(true);
     expect(diagramTypes.has('table')).toBe(true);
-    expect(diagramTypes.has('chart')).toBe(true);
+    // Qualitative history notes without quantitative data intentionally avoid fabricated bar charts
+    expect(diagramTypes.has('chart')).toBe(false);
     expect(diagramTypes.has('scenario')).toBe(true);
     expect(diagramTypes.has('comparison')).toBe(true);
 

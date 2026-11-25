@@ -280,6 +280,10 @@ export function isValidConceptTerm(term: string): boolean {
 export function extractAllGenuineConcepts(sentence: string): KeyTerm[] {
   const cleaned = cleanLabel(sentence).replace(/…|\.{2,}/g, '').trim();
   if (!cleaned) return [];
+  // Diyalog soruları veya konuşmacı hitapları (örn. "Deniz hocam", "Barış") asla kavram tanımı olamaz
+  if (cleaned.endsWith('?') || /\b(?:deniz\s+hocam|hocam|barış)\b/i.test(cleaned)) {
+    return [];
+  }
   const results: KeyTerm[] = [];
   const seen = new Set<string>();
 
@@ -1251,7 +1255,8 @@ function ensureRichFiveMinuteCurriculum(
     extractAllGenuineConcepts(sent).forEach(kt => pushValidTerm(kt.term, kt.definition));
   });
   coreScenes.forEach(sc => {
-    sc.sentences.forEach(sent => {
+    sc.sentences.forEach((sent, sIdx) => {
+      if (sc.sentenceSpeakers[sIdx] === 'Barış') return;
       extractAllGenuineConcepts(sent).forEach(kt => pushValidTerm(kt.term, kt.definition));
     });
   });
@@ -1876,7 +1881,7 @@ export function buildStudioContent(
   const baseScenes: StudioScene[] = source.map((s, idx) => {
     const leadSpeaker = normalizeSpeaker(s?.speaker, idx);
     const sceneTitle = cleanText(s?.title) || `Bölüm ${idx + 1}`;
-    const rawNarration = cleanText(s?.narration) || sceneTitle;
+    const rawNarration = cleanText(s?.narration) || cleanText(s?.text) || sceneTitle;
 
     const takeaways: string[] = (Array.isArray(s?.keyTakeaways) ? s.keyTakeaways : [])
       .map(cleanLabel)

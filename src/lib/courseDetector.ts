@@ -80,7 +80,8 @@ export function foldTurkishToAscii(input: string): string {
     .replace(/ü/g, 'u')
     .replace(/â/g, 'a')
     .replace(/î/g, 'i')
-    .replace(/û/g, 'u');
+    .replace(/û/g, 'u')
+    .replace(/[—–]/g, '-');
 }
 
 export function isGenericCoursePlaceholder(course?: string | null): boolean {

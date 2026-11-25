@@ -326,7 +326,7 @@ function splitDocumentIntoUnits(text: string, fallbackTitle: string, targetSecti
       currentLines = [];
       continue;
     }
-    if (!currentHeading && isHeadingCandidate(line)) {
+    if ((!currentHeading || currentHeading === currentSourceTag) && isHeadingCandidate(line)) {
       currentHeading = line.replace(/^#{1,4}\s+/, '').replace(/:$/, '').trim();
       continue;
     }
@@ -687,11 +687,20 @@ function buildLocalQuizCandidates(params: {
   // Open-ended questions if requested
   if (quizFormat === 'open_ended' || quizFormat === 'mixed') {
     const openTarget = quizFormat === 'open_ended' ? params.requestedCount + 4 : Math.max(2, Math.ceil(params.requestedCount * 0.25));
+    const openStemTemplates: Array<(term: string, section: string) => string> = [
+      (term, section) => `"${term}" kavramı nedir ve ${section} içindeki işlevi nasıl tanımlanır?`,
+      (term) => `${term} hangi durumlarda ortaya çıkar ve model ya da sistem üzerinde ne gibi sonuçlar doğurur?`,
+      (term, section) => `${section} kapsamında "${term}" olgusunun temel varsayım ve mekanizmasını açıklayınız.`,
+      (term) => `Sınav perspektifinden "${term}" kavramının ayırt edici özelliği ve uygulama etkileri nelerdir?`,
+      (term) => `"${term}" konusundaki nedensellik ilişkisini kendi cümlelerinizle örneklendirerek değerlendiriniz.`,
+      (term, section) => `${term} ile ilişkili kritik sınır veya test koşullarını ${section} bağlamında tartışınız.`,
+    ];
     for (let i = 0; i < Math.min(openTarget, rotatedTerms.length); i++) {
       const t = rotatedTerms[i];
+      const stemBuilder = openStemTemplates[i % openStemTemplates.length];
       candidates.push({
         type: 'short_answer',
-        question: `"${t.term}" kavramının ${t.section} kapsamındaki rolünü, temel mekanizmasını ve sonuçlarını kaynak notlara dayanarak açıklayınız.`,
+        question: stemBuilder(t.term, t.section),
         options: [],
         sampleAnswer: t.definition,
         rubric: [

@@ -669,6 +669,7 @@ export function extractSourceSectionAnchors(
   const anchors: SourceSectionAnchor[] = [];
   let currentHeading = '';
   let currentPage: string | undefined;
+  let sectionPage: string | undefined;
   let buffer: string[] = [];
 
   const flush = () => {
@@ -677,12 +678,13 @@ export function extractSourceSectionAnchors(
       const heading = currentHeading || outlineFallback?.[anchors.length] || `Bölüm ${anchors.length + 1}`;
       anchors.push({
         heading,
-        pageHint: currentPage,
+        pageHint: sectionPage ?? currentPage,
         text: body,
         tokenSet: buildTurkishStemSet(extractContentTokens(`${heading} ${body}`)),
       });
     }
     buffer = [];
+    sectionPage = currentPage;
   };
 
   for (const rawLine of lines) {
@@ -691,11 +693,13 @@ export function extractSourceSectionAnchors(
     const pageMatch = line.match(/^---\s*(Sayfa|Slayt)\s+(\d+)\s*---$/i);
     if (pageMatch) {
       currentPage = `${pageMatch[1]} ${pageMatch[2]}`;
+      if (buffer.length === 0) sectionPage = currentPage;
       continue;
     }
     if (/^===\s*KAYNAK/i.test(line)) {
       flush();
       currentHeading = line.replace(/^===\s*|\s*===$/g, '').trim();
+      sectionPage = currentPage;
       continue;
     }
     const isHeading =
@@ -705,8 +709,10 @@ export function extractSourceSectionAnchors(
     if (isHeading) {
       if (buffer.length > 0) flush();
       currentHeading = line.replace(/^#{1,4}\s+/, '').replace(/:$/, '').trim();
+      sectionPage = currentPage;
       continue;
     }
+    if (buffer.length === 0 && !sectionPage) sectionPage = currentPage;
     buffer.push(line);
   }
   flush();
@@ -1321,8 +1327,8 @@ export function validateFlashcardsBatch(
     const isHistDup = historyPairs.some(
       (h) =>
         h.frontNorm === frontNorm ||
-        jaccardSetSimilarity(frontSet, h.frontSet) >= 0.6 ||
-        (jaccardSetSimilarity(backSet, h.backSet) >= 0.72 && jaccardSetSimilarity(frontSet, h.frontSet) >= 0.3),
+        jaccardSetSimilarity(frontSet, h.frontSet) >= 0.58 ||
+        (jaccardSetSimilarity(backSet, h.backSet) >= 0.66 && jaccardSetSimilarity(frontSet, h.frontSet) >= 0.28),
     );
     if (isHistDup) {
       rejectedCount++;
@@ -1333,8 +1339,8 @@ export function validateFlashcardsBatch(
     const isBatchDup = acceptedTokenPairs.some(
       (a) =>
         a.frontNorm === frontNorm ||
-        jaccardSetSimilarity(frontSet, a.frontSet) >= 0.6 ||
-        (jaccardSetSimilarity(backSet, a.backSet) >= 0.72 && jaccardSetSimilarity(frontSet, a.frontSet) >= 0.3),
+        jaccardSetSimilarity(frontSet, a.frontSet) >= 0.58 ||
+        (jaccardSetSimilarity(backSet, a.backSet) >= 0.66 && jaccardSetSimilarity(frontSet, a.frontSet) >= 0.28),
     );
     if (isBatchDup) {
       rejectedCount++;

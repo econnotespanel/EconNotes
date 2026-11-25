@@ -1578,12 +1578,26 @@ async function enrichThinAiSections(
       existingDraft: sec.content,
       sourceExcerpt: sliceContextForSection(bundle.combinedText, sec.heading, i + bi, existing.length, sec.takeaways || [], 3_800),
     }));
-    const res = await invokePublicJsonFallback(
-      expandSys,
-      `DERS: ${bundle.course || bundle.detectedDiscipline} | BAŞLIK: ${bundle.title}\nMEVCUT BÖLÜMLERİ GENİŞLET:\n${JSON.stringify(
-        batchPayload,
+    const liveRes = await invokeLiveServerAiText({
+      materialType: 'summary',
+      title: bundle.title,
+      course: bundle.course || bundle.detectedDiscipline,
+      noteContext: batchPayload
+        .map((b) => `### ${b.heading}\nTaslak: ${b.existingDraft}\nKaynak:\n${b.sourceExcerpt}`)
+        .join('\n\n'),
+      taskPrompt: `${expandSys}\nMEVCUT BÖLÜMLERİ GENİŞLET VE YALNIZCA {"sections": [...]} JSON DÖNDÜR:\n${JSON.stringify(
+        batchPayload.map(({ index, heading }) => ({ index, heading })),
       )}`,
-    );
+      preferPro: true,
+    });
+    const res =
+      (liveRes ? extractJsonLoose(liveRes.text) : null) ||
+      (await invokePublicJsonFallback(
+        expandSys,
+        `DERS: ${bundle.course || bundle.detectedDiscipline} | BAŞLIK: ${bundle.title}\nMEVCUT BÖLÜMLERİ GENİŞLET:\n${JSON.stringify(
+          batchPayload,
+        )}`,
+      ));
     const expanded = Array.isArray(res?.sections) ? (res.sections as SummarySection[]) : [];
     batch.forEach((orig, bi) => {
       const match = expanded.find((s) => s.index === i + bi) || expanded[bi];

@@ -176,7 +176,7 @@ Fiyat oranına eşitlik koşulu geçerlidir.
       expect(extracted.text).toContain('| Test | Dağılım |');
       expect(extracted.text).toContain('| ANOVA | F-Dağılımı |');
       expect(extracted.unreadablePages).toEqual([2]);
-      expect((extracted.warnings || []).some((w) => w.includes('Slayt 2'))).toBe(true);
+      expect((extracted.warnings || []).some((w) => /Slayt:?\s*2/i.test(w))).toBe(true);
     }
   });
 

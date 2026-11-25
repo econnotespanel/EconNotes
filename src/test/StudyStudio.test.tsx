@@ -234,7 +234,7 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     );
 
     expect(
-      await screen.findByText(/Ders notlarını derin üniversite kaynaklarına dönüştür/i),
+      await screen.findByText(/Ders kaynaklarını analiz et, ayrıntılı özet, deneme sınavı ve çalışma kartları oluştur/i),
     ).toBeInTheDocument();
 
     // Flagged hardware/WebGPU telemetry UI banners must stay hidden from the student hub & header
@@ -244,35 +244,39 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     expect(screen.queryByText(/WebGPU ekran kartı/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/GPU Hızı/i)).not.toBeInTheDocument();
 
-    // Open Materyal Üret tab from the Command Rail
-    const rail = screen.getByRole('navigation', { name: /Stüdyo Komuta Rayı/i });
-    fireEvent.click(within(rail).getByRole('button', { name: /Materyal Üret/i }));
+    // Open Add Source dialog from Sources panel
+    const addButtons = screen.getAllByRole('button', { name: /^Ekle$/i });
+    fireEvent.click(addButtons[0]);
 
     // Activate Metin Yapıştır tab (Radix Tabs responds to mouseDown / keyDown)
     const pasteTab = await screen.findByRole('tab', { name: /Metin Yapıştır/i });
     fireEvent.mouseDown(pasteTab, { button: 0 });
     fireEvent.click(pasteTab);
 
-    const textarea = await screen.findByPlaceholderText(/Ders notunuzu, makale özetini/i);
+    const textarea = await screen.findByPlaceholderText(/Ders notlarını, kitap özetini veya slayt metnini/i);
     fireEvent.change(textarea, {
       target: {
         value:
-          '# Tüketici Dengesi\nFayda maksimizasyonu altında marjinal ikame oranı fiyat oranına eşittir. Bütçe kısıtı doğrusal bir sınırdır ve gelir arttıkça sağa kayar.',
+          '# Tüketici Dengesi ve Kayıtsızlık Eğrileri\nFayda maksimizasyonu altında marjinal ikame oranı (MRS) fiyat oranına eşittir. Bütçe kısıtı doğrusal bir sınırdır ve gelir arttıkça sağa kayar. Talep esnekliği ve marjinal fayda analiz edilir.',
       },
     });
 
-    // Source X-Ray live indicator updates
-    expect(await screen.findByText(/İktisat & Ekonometri/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Deftere Ekle/i }));
 
-    // Generate button becomes enabled
-    const genBtn = screen.getByRole('button', { name: /Çalışma Materyalini Oluştur/i });
-    expect(genBtn).toBeEnabled();
-    fireEvent.click(genBtn);
+    // Source is added and appears in the notebook & sources panel
+    expect((await screen.findAllByText(/Yapıştırılan Not/i)).length).toBeGreaterThanOrEqual(1);
 
-    // Full-page StudyWorkspace opens cleanly
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Stüdyo Ana Sayfa/i })).toBeInTheDocument();
-    });
+    // Generate a quiz from the pasted source -> opens full-page NeuralWorkspaceFrame cleanly
+    const quizTile = screen.getByRole('button', { name: /Deneme Sınavı/i });
+    expect(quizTile).toBeEnabled();
+    fireEvent.click(quizTile);
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole('button', { name: /Stüdyoya Dön/i })).toBeInTheDocument();
+      },
+      { timeout: 10_000 },
+    );
   }, 15_000);
 
   it('renders SummaryWorkspace chapters, LaTeX/tables, and interactive mini-checkpoint', () => {
@@ -378,22 +382,22 @@ describe('Redesigned EconNotes Çalışma Stüdyosu', () => {
     expect(mixed.questions[0].rubric.length).toBeGreaterThan(0);
   });
 
-  it('switches cleanly between Notlarıma Sor, Plan & Tekrar, and AI & Gizlilik tabs in Study', async () => {
+  it('switches cleanly between Sınav Simülatörü, Sınav Planı & SM-2, and Tercihler tabs in Study', async () => {
     render(
       <MemoryRouter>
         <Study />
       </MemoryRouter>,
     );
 
-    const rail = await screen.findByRole('navigation', { name: /Stüdyo Komuta Rayı/i });
+    const nav = await screen.findByRole('navigation', { name: /Çalışma Stüdyosu bölümleri/i });
 
-    fireEvent.click(within(rail).getByRole('button', { name: /Notlarıma Sor/i }));
-    expect(await screen.findByText(/Bilgi Tabanı/i)).toBeInTheDocument();
+    fireEvent.click(within(nav).getByRole('button', { name: /Sınav Simülatörü/i }));
+    expect(await screen.findByText(/Havuzda .* Soru Hazır/i)).toBeInTheDocument();
 
-    fireEvent.click(within(rail).getByRole('button', { name: /Plan & Tekrar/i }));
+    fireEvent.click(within(nav).getByRole('button', { name: /Sınav Planı & SM-2/i }));
     expect(await screen.findByText(/Akıllı Çalışma Planlayıcı & SM-2 Aralıklı Tekrar/i)).toBeInTheDocument();
 
-    fireEvent.click(within(rail).getByRole('button', { name: /AI & Gizlilik/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Tercihler/i }));
     expect(await screen.findByText(/Donanım Algılama & WebGPU Komuta Merkezi/i)).toBeInTheDocument();
   });
 });
@@ -433,8 +437,8 @@ describe('Study AI Orchestration Phase 2 (Legacy Edge Enrichment & Tier-2 Map-Re
     examFocus: '',
   };
 
-  it('rescues and deepens thin legacy single-shot Edge summary via Tier-2 expansion', async () => {
-    mockInvoke.mockResolvedValueOnce({
+  it('rescues and deepens thin legacy single-shot Edge summary via authenticated AI bridge without public fetch leakage', async () => {
+    const legacyThinResponse = {
       data: {
         sourceMode: 'ai',
         model: 'legacy-edge-v1',
@@ -452,112 +456,128 @@ describe('Study AI Orchestration Phase 2 (Legacy Edge Enrichment & Tier-2 Map-Re
         },
       },
       error: null,
+    };
+
+    mockInvoke.mockImplementation(async (fnName: string) => {
+      if (fnName === 'generate-study-material') {
+        return legacyThinResponse;
+      }
+      if (fnName === 'academic-assistant') {
+        return {
+          data: {
+            model: 'EconNotes Akademik AI',
+            reply: JSON.stringify({
+              sections: [
+                {
+                  index: 0,
+                  heading: '1. Merkez Bankası Bilançosu',
+                  content:
+                    '#### Analitik Çerçeve\nMerkez bankası bilançosunun pasif kaleminde yer alan emisyon hacmi $M_0 = C + R$ parasal tabanının temel unsurudur.\n\n> **Sınav Odağı:** Zorunlu karşılık artışı para çarpanını düşürür.',
+                  takeaways: ['Parasal taban emisyon ve rezerv toplamıdır.'],
+                  deepResearchNote: '[Derin Akademik Araştırma] TCMB enflasyon hedeflemesi rejimi.',
+                  commonPitfalls: ['Emisyonu aktif kalem sanmak.'],
+                },
+              ],
+            }),
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: { message: 'unexpected' } };
     });
 
-    const fetchMock = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                sections: [
-                  {
-                    index: 0,
-                    heading: '1. Merkez Bankası Bilançosu',
-                    content:
-                      '#### Analitik Çerçeve\nMerkez bankası bilançosunun pasif kaleminde yer alan emisyon hacmi $M_0 = C + R$ parasal tabanının temel unsurudur.\n\n> **Sınav Odağı:** Zorunlu karşılık artışı para çarpanını düşürür.',
-                    takeaways: ['Parasal taban emisyon ve rezerv toplamıdır.'],
-                    deepResearchNote: '[Derin Akademik Araştırma] TCMB enflasyon hedeflemesi rejimi.',
-                    commonPitfalls: ['Emisyonu aktif kalem sanmak.'],
-                  },
-                ],
-              }),
-            },
-          },
-        ],
-      }),
-    });
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const res = await generateMaterialWithOrchestration(sampleBundle, sampleSettings);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(res.sourceMode).toBe('ai');
     expect(res.content.sections?.[0].content).toContain('Analitik Çerçeve');
     expect(res.content.sections?.[0].deepResearchNote).toContain('TCMB');
   });
 
-  it('executes Tier-2 2-stage Map-Reduce (blueprint + batched expansion) when Edge fails', async () => {
-    mockInvoke.mockResolvedValue({ data: null, error: { message: 'Edge function unavailable' } });
+  it('executes 2-stage Map-Reduce (blueprint + batched expansion) via authenticated Edge Functions without public fetch leakage', async () => {
+    mockInvoke.mockImplementation(async (fnName: string, opts?: { body?: Record<string, unknown> }) => {
+      const stage = opts?.body?.stage;
+      if (fnName === 'generate-study-material' && stage === 'single') {
+        return {
+          data: {
+            sourceMode: 'ai',
+            model: 'EconNotes Deep Academic AI',
+            content: {
+              overview: 'Kısa taslak',
+              sections: [{ index: 0, heading: 'Taslak', content: 'Yüzeysel kısa metin.' }],
+            },
+          },
+          error: null,
+        };
+      }
+      if (fnName === 'generate-study-material' && stage === 'blueprint') {
+        return {
+          data: {
+            sourceMode: 'ai',
+            model: 'EconNotes Cloud Academic AI',
+            content: {
+              overview: 'Para Teorisi 5. hafta kapsamlı ders özeti.',
+              disciplineTag: 'İktisat',
+              keyPoints: ['Emisyon hacmi', 'Açık piyasa işlemleri'],
+              sectionsPlan: [
+                { index: 0, title: '1. Emisyon ve Rezervler', pageRange: 'Sayfa 1-2', focusPoints: ['Parasal taban'] },
+                { index: 1, title: '2. Açık Piyasa İşlemleri', pageRange: 'Sayfa 3-5', focusPoints: ['Faiz koridoru'] },
+              ],
+              teacherEmphasis: [{ point: 'Ms dışsallığı', whyImportant: 'Vize konusu', examProbability: 'Yüksek' }],
+              comparativeMatrix: {
+                title: 'Para Politikası Araçları',
+                columns: ['Araç', 'Likidite Etkisi'],
+                rows: [['APİ Alımı', 'Genişletici']],
+              },
+              deepResearchTopics: [],
+              keyTerms: [{ term: 'Emisyon', definition: 'Banknot ihracı' }],
+              studyChecklist: ['Ms-Md dengesini analiz et'],
+            },
+          },
+          error: null,
+        };
+      }
+      if (fnName === 'generate-study-material' && stage === 'expand_batch') {
+        return {
+          data: {
+            sourceMode: 'ai',
+            model: 'EconNotes Cloud Academic AI',
+            content: {
+              sections: [
+                {
+                  index: 0,
+                  heading: '1. Emisyon ve Rezervler',
+                  pageRange: 'Sayfa 1-2',
+                  content: '#### Analitik Çerçeve\nParasal taban $B = C + R$ eşitliği üzerinden para arzı çarpanını besler.',
+                  takeaways: ['Emisyon parasal tabanın ana bileşenidir.'],
+                  deepResearchNote: '[Derin Akademik Araştırma] Likidite yönetimi.',
+                },
+                {
+                  index: 1,
+                  heading: '2. Açık Piyasa İşlemleri',
+                  pageRange: 'Sayfa 3-5',
+                  content: '#### Politika İletimi\nMerkez bankası DİBS alımıyla bankacılık sistemine kalıcı veya geçici likidite sağlar.',
+                  takeaways: ['DİBS alımı piyasa faizini aşağı çeker.'],
+                  commonPitfalls: ['Tahvil fiyatı ile faiz arasındaki ters yönlü ilişkiyi gözden kaçırmak.'],
+                },
+              ],
+            },
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: { message: 'unexpected' } };
+    });
 
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  overview: 'Para Teorisi 5. hafta kapsamlı ders özeti.',
-                  disciplineTag: 'İktisat',
-                  keyPoints: ['Emisyon hacmi', 'Açık piyasa işlemleri'],
-                  sectionsPlan: [
-                    { index: 0, title: '1. Emisyon ve Rezervler', pageRange: 'Sayfa 1-2', focusPoints: ['Parasal taban'] },
-                    { index: 1, title: '2. Açık Piyasa İşlemleri', pageRange: 'Sayfa 3-5', focusPoints: ['Faiz koridoru'] },
-                  ],
-                  teacherEmphasis: [{ point: 'Ms dışsallığı', whyImportant: 'Vize konusu', examProbability: 'Yüksek' }],
-                  comparativeMatrix: {
-                    title: 'Para Politikası Araçları',
-                    columns: ['Araç', 'Likidite Etkisi'],
-                    rows: [['APİ Alımı', 'Genişletici']],
-                  },
-                  deepResearchTopics: [],
-                  keyTerms: [{ term: 'Emisyon', definition: 'Banknot ihracı' }],
-                  studyChecklist: ['Ms-Md dengesini analiz et'],
-                }),
-              },
-            },
-          ],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  sections: [
-                    {
-                      index: 0,
-                      heading: '1. Emisyon ve Rezervler',
-                      pageRange: 'Sayfa 1-2',
-                      content: '#### Analitik Çerçeve\nParasal taban $B = C + R$ eşitliği üzerinden para arzı çarpanını besler.',
-                      takeaways: ['Emisyon parasal tabanın ana bileşenidir.'],
-                      deepResearchNote: '[Derin Akademik Araştırma] Likidite yönetimi.',
-                    },
-                    {
-                      index: 1,
-                      heading: '2. Açık Piyasa İşlemleri',
-                      pageRange: 'Sayfa 3-5',
-                      content: '#### Politika İletimi\nMerkez bankası DİBS alımıyla bankacılık sistemine kalıcı veya geçici likidite sağlar.',
-                      takeaways: ['DİBS alımı piyasa faizini aşağı çeker.'],
-                      commonPitfalls: ['Tahvil fiyatı ile faiz arasındaki ters yönlü ilişkiyi gözden kaçırmak.'],
-                    },
-                  ],
-                }),
-              },
-            },
-          ],
-        }),
-      });
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const res = await generateMaterialWithOrchestration(sampleBundle, sampleSettings);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(res.sourceMode).toBe('ai');
     expect(res.model).toBe('EconNotes Cloud Academic AI');
     expect(res.content.sections).toHaveLength(2);
@@ -603,9 +623,9 @@ describe('Study AI Orchestration Phase 2 (Legacy Edge Enrichment & Tier-2 Map-Re
 
     expect(summary.disciplineTag).toContain('Sözel Özet');
     expect(summary.sections.length).toBeGreaterThanOrEqual(2);
-    expect(summary.sections[0].content).toContain('Kavramsal Öz ve Ana Tez');
-    expect(summary.sections[0].content).toContain('Neden–Sonuç Zinciri ve Ayırt Edici İlkeler');
-    expect(summary.sections[0].content).toContain('Kavram ve Ayrım Tablosu');
+    expect(summary.sections[0].content).toContain('Hukuki Çerçeve, Unsurlar ve Kapsam');
+    expect(summary.sections[0].content).toContain('Kurucu Unsurlar, İstisnalar ve Hukuki Sonuçlar');
+    expect(summary.sections[0].content).toContain('Hukuki Kavram ve Ayrım Tablosu');
     expect(summary.sections[0].content).toContain('Klasik Sınav & Yorum İpucu');
     expect(summary.sections[0].content).not.toContain('$$');
     expect(summary.comparativeMatrix?.rows.length).toBeGreaterThanOrEqual(2);

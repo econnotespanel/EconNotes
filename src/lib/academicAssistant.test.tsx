@@ -162,7 +162,7 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
     expect(reply2).toContain('İyiyim, çok teşekkür ederim');
   });
 
-  it('fails over to Cloud STEM Reasoning Engine when all Supabase Edge Functions return 500/402/fallback', async () => {
+  it('fails over through authenticated Edge Functions and never leaks questions to unauthenticated public AI endpoints', async () => {
     vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
       data: {
         session: {
@@ -173,7 +173,8 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
       error: null,
     });
 
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+    // 1) When academic-assistant fails (500), authenticated study-coach takes over cleanly
+    const coachFailoverSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
       const url = String(input);
       if (url.includes('/functions/v1/academic-assistant')) {
         return new Response(JSON.stringify({ error: 'Bir hata oluştu. Lütfen tekrar deneyin.' }), {
@@ -181,30 +182,9 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
         });
       }
       if (url.includes('/functions/v1/study-coach')) {
-        return new Response(JSON.stringify({ error: 'AI servis kotası tükendi.' }), { status: 402 });
-      }
-      if (url.includes('/functions/v1/generate-study-material')) {
         return new Response(
           JSON.stringify({
-            content: {
-              overview:
-                'konusu, kuramsal temelleri ve sınav ağırlığı bakımından en kritik ünitelerden biridir.',
-              sections: [],
-            },
-          }),
-          { status: 200 },
-        );
-      }
-      if (url.includes('text.pollinations.ai/openai')) {
-        return new Response(
-          JSON.stringify({
-            choices: [
-              {
-                message: {
-                  content: '### Adım Adım Çözüm\n$$\\int x e^x\\,dx = \\boxed{e^x(x - 1) + C}$$',
-                },
-              },
-            ],
+            reply: '### Adım Adım Çözüm\n$$\\int x e^x\\,dx = \\boxed{e^x(x - 1) + C}$$',
           }),
           { status: 200 },
         );
@@ -223,6 +203,49 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
 
     expect(reply).toContain('e^x(x - 1) + C');
     expect(reply).not.toContain('Bir hata oluştu');
+    expect(
+      coachFailoverSpy.mock.calls.some(([u]) => String(u).includes('pollinations.ai')),
+    ).toBe(false);
+
+    // 2) When ALL authenticated Edge Functions fail, never call text.pollinations.ai
+    __resetAssistantClientStateForTests();
+    const allDownSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+      const url = String(input);
+      if (url.includes('/functions/v1/academic-assistant')) {
+        return new Response(JSON.stringify({ error: 'Server error' }), { status: 500 });
+      }
+      if (url.includes('/functions/v1/study-coach')) {
+        return new Response(JSON.stringify({ error: 'AI servis kotası tükendi.' }), { status: 402 });
+      }
+      if (url.includes('/functions/v1/generate-study-material')) {
+        return new Response(
+          JSON.stringify({
+            content: {
+              overview:
+                'konusu, kuramsal temelleri ve sınav ağırlığı bakımından en kritik ünitelerden biridir.',
+              sections: [],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      throw new Error(`Unexpected external endpoint call: ${url}`);
+    });
+
+    const fallbackReply = await invokeAcademicAssistantResilient({
+      userQuestion: 'integral x * e^x dx nedir?',
+      fullMessageWithDoc: 'integral x * e^x dx nedir?',
+      mode: 'step_by_step',
+      notesContext: '',
+      history: [],
+      images: [],
+    });
+
+    expect(
+      allDownSpy.mock.calls.some(([u]) => String(u).includes('pollinations.ai')),
+    ).toBe(false);
+    expect(fallbackReply).toContain('Sorunuz korundu');
+    expect(fallbackReply).not.toContain('Bir hata oluştu');
   });
 
   it('solves quadratic equations step-by-step locally even when completely offline from all cloud endpoints', async () => {
@@ -346,7 +369,7 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
     expect(excerpt).not.toContain('Alakasız Tarihçe Metni');
   });
 
-  it('solves handwritten Gauss-Jordan matrix photos via True Multimodal Vision Cascade when Edge returns 402/500', async () => {
+  it('never uploads student exam photos to unauthenticated third-party HuggingFace Spaces when Edge returns 402/500', async () => {
     vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
       data: {
         session: {
@@ -357,38 +380,12 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
       error: null,
     });
 
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: any) => {
       const url = String(input);
       if (url.includes('/functions/v1/academic-assistant')) {
         return new Response(JSON.stringify({ error: 'AI servis kotası tükendi.' }), { status: 402 });
       }
-      if (url.includes('openbmb-minicpm-v-4-7-demo.hf.space/gradio_api/upload')) {
-        return new Response(JSON.stringify(['/tmp/gradio/mock/gauss_jordan.jpg']), { status: 200 });
-      }
-      if (url.includes('openbmb-minicpm-v-4-7-demo.hf.space/gradio_api/queue/join')) {
-        return new Response(JSON.stringify({ event_id: 'evt-123' }), { status: 200 });
-      }
-      if (url.includes('openbmb-minicpm-v-4-7-demo.hf.space/gradio_api/queue/data')) {
-        const evt1 = JSON.stringify({
-          msg: 'process_generating',
-          output: { data: [{ reasoning: 'Checking rows...', content: '' }] },
-        });
-        const evt2 = JSON.stringify({
-          msg: 'process_completed',
-          success: true,
-          output: {
-            data: [
-              {
-                reasoning: 'Verified.',
-                content:
-                  '### 📌 Gauss-Jordan Çözümü\n$$\\boxed{x_1 = 5, \\quad x_2 = 1, \\quad x_3 = -2}$$\nEl yazısı çözümünüz tamamen doğrudur.',
-              },
-            ],
-          },
-        });
-        return new Response(`data: ${evt1}\n\ndata: ${evt2}\n\n`, { status: 200 });
-      }
-      return new Response('{}', { status: 404 });
+      throw new Error(`Security violation: attempted upload to unauthenticated host ${url}`);
     });
 
     const stagesSeen: string[] = [];
@@ -412,11 +409,9 @@ describe('Resilient Multimodal Assistant Failover Client', () => {
       onProgress: (info) => stagesSeen.push(info.stage),
     });
 
-    expect(reply).toContain('x_1 = 5');
-    expect(reply).toContain('x_2 = 1');
-    expect(reply).toContain('x_3 = -2');
-    expect(stagesSeen).toContain('ocr');
-    expect(stagesSeen).toContain('verify');
+    expect(fetchSpy.mock.calls.some(([u]) => String(u).includes('hf.space'))).toBe(false);
+    expect(reply).toContain('Görseldeki Metin Net Okunamadı');
+    expect(stagesSeen).toContain('prepare');
   });
 
   it('solves 3x3 Gauss-Jordan linear systems deterministically offline when all cloud endpoints are unreachable', async () => {

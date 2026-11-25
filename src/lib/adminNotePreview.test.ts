@@ -85,6 +85,10 @@ describe('Admin Note Preview System (Path Normalization, File Detection, PPTX/DO
     mockSupabaseState.rpcResult = null;
     mockSupabaseState.dbNoteRow = null;
     vi.restoreAllMocks();
+    // JSDOM does not provide URL.createObjectURL / revokeObjectURL by default
+    let objectUrlCounter = 0;
+    URL.createObjectURL = vi.fn(() => `blob:test-preview-${++objectUrlCounter}`);
+    URL.revokeObjectURL = vi.fn();
   });
 
   it('normalizes storage paths cleanly across relative paths, bucket prefixes, and signed/public URLs', () => {

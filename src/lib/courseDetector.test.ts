@@ -154,7 +154,7 @@ Z = (x̄ - μ) / (σ / √n)
     };
 
     const analysis = buildCanonicalSourceAnalysis({
-      selectedSources: [paraSource, hukukSource, istatistikSource],
+      sources: [paraSource, hukukSource, istatistikSource],
     });
 
     expect(analysis.isMultiCourse).toBe(true);
@@ -238,7 +238,7 @@ Bu notta haftalık ödevlerin teslim tarihleri, grup çalışması kuralları ve
     };
 
     const analysis = buildCanonicalSourceAnalysis({
-      selectedSources: [longMicroSource],
+      sources: [longMicroSource],
     });
 
     expect(analysis.profiles[0].resolvedCourse).toBe('Mikro İktisat');

@@ -868,11 +868,30 @@ export async function resolveAdminNotePreviewFile(
   }
 
   // ==================== LAYER 3: FETCH ACTUAL BYTES FOR RELIABLE IN-BROWSER RENDERING ====================
+  const readBlobAsArrayBuffer = async (blob: Blob): Promise<ArrayBuffer> => {
+    if (typeof blob.arrayBuffer === 'function') {
+      return blob.arrayBuffer();
+    }
+    if (typeof Response !== 'undefined') {
+      try {
+        return await new Response(blob).arrayBuffer();
+      } catch {
+        // fall through to FileReader
+      }
+    }
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(reader.error || new Error('Dosya okunamadı.'));
+      reader.readAsArrayBuffer(blob);
+    });
+  };
+
   let arrayBuffer: ArrayBuffer | null = null;
   let fetchedMime: string | null = null;
 
   if (directBlob) {
-    arrayBuffer = await directBlob.arrayBuffer();
+    arrayBuffer = await readBlobAsArrayBuffer(directBlob);
     fetchedMime = directBlob.type || null;
     fileSize = directBlob.size || arrayBuffer.byteLength;
   } else if (signedUrl) {
@@ -895,7 +914,7 @@ export async function resolveAdminNotePreviewFile(
         .from(NOTES_BUCKET)
         .download(resolvedPath);
       if (!fbErr && fallbackBlob) {
-        arrayBuffer = await fallbackBlob.arrayBuffer();
+        arrayBuffer = await readBlobAsArrayBuffer(fallbackBlob);
         fetchedMime = fallbackBlob.type || fetchedMime;
         fileSize = fallbackBlob.size || arrayBuffer.byteLength;
         source = 'storage_direct_download';

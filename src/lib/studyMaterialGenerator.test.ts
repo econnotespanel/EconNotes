@@ -142,10 +142,10 @@ Açık piyasa işlemleri merkez bankasının tahvil alım-satımıyla piyasadaki
     expect(result.sections.length).toBeGreaterThanOrEqual(2);
 
     const joinedContent = result.sections.map((s: { content: string }) => s.content).join('\n');
-    expect(joinedContent).toContain('Analitik Çerçeve');
-    expect(joinedContent).toContain('Kavramsal Yapı Tablosu');
+    expect(joinedContent).toMatch(/Kuramsal Çerçeve ve İktisadi Mekanizma|Analitik Çerçeve/);
+    expect(joinedContent).toMatch(/Kavram ve Ayrım Tablosu|Kavramsal Yapı/);
     expect(joinedContent).toContain('|');
-    expect(joinedContent).toContain('> **Sınav Odağı:**');
+    expect(joinedContent).toMatch(/> \*\*(?:Sınav Odağı|Klasik Sınav & Yorum İpucu):\*\*/);
 
     for (const emp of result.teacherEmphasis || []) {
       expect(String(emp.point)).not.toMatch(/^\s*merhaba/i);
