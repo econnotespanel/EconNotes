@@ -179,6 +179,8 @@ describe('EconNotes Kayıt Bekleme Odası (WaitingRoomScreen & ApprovalGate)', (
         ),
       ).toBeInTheDocument();
       expect(screen.getByTestId('waiting-status-badge')).toHaveTextContent('Yönetici Onayı Bekleniyor');
+      expect(screen.queryByText(/Canlı takip/i)).not.toBeInTheDocument();
+      expect(screen.getByTestId('waiting-banner-lines')).toBeInTheDocument();
 
       // 3-step visual progress indicator
       expect(screen.getByTestId('application-step-received')).toHaveAttribute('data-step-status', 'completed');
