@@ -178,9 +178,12 @@ describe('EconNotes Kayıt Bekleme Odası (WaitingRoomScreen & ApprovalGate)', (
           'EconNotes topluluğuna katılım başvurunuz başarıyla alındı. Hesabınız şu anda yönetici ekibimizin incelemesindedir.',
         ),
       ).toBeInTheDocument();
-      expect(screen.getByTestId('waiting-status-badge')).toHaveTextContent('Yönetici Onayı Bekleniyor');
+      expect(screen.queryByTestId('waiting-status-badge')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Yönetici Onayı Bekleniyor/i)).not.toBeInTheDocument();
       expect(screen.queryByText(/Canlı takip/i)).not.toBeInTheDocument();
-      expect(screen.getByTestId('waiting-banner-lines')).toBeInTheDocument();
+      const bannerSvg = screen.getByTestId('waiting-banner-lines');
+      expect(bannerSvg).toBeInTheDocument();
+      expect(bannerSvg.querySelectorAll('path')).toHaveLength(1);
 
       // 3-step visual progress indicator
       expect(screen.getByTestId('application-step-received')).toHaveAttribute('data-step-status', 'completed');

@@ -454,131 +454,45 @@ export const WaitingRoomScreen: React.FC = () => {
                   : 'bg-gradient-to-r from-[#06183d] via-[#0b2a6e] to-[#174ec4]',
             )}
           >
-            {/* Subtle sweeping curved diagonal SVG lines (deepest background layer, pure vector) */}
+            {/* Single subtle curved vector light-arc (pure SVG, zero raster art) */}
             <svg
               aria-hidden="true"
               data-testid="waiting-banner-lines"
-              viewBox="0 0 1000 280"
+              viewBox="0 0 960 240"
               fill="none"
-              preserveAspectRatio="xMaxYMid slice"
-              className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-0 z-0 h-full w-full opacity-35"
             >
+              <path
+                d="M360 245 C495 130, 630 45, 830 -15"
+                stroke="url(#waitingArc1)"
+                strokeWidth="1.5"
+              />
               <defs>
                 <linearGradient
-                  id="waitingSweepPrimary"
-                  x1="280"
-                  y1="290"
-                  x2="980"
-                  y2="-20"
+                  id="waitingArc1"
+                  x1="360"
+                  y1="245"
+                  x2="830"
+                  y2="-15"
                   gradientUnits="userSpaceOnUse"
                 >
                   <stop
-                    offset="0%"
                     stopColor={isRejected ? '#fda4af' : isNovember10 ? '#d4d4d8' : '#60a5fa'}
                     stopOpacity="0"
                   />
                   <stop
-                    offset="42%"
-                    stopColor={isRejected ? '#fecdd3' : isNovember10 ? '#e4e4e7' : '#93c5fd'}
-                    stopOpacity="0.34"
+                    offset="0.5"
+                    stopColor={isRejected ? '#fecdd3' : isNovember10 ? '#f4f4f5' : '#93c5fd'}
+                    stopOpacity="0.8"
                   />
                   <stop
-                    offset="72%"
-                    stopColor={isRejected ? '#fda4af' : isNovember10 ? '#ffffff' : '#bae6fd'}
-                    stopOpacity="0.26"
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor={isRejected ? '#fda4af' : isNovember10 ? '#d4d4d8' : '#60a5fa'}
-                    stopOpacity="0"
-                  />
-                </linearGradient>
-                <linearGradient
-                  id="waitingSweepSecondary"
-                  x1="440"
-                  y1="305"
-                  x2="1040"
-                  y2="10"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor={isRejected ? '#fb7185' : isNovember10 ? '#a1a1aa' : '#38bdf8'}
-                    stopOpacity="0"
-                  />
-                  <stop
-                    offset="48%"
-                    stopColor={isRejected ? '#fecdd3' : isNovember10 ? '#e4e4e7' : '#bae6fd'}
-                    stopOpacity="0.24"
-                  />
-                  <stop
-                    offset="100%"
-                    stopColor={isRejected ? '#fb7185' : isNovember10 ? '#a1a1aa' : '#38bdf8'}
-                    stopOpacity="0"
-                  />
-                </linearGradient>
-                <linearGradient
-                  id="waitingSweepSoft"
-                  x1="180"
-                  y1="270"
-                  x2="860"
-                  y2="-40"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop
-                    offset="0%"
-                    stopColor={isRejected ? '#fda4af' : isNovember10 ? '#d4d4d8' : '#60a5fa'}
-                    stopOpacity="0"
-                  />
-                  <stop
-                    offset="50%"
-                    stopColor={isRejected ? '#ffe4e6' : isNovember10 ? '#f4f4f5' : '#93c5fd'}
-                    stopOpacity="0.16"
-                  />
-                  <stop
-                    offset="100%"
+                    offset="1"
                     stopColor={isRejected ? '#fda4af' : isNovember10 ? '#d4d4d8' : '#60a5fa'}
                     stopOpacity="0"
                   />
                 </linearGradient>
               </defs>
-
-              <path
-                d="M 210 300 C 370 215, 535 95, 760 -30"
-                stroke="url(#waitingSweepSoft)"
-                strokeWidth="1"
-                vectorEffect="non-scaling-stroke"
-              />
-              <path
-                d="M 295 305 C 455 210, 625 90, 860 -28"
-                stroke="url(#waitingSweepPrimary)"
-                strokeWidth="1.25"
-                vectorEffect="non-scaling-stroke"
-              />
-              <path
-                d="M 380 310 C 540 205, 710 88, 955 -22"
-                stroke="url(#waitingSweepPrimary)"
-                strokeWidth="1.1"
-                vectorEffect="non-scaling-stroke"
-              />
-              <path
-                d="M 465 315 C 625 205, 790 95, 1035 -10"
-                stroke="url(#waitingSweepSecondary)"
-                strokeWidth="1.15"
-                vectorEffect="non-scaling-stroke"
-              />
-              <path
-                d="M 555 320 C 710 215, 860 112, 1085 18"
-                stroke="url(#waitingSweepSecondary)"
-                strokeWidth="1"
-                vectorEffect="non-scaling-stroke"
-              />
-              <path
-                d="M 650 320 C 790 230, 920 140, 1110 62"
-                stroke="url(#waitingSweepSoft)"
-                strokeWidth="1"
-                vectorEffect="non-scaling-stroke"
-              />
             </svg>
             <div
               aria-hidden="true"
@@ -589,37 +503,27 @@ export const WaitingRoomScreen: React.FC = () => {
             />
 
             <div className="relative z-10 space-y-4">
-              {/* Top Row: Status Badge */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                {isRejected ? (
-                  <span
-                    data-testid="waiting-status-badge"
-                    className="inline-flex items-center gap-2 rounded-full border border-rose-300/40 bg-rose-500/25 px-3.5 py-1.5 text-xs font-bold text-rose-100 backdrop-blur-md"
-                  >
-                    <XCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span>Başvuru Onaylanmadı</span>
-                  </span>
-                ) : isApprovedNow ? (
-                  <span
-                    data-testid="waiting-status-badge"
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/25 px-3.5 py-1.5 text-xs font-bold text-emerald-100 backdrop-blur-md"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                    <span>Hesabınız Onaylandı</span>
-                  </span>
-                ) : (
-                  <span
-                    data-testid="waiting-status-badge"
-                    className="inline-flex items-center gap-2 rounded-full border border-amber-300/45 bg-amber-400/20 px-3.5 py-1.5 text-xs font-bold text-amber-100 backdrop-blur-md"
-                  >
-                    <span className="relative flex h-2 w-2 shrink-0">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-300 opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-300" />
+              {(isRejected || isApprovedNow) && (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  {isRejected ? (
+                    <span
+                      data-testid="waiting-status-badge"
+                      className="inline-flex items-center gap-2 rounded-full border border-rose-300/40 bg-rose-500/25 px-3.5 py-1.5 text-xs font-bold text-rose-100 backdrop-blur-md"
+                    >
+                      <XCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span>Başvuru Onaylanmadı</span>
                     </span>
-                    <span>Yönetici Onayı Bekleniyor</span>
-                  </span>
-                )}
-              </div>
+                  ) : (
+                    <span
+                      data-testid="waiting-status-badge"
+                      className="inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-500/25 px-3.5 py-1.5 text-xs font-bold text-emerald-100 backdrop-blur-md"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                      <span>Hesabınız Onaylandı</span>
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Greeting Title & Subtitle */}
               <div className="max-w-2xl space-y-2">
