@@ -365,6 +365,17 @@ describe('EconNotes Comprehensive Security Audit Verification Suite', () => {
       expect(sql).toContain("AND status = 'pending'");
       expect(sql).toContain('IF v_attempt.expires_at IS NOT NULL AND now() > v_attempt.expires_at');
       expect(sql).toContain('LIMIT LEAST(GREATEST(COALESCE(_limit, 50), 1), 100)');
+
+      // Schema-compatibility & Lucky Wheel / Trivia trigger safety regressions
+      expect(sql).toContain('DROP FUNCTION IF EXISTS public.reconcile_missing_gamification_xp(BOOLEAN, UUID);');
+      expect(sql).toContain('s.daily_period');
+      expect(sql).toContain('s.xp_awarded');
+      expect(sql).toContain('a.quiz_date');
+      expect(sql).toContain("COALESCE(current_setting('app.trusted_profile_mutation', true), '') = 'true'");
+      expect(sql).toContain('CREATE OR REPLACE FUNCTION public.award_points(_reason TEXT, _amount INTEGER)\nRETURNS INTEGER');
+      expect(sql).toContain('allowed_downloads INTEGER');
+      expect(sql).toContain('can_download BOOLEAN');
+      expect(sql).toContain('rank INTEGER');
     });
   });
 

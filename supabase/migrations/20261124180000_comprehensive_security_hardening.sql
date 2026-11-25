@@ -134,6 +134,12 @@ GRANT EXECUTE ON FUNCTION public.is_approved_unbanned_user(UUID) TO authenticate
 -- ============================================================================
 -- 3. LOCK PRIVILEGED COLUMNS ON public.profiles (DB C-1 & FE H-9)
 -- ============================================================================
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS birth_date DATE,
+  ADD COLUMN IF NOT EXISTS trivia_unlimited_until TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS wheel_bonus_quota INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS wheel_unlimited_until TIMESTAMPTZ;
+
 UPDATE public.profiles
 SET wheel_bonus_quota = 0
 WHERE wheel_bonus_quota < 0;
@@ -164,8 +170,11 @@ DECLARE
   v_uid UUID := auth.uid();
   v_role TEXT := COALESCE(current_setting('request.jwt.claim.role', true), '');
 BEGIN
-  -- Allow server-side / service_role / migrations (when auth.uid() is NULL) and verified admins
-  IF v_uid IS NULL OR v_role = 'service_role' OR public.is_admin(v_uid) THEN
+  -- Allow server-side / service_role / trusted SECURITY DEFINER RPCs / migrations and verified admins
+  IF v_uid IS NULL
+     OR v_role = 'service_role'
+     OR COALESCE(current_setting('app.trusted_profile_mutation', true), '') = 'true'
+     OR public.is_admin(v_uid) THEN
     RETURN NEW;
   END IF;
 
@@ -239,10 +248,12 @@ BEGIN
   END IF;
 
   IF v_status = 'pending' AND v_created < '2026-11-11T00:00:00Z'::timestamptz THEN
+    PERFORM set_config('app.trusted_profile_mutation', 'true', true);
     UPDATE public.profiles
     SET approval_status = 'approved',
         approved_at = now()
     WHERE user_id = v_uid;
+    PERFORM set_config('app.trusted_profile_mutation', 'false', true);
     RETURN true;
   END IF;
 
@@ -262,6 +273,7 @@ GRANT EXECUTE ON FUNCTION public.claim_monday_wheel_xp(INTEGER, TEXT) TO service
 
 -- B. Harden reconcile_missing_gamification_xp: REMOVE all raw_user_meta_data trust!
 --    Reconcile strictly from server-authoritative lucky_wheel_spins & daily_trivia_attempts.
+DROP FUNCTION IF EXISTS public.reconcile_missing_gamification_xp(BOOLEAN, UUID);
 CREATE OR REPLACE FUNCTION public.reconcile_missing_gamification_xp(
   _apply BOOLEAN DEFAULT true,
   _only_user_id UUID DEFAULT NULL
@@ -269,15 +281,16 @@ CREATE OR REPLACE FUNCTION public.reconcile_missing_gamification_xp(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public
 AS $$
 DECLARE
   v_row RECORD;
   v_tx TEXT;
-  v_credit JSONB;
+  v_credit RECORD;
   v_credited_wheel INTEGER := 0;
   v_credited_trivia INTEGER := 0;
   v_total_xp INTEGER := 0;
+  v_xp INTEGER := 0;
 BEGIN
   -- Only service_role (or internal call via reconcile_my_missing_xp scoped to auth.uid()) may run
   IF _only_user_id IS NULL AND COALESCE(current_setting('request.jwt.claim.role', true), '') <> 'service_role' THEN
@@ -286,74 +299,76 @@ BEGIN
 
   -- 1. Authoritative lucky_wheel_spins rows with XP reward not yet credited
   FOR v_row IN
-    SELECT s.id, s.user_id, s.spin_date, s.reward_xp, s.transaction_id
+    SELECT s.id, s.user_id, s.daily_period, s.segment_id, s.xp_awarded, s.transaction_id
     FROM public.lucky_wheel_spins s
-    WHERE s.reward_xp > 0
-      AND s.status = 'completed'
+    WHERE s.reward_type = 'xp'
+      AND s.xp_awarded > 0
       AND s.xp_credited = false
       AND (_only_user_id IS NULL OR s.user_id = _only_user_id)
   LOOP
-    v_tx := COALESCE(NULLIF(btrim(v_row.transaction_id), ''), 'wheel:' || v_row.user_id::TEXT || ':' || v_row.spin_date::TEXT);
+    v_tx := COALESCE(
+      NULLIF(btrim(v_row.transaction_id), ''),
+      'wheel:' || v_row.user_id::TEXT || ':' || to_char(v_row.daily_period, 'YYYY-MM-DD')
+    );
     IF _apply THEN
-      v_credit := public.credit_xp_atomic(
+      SELECT * INTO v_credit
+      FROM public.credit_xp_atomic(
         v_row.user_id,
-        v_row.reward_xp,
-        'monday_wheel',
+        v_row.xp_awarded,
+        'monday_wheel:' || to_char(v_row.daily_period, 'YYYY-MM-DD'),
         'lucky_wheel',
-        v_row.id::TEXT,
         v_tx,
-        jsonb_build_object('reconciled', true, 'spin_date', v_row.spin_date)
+        v_row.id::TEXT,
+        jsonb_build_object('reconciled', true, 'daily_period', v_row.daily_period, 'segment_id', v_row.segment_id)
       );
-      IF COALESCE((v_credit->>'ok')::BOOLEAN, false) THEN
-        UPDATE public.lucky_wheel_spins
-        SET xp_credited = true,
-            xp_credited_at = now(),
-            updated_at = now()
-        WHERE id = v_row.id;
-        IF NOT COALESCE((v_credit->>'duplicate')::BOOLEAN, false) THEN
-          v_credited_wheel := v_credited_wheel + 1;
-          v_total_xp := v_total_xp + v_row.reward_xp;
-        END IF;
+      UPDATE public.lucky_wheel_spins
+      SET xp_credited = true,
+          points_after = COALESCE(v_credit.points, points_after)
+      WHERE id = v_row.id;
+      IF NOT COALESCE(v_credit.already_credited, false) THEN
+        v_credited_wheel := v_credited_wheel + 1;
+        v_total_xp := v_total_xp + COALESCE(v_credit.awarded, v_row.xp_awarded);
       END IF;
     END IF;
   END LOOP;
 
   -- 2. Authoritative completed daily_trivia_attempts rows with pending XP
   FOR v_row IN
-    SELECT a.id, a.user_id, a.attempt_date, a.correct_count, a.xp_earned
+    SELECT a.id, a.user_id, a.quiz_date, a.correct_count, a.xp_earned
     FROM public.daily_trivia_attempts a
     WHERE a.status = 'completed'
       AND a.xp_credited = false
       AND COALESCE(a.xp_earned, a.correct_count * 25) > 0
       AND (_only_user_id IS NULL OR a.user_id = _only_user_id)
   LOOP
+    v_xp := LEAST(375, GREATEST(0, COALESCE(v_row.xp_earned, v_row.correct_count * 25)));
     v_tx := 'trivia:' || v_row.id::TEXT;
-    IF _apply THEN
-      v_credit := public.credit_xp_atomic(
+    IF _apply AND v_xp > 0 THEN
+      SELECT * INTO v_credit
+      FROM public.credit_xp_atomic(
         v_row.user_id,
-        LEAST(375, GREATEST(0, COALESCE(v_row.xp_earned, v_row.correct_count * 25))),
+        v_xp,
+        'daily_trivia:' || to_char(v_row.quiz_date, 'YYYY-MM-DD') || ':final',
         'daily_trivia',
-        'daily_trivia',
-        v_row.id::TEXT,
         v_tx,
-        jsonb_build_object('reconciled', true, 'attempt_date', v_row.attempt_date)
+        v_row.id::TEXT,
+        jsonb_build_object('reconciled', true, 'quiz_date', v_row.quiz_date)
       );
-      IF COALESCE((v_credit->>'ok')::BOOLEAN, false) THEN
-        UPDATE public.daily_trivia_attempts
-        SET xp_credited = true,
-            xp_credited_at = now(),
-            updated_at = now()
-        WHERE id = v_row.id;
-        IF NOT COALESCE((v_credit->>'duplicate')::BOOLEAN, false) THEN
-          v_credited_trivia := v_credited_trivia + 1;
-          v_total_xp := v_total_xp + LEAST(375, GREATEST(0, COALESCE(v_row.xp_earned, v_row.correct_count * 25)));
-        END IF;
+      UPDATE public.daily_trivia_attempts
+      SET xp_credited = true,
+          xp_credited_at = now(),
+          reward_transaction_id = v_tx
+      WHERE id = v_row.id;
+      IF NOT COALESCE(v_credit.already_credited, false) THEN
+        v_credited_trivia := v_credited_trivia + 1;
+        v_total_xp := v_total_xp + COALESCE(v_credit.awarded, v_xp);
       END IF;
     END IF;
   END LOOP;
 
   RETURN jsonb_build_object(
     'ok', true,
+    'creditedXp', v_total_xp,
     'credited_wheel', v_credited_wheel,
     'credited_trivia', v_credited_trivia,
     'total_xp_reconciled', v_total_xp
@@ -372,11 +387,17 @@ SET search_path = public
 AS $$
 DECLARE
   v_uid UUID := auth.uid();
+  v_res JSONB;
+  v_points INTEGER := 0;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'Oturum bulunamadı.';
   END IF;
-  RETURN public.reconcile_missing_gamification_xp(true, v_uid);
+  v_res := public.reconcile_missing_gamification_xp(true, v_uid);
+  SELECT COALESCE(up.points, 0) INTO v_points
+  FROM public.user_points up
+  WHERE up.user_id = v_uid;
+  RETURN v_res || jsonb_build_object('userPoints', COALESCE(v_points, 0));
 END;
 $$;
 
@@ -384,9 +405,9 @@ REVOKE ALL ON FUNCTION public.reconcile_my_missing_xp() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.reconcile_my_missing_xp() TO authenticated;
 
 -- C. Harden public.award_points: remove mission_trivia_% cap bypass & monday_wheel delegation,
---    enforce strict allowlist of legitimate client actions & tight daily caps.
+--    enforce strict allowlist of legitimate client actions & tight daily caps, preserving RETURNS INTEGER.
 CREATE OR REPLACE FUNCTION public.award_points(_reason TEXT, _amount INTEGER)
-RETURNS TABLE(total_points INTEGER, current_streak INTEGER, level_name TEXT)
+RETURNS INTEGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -399,8 +420,7 @@ DECLARE
   v_reason_today_count INTEGER := 0;
   v_daily_awarded INTEGER := 0;
   v_new_total INTEGER := 0;
-  v_streak INTEGER := 0;
-  v_level TEXT := 'Yeni Başlayan';
+  v_max_per_day INTEGER := 3;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'Oturum bulunamadı.';
@@ -420,10 +440,16 @@ BEGIN
   -- Strict allowlist with server-determined maximum amounts & daily counts
   IF v_clean_reason = 'daily_login' THEN
     v_allowed_amount := 10;
+    v_max_per_day := 1;
+  ELSIF v_clean_reason LIKE 'mission_checkin_%' AND length(v_clean_reason) <= 40 THEN
+    v_allowed_amount := 25;
+    v_max_per_day := 1;
   ELSIF v_clean_reason = 'note_upload' THEN
     v_allowed_amount := 20;
+    v_max_per_day := 3;
   ELSIF v_clean_reason IN ('study_complete', 'kpss_attempt', 'quiz_complete', 'flashcard_session') THEN
     v_allowed_amount := 15;
+    v_max_per_day := 3;
   ELSE
     RAISE EXCEPTION 'Desteklenmeyen puan sebebi.';
   END IF;
@@ -439,29 +465,23 @@ BEGIN
     AND reason = v_clean_reason
     AND (created_at AT TIME ZONE 'Europe/Istanbul')::DATE = v_today;
 
-  IF (v_clean_reason = 'daily_login' AND v_reason_today_count >= 1)
-     OR (v_clean_reason <> 'daily_login' AND v_reason_today_count >= 3) THEN
-    SELECT COALESCE(up.points, 0), COALESCE(up.current_streak, 0)
-    INTO v_new_total, v_streak
+  IF v_reason_today_count >= v_max_per_day THEN
+    SELECT COALESCE(up.points, 0)
+    INTO v_new_total
     FROM public.user_points up
     WHERE up.user_id = v_uid;
 
-    RETURN QUERY SELECT COALESCE(v_new_total, 0), COALESCE(v_streak, 0),
-      CASE
-        WHEN COALESCE(v_new_total, 0) >= 2000 THEN 'Efsane'
-        WHEN COALESCE(v_new_total, 0) >= 1000 THEN 'Üstat'
-        WHEN COALESCE(v_new_total, 0) >= 500 THEN 'Uzman'
-        WHEN COALESCE(v_new_total, 0) >= 200 THEN 'Araştırmacı'
-        ELSE 'Yeni Başlayan'
-      END;
-    RETURN;
+    RETURN COALESCE(v_new_total, 0);
   END IF;
 
   SELECT COALESCE(SUM(amount), 0)
   INTO v_daily_awarded
   FROM public.point_events
   WHERE user_id = v_uid
-    AND reason IN ('daily_login', 'note_upload', 'study_complete', 'kpss_attempt', 'quiz_complete', 'flashcard_session')
+    AND (
+      reason IN ('daily_login', 'note_upload', 'study_complete', 'kpss_attempt', 'quiz_complete', 'flashcard_session')
+      OR reason LIKE 'mission_checkin_%'
+    )
     AND (created_at AT TIME ZONE 'Europe/Istanbul')::DATE = v_today;
 
   IF v_daily_awarded + v_allowed_amount > 100 THEN
@@ -474,26 +494,18 @@ BEGIN
       v_allowed_amount,
       v_clean_reason,
       'activity',
-      v_clean_reason || ':' || v_today::TEXT || ':' || (v_reason_today_count + 1)::TEXT,
       'act:' || v_uid::TEXT || ':' || v_clean_reason || ':' || v_today::TEXT || ':' || (v_reason_today_count + 1)::TEXT,
+      v_clean_reason || ':' || v_today::TEXT || ':' || (v_reason_today_count + 1)::TEXT,
       jsonb_build_object('day', v_today)
     );
   END IF;
 
-  SELECT COALESCE(up.points, 0), COALESCE(up.current_streak, 0)
-  INTO v_new_total, v_streak
+  SELECT COALESCE(up.points, 0)
+  INTO v_new_total
   FROM public.user_points up
   WHERE up.user_id = v_uid;
 
-  v_level := CASE
-    WHEN COALESCE(v_new_total, 0) >= 2000 THEN 'Efsane'
-    WHEN COALESCE(v_new_total, 0) >= 1000 THEN 'Üstat'
-    WHEN COALESCE(v_new_total, 0) >= 500 THEN 'Uzman'
-    WHEN COALESCE(v_new_total, 0) >= 200 THEN 'Araştırmacı'
-    ELSE 'Yeni Başlayan'
-  END;
-
-  RETURN QUERY SELECT COALESCE(v_new_total, 0), COALESCE(v_streak, 0), v_level;
+  RETURN COALESCE(v_new_total, 0);
 END;
 $$;
 
@@ -980,17 +992,15 @@ USING (auth.uid() = user_id);
 --     (DB M-1, M-2, M-3, M-5, M-6, M-7, L-1, L-2, L-3, L-5)
 -- ============================================================================
 
--- M-1: Enforce caller identity in get_download_quota(_user_id)
+-- M-1: Enforce caller identity in get_download_quota(_user_id) while preserving exact live return signature
 CREATE OR REPLACE FUNCTION public.get_download_quota(_user_id UUID)
 RETURNS TABLE(
-  base_quota INTEGER,
-  bonus_quota INTEGER,
-  total_quota INTEGER,
-  total_downloads INTEGER,
-  remaining INTEGER,
   approved_uploads INTEGER,
-  is_admin BOOLEAN,
-  manual_quota INTEGER
+  total_downloads INTEGER,
+  allowed_downloads INTEGER,
+  remaining INTEGER,
+  can_download BOOLEAN,
+  is_admin BOOLEAN
 )
 LANGUAGE plpgsql
 STABLE
@@ -1011,9 +1021,8 @@ DECLARE
   v_tr_today DATE;
   v_is_birthday BOOLEAN := false;
   v_is_unlimited BOOLEAN := false;
-  v_base INTEGER := 3;
-  v_bonus INTEGER;
-  v_total INTEGER;
+  v_base_allowed INTEGER;
+  v_effective_allowed INTEGER;
 BEGIN
   IF v_role <> 'service_role' THEN
     IF v_caller IS NULL THEN
@@ -1062,20 +1071,16 @@ BEGIN
     v_is_unlimited := true;
   END IF;
 
-  v_bonus := (v_approved * 2) + GREATEST(0, COALESCE(v_wheel_bonus, 0));
+  v_base_allowed := CASE WHEN v_approved = 0 THEN 2 ELSE v_approved * 2 END;
+  v_effective_allowed := COALESCE(v_manual, v_base_allowed) + GREATEST(0, COALESCE(v_wheel_bonus, 0));
 
-  IF v_is_admin OR v_is_birthday OR v_is_unlimited THEN
-    RETURN QUERY SELECT v_base, v_bonus, 999, v_downloads, 999, v_approved, v_is_admin, v_manual;
-    RETURN;
-  END IF;
-
-  IF v_manual IS NOT NULL THEN
-    v_total := v_manual + GREATEST(0, COALESCE(v_wheel_bonus, 0));
-  ELSE
-    v_total := v_base + v_bonus;
-  END IF;
-
-  RETURN QUERY SELECT v_base, v_bonus, v_total, v_downloads, GREATEST(0, v_total - v_downloads), v_approved, v_is_admin, v_manual;
+  RETURN QUERY SELECT
+    v_approved,
+    v_downloads,
+    CASE WHEN v_is_admin OR v_is_birthday OR v_is_unlimited THEN GREATEST(v_effective_allowed, v_downloads + 999) ELSE v_effective_allowed END,
+    CASE WHEN v_is_admin OR v_is_birthday OR v_is_unlimited THEN 999 ELSE GREATEST(v_effective_allowed - v_downloads, 0) END,
+    (v_is_admin OR v_is_birthday OR v_is_unlimited OR v_downloads < v_effective_allowed),
+    v_is_admin;
 END;
 $$;
 
@@ -1274,17 +1279,17 @@ BEGIN
 END;
 $$;
 
--- L-3: Cap get_leaderboard(_limit) to <= 100 and exclude non-approved accounts
-CREATE OR REPLACE FUNCTION public.get_leaderboard(_limit INTEGER DEFAULT 50)
+-- L-3: Cap get_leaderboard(_limit) to <= 100 and exclude non-approved accounts (preserving exact live signature)
+CREATE OR REPLACE FUNCTION public.get_leaderboard(_limit INTEGER DEFAULT 10)
 RETURNS TABLE(
   user_id UUID,
   full_name TEXT,
   avatar_url TEXT,
-  department TEXT,
   university TEXT,
   points INTEGER,
   current_streak INTEGER,
-  total_logins INTEGER
+  total_logins INTEGER,
+  rank INTEGER
 )
 LANGUAGE sql
 STABLE
@@ -1293,13 +1298,13 @@ SET search_path = public
 AS $$
   SELECT
     up.user_id,
-    pr.full_name,
+    COALESCE(pr.full_name, 'Kullanıcı') AS full_name,
     pr.avatar_url,
-    pr.department,
     pr.university,
     up.points,
     up.current_streak,
-    up.total_logins
+    up.total_logins,
+    (ROW_NUMBER() OVER (ORDER BY up.points DESC, up.current_streak DESC))::INTEGER AS rank
   FROM public.user_points up
   JOIN public.profiles pr ON pr.user_id = up.user_id
   WHERE pr.approval_status = 'approved'
@@ -1334,3 +1339,5 @@ WITH CHECK (
     WHERE m.id = material_id AND m.user_id = auth.uid()
   )
 );
+
+NOTIFY pgrst, 'reload schema';

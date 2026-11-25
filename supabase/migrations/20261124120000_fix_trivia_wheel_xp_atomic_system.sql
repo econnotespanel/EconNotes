@@ -737,22 +737,26 @@ BEGIN
     WHERE id = v_spin.id
     RETURNING * INTO v_spin;
   ELSIF v_reward_type = 'extra_quota' THEN
+    PERFORM set_config('app.trusted_profile_mutation', 'true', true);
     UPDATE public.profiles
     SET wheel_bonus_quota = COALESCE(wheel_bonus_quota, 0) + v_reward_amount,
         updated_at = now()
     WHERE user_id = v_uid
     RETURNING COALESCE(wheel_bonus_quota, 0) INTO v_bonus_quota;
+    PERFORM set_config('app.trusted_profile_mutation', 'false', true);
 
     UPDATE public.lucky_wheel_spins
     SET quota_bonus_added = v_reward_amount
     WHERE id = v_spin.id
     RETURNING * INTO v_spin;
   ELSIF v_reward_type = 'unlimited_day' THEN
+    PERFORM set_config('app.trusted_profile_mutation', 'true', true);
     UPDATE public.profiles
     SET wheel_unlimited_until = GREATEST(COALESCE(wheel_unlimited_until, now()), now()) + interval '24 hours',
         updated_at = now()
     WHERE user_id = v_uid
     RETURNING wheel_unlimited_until INTO v_unlimited_until;
+    PERFORM set_config('app.trusted_profile_mutation', 'false', true);
 
     UPDATE public.lucky_wheel_spins
     SET unlimited_expires_at = v_unlimited_until
@@ -1804,10 +1808,12 @@ BEGIN
   END IF;
 
   IF v_perfect AND v_unlimited IS NOT NULL THEN
+    PERFORM set_config('app.trusted_profile_mutation', 'true', true);
     UPDATE public.profiles
     SET trivia_unlimited_until = GREATEST(COALESCE(trivia_unlimited_until, v_now), v_unlimited),
         updated_at = v_now
     WHERE user_id = v_uid;
+    PERFORM set_config('app.trusted_profile_mutation', 'false', true);
   END IF;
 
   RETURN jsonb_build_object(

@@ -705,6 +705,19 @@ export async function executeLuckyWheelSpin(
               rawResult = res.data as Record<string, unknown>;
             } else if (res.data && typeof (res.data as { error?: unknown }).error === 'string') {
               return { ok: false, error: String((res.data as { error: string }).error) };
+            } else if (res.error) {
+              const errCtx = (res.error as { context?: { status?: number; json?: () => Promise<unknown> } } | null)?.context;
+              const errStatus = errCtx?.status;
+              if (errStatus && errStatus !== 404 && typeof errCtx?.json === 'function') {
+                try {
+                  const errBody = (await errCtx.json()) as { error?: unknown } | null;
+                  if (errBody && typeof errBody.error === 'string' && errBody.error.trim()) {
+                    return { ok: false, error: errBody.error.trim() };
+                  }
+                } catch {
+                  // Fall through to standard unreachable error
+                }
+              }
             }
           }
         } catch (err) {
@@ -821,7 +834,11 @@ export async function syncPendingWheelXp(
       } catch {
         // ignore
       }
-      const creditedXp = Number((data as { creditedXp?: number }).creditedXp ?? 0);
+      const creditedXp = Number(
+        (data as { creditedXp?: number; total_xp_reconciled?: number }).creditedXp ??
+          (data as { total_xp_reconciled?: number }).total_xp_reconciled ??
+          0,
+      );
       if (creditedXp > 0 && typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('econnotes:points-updated'));
         window.dispatchEvent(new CustomEvent('econnotes:wheel-updated'));
