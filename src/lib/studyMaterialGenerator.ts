@@ -5,6 +5,11 @@
  */
 
 import {
+  sanitizeMarkdownTableCell,
+  sanitizeSummaryContent,
+  stripTechnicalMarkup,
+} from './academicTextSanitizer';
+import {
   buildTopicPriorityGuide,
   classifyStudyDomain,
   type AcademicDomainMode,
@@ -81,7 +86,7 @@ const GREETING_RE =
   /^\s*(?:merhaba|hoş\s+geldiniz|selam|günaydın|iyi\s+günler|bugünkü\s+dersimizde|sevgili\s+arkadaşlar|dinlediğiniz\s+için\s+teşekkürler)\b/i;
 
 function normalizeSourceText(raw: string): string {
-  return String(raw || '')
+  return stripTechnicalMarkup(String(raw || ''))
     .split('\0')
     .join('')
     .replace(/\r\n/g, '\n')
@@ -928,13 +933,18 @@ function buildRichSummarySection(params: {
     course,
     extraTakeaways,
   } = params;
-  const isVerbal = domainMode === 'verbal' || disciplineFamily === 'law';
   const isLaw = disciplineFamily === 'law';
+  const isHistory = disciplineFamily === 'history';
   const isStatistics = disciplineFamily === 'statistics';
   const isEconomics = disciplineFamily === 'economics';
+  const isVerbal = domainMode === 'verbal' || isLaw || isHistory;
   const bodyBlocks: string[] = [];
 
   const unitJoinedLower = unit.paragraphs.join(' ').toLocaleLowerCase('tr-TR');
+  const hasMarketOrTransmissionSignals =
+    /(aktarım|piyasa\s+dengesi|denge\s+koşul|arz|talep|faiz|enflasyon|esneklik|marjinal|monopol|oligopol|politika)/i.test(
+      `${heading} ${unitJoinedLower}`,
+    );
   const matchedTerms = keyTerms.filter(
     (kt) =>
       unitJoinedLower.includes(kt.term.toLocaleLowerCase('tr-TR')) ||
@@ -943,22 +953,24 @@ function buildRichSummarySection(params: {
   const sectionTerms = (matchedTerms.length >= 2 ? matchedTerms : keyTerms.slice(index, index + 4)).slice(0, 4);
   const termNames = sectionTerms.map((t) => t.term);
 
-  // 1. Kavramsal Öz / Analitik Çerçeve (disipline doğal uyarlama)
+  // 1. Kavramsal Öz / Analitik Çerçeve (disipline ve kaynak içeriğine doğal uyarlama)
   if (unit.paragraphs.length > 0) {
     const leadTitle = isLaw
       ? '#### Hukuki Çerçeve, Unsurlar ve Kapsam'
+      : isHistory
+      ? '#### Tarihsel Bağlam ve Kurumsal Çerçeve'
       : isEconomics
       ? '#### Kuramsal Çerçeve ve İktisadi Mekanizma'
       : isStatistics
       ? '#### İstatistiksel Yapı, Varsayımlar ve Yöntem'
       : isVerbal
-      ? '#### Kavramsal Öz ve Ana Tez'
+      ? '#### Kavramsal Öz ve Ana Çerçeve'
       : '#### Analitik Çerçeve';
     const enrichedParagraphs = unit.paragraphs.map((p) => highlightKeyTermsInProse(p, termNames));
     bodyBlocks.push(`${leadTitle}\n\n${enrichedParagraphs.join('\n\n')}`);
   }
 
-  // 2. Neden–Sonuç Zinciri / Ayırt Edici İlkeler
+  // 2. Neden–Sonuç Zinciri / Ayırt Edici İlkeler (hiçbir zaman kaynak dışı başlık uydurmaz)
   const causalCandidates = unit.sentences.filter((s) => CAUSAL_CONTRAST_RE.test(s));
   const combinedBullets = [
     ...unit.bullets.map((b) => `- **Ana Nokta:** ${highlightKeyTermsInProse(b, termNames)}`),
@@ -977,37 +989,45 @@ function buildRichSummarySection(params: {
   if (uniqueBullets.length > 0) {
     const bulletTitle = isLaw
       ? '#### Kurucu Unsurlar, İstisnalar ve Hukuki Sonuçlar'
+      : isHistory
+      ? '#### Tarihsel Neden–Sonuç Bağlantıları ve Kurumsal Özellikler'
       : isEconomics
-      ? '#### Aktarım Mekanizmaları, Denge Koşulları ve Etkiler'
+      ? hasMarketOrTransmissionSignals
+        ? '#### İktisadi İlişkiler, Koşullar ve Temel Etkiler'
+        : '#### Öne Çıkan İlkeler ve İlişkiler'
       : isStatistics
       ? '#### Test Adımları, Varsayımlar ve Karar Kuralları'
       : isVerbal
       ? '#### Neden–Sonuç Zinciri ve Ayırt Edici İlkeler'
-      : '#### Öne Çıkan Mekanizmalar ve Adımlar';
+      : '#### Öne Çıkan İlkeler ve Adımlar';
     bodyBlocks.push(`${bulletTitle}\n${uniqueBullets.join('\n')}`);
   }
 
-  // 3. Karşılaştırma ve Kavram Tablosu
+  // 3. Karşılaştırma ve Kavram Tablosu (her hücre XML/HTML temizliğinden geçer)
   if (sectionTerms.length >= 2) {
     const tableHeader = isLaw
       ? '| Hukuki Kavram / Kurum | Tanım, Şart ve Kapsam | Sınavda Ayırt Edici Yön |'
+      : isHistory
+      ? '| Tarihsel Kavram / Kurum | Kaynaktaki Kapsam ve İşlev | Tarihsel Bağlam / Ayrım |'
       : isEconomics
-      ? '| Kavram / Teori / Model | İktisadi İşlev ve Kapsam | Kritik Mekanizma / Ayrım |'
+      ? '| Kavram / Kuram | Kaynaktaki İşlev ve Kapsam | Kritik Koşul / Ayrım |'
       : isStatistics
       ? '| Ölçüt / Test / Dağılım | Kullanım Amacı ve Varsayım | Yorumlama Odağı |'
       : isVerbal
-      ? '| Kavram / Ekol / Unsur | Kapsam ve Ana Fikir | Sınavda Ayırt Edici Yön |'
+      ? '| Kavram / Unsur | Kapsam ve Ana Fikir | Sınavda Ayırt Edici Yön |'
       : '| Kavram / Unsur | Analitik İşlev ve Kapsam | Kritik Koşul / Ayrım |';
     const tableRows = sectionTerms
       .map((kt) => {
-        const cleanTerm = kt.term.replace(/\|/g, '/');
-        const cleanDef = kt.definition.replace(/\|/g, '/').slice(0, 125);
+        const cleanTerm = sanitizeMarkdownTableCell(kt.term);
+        const cleanDef = sanitizeMarkdownTableCell(kt.definition).slice(0, 145);
         const angle = classifyClauseBadge(kt.definition);
         return `| **${cleanTerm}** | ${cleanDef} | ${angle} |`;
       })
       .join('\n');
     const tableTitle = isLaw
       ? '#### Hukuki Kavram ve Ayrım Tablosu'
+      : isHistory
+      ? '#### Tarihsel Kavram ve Kurum Tablosu'
       : isVerbal
       ? '#### Kavram ve Ayrım Tablosu'
       : '#### Kavramsal Yapı ve Karşılaştırma Tablosu';
@@ -1099,9 +1119,12 @@ export function formatSectionContentForFallback(params: {
   deepResearch?: boolean;
 }): SummarySection {
   const cleanSlice = normalizeSourceText(params.rawSlice || '');
+  const cleanHeading = stripTechnicalMarkup(params.heading || '', { singleLine: true }) || `Bölüm ${params.index + 1}`;
   const sentences = splitIntoSentences(cleanSlice);
   const domain = classifyStudyDomain(cleanSlice, params.course, params.title);
-  const keyTerms = extractKeyTerms(cleanSlice, sentences, params.course);
+  const resolvedCourse = params.course?.trim() || domain.detectedCourse || domain.discipline;
+  const disciplineGuidance = getDisciplineSummaryGuidance(resolvedCourse, domain.mode);
+  const keyTerms = extractKeyTerms(cleanSlice, sentences, resolvedCourse);
 
   const paragraphs: string[] = [];
   for (let i = 0; i < sentences.length; i += 3) {
@@ -1109,11 +1132,13 @@ export function formatSectionContentForFallback(params: {
   }
 
   const unit: ParsedUnit = {
-    heading: params.heading,
+    heading: cleanHeading,
     pageRange: params.pageRange,
     paragraphs: paragraphs.length > 0 ? paragraphs : [cleanSlice.slice(0, 900)],
     sentences,
-    bullets: (params.focusPoints || []).filter(Boolean),
+    bullets: (params.focusPoints || [])
+      .map((fp) => stripTechnicalMarkup(fp, { singleLine: true }))
+      .filter(Boolean),
     formulas: cleanSlice
       .split('\n')
       .map((l) => l.trim())
@@ -1123,14 +1148,15 @@ export function formatSectionContentForFallback(params: {
 
   return buildRichSummarySection({
     index: params.index,
-    heading: params.heading,
+    heading: cleanHeading,
     pageRange: params.pageRange,
     unit,
     allSentences: sentences,
     keyTerms,
     domainMode: domain.mode,
+    disciplineFamily: disciplineGuidance.disciplineFamily,
     deepResearch: params.deepResearch,
-    course: params.course,
+    course: resolvedCourse,
     extraTakeaways: params.focusPoints,
   });
 }
@@ -1516,33 +1542,44 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
     }),
   );
 
-  const isVerbal = domain.mode === 'verbal' || disciplineGuidance.disciplineFamily === 'law';
+  const isHistory = disciplineGuidance.disciplineFamily === 'history';
+  const isVerbal = domain.mode === 'verbal' || disciplineGuidance.disciplineFamily === 'law' || isHistory;
   const comparativeMatrix =
     effectiveKeyTerms.length >= 2
       ? {
           title: `${title} — ${
             disciplineGuidance.disciplineFamily === 'law'
               ? 'Hukuki Kurumlar, Şartlar ve Ayrımlar Matrisi'
+              : isHistory
+              ? 'Tarihsel Kavram, Kurum ve Dönem Karşılaştırma Matrisi'
               : disciplineGuidance.disciplineFamily === 'economics'
-              ? 'İktisadi Kavram, Teori ve Mekanizma Karşılaştırma Matrisi'
+              ? 'İktisadi Kavram, Kuram ve İlişki Karşılaştırma Matrisi'
               : disciplineGuidance.disciplineFamily === 'statistics'
               ? 'İstatistiksel Ölçüt, Test ve Dağılım Karşılaştırma Matrisi'
               : isVerbal
               ? 'Kavram, Yaklaşım ve Ayrım Matrisi'
               : 'Kavram & Analiz Matrisi'
           }`,
-          columns: isVerbal
+          columns: isHistory
+            ? ['Tarihsel Kavram / Kurum', 'Kaynaktaki Kapsam ve İşlev', 'Tarihsel Bağlam / Ayrım']
+            : isVerbal
             ? ['Kavram / İlke', 'Temel Tanım & Kapsam', 'Sınavda Ayırt Edici Nokta']
             : ['Kavram / Başlık', 'Kaynak Notlardaki Tanım & İşlev', 'Analitik Odak'],
           rows: effectiveKeyTerms
             .slice(0, Math.min(10, Math.max(6, Math.ceil(sections.length * 0.6))))
-            .map((kt) => [kt.term, kt.definition.slice(0, 150), classifyClauseBadge(kt.definition)]),
+            .map((kt) => [
+              sanitizeMarkdownTableCell(kt.term),
+              sanitizeMarkdownTableCell(kt.definition).slice(0, 150),
+              classifyClauseBadge(kt.definition),
+            ]),
         }
       : undefined;
 
   const focusModeLabel =
     disciplineGuidance.disciplineFamily === 'law'
       ? 'Hukuk & Mevzuat Analitik Sentezi'
+      : isHistory
+      ? 'Tarih & Kurumsal İktisat Sentezi'
       : disciplineGuidance.disciplineFamily === 'economics'
       ? 'İktisat & Kuramsal Analiz Sentezi'
       : disciplineGuidance.disciplineFamily === 'statistics'
@@ -1619,6 +1656,8 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
   }) ele alınmıştır. Sınava hazırlanırken önce **Ezberlenecek Bilgiler** kısmındaki temel tanım, ${
     disciplineGuidance.disciplineFamily === 'law'
       ? 'kurucu unsur, kanun şartı ve süreleri'
+      : isHistory
+      ? 'kurum adları, dönemler ve temel ilkeleri'
       : disciplineGuidance.disciplineFamily === 'statistics'
       ? 'formül, dağılım varsayımı ve karar kurallarını'
       : 'teori, denklem sembolü ve sınıflandırmaları'
@@ -1634,9 +1673,10 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
     disciplineTag,
   });
 
-  return {
+  return sanitizeSummaryContent({
     overview: overviewText,
     disciplineTag,
+    disciplineFamily: disciplineGuidance.disciplineFamily,
     extractionNotices: req.extractionWarnings?.length ? req.extractionWarnings : undefined,
     keyPoints: (sentences.length > 0 ? sentences : [title])
       .slice(0, summaryPlan.targetKeyPoints)
@@ -1656,8 +1696,8 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
     studyPriorityMap,
     studyChecklist: sections.map((s) =>
       isVerbal
-        ? `"${s.heading}" bölümündeki temel kavramları, neden–sonuç zincirini ve karşıt görüş farklarını kendi cümlelerimle özetleyebilirim.`
-        : `"${s.heading}" bölümünün ana fikirlerini, mekanizmasını ve ayırt edici koşullarını açıklayabilirim.`,
+        ? `"${s.heading}" bölümündeki temel kavramları, neden–sonuç zincirini ve kurumsal/kavramsal ayrımları kendi cümlelerimle özetleyebilirim.`
+        : `"${s.heading}" bölümünün ana fikirlerini, işleyişini ve ayırt edici koşullarını açıklayabilirim.`,
     ),
     metadata: {
       sourceMode: 'local',
@@ -1672,5 +1712,5 @@ export function generateClientStudyMaterial(req: GeneratePayload): Record<string
         sectionCount: sections.length,
       },
     },
-  };
+  }) as unknown as Record<string, unknown>;
 }

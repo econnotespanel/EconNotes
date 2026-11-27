@@ -122,8 +122,33 @@ const VALID_MATERIAL_TYPES = ['flashcards', 'quiz', 'summary', 'video'] as const
 function sanitizeText(raw: string): string {
   return String(raw || '')
     .replace(/\u0000/g, '')
-    .replace(/\r\n/g, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/<(script|style|noscript|iframe|object)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<\?xml[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE[\s\S]*?>/gi, ' ')
+    .replace(/<(?:\w+):(?:br|cr)\b[^>]*>(?:[\s\S]*?<\/(?:\w+):(?:br|cr)>)?|<(?:\w+):(?:br|cr)\b[^>]*\/>/gi, '\n')
+    .replace(/<(?:\w+):tab\b[^>]*\/?>(?:<\/(?:\w+):tab>)?/gi, ' ')
+    .replace(/<\/?(?:a|p|w|c|r|mc|xdr|pic|wp|v|o|dgm|dsp|m|w14|w15|a14|a16|p14|p15|xml|xmlns|svg):[a-zA-Z_][\w.-]*(?:\s+[^<>]*)?\/?>/gi, '')
+    .replace(/&lt;\/?(?:a|p|w|c|r|mc):[a-zA-Z_][\w.-]*(?:\s+[^&<>]*)?\/?&gt;/gi, '')
+    .replace(/<\/?(?:a|p|w|c|r|mc):[a-zA-Z_][\w.-]*(?:\s+[a-zA-Z_:][\w.-]*=(?:"[^"]*"|'[^']*'))*\s*\/?>?/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(?:html|head|body|div|span|table|thead|tbody|tfoot|tr|th|td|font|center)(?:\s+[^<>]*)?\/?>/gi, '')
+    .replace(/<\/(?:p|b|i|u|strong|em)\s*>/gi, '')
+    .replace(/<(?:p|b|i|u|strong|em)\s*\/?>/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function sanitizeJsonStringsDeep<T>(value: T): T {
+  if (typeof value === 'string') return sanitizeText(value) as unknown as T;
+  if (Array.isArray(value)) return value.map((item) => sanitizeJsonStringsDeep(item)) as unknown as T;
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = sanitizeJsonStringsDeep(v);
+    }
+    return out as T;
+  }
+  return value;
 }
 
 /**
@@ -1765,6 +1790,8 @@ Deno.serve(async (req) => {
     if (!normalizedContent) {
       normalizedContent = buildServerFallback(body, enrichedContext);
     }
+
+    normalizedContent = sanitizeJsonStringsDeep(normalizedContent);
 
     return jsonResponse(req, {
       content: normalizedContent,

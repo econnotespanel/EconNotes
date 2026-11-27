@@ -14,6 +14,7 @@ import {
   Maximize2,
   Filter,
 } from 'lucide-react';
+import { stripTechnicalMarkup } from '@/lib/academicTextSanitizer';
 import { StudioScene } from './sceneModel';
 
 interface ConceptNode {
@@ -97,13 +98,18 @@ export const ConceptKnowledgeMap: React.FC<ConceptKnowledgeMapProps> = ({
       }
 
       const scene = scenes[item.sceneIdx] || scenes[0];
+      const cleanLabel = stripTechnicalMarkup(item.term || '', { singleLine: true });
+      const cleanDef = stripTechnicalMarkup(item.definition || '', { singleLine: true });
+      const cleanSceneTitle = stripTechnicalMarkup(scene?.title || `Bölüm ${item.sceneIdx + 1}`, {
+        singleLine: true,
+      });
 
       return {
         id: `node-${i}`,
-        label: item.term,
-        definition: item.definition,
+        label: cleanLabel || `Kavram ${i + 1}`,
+        definition: cleanDef,
         sceneIdx: item.sceneIdx,
-        sceneTitle: scene?.title || `Bölüm ${item.sceneIdx + 1}`,
+        sceneTitle: cleanSceneTitle,
         category: cat,
         x,
         y,

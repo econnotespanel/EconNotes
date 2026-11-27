@@ -1,5 +1,6 @@
 import { APP_VERSION_LABEL } from '@/lib/version';
 import { downloadAcademicSummaryPdf } from '@/lib/academicSummaryPdf';
+import { stripTechnicalMarkup } from '@/lib/academicTextSanitizer';
 
 export interface LectureSummaryReport {
   title: string;
@@ -45,7 +46,7 @@ export interface LectureSummaryReport {
 }
 
 function escapeHtml(text: string): string {
-  return String(text || '')
+  return stripTechnicalMarkup(String(text || ''))
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

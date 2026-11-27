@@ -2,6 +2,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 // @ts-expect-error Vite resolves worker asset URL natively
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import JSZip from 'jszip';
+import { sanitizeMarkdownTableCell, stripTechnicalMarkup } from '@/lib/academicTextSanitizer';
 
 // Guarantee worker script resolves locally in production and development without external CDN calls
 if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
@@ -46,6 +47,278 @@ function decodeXmlEntities(input: string): string {
       const code = parseInt(hex, 16);
       return Number.isFinite(code) && code >= 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '';
     });
+}
+
+function parseXmlSafely(xml: string): Document | null {
+  if (typeof DOMParser === 'undefined' || !xml) return null;
+  try {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (!doc || doc.getElementsByTagName('parsererror').length > 0) return null;
+    return doc;
+  } catch {
+    return null;
+  }
+}
+
+function xmlLocalName(node: Node): string {
+  const el = node as Element;
+  if (typeof el.localName === 'string' && el.localName.length > 0) {
+    return el.localName.toLowerCase();
+  }
+  const raw = String(node.nodeName || '').toLowerCase();
+  const idx = raw.indexOf(':');
+  return idx >= 0 ? raw.slice(idx + 1) : raw;
+}
+
+const IGNORED_OOXML_NODES = new Set([
+  'rpr',
+  'endpararpr',
+  'ppr',
+  'fldpr',
+  'lststyle',
+  'bodypr',
+  'tblpr',
+  'tblgrid',
+  'tcpr',
+  'trpr',
+  'nvsppr',
+  'sppr',
+  'nvgraphicframepr',
+  'xfrm',
+  'extlst',
+  'defrpr',
+  'txstyles',
+  'instrtext',
+  'fldchar',
+  'del',
+  'deltext',
+  'prooferr',
+  'bookmarkstart',
+  'bookmarkend',
+  'commentreference',
+  'footnoteReference',
+]);
+
+function collectDrawingParagraphTextFromNode(pNode: Element): string {
+  let buf = '';
+  const walk = (node: Node) => {
+    if (node.nodeType !== 1) return;
+    const el = node as Element;
+    const local = xmlLocalName(el);
+    if (IGNORED_OOXML_NODES.has(local)) return;
+    if (local === 't') {
+      buf += el.textContent || '';
+      return;
+    }
+    if (local === 'br' || local === 'cr') {
+      buf += '\n';
+      return;
+    }
+    if (local === 'tab') {
+      buf += ' ';
+      return;
+    }
+    for (let i = 0; i < el.childNodes.length; i++) {
+      walk(el.childNodes[i]);
+    }
+  };
+  for (let i = 0; i < pNode.childNodes.length; i++) {
+    walk(pNode.childNodes[i]);
+  }
+  return buf
+    .split('\n')
+    .map((line) => stripTechnicalMarkup(line, { singleLine: true }))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function isDescendantOfLocalName(node: Node, targetLocal: string): boolean {
+  let cur: Node | null = node.parentNode;
+  while (cur) {
+    if (cur.nodeType === 1 && xmlLocalName(cur) === targetLocal) return true;
+    cur = cur.parentNode;
+  }
+  return false;
+}
+
+function extractDrawingParagraphsRegexFallback(xml: string): string[] {
+  const extractRunsFromBlock = (block: string): string => {
+    // Strictly require tag-name boundary after `a:t` so `<a:tab/>`, `<a:txBody>`, `<a:tbl>`, `<a:tc>` are NEVER matched!
+    const tokenRe =
+      /<a:t(?:\s[^<>]*)?>([\s\S]*?)<\/a:t>|<a:br\b[^<>]*>(?:[\s\S]*?<\/a:br>)?|<a:br\b[^<>]*\/>|<a:tab\b[^<>]*\/?>(?:<\/a:tab>)?/g;
+    let buf = '';
+    let m: RegExpExecArray | null;
+    while ((m = tokenRe.exec(block)) !== null) {
+      if (m[1] !== undefined) {
+        buf += decodeXmlEntities(m[1]);
+      } else if (m[0].startsWith('<a:br')) {
+        buf += '\n';
+      } else {
+        buf += ' ';
+      }
+    }
+    return buf
+      .split('\n')
+      .map((line) => stripTechnicalMarkup(line, { singleLine: true }))
+      .filter(Boolean)
+      .join('\n');
+  };
+
+  const paragraphs: string[] = [];
+  const pBlocks = xml.match(/<a:p(?:\s[^<>]*)?>[\s\S]*?<\/a:p>/g) || [];
+  if (pBlocks.length > 0) {
+    for (const pBlock of pBlocks) {
+      const cleaned = extractRunsFromBlock(pBlock);
+      if (cleaned) paragraphs.push(cleaned);
+    }
+  } else {
+    const cleaned = extractRunsFromBlock(xml);
+    if (cleaned) paragraphs.push(cleaned);
+  }
+  return paragraphs;
+}
+
+function extractDrawingTextAndTables(xml: string): { paragraphs: string[]; markdownTables: string[] } {
+  const doc = parseXmlSafely(xml);
+  if (doc) {
+    const markdownTables: string[] = [];
+    const allElements = Array.from(doc.getElementsByTagName('*'));
+    const tblNodes = allElements.filter((el) => xmlLocalName(el) === 'tbl');
+
+    for (const tbl of tblNodes) {
+      const rows: string[][] = [];
+      const rowNodes = Array.from(tbl.childNodes).filter(
+        (n): n is Element => n.nodeType === 1 && xmlLocalName(n) === 'tr',
+      );
+      for (const tr of rowNodes) {
+        const cellNodes = Array.from(tr.childNodes).filter(
+          (n): n is Element => n.nodeType === 1 && xmlLocalName(n) === 'tc',
+        );
+        const cellTexts = cellNodes.map((tc) => {
+          const pNodes = Array.from(tc.getElementsByTagName('*')).filter((el) => xmlLocalName(el) === 'p');
+          const joined = pNodes
+            .map((p) => collectDrawingParagraphTextFromNode(p))
+            .filter(Boolean)
+            .join(' ');
+          return sanitizeMarkdownTableCell(joined);
+        });
+        if (cellTexts.some((c) => c.length > 0)) rows.push(cellTexts);
+      }
+
+      if (rows.length >= 2) {
+        const colCount = Math.max(...rows.map((r) => r.length));
+        const normalized = rows.map((r) => Array.from({ length: colCount }, (_, ci) => r[ci] || '—'));
+        const header = `| ${normalized[0].join(' | ')} |`;
+        const sep = `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`;
+        const body = normalized.slice(1).map((r) => `| ${r.join(' | ')} |`).join('\n');
+        markdownTables.push(`${header}\n${sep}\n${body}`);
+      } else if (rows.length === 1) {
+        markdownTables.push(rows[0].filter(Boolean).join(' — '));
+      }
+    }
+
+    const paragraphs: string[] = [];
+    const pNodes = allElements.filter(
+      (el) => xmlLocalName(el) === 'p' && !isDescendantOfLocalName(el, 'tbl'),
+    );
+    for (const pNode of pNodes) {
+      const cleaned = collectDrawingParagraphTextFromNode(pNode);
+      if (cleaned) paragraphs.push(cleaned);
+    }
+
+    return { paragraphs, markdownTables };
+  }
+
+  // Fallback for malformed XML fragments lacking namespace declarations
+  const markdownTables: string[] = [];
+  const xmlWithoutTables = xml.replace(/<a:tbl\b[\s\S]*?<\/a:tbl>/g, (tblXml) => {
+    const rows = tblXml.match(/<a:tr\b[\s\S]*?<\/a:tr>/g) || [];
+    const parsedRows: string[][] = [];
+    for (const rowXml of rows) {
+      const cells = rowXml.match(/<a:tc\b[\s\S]*?<\/a:tc>/g) || [];
+      const cellTexts = cells.map((tc) =>
+        sanitizeMarkdownTableCell(extractDrawingParagraphsRegexFallback(tc).join(' ')),
+      );
+      if (cellTexts.some((c) => c.length > 0)) parsedRows.push(cellTexts);
+    }
+    if (parsedRows.length >= 2) {
+      const colCount = Math.max(...parsedRows.map((r) => r.length));
+      const normalized = parsedRows.map((r) =>
+        Array.from({ length: colCount }, (_, ci) => r[ci] || '—'),
+      );
+      const header = `| ${normalized[0].join(' | ')} |`;
+      const sep = `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`;
+      const body = normalized.slice(1).map((r) => `| ${r.join(' | ')} |`).join('\n');
+      markdownTables.push(`${header}\n${sep}\n${body}`);
+    } else if (parsedRows.length === 1) {
+      markdownTables.push(parsedRows[0].filter(Boolean).join(' — '));
+    }
+    return '';
+  });
+
+  return {
+    paragraphs: extractDrawingParagraphsRegexFallback(xmlWithoutTables),
+    markdownTables,
+  };
+}
+
+function collectWordParagraphInfoFromNode(pNode: Element): {
+  text: string;
+  headingLevel: number;
+  isListItem: boolean;
+} {
+  let headingLevel = 0;
+  let isListItem = false;
+  let buf = '';
+
+  const walk = (node: Node) => {
+    if (node.nodeType !== 1) return;
+    const el = node as Element;
+    const local = xmlLocalName(el);
+    if (local === 'ppr') {
+      const pPrChildren = Array.from(el.getElementsByTagName('*'));
+      for (const child of pPrChildren) {
+        const cLocal = xmlLocalName(child);
+        if (cLocal === 'pstyle') {
+          const val = (child.getAttribute('w:val') || child.getAttribute('val') || '').toLowerCase();
+          if (/^(heading|baslik|başlık|title)[\s_-]*1$|^(title)$/.test(val)) headingLevel = 1;
+          else if (/^(heading|baslik|başlık)[\s_-]*2$|^(subtitle)$/.test(val)) headingLevel = 2;
+          else if (/^(heading|baslik|başlık)[\s_-]*[3-6]$/.test(val)) headingLevel = 3;
+        } else if (cLocal === 'numpr') {
+          isListItem = true;
+        }
+      }
+      return;
+    }
+    if (IGNORED_OOXML_NODES.has(local)) return;
+    if (local === 't') {
+      buf += el.textContent || '';
+      return;
+    }
+    if (local === 'br' || local === 'cr') {
+      buf += '\n';
+      return;
+    }
+    if (local === 'tab') {
+      buf += ' ';
+      return;
+    }
+    for (let i = 0; i < el.childNodes.length; i++) {
+      walk(el.childNodes[i]);
+    }
+  };
+
+  for (let i = 0; i < pNode.childNodes.length; i++) {
+    walk(pNode.childNodes[i]);
+  }
+
+  const text = buf
+    .split('\n')
+    .map((line) => stripTechnicalMarkup(line, { singleLine: true }))
+    .filter(Boolean)
+    .join('\n');
+
+  return { text, headingLevel, isListItem };
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -228,7 +501,8 @@ export async function extractFile(
   }
 
   if (name.endsWith('.txt') || name.endsWith('.md')) {
-    const text = (await file.text()).slice(0, 900_000);
+    const rawText = (await file.text()).slice(0, 900_000);
+    const text = stripTechnicalMarkup(rawText);
     if (!text.trim()) throw new Error('Dosya boş.');
     onProgress?.(95, 'Metin dosyası hazır.');
     return { kind: 'text', text };
@@ -257,7 +531,7 @@ export async function extractFile(
           try {
             const page = await pdf.getPage(pageNum);
             const content = await page.getTextContent();
-            const pageText = formatPdfItemsToText(content.items || []);
+            const pageText = stripTechnicalMarkup(formatPdfItemsToText(content.items || []));
             const nonWs = pageText.replace(/\s+/g, '').length;
             if (nonWs >= 15) {
               meaningfulChars += nonWs;
@@ -350,55 +624,8 @@ export async function extractFile(
         return na - nb;
       });
 
-    const extractXmlParagraphs = (xml: string): string => {
-      const paragraphs: string[] = [];
-      const pBlocks = xml.match(/<a:p\b[\s\S]*?<\/a:p>/g) || [];
-      if (pBlocks.length > 0) {
-        for (const pBlock of pBlocks) {
-          const runs = Array.from(pBlock.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g))
-            .map((m) => decodeXmlEntities(m[1]))
-            .join('');
-          if (runs.trim()) paragraphs.push(runs.trim());
-        }
-      } else {
-        const runs = Array.from(xml.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g))
-          .map((m) => decodeXmlEntities(m[1]))
-          .join(' ');
-        if (runs.trim()) paragraphs.push(runs.trim());
-      }
-      return paragraphs.join('\n');
-    };
-
-    const extractPptxTablesAsMarkdown = (xml: string): { markdownTables: string[]; xmlWithoutTables: string } => {
-      const markdownTables: string[] = [];
-      const xmlWithoutTables = xml.replace(/<a:tbl\b[\s\S]*?<\/a:tbl>/g, (tblXml) => {
-        const rows = tblXml.match(/<a:tr\b[\s\S]*?<\/a:tr>/g) || [];
-        const parsedRows: string[][] = [];
-        for (const rowXml of rows) {
-          const cells = rowXml.match(/<a:tc\b[\s\S]*?<\/a:tc>/g) || [];
-          const cellTexts = cells.map((tc) =>
-            extractXmlParagraphs(tc).replace(/\n+/g, ' ').replace(/\|/g, '/').trim(),
-          );
-          if (cellTexts.some((c) => c.length > 0)) {
-            parsedRows.push(cellTexts);
-          }
-        }
-        if (parsedRows.length >= 2) {
-          const colCount = Math.max(...parsedRows.map((r) => r.length));
-          const normalized = parsedRows.map((r) =>
-            Array.from({ length: colCount }, (_, ci) => r[ci] || '—'),
-          );
-          const header = `| ${normalized[0].join(' | ')} |`;
-          const sep = `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`;
-          const body = normalized.slice(1).map((r) => `| ${r.join(' | ')} |`).join('\n');
-          markdownTables.push(`${header}\n${sep}\n${body}`);
-        } else if (parsedRows.length === 1) {
-          markdownTables.push(parsedRows[0].filter(Boolean).join(' — '));
-        }
-        return '';
-      });
-      return { markdownTables, xmlWithoutTables };
-    };
+    const extractXmlParagraphs = (xml: string): string =>
+      extractDrawingTextAndTables(xml).paragraphs.join('\n');
 
     const extractRelatedExtras = async (slideNum: string): Promise<string[]> => {
       const extras: string[] = [];
@@ -417,10 +644,20 @@ export async function extractFile(
             if (diagText.trim()) extras.push(`[Diyagram / SmartArt]:\n${diagText.trim()}`);
           } else if (/^ppt\/charts\/chart\d+\.xml$/i.test(normalizedPath) && zip.files[normalizedPath]) {
             const chartXml = await zip.files[normalizedPath].async('text');
-            const chartLabels = Array.from(chartXml.matchAll(/<(?:a:t|c:v)[^>]*>([\s\S]*?)<\/(?:a:t|c:v)>/g))
-              .map((m) => decodeXmlEntities(m[1]).trim())
-              .filter(Boolean)
-              .slice(0, 60);
+            const chartDoc = parseXmlSafely(chartXml);
+            const chartLabels = chartDoc
+              ? Array.from(chartDoc.getElementsByTagName('*'))
+                  .filter((el) => {
+                    const ln = xmlLocalName(el);
+                    return ln === 't' || ln === 'v';
+                  })
+                  .map((el) => stripTechnicalMarkup(el.textContent || '', { singleLine: true }))
+                  .filter(Boolean)
+                  .slice(0, 60)
+              : Array.from(chartXml.matchAll(/<(?:a:t|c:v)(?:\s[^<>]*)?>([\s\S]*?)<\/(?:a:t|c:v)>/g))
+                  .map((m) => stripTechnicalMarkup(decodeXmlEntities(m[1]), { singleLine: true }))
+                  .filter(Boolean)
+                  .slice(0, 60);
             if (chartLabels.length > 0) {
               extras.push(`[Grafik Verisi]: ${chartLabels.join(' · ')}`);
             }
@@ -441,8 +678,8 @@ export async function extractFile(
       const slideNum = sf.match(/\d+/)?.[0] || String(i + 1);
       const slideIndexNum = parseInt(slideNum, 10) || i + 1;
       const xml = await zip.files[sf].async('text');
-      const { markdownTables, xmlWithoutTables } = extractPptxTablesAsMarkdown(xml);
-      const slideBody = extractXmlParagraphs(xmlWithoutTables);
+      const { paragraphs: slideParagraphs, markdownTables } = extractDrawingTextAndTables(xml);
+      const slideBody = slideParagraphs.join('\n');
       const relatedExtras = await extractRelatedExtras(slideNum);
 
       // Include speaker notes when available (ppt/notesSlides/notesSlideN.xml)
@@ -481,7 +718,7 @@ export async function extractFile(
       }
     }
 
-    const text = slides.join('\n\n').slice(0, 600_000);
+    const text = stripTechnicalMarkup(slides.join('\n\n').slice(0, 600_000));
     const hasRealContent = slides.some((s) => !s.includes('[UYARI: Bu slaytta yalnızca görsel/şekil bulunuyor'));
     if (!text.trim() || !hasRealContent) {
       throw new Error('Sunum dosyasında metin bulunamadı.');
@@ -508,42 +745,19 @@ export async function extractFile(
     const docXml = await zip.files['word/document.xml']?.async('text');
     if (!docXml) throw new Error('Word belgesi okunamadı.');
 
-    const extractParagraphText = (pXml: string): { text: string; headingLevel: number; isListItem: boolean } => {
-      const styleMatch = pXml.match(/<w:pStyle\b[^>]*w:val="([^"]+)"/i);
-      const styleVal = (styleMatch?.[1] || '').toLowerCase();
-      let headingLevel = 0;
-      if (/^(heading|baslik|başlık|title)[\s_-]*1$|^(title)$/.test(styleVal)) headingLevel = 1;
-      else if (/^(heading|baslik|başlık)[\s_-]*2$|^(subtitle)$/.test(styleVal)) headingLevel = 2;
-      else if (/^(heading|baslik|başlık)[\s_-]*[3-6]$/.test(styleVal)) headingLevel = 3;
-
-      const isListItem = /<w:numPr\b/.test(pXml);
-      const runs = Array.from(pXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g))
-        .map((m) => decodeXmlEntities(m[1]))
-        .join('')
-        .trim();
-      return { text: runs, headingLevel, isListItem };
+    const formatDocxParagraph = (info: { text: string; headingLevel: number; isListItem: boolean }): string => {
+      if (!info.text) return '';
+      if (info.headingLevel === 1) return `# ${info.text}`;
+      if (info.headingLevel === 2) return `## ${info.text}`;
+      if (info.headingLevel === 3) return `### ${info.text}`;
+      if (info.isListItem && !/^[-•*]\s/.test(info.text)) return `- ${info.text}`;
+      return info.text;
     };
 
-    const parseTableToMarkdown = (tblXml: string): string => {
-      const rows = tblXml.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) || [];
-      const parsedRows: string[][] = [];
-      for (const rowXml of rows) {
-        const cells = rowXml.match(/<w:tc\b[\s\S]*?<\/w:tc>/g) || [];
-        const cellTexts = cells.map((tc) => {
-          const pBlocks = tc.match(/<w:p\b[\s\S]*?<\/w:p>/g) || [];
-          const joined = pBlocks
-            .map((p) => extractParagraphText(p).text)
-            .filter(Boolean)
-            .join(' ');
-          return joined.replace(/\|/g, '/').trim();
-        });
-        if (cellTexts.some((c) => c.length > 0)) parsedRows.push(cellTexts);
-      }
+    const formatRowsToMarkdown = (parsedRows: string[][]): string => {
       if (parsedRows.length >= 2) {
         const colCount = Math.max(...parsedRows.map((r) => r.length));
-        const norm = parsedRows.map((r) =>
-          Array.from({ length: colCount }, (_, ci) => r[ci] || '—'),
-        );
+        const norm = parsedRows.map((r) => Array.from({ length: colCount }, (_, ci) => r[ci] || '—'));
         return [
           `| ${norm[0].join(' | ')} |`,
           `| ${Array.from({ length: colCount }, () => '---').join(' | ')} |`,
@@ -556,29 +770,112 @@ export async function extractFile(
       return '';
     };
 
-    // Preserve exact document order of paragraphs, headings, lists, and inline tables
-    const bodyMatch = docXml.match(/<w:body\b[^>]*>([\s\S]*?)<\/w:body>/i);
-    const bodyXml = bodyMatch ? bodyMatch[1] : docXml;
     const orderedBlocks: string[] = [];
-    const tokenRe = /<w:tbl\b[\s\S]*?<\/w:tbl>|<w:p\b[\s\S]*?<\/w:p>/g;
-    let m: RegExpExecArray | null;
-    while ((m = tokenRe.exec(bodyXml)) !== null) {
-      const frag = m[0];
-      if (frag.startsWith('<w:tbl')) {
-        const mdTable = parseTableToMarkdown(frag);
-        if (mdTable) orderedBlocks.push(mdTable);
-      } else {
-        const { text, headingLevel, isListItem } = extractParagraphText(frag);
-        if (!text) continue;
-        if (headingLevel === 1) orderedBlocks.push(`# ${text}`);
-        else if (headingLevel === 2) orderedBlocks.push(`## ${text}`);
-        else if (headingLevel === 3) orderedBlocks.push(`### ${text}`);
-        else if (isListItem && !/^[-•*]\s/.test(text)) orderedBlocks.push(`- ${text}`);
-        else orderedBlocks.push(text);
+    const parsedDoc = parseXmlSafely(docXml);
+
+    if (parsedDoc) {
+      const bodyEl =
+        Array.from(parsedDoc.getElementsByTagName('*')).find((el) => xmlLocalName(el) === 'body') ||
+        parsedDoc.documentElement;
+
+      const walkBodyContainer = (container: Element) => {
+        for (let i = 0; i < container.childNodes.length; i++) {
+          const child = container.childNodes[i];
+          if (child.nodeType !== 1) continue;
+          const el = child as Element;
+          const local = xmlLocalName(el);
+          if (local === 'p') {
+            const formatted = formatDocxParagraph(collectWordParagraphInfoFromNode(el));
+            if (formatted) orderedBlocks.push(formatted);
+          } else if (local === 'tbl') {
+            const rows: string[][] = [];
+            const trNodes = Array.from(el.childNodes).filter(
+              (n): n is Element => n.nodeType === 1 && xmlLocalName(n) === 'tr',
+            );
+            for (const tr of trNodes) {
+              const tcNodes = Array.from(tr.childNodes).filter(
+                (n): n is Element => n.nodeType === 1 && xmlLocalName(n) === 'tc',
+              );
+              const cellTexts = tcNodes.map((tc) => {
+                const pNodes = Array.from(tc.getElementsByTagName('*')).filter((n) => xmlLocalName(n) === 'p');
+                const joined = pNodes
+                  .map((p) => collectWordParagraphInfoFromNode(p).text)
+                  .filter(Boolean)
+                  .join(' ');
+                return sanitizeMarkdownTableCell(joined);
+              });
+              if (cellTexts.some((c) => c.length > 0)) rows.push(cellTexts);
+            }
+            const mdTable = formatRowsToMarkdown(rows);
+            if (mdTable) orderedBlocks.push(mdTable);
+          } else if (local === 'sdt' || local === 'sdtcontent') {
+            walkBodyContainer(el);
+          }
+        }
+      };
+
+      walkBodyContainer(bodyEl);
+    } else {
+      // Tag-boundary-safe regex fallback for malformed Word XML
+      const extractParagraphTextRegex = (
+        pXml: string,
+      ): { text: string; headingLevel: number; isListItem: boolean } => {
+        const styleMatch = pXml.match(/<w:pStyle\b[^>]*w:val="([^"]+)"/i);
+        const styleVal = (styleMatch?.[1] || '').toLowerCase();
+        let headingLevel = 0;
+        if (/^(heading|baslik|başlık|title)[\s_-]*1$|^(title)$/.test(styleVal)) headingLevel = 1;
+        else if (/^(heading|baslik|başlık)[\s_-]*2$|^(subtitle)$/.test(styleVal)) headingLevel = 2;
+        else if (/^(heading|baslik|başlık)[\s_-]*[3-6]$/.test(styleVal)) headingLevel = 3;
+
+        const isListItem = /<w:numPr\b/.test(pXml);
+        const tokenRe =
+          /<w:t(?:\s[^<>]*)?>([\s\S]*?)<\/w:t>|<w:(?:br|cr)\b[^<>]*\/?>|<w:tab\b[^<>]*\/?>/g;
+        let buf = '';
+        let tm: RegExpExecArray | null;
+        while ((tm = tokenRe.exec(pXml)) !== null) {
+          if (tm[1] !== undefined) buf += decodeXmlEntities(tm[1]);
+          else if (tm[0].startsWith('<w:tab')) buf += ' ';
+          else buf += '\n';
+        }
+        const text = buf
+          .split('\n')
+          .map((line) => stripTechnicalMarkup(line, { singleLine: true }))
+          .filter(Boolean)
+          .join('\n');
+        return { text, headingLevel, isListItem };
+      };
+
+      const bodyMatch = docXml.match(/<w:body\b[^>]*>([\s\S]*?)<\/w:body>/i);
+      const bodyXml = bodyMatch ? bodyMatch[1] : docXml;
+      const tokenRe = /<w:tbl\b[\s\S]*?<\/w:tbl>|<w:p(?:\s[^<>]*)?>[\s\S]*?<\/w:p>/g;
+      let m: RegExpExecArray | null;
+      while ((m = tokenRe.exec(bodyXml)) !== null) {
+        const frag = m[0];
+        if (frag.startsWith('<w:tbl')) {
+          const rows = frag.match(/<w:tr\b[\s\S]*?<\/w:tr>/g) || [];
+          const parsedRows: string[][] = [];
+          for (const rowXml of rows) {
+            const cells = rowXml.match(/<w:tc\b[\s\S]*?<\/w:tc>/g) || [];
+            const cellTexts = cells.map((tc) => {
+              const pBlocks = tc.match(/<w:p(?:\s[^<>]*)?>[\s\S]*?<\/w:p>/g) || [];
+              const joined = pBlocks
+                .map((p) => extractParagraphTextRegex(p).text)
+                .filter(Boolean)
+                .join(' ');
+              return sanitizeMarkdownTableCell(joined);
+            });
+            if (cellTexts.some((c) => c.length > 0)) parsedRows.push(cellTexts);
+          }
+          const mdTable = formatRowsToMarkdown(parsedRows);
+          if (mdTable) orderedBlocks.push(mdTable);
+        } else {
+          const formatted = formatDocxParagraph(extractParagraphTextRegex(frag));
+          if (formatted) orderedBlocks.push(formatted);
+        }
       }
     }
 
-    const text = orderedBlocks.join('\n\n').slice(0, 1_200_000);
+    const text = stripTechnicalMarkup(orderedBlocks.join('\n\n').slice(0, 1_200_000));
     if (!text.trim()) throw new Error('Word belgesi boş.');
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     const estPages = Math.max(1, Math.ceil(wordCount / 320));

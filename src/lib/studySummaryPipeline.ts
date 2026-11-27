@@ -16,6 +16,11 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import {
+  sanitizeSummaryContent,
+  sanitizeSummarySection,
+  stripTechnicalMarkup,
+} from '@/lib/academicTextSanitizer';
+import {
   analyzeDocumentForSummary,
   type AnalyzedDocumentPlan,
 } from '@/lib/studyDocumentAnalyzer';
@@ -200,8 +205,8 @@ function sanitizeSectionsArray(raw: unknown, defaultPageRange?: string): Summary
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
     const rec = item as Record<string, unknown>;
-    const heading = String(rec.heading || rec.title || '').trim();
-    const content = String(rec.content || '').trim();
+    const heading = stripTechnicalMarkup(String(rec.heading || rec.title || ''), { singleLine: true });
+    const content = stripTechnicalMarkup(String(rec.content || ''));
     if (!heading || content.length < 40) continue;
     const cpRaw = rec.checkpointQuestion as Record<string, unknown> | undefined;
     const checkpointQuestion =
@@ -210,27 +215,42 @@ function sanitizeSectionsArray(raw: unknown, defaultPageRange?: string): Summary
       Array.isArray(cpRaw.options) &&
       cpRaw.options.length >= 2
         ? {
-            question: String(cpRaw.question).trim(),
-            options: cpRaw.options.map(String).slice(0, 4),
+            question: stripTechnicalMarkup(String(cpRaw.question), { singleLine: true }),
+            options: cpRaw.options.map((o) => stripTechnicalMarkup(String(o || ''), { singleLine: true })).slice(0, 4),
             correctIndex: Math.max(0, Math.min(3, Number(cpRaw.correctIndex) || 0)),
-            explanation: cpRaw.explanation ? String(cpRaw.explanation).trim() : undefined,
+            explanation: cpRaw.explanation
+              ? stripTechnicalMarkup(String(cpRaw.explanation), { singleLine: true })
+              : undefined,
           }
         : undefined;
 
-    out.push({
-      index: out.length,
-      heading,
-      pageRange: rec.pageRange ? String(rec.pageRange).trim() : defaultPageRange,
-      content,
-      takeaways: Array.isArray(rec.takeaways)
-        ? rec.takeaways.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 5)
-        : [],
-      commonPitfalls: Array.isArray(rec.commonPitfalls)
-        ? rec.commonPitfalls.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 4)
-        : undefined,
-      deepResearchNote: rec.deepResearchNote ? String(rec.deepResearchNote).trim() : undefined,
-      checkpointQuestion,
-    });
+    out.push(
+      sanitizeSummarySection(
+        {
+          index: out.length,
+          heading,
+          pageRange: rec.pageRange
+            ? stripTechnicalMarkup(String(rec.pageRange), { singleLine: true })
+            : defaultPageRange,
+          content,
+          takeaways: Array.isArray(rec.takeaways)
+            ? rec.takeaways
+                .map((s) => stripTechnicalMarkup(String(s || ''), { singleLine: true }))
+                .filter(Boolean)
+                .slice(0, 5)
+            : [],
+          commonPitfalls: Array.isArray(rec.commonPitfalls)
+            ? rec.commonPitfalls
+                .map((s) => stripTechnicalMarkup(String(s || ''), { singleLine: true }))
+                .filter(Boolean)
+                .slice(0, 4)
+            : undefined,
+          deepResearchNote: rec.deepResearchNote ? stripTechnicalMarkup(String(rec.deepResearchNote)) : undefined,
+          checkpointQuestion,
+        },
+        out.length,
+      ),
+    );
   }
   return out;
 }
@@ -240,18 +260,24 @@ function getDetailedDisciplinePromptBlock(
   courseName: string,
 ): string {
   switch (family) {
+    case 'history':
+      return `DERS TÜRÜ — TARİH & İKTİSAT TARİHİ / ${courseName.toUpperCase()}:
+- YALNIZCA kaynak belgede geçen tarihsel dönemleri, toplumsal sınıfları, devlet/maliye kurumlarını, hukuki-iktisadi ilkeleri, kronolojiyi ve neden–sonuç ilişkilerini kendi tarihsel bağlamında anlat.
+- Selçuklu, İlhanlı, Osmanlı, Bizans gibi tarihsel devlet/dönemleri birbirine ASLA karıştırma; kaynakta geçmeyen devlet, kişi veya tarihleri KESİNLİKLE ekleme.
+- Modern mikro/makro iktisat başlıklarını ve kavramlarını (örn. "Aktarım Mekanizması", "Piyasa Dengesi", IS-LM, Keynesyen, Monetarist, arz-talep grafiği) kaynak metinde açıkça geçmiyorsa ASLA üretme.
+- Kaynakta bulunmayan matematiksel formül uydurma; karşılaştırma tablolarında yalnızca belgede anlatılan kurum ve dönemleri kıyasla.`;
     case 'economics':
       return `DERS TÜRÜ — İKTİSAT / ${courseName.toUpperCase()}:
-- Ekonomik teorileri, iktisadi modelleri ve klasik/modern yaklaşımları (örn. Klasik, Keynesyen, Monetarist, Yeni Klasik vb. metinde geçenleri) varsayımları ve mekanizmalarıyla ayrıntılı açıkla.
-- Metindeki TÜM formülleri ($...$ / $$...$$) koru, her değişkenin neyi temsil ettiğini ve formülün ekonomik yorumunu açıkla.
-- Grafikleri, eğri kaymalarını (arz-talep, IS-LM, para piyasası vb.) ve ekonomik ilişkileri yönleriyle birlikte yorumla.
+- YALNIZCA kaynak belgede gerçekten geçen iktisadi teorileri, varsayımları ve mekanizmaları derinlemesine açıkla; kaynakta yer almayan başka alt ders kavramlarını veya modelleri ASLA ekleme.
+- Metindeki TÜM formülleri ($...$ / $$...$$) koru, her değişkenin neyi temsil ettiğini ve formülün ekonomik yorumunu açıkla; kaynakta olmayan denklem uydurma.
+- Yalnızca kaynakta bulunan grafikleri, eğri kaymalarını ve ekonomik ilişkileri yönleriyle birlikte yorumla.
 - Teoriler arasındaki farklılıkları karşılaştırmalı tabloyla göster ve sayısal/uygulamalı örnekleri eksiksiz koru.`;
     case 'law':
       return `DERS TÜRÜ — HUKUK / ${courseName.toUpperCase()}:
 - Hukuki kavramları ve tanımları doktrinel kesinlikle eksiksiz ver.
 - Kanun hükümlerini, madde referanslarını, hukuki ayrımları, kurucu şartlar ve unsurları madde madde açıkla.
 - İstisnaları, zamanaşımı / hak düşürücü süreleri ve hukuki sonuçları/yaptırımları asla atlama.
-- Örnek olayları ve vaka uygulamalarını koru; kaynakta bulunmayan uydurma matematik formülü KESİNLİKLE ekleme.`;
+- Örnek olayları ve vaka uygulamalarını koru; kaynakta bulunmayan uydurma matematik formülü veya başka ders terimleri KESİNLİKLE ekleme.`;
     case 'statistics':
       return `DERS TÜRÜ — İSTATİSTİK & EKONOMETRİ / ${courseName.toUpperCase()}:
 - Tüm istatistiksel/ekonometrik formülleri LaTeX ($...$ / $$...$$) ile yaz; her değişkenin/parametrenin anlamını açıkla.
@@ -266,7 +292,7 @@ function getDetailedDisciplinePromptBlock(
 - Etiyoloji, patofizyoloji basamaklarını, klinik bulguları, ayırıcı tanı kriterlerini ve tedavi/bakım ilkelerini sistemli biçimde açıkla.`;
     default:
       return `DERS TÜRÜ — AKADEMİK ÇALIŞMA / ${courseName.toUpperCase()}:
-- Ana ve alt başlıkları koru; akademik tanımları, kuramsal yaklaşımları, neden–sonuç ilişkilerini, varsa formül/tablo/grafik açıklamalarını ve somut örnekleri öğrencinin başka kaynağa dönmeden öğrenebileceği derinlikte anlat.`;
+- Yalnızca kaynak belgedeki ana ve alt başlıkları koru; akademik tanımları, kuramsal yaklaşımları, neden–sonuç ilişkilerini, varsa formül/tablo/grafik açıklamalarını ve somut örnekleri öğrencinin başka kaynağa dönmeden öğrenebileceği derinlikte anlat.`;
   }
 }
 
@@ -324,9 +350,10 @@ ${settings.customPrompt?.trim() ? `\nKULLANICININ ÖZEL İSTEĞİ: ${settings.cu
 ZORUNLU DERİNLİK VE DOĞRULUK STANDARTLARI:
 1. Belgeyi kısaltmak için önemli bilgileri ASLA silme; her kavramı yalnızca adıyla geçmek yerine ne anlama geldiğini, nasıl işlediğini ve hangi koşulda geçerli olduğunu anlat.
 2. Her bölüm ${plan.summaryPlan.minWordsPerSection}–${plan.summaryPlan.maxWordsPerSection} kelime arası olsun ve alt başlıkları (\`####\`), tanım kutularını, varsa formül + değişken açıklamalarını, tablo/grafik yorumlarını, somut örnekleri ve "Sınavda Dikkat Edilecek Noktalar" vurgusunu içersin.
-3. Kaynakta bulunmayan bilgileri kaynakta varmış gibi uydurma. Pedagojik netlik için ek açıklama gerekiyorsa mutlaka **[Ek Açıklama]** etiketiyle kaynaktan ayır.
-4. Her bölümde kaynak sayfa/slayt aralığını ("pageRange") mutlaka koru.
-5. Bu parça için ${targetSecRange} eksiksiz bölüm üret ve YALNIZCA geçerli JSON döndür:
+3. KONU BÜTÜNLÜĞÜ VE KAYNAK DOĞRULAMASI: Her başlık, paragraf, tarih, kurum/devlet adı ve neden–sonuç ilişkisi YALNIZCA yüklenen kaynak belgeden çıkmalıdır. Başka derslerin kavramlarını (örneğin tarih dersinde "Aktarım Mekanizması ve Piyasa Dengesi" gibi ilgisiz başlıklar) veya kaynakta bulunmayan bilgileri KESİNLİKLE ekleme. Pedagojik netlik için ek açıklama gerekiyorsa mutlaka **[Ek Açıklama]** etiketiyle kaynaktan ayır.
+4. TEKNİK KOD YASAĞI: Çıktıda hiçbir XML/OOXML veya HTML etiketi (\`</a:r>\`, \`<a:br>\`, \`<a:rPr...>\`, \`</a:t>\`, \`<a:p>\`, \`<div>\`, \`<span>\`, \`<br>\`) kesinlikle yer almamalıdır.
+5. Her bölümde kaynak sayfa/slayt aralığını ("pageRange") mutlaka koru.
+6. Bu parça için ${targetSecRange} eksiksiz bölüm üret ve YALNIZCA geçerli JSON döndür:
 {
   "overviewSnippet": "Bu parçanın kapsamını anlatan 2-3 cümle",
   "keyPoints": ["Bu parçadan 3-5 somut ana çıkarım"],
@@ -528,7 +555,22 @@ export async function runMultiStageAcademicSummaryPipeline(params: {
   buildPdfFn?: (summary: SummaryContent, meta: { title: string; course: string; createdAt: string }) => Promise<Uint8Array | undefined>;
   signal?: AbortSignal;
 }): Promise<MultiStageSummaryResult> {
-  const { jobId, bundle, settings, onProgress, onCheckpoint, signal } = params;
+  const { jobId, settings, onProgress, onCheckpoint, signal } = params;
+  // Clean any residual OOXML/XML/HTML tags from legacy/cached sources right at pipeline ingress
+  const cleanedCombined = stripTechnicalMarkup(params.bundle.combinedText || '');
+  const bundle: ProcessedStudyBundle =
+    cleanedCombined !== (params.bundle.combinedText || '')
+      ? {
+          ...params.bundle,
+          combinedText: cleanedCombined,
+          totalChars: cleanedCombined.length,
+          totalWords: cleanedCombined.trim() ? cleanedCombined.trim().split(/\s+/).filter(Boolean).length : params.bundle.totalWords,
+          sources: (params.bundle.sources || []).map((s) => ({
+            ...s,
+            text: stripTechnicalMarkup(s.text || ''),
+          })),
+        }
+      : params.bundle;
 
   const checkAborted = () => {
     if (signal?.aborted) {
@@ -963,7 +1005,8 @@ export async function runMultiStageAcademicSummaryPipeline(params: {
     documentProfile: plan.profile,
   });
 
-  let draftSummary = buildSummaryObject(workingSections);
+  let draftSummary = sanitizeSummaryContent(buildSummaryObject(workingSections));
+  workingSections = draftSummary.sections;
   let qualityAudit = auditSummaryQuality({
     summary: draftSummary,
     bundle,
@@ -977,7 +1020,44 @@ export async function runMultiStageAcademicSummaryPipeline(params: {
 
   let repairedCount = 0;
 
-  // Targeted Quality Repair ONLY for uncovered headings or weak sections
+  // Step 8A: Immediately excise or replace any OFF-TOPIC / foreign-discipline sections BEFORE finalizing!
+  const offTopicIndices = new Set(qualityAudit.offTopicSectionIndices || []);
+  if (offTopicIndices.size > 0) {
+    workingSections = workingSections
+      .filter((_, idx) => !offTopicIndices.has(idx))
+      .map((sec, idx) => ({ ...sec, index: idx }));
+    repairedCount += offTopicIndices.size;
+
+    // If removing off-topic sections emptied the summary, rebuild cleanly from raw source outline
+    if (workingSections.length === 0) {
+      const rebuilt = generateClientStudyMaterial({
+        materialType: 'summary',
+        noteTitle: bundle.title,
+        course: plan.profile.courseName,
+        noteContext: bundle.combinedText,
+        totalPagesOrSlides: totalPages,
+        summaryDepth: settings.summaryDepth,
+        examMode: settings.examMode,
+        deepResearch: settings.deepResearch,
+      });
+      workingSections = sanitizeSectionsArray(rebuilt.sections);
+    }
+
+    draftSummary = sanitizeSummaryContent(buildSummaryObject(workingSections));
+    workingSections = draftSummary.sections;
+    qualityAudit = auditSummaryQuality({
+      summary: draftSummary,
+      bundle,
+      profile: plan.profile,
+      outline: plan.outline,
+      formulas: plan.formulas,
+      plan: plan.summaryPlan,
+      repairedSectionsCount: repairedCount,
+      duplicateRemovedCount: dupParaRemoved,
+    });
+  }
+
+  // Step 8B: Targeted Quality Repair ONLY for uncovered headings or weak sections
   const missingHeadingsToRepair = qualityAudit.missingHeadings.slice(0, 5);
   const weakIndicesToRepair = qualityAudit.weakSectionIndices.slice(0, 4);
 
@@ -1101,7 +1181,8 @@ export async function runMultiStageAcademicSummaryPipeline(params: {
 
     const postDedup = deduplicateSummaryParagraphs(deduplicateSummarySections(workingSections));
     workingSections = postDedup.sections;
-    draftSummary = buildSummaryObject(workingSections);
+    draftSummary = sanitizeSummaryContent(buildSummaryObject(workingSections));
+    workingSections = draftSummary.sections;
     qualityAudit = auditSummaryQuality({
       summary: draftSummary,
       bundle,
@@ -1112,6 +1193,26 @@ export async function runMultiStageAcademicSummaryPipeline(params: {
       repairedSectionsCount: repairedCount,
       duplicateRemovedCount: dupParaRemoved + postDedup.removedCount,
     });
+
+    // Final safety pass: drop any newly repaired section that still failed off-topic validation
+    if ((qualityAudit.offTopicSectionIndices || []).length > 0) {
+      const badSet = new Set(qualityAudit.offTopicSectionIndices);
+      const filtered = workingSections.filter((_, idx) => !badSet.has(idx));
+      if (filtered.length > 0) {
+        workingSections = filtered.map((sec, idx) => ({ ...sec, index: idx }));
+        draftSummary = sanitizeSummaryContent(buildSummaryObject(workingSections));
+        qualityAudit = auditSummaryQuality({
+          summary: draftSummary,
+          bundle,
+          profile: plan.profile,
+          outline: plan.outline,
+          formulas: plan.formulas,
+          plan: plan.summaryPlan,
+          repairedSectionsCount: repairedCount + badSet.size,
+          duplicateRemovedCount: dupParaRemoved + postDedup.removedCount,
+        });
+      }
+    }
   }
 
   checkAborted();
@@ -1140,7 +1241,7 @@ export async function runMultiStageAcademicSummaryPipeline(params: {
       : 'local';
 
   const nowIso = new Date().toISOString();
-  const finalSummary: SummaryContent = {
+  const finalSummary: SummaryContent = sanitizeSummaryContent({
     ...draftSummary,
     qualityAudit,
     documentProfile: plan.profile,
@@ -1165,7 +1266,7 @@ export async function runMultiStageAcademicSummaryPipeline(params: {
         sectionCount: workingSections.length,
       },
     },
-  };
+  });
 
   // ==================== STAGE 10: PDF OLUŞTURULUYOR ====================
   onProgress?.({

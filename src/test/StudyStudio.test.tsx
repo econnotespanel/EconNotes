@@ -641,7 +641,7 @@ describe('Study AI Orchestration Phase 2 (Legacy Edge Enrichment & Tier-2 Map-Re
       course: 'Anayasa Hukuku',
       deepResearch: true,
     });
-    expect(formattedFallback.content).toContain('Kavramsal Öz ve Ana Tez');
+    expect(formattedFallback.content).toContain('Hukuki Çerçeve, Unsurlar ve Kapsam');
     expect(formattedFallback.commonPitfalls?.length).toBeGreaterThanOrEqual(1);
   });
 });

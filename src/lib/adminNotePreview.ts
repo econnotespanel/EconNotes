@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { supabase, SUPABASE_URL } from '@/integrations/supabase/client';
+import { stripTechnicalMarkup } from '@/lib/academicTextSanitizer';
 import { NOTE_SELECT } from '@/lib/noteColumns';
 import {
   extractStoragePathCandidates,
@@ -286,20 +287,27 @@ function isPreviewableMedia(fileName: string): boolean {
 }
 
 function extractDrawingParagraphs(xml: string): string[] {
+  const extractRuns = (block: string): string => {
+    const tokenRe =
+      /<a:t(?:\s[^<>]*)?>([\s\S]*?)<\/a:t>|<a:br\b[^<>]*>(?:[\s\S]*?<\/a:br>)?|<a:br\b[^<>]*\/>|<a:tab\b[^<>]*\/?>(?:<\/a:tab>)?/g;
+    let buf = '';
+    let m: RegExpExecArray | null;
+    while ((m = tokenRe.exec(block)) !== null) {
+      if (m[1] !== undefined) buf += decodeXmlEntities(m[1]);
+      else if (m[0].startsWith('<a:br')) buf += ' ';
+      else buf += ' ';
+    }
+    return stripTechnicalMarkup(buf, { singleLine: true });
+  };
+
   const paragraphs: string[] = [];
-  const pBlocks = xml.match(/<a:p\b[\s\S]*?<\/a:p>/g) || [];
+  const pBlocks = xml.match(/<a:p(?:\s[^<>]*)?>[\s\S]*?<\/a:p>/g) || [];
   for (const pBlock of pBlocks) {
-    const runs = Array.from(pBlock.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g))
-      .map((m) => decodeXmlEntities(m[1]))
-      .join('');
-    const trimmed = runs.replace(/\s+/g, ' ').trim();
+    const trimmed = extractRuns(pBlock);
     if (trimmed) paragraphs.push(trimmed);
   }
   if (paragraphs.length === 0) {
-    const loose = Array.from(xml.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g))
-      .map((m) => decodeXmlEntities(m[1]).trim())
-      .filter(Boolean)
-      .join(' ');
+    const loose = extractRuns(xml);
     if (loose) paragraphs.push(loose);
   }
   return paragraphs;
@@ -397,8 +405,8 @@ export async function parsePptxForPreview(arrayBuffer: ArrayBuffer): Promise<Par
             }
           } else if (/^ppt\/charts\/chart\d+\.xml$/i.test(normalized) && zip.files[normalized]) {
             const chartXml = await zip.files[normalized].async('text');
-            const chartVals = Array.from(chartXml.matchAll(/<(?:a:t|c:v)[^>]*>([\s\S]*?)<\/(?:a:t|c:v)>/g))
-              .map((m) => decodeXmlEntities(m[1]).trim())
+            const chartVals = Array.from(chartXml.matchAll(/<(?:a:t|c:v)(?:\s[^<>]*)?>([\s\S]*?)<\/(?:a:t|c:v)>/g))
+              .map((m) => stripTechnicalMarkup(decodeXmlEntities(m[1]), { singleLine: true }))
               .filter(Boolean)
               .slice(0, 40);
             if (chartVals.length > 0) {
@@ -496,12 +504,17 @@ export async function parseDocxForPreview(arrayBuffer: ArrayBuffer): Promise<Par
     }
   }
 
-  const extractWordParagraphText = (pXml: string): string =>
-    Array.from(pXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g))
-      .map((m) => decodeXmlEntities(m[1]))
-      .join('')
-      .replace(/\s+/g, ' ')
-      .trim();
+  const extractWordParagraphText = (pXml: string): string => {
+    const tokenRe =
+      /<w:t(?:\s[^<>]*)?>([\s\S]*?)<\/w:t>|<w:(?:br|cr)\b[^<>]*\/?>|<w:tab\b[^<>]*\/?>/g;
+    let buf = '';
+    let tm: RegExpExecArray | null;
+    while ((tm = tokenRe.exec(pXml)) !== null) {
+      if (tm[1] !== undefined) buf += decodeXmlEntities(tm[1]);
+      else buf += ' ';
+    }
+    return stripTechnicalMarkup(buf, { singleLine: true });
+  };
 
   const blocks: ParsedDocxBlock[] = [];
   let wordCount = 0;

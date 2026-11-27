@@ -309,6 +309,14 @@ class SummaryJobManager {
    * from Supabase + IndexedDB so refreshing the page or switching tabs NEVER loses an analysis task.
    */
   public async hydrateForUser(userId: string): Promise<SummaryJobState[]> {
+    // Strictly isolate users: never keep a previous user's active job or cached PDF in memory
+    if (this.activeJob && this.activeJob.userId !== userId) {
+      this.activeJob = null;
+      this.completedMaterial = null;
+      this.lastPdfBytes = null;
+      this.lastPdfMaterialId = null;
+    }
+
     const localAll = (await idbGetAll<SummaryJobState>(STORE_JOBS)).filter((j) => j.userId === userId);
     const memAll = Array.from(memoryJobStore.values()).filter((j) => j.userId === userId);
     const mergedMap = new Map<string, SummaryJobState>();
@@ -403,13 +411,17 @@ class SummaryJobManager {
     onCompleted?: (material: StudyMaterial, job: SummaryJobState) => void;
   }): Promise<{ job: SummaryJobState; promise: Promise<StudyMaterial | null>; deduplicated: boolean }> {
     const fp = params.bundle.sourceFingerprint || `fp_${params.bundle.title}_${params.bundle.totalChars}`;
+    const sortedIdsKey = [...(params.bundle.sourceIds || params.bundle.sources.map((s) => s.id))].sort().join('|');
+    const activeIdsKey = [...(this.activeJob?.sourceIds || [])].sort().join('|');
 
-    // Deduplicate concurrent active job for the same user + same source fingerprint
+    // Deduplicate concurrent active job strictly for the same user + notebook + source fingerprint + exact source set
     if (
       !params.forceNew &&
       this.activeJob &&
       this.activeJob.userId === params.userId &&
+      (this.activeJob.notebookId || '') === (params.notebookId || '') &&
       this.activeJob.sourceFingerprint === fp &&
+      activeIdsKey === sortedIdsKey &&
       (this.activeJob.status === 'queued' || this.activeJob.status === 'processing')
     ) {
       const existingPromise = this.runningPromises.get(this.activeJob.id);

@@ -112,6 +112,10 @@ export interface SummaryQualityAuditReport {
   coveredHeadings: string[];
   missingHeadings: string[];
   weakSectionIndices: number[];
+  offTopicSectionIndices?: number[];
+  offTopicHeadings?: string[];
+  xmlLeakCount?: number;
+  unverifiedHistoricalEntities?: string[];
   repairedSectionsCount: number;
   duplicateRemovedCount: number;
   groundingScorePct: number;
@@ -134,7 +138,7 @@ export interface SummaryDocumentProfile {
   figuresOrChartsCount: number;
   unreadablePages: number[];
   warnings: string[];
-  disciplineFamily: 'law' | 'economics' | 'statistics' | 'engineering' | 'medical' | 'general';
+  disciplineFamily: 'law' | 'economics' | 'history' | 'statistics' | 'engineering' | 'medical' | 'general';
   courseName: string;
   sourceNames: string[];
 }

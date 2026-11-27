@@ -1,3 +1,4 @@
+import { stripTechnicalMarkup } from '@/lib/academicTextSanitizer';
 import {
   detectCourseIdentity,
   isGenericCoursePlaceholder,
@@ -129,7 +130,17 @@ export function extractFormulasFromText(text: string, maxFormulas = 24): string[
   return formulas;
 }
 
-export function analyzeSingleSource(src: ExtractedSourceItem): AnalyzedSourceProfile {
+export function analyzeSingleSource(rawSrc: ExtractedSourceItem): AnalyzedSourceProfile {
+  const cleanText = stripTechnicalMarkup(rawSrc.text || '');
+  const src: ExtractedSourceItem =
+    cleanText !== (rawSrc.text || '')
+      ? {
+          ...rawSrc,
+          text: cleanText,
+          wordCount: cleanText.trim() ? cleanText.trim().split(/\s+/).filter(Boolean).length : rawSrc.wordCount,
+          charCount: cleanText.length,
+        }
+      : rawSrc;
   // Strictly avoid recycling unconfirmed/cached `src.course` from older sessions onto uploaded files or pasted notes.
   // Only treat `src.course` as an explicit signal when explicitly confirmed by user OR originating from a catalog note
   // (where `detectCourseIdentity` still cross-checks it against the document's real title and content!).
@@ -213,6 +224,8 @@ export function enrichSourceWithCourseDetection(src: ExtractedSourceItem): Extra
 export function buildCanonicalSourceAnalysis(params: {
   sources: ExtractedSourceItem[];
   allMaterials?: StudyMaterial[];
+  /** When false (used for fresh summary generation), prior AI summaries are NEVER injected into canonicalDigest. */
+  includePriorSummarySync?: boolean;
 }): CanonicalSourceAnalysis {
   const validSources = params.sources.filter(
     (s) => (s.text && s.text.trim().length > 0) || (s.images?.length || 0) > 0 || Boolean(s.audio),
@@ -291,15 +304,17 @@ export function buildCanonicalSourceAnalysis(params: {
       .filter((w) => w.length >= 4),
   );
 
-  const candidateSummary =
-    (params.allMaterials || []).find(
-      (m) =>
-        m.material_type === 'summary' &&
-        (m.content?.metadata?.sourceMode !== 'local' || Boolean(m.content?.qualityAudit?.passed)) &&
-        (m.content?.metadata?.sourceFingerprint === fingerprint ||
-          (m.exam_profile as Record<string, unknown> | null | undefined)?.sourceFingerprint ===
-            fingerprint),
-    ) || null;
+  const allowPriorSummarySync = params.includePriorSummarySync !== false;
+  const candidateSummary = allowPriorSummarySync
+    ? (params.allMaterials || []).find(
+        (m) =>
+          m.material_type === 'summary' &&
+          (m.content?.metadata?.sourceMode !== 'local' || Boolean(m.content?.qualityAudit?.passed)) &&
+          (m.content?.metadata?.sourceFingerprint === fingerprint ||
+            (m.exam_profile as Record<string, unknown> | null | undefined)?.sourceFingerprint ===
+              fingerprint),
+      ) || null
+    : null;
 
   const isSummaryGroundedInSource = (mat: StudyMaterial | null): boolean => {
     if (!mat?.content?.sections || mat.content.sections.length === 0) return false;

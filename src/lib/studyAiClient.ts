@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { sanitizeSummaryContent, stripTechnicalMarkup } from '@/lib/academicTextSanitizer';
 import {
   formatSectionContentForFallback,
   generateClientStudyMaterial,
@@ -687,21 +688,27 @@ function sanitizeAiSummarySections(raw: unknown): SummarySection[] {
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue;
     const rec = item as Record<string, unknown>;
-    const heading = String(rec.heading || rec.title || '').trim();
-    const content = String(rec.content || '').trim();
+    const heading = stripTechnicalMarkup(String(rec.heading || rec.title || ''), { singleLine: true });
+    const content = stripTechnicalMarkup(String(rec.content || ''));
     if (!heading || content.length < 30) continue;
     cleaned.push({
       index: cleaned.length,
       heading,
-      pageRange: rec.pageRange ? String(rec.pageRange).trim() : undefined,
+      pageRange: rec.pageRange ? stripTechnicalMarkup(String(rec.pageRange), { singleLine: true }) : undefined,
       content,
       takeaways: Array.isArray(rec.takeaways)
-        ? rec.takeaways.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 5)
+        ? rec.takeaways
+            .map((s) => stripTechnicalMarkup(String(s || ''), { singleLine: true }))
+            .filter(Boolean)
+            .slice(0, 5)
         : [],
       commonPitfalls: Array.isArray(rec.commonPitfalls)
-        ? rec.commonPitfalls.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 3)
+        ? rec.commonPitfalls
+            .map((s) => stripTechnicalMarkup(String(s || ''), { singleLine: true }))
+            .filter(Boolean)
+            .slice(0, 3)
         : undefined,
-      deepResearchNote: rec.deepResearchNote ? String(rec.deepResearchNote).trim() : undefined,
+      deepResearchNote: rec.deepResearchNote ? stripTechnicalMarkup(String(rec.deepResearchNote)) : undefined,
     });
   }
   return cleaned;
@@ -2132,7 +2139,11 @@ export async function generateMaterialWithOrchestration(
   onProgress?: ProgressCallback,
 ): Promise<OrchestrationResult> {
   if (settings.materialType === 'summary') {
-    return generateSummaryMapReduce(bundle, settings, onProgress);
+    const summaryRes = await generateSummaryMapReduce(bundle, settings, onProgress);
+    return {
+      ...summaryRes,
+      content: sanitizeSummaryContent(summaryRes.content as SummaryContent),
+    };
   }
 
   onProgress?.(

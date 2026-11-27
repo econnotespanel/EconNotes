@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Check, Copy } from 'lucide-react';
+import { sanitizeMarkdownContent } from '@/lib/academicTextSanitizer';
 import {
   protectInlineMathForMarkdown,
   renderLatexToMathML,
@@ -120,7 +121,8 @@ const MarkdownChunk: React.FC<{ text: string; inlineOnly?: boolean }> = ({ text,
 };
 
 export const AcademicMarkdown: React.FC<AcademicMarkdownProps> = ({ content, className }) => {
-  const segments = useMemo(() => segmentAcademicMarkdown(content), [content]);
+  const safeContent = useMemo(() => sanitizeMarkdownContent(content || ''), [content]);
+  const segments = useMemo(() => segmentAcademicMarkdown(safeContent), [safeContent]);
 
   return (
     <div className={cn('academic-markdown space-y-2 text-sm leading-relaxed text-foreground', className)}>
@@ -142,15 +144,18 @@ export const AcademicMarkdown: React.FC<AcademicMarkdownProps> = ({ content, cla
 
         if (seg.type === 'table') {
           return (
-            <div key={idx} className="academic-table-wrap my-3 overflow-x-auto rounded-xl border border-border/80 bg-background/70">
-              <table className="w-full border-collapse text-xs sm:text-sm">
+            <div
+              key={idx}
+              className="academic-table-wrap my-3 max-w-full overflow-x-auto rounded-xl border border-border/80 bg-background/70"
+            >
+              <table className="w-full min-w-[420px] table-auto border-collapse text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/70">
                     {seg.headers.map((header, hIdx) => (
                       <th
                         key={hIdx}
                         style={{ textAlign: seg.alignments[hIdx] }}
-                        className="px-3 py-2 font-semibold text-foreground"
+                        className="px-3 py-2 align-top font-semibold text-foreground break-words"
                       >
                         <MarkdownChunk text={header} inlineOnly />
                       </th>
@@ -164,7 +169,7 @@ export const AcademicMarkdown: React.FC<AcademicMarkdownProps> = ({ content, cla
                         <td
                           key={cIdx}
                           style={{ textAlign: seg.alignments[cIdx] }}
-                          className="px-3 py-2 align-middle"
+                          className="px-3 py-2 align-top break-words leading-relaxed"
                         >
                           <MarkdownChunk text={cell} inlineOnly />
                         </td>

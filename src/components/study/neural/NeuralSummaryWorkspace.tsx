@@ -39,6 +39,7 @@ import {
   downloadAcademicSummaryPdf,
   saveAcademicSummaryPdfToDevice,
 } from '@/lib/academicSummaryPdf';
+import { sanitizeSummaryContent } from '@/lib/academicTextSanitizer';
 import { downloadLectureSummary } from '@/lib/liveLectureReport';
 import { buildTopicPriorityGuide } from '@/lib/studySourceProcessor';
 import { summaryJobManager } from '@/lib/studySummaryJobManager';
@@ -85,52 +86,53 @@ export function NeuralSummaryWorkspace({
 }: NeuralSummaryWorkspaceProps) {
   const { profile } = useAuth();
   const c: SummaryContent = useMemo(
-    () => ({
-      overview: material.content?.overview || '',
-      disciplineTag: material.content?.disciplineTag,
-      keyPoints: Array.isArray(material.content?.keyPoints) ? material.content.keyPoints : [],
-      sections: Array.isArray(material.content?.sections) ? material.content.sections : [],
-      teacherEmphasis: Array.isArray(material.content?.teacherEmphasis)
-        ? material.content.teacherEmphasis
-        : [],
-      comparativeMatrix: material.content?.comparativeMatrix,
-      deepResearchTopics: Array.isArray(material.content?.deepResearchTopics)
-        ? material.content.deepResearchTopics
-        : [],
-      keyTerms: Array.isArray(material.content?.keyTerms) ? material.content.keyTerms : [],
-      memorizeVsInterpret:
-        material.content?.memorizeVsInterpret &&
-        (Array.isArray(material.content.memorizeVsInterpret.memorize) ||
-          Array.isArray(material.content.memorizeVsInterpret.interpret))
-          ? {
-              memorize: Array.isArray(material.content.memorizeVsInterpret.memorize)
-                ? material.content.memorizeVsInterpret.memorize
-                : [],
-              interpret: Array.isArray(material.content.memorizeVsInterpret.interpret)
-                ? material.content.memorizeVsInterpret.interpret
-                : [],
-            }
+    () =>
+      sanitizeSummaryContent({
+        overview: material.content?.overview || '',
+        disciplineTag: material.content?.disciplineTag,
+        keyPoints: Array.isArray(material.content?.keyPoints) ? material.content.keyPoints : [],
+        sections: Array.isArray(material.content?.sections) ? material.content.sections : [],
+        teacherEmphasis: Array.isArray(material.content?.teacherEmphasis)
+          ? material.content.teacherEmphasis
+          : [],
+        comparativeMatrix: material.content?.comparativeMatrix,
+        deepResearchTopics: Array.isArray(material.content?.deepResearchTopics)
+          ? material.content.deepResearchTopics
+          : [],
+        keyTerms: Array.isArray(material.content?.keyTerms) ? material.content.keyTerms : [],
+        memorizeVsInterpret:
+          material.content?.memorizeVsInterpret &&
+          (Array.isArray(material.content.memorizeVsInterpret.memorize) ||
+            Array.isArray(material.content.memorizeVsInterpret.interpret))
+            ? {
+                memorize: Array.isArray(material.content.memorizeVsInterpret.memorize)
+                  ? material.content.memorizeVsInterpret.memorize
+                  : [],
+                interpret: Array.isArray(material.content.memorizeVsInterpret.interpret)
+                  ? material.content.memorizeVsInterpret.interpret
+                  : [],
+              }
+            : undefined,
+        summarySynthesis: material.content?.summarySynthesis
+          ? String(material.content.summarySynthesis)
           : undefined,
-      summarySynthesis: material.content?.summarySynthesis
-        ? String(material.content.summarySynthesis)
-        : undefined,
-      studyChecklist: Array.isArray(material.content?.studyChecklist)
-        ? material.content.studyChecklist
-        : [],
-      studyPriorityMap: Array.isArray(material.content?.studyPriorityMap)
-        ? material.content.studyPriorityMap
-        : undefined,
-      extractionNotices: Array.isArray(material.content?.extractionNotices)
-        ? material.content.extractionNotices
-        : [],
-      sourceCourseBreakdown: Array.isArray(material.content?.sourceCourseBreakdown)
-        ? material.content.sourceCourseBreakdown
-        : [],
-      documentProfile: material.content?.documentProfile,
-      qualityAudit: material.content?.qualityAudit,
-      disciplineFamily: material.content?.disciplineFamily,
-      metadata: material.content?.metadata,
-    }),
+        studyChecklist: Array.isArray(material.content?.studyChecklist)
+          ? material.content.studyChecklist
+          : [],
+        studyPriorityMap: Array.isArray(material.content?.studyPriorityMap)
+          ? material.content.studyPriorityMap
+          : undefined,
+        extractionNotices: Array.isArray(material.content?.extractionNotices)
+          ? material.content.extractionNotices
+          : [],
+        sourceCourseBreakdown: Array.isArray(material.content?.sourceCourseBreakdown)
+          ? material.content.sourceCourseBreakdown
+          : [],
+        documentProfile: material.content?.documentProfile,
+        qualityAudit: material.content?.qualityAudit,
+        disciplineFamily: material.content?.disciplineFamily,
+        metadata: material.content?.metadata,
+      }),
     [material.content],
   );
 
@@ -1052,22 +1054,22 @@ export function NeuralSummaryWorkspace({
           {c.comparativeMatrix && c.comparativeMatrix.columns?.length > 0 && (
             <div className="neural-card space-y-3 p-5">
               <h3 className="text-sm font-bold">{c.comparativeMatrix.title}</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-left text-xs">
+              <div className="max-w-full overflow-x-auto rounded-xl border border-border/70">
+                <table className="w-full min-w-[460px] table-auto border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-border/70 bg-muted/40">
+                    <tr className="border-b border-border/70 bg-muted/50">
                       {c.comparativeMatrix.columns.map((col, ci) => (
-                        <th key={ci} className="p-2.5 font-bold">
+                        <th key={ci} className="p-2.5 align-top font-bold break-words">
                           {col}
                         </th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-border/40">
                     {c.comparativeMatrix.rows.map((row, ri) => (
-                      <tr key={ri} className="border-b border-border/40">
+                      <tr key={ri} className="even:bg-muted/20">
                         {row.map((cell, ci) => (
-                          <td key={ci} className="p-2.5">
+                          <td key={ci} className="p-2.5 align-top break-words leading-relaxed">
                             <AcademicMarkdown content={cell} className="text-xs" />
                           </td>
                         ))}

@@ -19,6 +19,7 @@ import regularFontUrl from '@/assets/fonts/LiberationSans-Regular.ttf?url';
 import boldFontUrl from '@/assets/fonts/LiberationSans-Bold.ttf?url';
 import italicFontUrl from '@/assets/fonts/LiberationSans-Italic.ttf?url';
 import { ECONNOTES_LOGO_LIGHT_URI } from '@/components/study/video/econnotesBrandLogo';
+import { sanitizeSummaryContent, stripTechnicalMarkup } from '@/lib/academicTextSanitizer';
 import { APP_VERSION_LABEL } from '@/lib/version';
 import type { SummaryContent } from '@/types/study';
 
@@ -104,7 +105,7 @@ async function getBundledFontBytes(): Promise<LoadedFonts> {
  * Liberation Sans (preserves ALL Turkish characters: Ç, ç, Ğ, ğ, İ, ı, Ö, ö, Ş, ş, Ü, ü).
  */
 export function formatAcademicTextForPdf(raw: string): string {
-  let s = String(raw || '')
+  let s = stripTechnicalMarkup(String(raw || ''))
     .replace(/\r\n/g, '\n')
     .replace(/\t/g, '  ');
 
@@ -455,7 +456,7 @@ export async function generateAcademicSummaryPdfBytes(
   pdfDoc.setSubject(`${courseLabel} Akademik Ders Özeti`);
   pdfDoc.setCreator(`EconNotes ${APP_VERSION_LABEL}`);
 
-  const summary = input.summary;
+  const summary = sanitizeSummaryContent(input.summary);
   const sections = Array.isArray(summary.sections) ? summary.sections : [];
 
   // ==================== PAGE 1: COVER & OVERVIEW ====================
@@ -846,44 +847,52 @@ export async function generateAcademicSummaryPdfBytes(
         wrapTextToLines(rawRow[ci] || '—', fontRegular, fontSize, colW - cellPadX * 2),
       );
       const maxLines = Math.max(1, ...cells.map((c) => c.length));
-      const rowH = maxLines * lineH + cellPadY * 2;
+      const maxPageBodyH = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM - 32;
+      const maxLinesPerChunk = Math.max(4, Math.floor((maxPageBodyH - cellPadY * 2) / lineH));
 
-      if (cursorY - rowH < MARGIN_BOTTOM) {
-        newContentPage();
-        drawHeaderRow();
-      }
+      // Split extraordinarily tall rows cleanly across page chunks so text NEVER clips off page bottom
+      for (let lineOffset = 0; lineOffset < maxLines; lineOffset += maxLinesPerChunk) {
+        const chunkLineCount = Math.min(maxLinesPerChunk, maxLines - lineOffset);
+        const rowH = chunkLineCount * lineH + cellPadY * 2;
 
-      const topY = cursorY;
-      page.drawRectangle({
-        x: MARGIN_X,
-        y: topY - rowH,
-        width: CONTENT_W,
-        height: rowH,
-        color: rIdx % 2 === 1 ? COLORS.softSlateBg : COLORS.white,
-        borderColor: COLORS.borderLight,
-        borderWidth: 0.5,
-      });
-      for (let c = 0; c < colCount; c++) {
-        const cx = MARGIN_X + c * colW;
-        if (c > 0) {
-          page.drawLine({
-            start: { x: cx, y: topY },
-            end: { x: cx, y: topY - rowH },
-            thickness: 0.5,
-            color: COLORS.borderLight,
+        if (cursorY - rowH < MARGIN_BOTTOM) {
+          newContentPage();
+          drawHeaderRow();
+        }
+
+        const topY = cursorY;
+        page.drawRectangle({
+          x: MARGIN_X,
+          y: topY - rowH,
+          width: CONTENT_W,
+          height: rowH,
+          color: rIdx % 2 === 1 ? COLORS.softSlateBg : COLORS.white,
+          borderColor: COLORS.borderLight,
+          borderWidth: 0.5,
+        });
+        for (let c = 0; c < colCount; c++) {
+          const cx = MARGIN_X + c * colW;
+          if (c > 0) {
+            page.drawLine({
+              start: { x: cx, y: topY },
+              end: { x: cx, y: topY - rowH },
+              thickness: 0.5,
+              color: COLORS.borderLight,
+            });
+          }
+          const cellSlice = cells[c].slice(lineOffset, lineOffset + chunkLineCount);
+          cellSlice.forEach((ln, li) => {
+            page.drawText(ln, {
+              x: cx + cellPadX,
+              y: topY - cellPadY - fontSize - li * lineH + 1,
+              size: fontSize,
+              font: c === 0 ? fontBold : fontRegular,
+              color: COLORS.textBody,
+            });
           });
         }
-        cells[c].forEach((ln, li) => {
-          page.drawText(ln, {
-            x: cx + cellPadX,
-            y: topY - cellPadY - fontSize - li * lineH + 1,
-            size: fontSize,
-            font: c === 0 ? fontBold : fontRegular,
-            color: COLORS.textBody,
-          });
-        });
+        cursorY = topY - rowH;
       }
-      cursorY = topY - rowH;
     });
 
     cursorY -= 12;

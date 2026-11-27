@@ -32,7 +32,7 @@ export interface LogicalDocumentChunk {
 }
 
 export interface DisciplineSummaryGuidance {
-  disciplineFamily: 'law' | 'economics' | 'statistics' | 'engineering' | 'medical' | 'general';
+  disciplineFamily: 'law' | 'economics' | 'history' | 'statistics' | 'engineering' | 'medical' | 'general';
   structureFocus: string;
   formulaRule: string;
   comparisonHint: string;
@@ -178,20 +178,20 @@ export function getDisciplineSummaryGuidance(
   }
 
   if (
-    /\b(osmanli iktisat tarihi|iktisat tarihi|ekonomi tarihi|osmanli tarihi|tarih)\b/.test(
+    /\b(osmanli iktisat tarihi|osmanli toplumsal|osmanli maliye|iktisat tarihi|ekonomi tarihi|osmanli tarihi|selcuklu|inkilap tarihi|siyasi tarih|diplomasi tarihi|medeniyet tarihi|tarih)\b/.test(
       folded,
     )
   ) {
     return {
-      disciplineFamily: 'economics',
+      disciplineFamily: 'history',
       structureFocus:
-        'İktisat Tarihi & Osmanlı İktisat Tarihi odak yapısı: Temel iktisadi ilkeleri (iaşecilik, gelenekçilik, fiskalizm), toprak ve maliye kurumlarını (tımar, iltizam, malikâne, esham, lonca, narh), tarihsel dönemleşmeyi, neden–sonuç dönüşümlerini ve dış ticaret/antlaşma kırılmalarını (kapitülasyonlar, Baltalimanı, Düyun-ı Umumiye) kronolojik ve kurumsal derinlikle açıkla.',
+        'Tarih & İktisat Tarihi odak yapısı: YALNIZCA kaynak belgede geçen tarihsel dönemleri, toplumsal sınıfları, devlet ve maliye kurumlarını, hukuki-iktisadi ilkeleri (örn. kaynakta yer alıyorsa iaşecilik, gelenekçilik, fiskalizm, tımar, iltizam, lonca, vakıf), kronolojik akışı ve neden–sonuç ilişkilerini belgedeki kendi tarihsel bağlamında açıkla. Kaynakta bulunmayan modern makro/mikro iktisat başlıklarını (örn. parasal aktarım mekanizması, piyasa dengesi, IS-LM, Keynesyen/Monetarist modeller) ASLA ekleme.',
       formulaRule:
-        'Tarihsel ve kurumsal içerikte yapay matematiksel formül uydurma; yalnızca kaynakta açıkça yer alan mali oranları/istatistikleri koru, bunun yerine "Kurumsal İşleyiş, Dönemler ve Neden-Sonuç Zincirleri"ni netleştir.',
+        'Tarihsel ve kurumsal içerikte yapay matematiksel formül uydurma; yalnızca kaynakta açıkça yer alan tarih, oran veya mali verileri koru ve dönemler arası neden–sonuç zincirlerini belgedeki olgularla temellendir.',
       comparisonHint:
-        'Karşılaştırma tablosunda kurumları ve dönemleri (örn. Tımar vs İltizam vs Malikâne, Klasik Dönem vs 19. Yüzyıl Liberalleşme) amaç, vergi toplama mekanizması ve uzun vadeli iktisadi sonuçları bakımından kıyasla.',
+        'Karşılaştırma tablosunda YALNIZCA belgede ele alınan dönem, devlet veya kurumları (örneğin belgede geçiyorsa toplumsal tabakalar, vergi/toprak sistemleri veya dönem farkları) kendi bağlamlarını birbirine karıştırmadan kıyasla.',
       examFocusHint:
-        'Ezberlenecekler (kurum adları, temel vergi/arazi türleri, antlaşma tarihleri ve kavram tanımları) ile Yorumlanacaklar (kurumsal dönüşümlerin iktisadi nedenleri, fiyat devrimi/enflasyon etkileri ve merkezi otorite–maliye ilişkisi) ayrımını açıkça göster.',
+        'Ezberlenecekler (belgede geçen kurum adları, tarihler, sınıflandırmalar ve kavram tanımları) ile Yorumlanacaklar (belgede anlatılan tarihsel neden–sonuç bağları ve kurumsal dönüşümler) ayrımını yalnızca kaynak metne dayanarak netleştir.',
     };
   }
 
@@ -203,13 +203,13 @@ export function getDisciplineSummaryGuidance(
     return {
       disciplineFamily: 'economics',
       structureFocus:
-        'İktisat & Para Teorisi odak yapısı: İktisadi teorileri, akımları/ekolleri, varsayımları, parasal/mali aktarım mekanizmalarını, denge koşullarını, grafik/eğri kaymalarını ve politika sonuçlarını derinlemesine açıkla.',
+        'İktisat & Para Teorisi odak yapısı: YALNIZCA kaynak belgede yer alan iktisadi teorileri, varsayımları, mekanizmaları, denge koşullarını, grafik/eğri analizlerini ve politika etkilerini derinlemesine açıkla; kaynakta geçmeyen farklı alt ders konularını ekleme.',
       formulaRule:
-        'Kaynaktaki TÜM iktisadi denklemleri ve formülleri ($...$ / $$...$$) eksiksiz koru; her değişkenin neyi temsil ettiğini, formülün hangi amaçla ve hangi varsayımlar altında kullanıldığını açıkla.',
+        'Kaynaktaki TÜM iktisadi denklemleri ve formülleri ($...$ / $$...$$) eksiksiz koru; her değişkenin neyi temsil ettiğini, formülün hangi amaçla ve hangi varsayımlar altında kullanıldığını açıkla. Kaynakta bulunmayan formül uydurma.',
       comparisonHint:
-        'Karşılaştırma tablosunda iktisadi yaklaşımları/ekolleri (örn. Klasik vs Keynesyen vs Monetarist) temel varsayım, denge mekanizması ve politika etkinliği boyutlarıyla kıyasla.',
+        'Karşılaştırma tablosunda yalnızca belgede yer alan yaklaşımları, piyasa türlerini veya politika araçlarını temel varsayım, işleyiş ve sonuç boyutlarıyla kıyasla.',
       examFocusHint:
-        'Ezberlenecekler (temel tanımlar, denklem sembolleri, politika araçları) ile Yorumlanacaklar (bir parametredeki değişimin eğrileri, faizi, çıktıyı veya enflasyonu nasıl etkilediği) ayrımını netleştir.',
+        'Ezberlenecekler (temel tanımlar, denklem sembolleri, politika araçları) ile Yorumlanacaklar (bir parametredeki değişimin dengeyi, eğrileri veya iktisadi değişkenleri nasıl etkilediği) ayrımını netleştir.',
     };
   }
 

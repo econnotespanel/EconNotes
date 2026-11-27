@@ -934,7 +934,12 @@ export default function Study() {
         };
       });
     const checkedMatSources: ExtractedSourceItem[] = materials
-      .filter((m) => activeNotebook.checkedMaterialIds.includes(m.id))
+      .filter(
+        (m) =>
+          activeNotebook.checkedMaterialIds.includes(m.id) &&
+          // Önceki yapay zekâ özetleri veya AI çıktıları asla yeni özetin kaynağı olarak kullanılmaz
+          !(targetType === 'summary' && m.material_type === 'summary'),
+      )
       .map((mat) => {
         const txt = extractSearchableTextFromMaterial(mat);
         return {
@@ -952,7 +957,11 @@ export default function Study() {
         };
       });
 
-    let allSelectedSources = [...checkedSources, ...checkedMatSources];
+    // Ayrıntılı özet üretiminde seçili ham kaynak dosyaları varsa önceki AI materyallerini kesinlikle karıştırma
+    let allSelectedSources =
+      targetType === 'summary' && checkedSources.length > 0
+        ? [...checkedSources]
+        : [...checkedSources, ...checkedMatSources];
     if (options?.isolateCourse) {
       const targetCourse = options.isolateCourse;
       const isolated = allSelectedSources.filter((src) => {
@@ -965,14 +974,20 @@ export default function Study() {
     }
 
     if (allSelectedSources.length === 0) {
-      toast.info('Üretim yapmak için önce sol panelden en az 1 ders notu, PDF veya slayt ekleyip seçin.');
+      toast.info(
+        targetType === 'summary'
+          ? 'Ayrıntılı özet üretmek için önce sol panelden en az 1 ham ders notu, PDF, PPTX veya DOCX kaynağı seçin.'
+          : 'Üretim yapmak için önce sol panelden en az 1 ders notu, PDF veya slayt ekleyip seçin.',
+      );
       return;
     }
 
     // Build shared Canonical Source Analysis over the exact checked sources
+    // Özet üretiminde önceki AI özetlerinin başlıklarını yeni analize kesinlikle enjekte etme
     const freshAnalysis = buildCanonicalSourceAnalysis({
       sources: allSelectedSources,
-      allMaterials: materials,
+      allMaterials: targetType === 'summary' ? [] : materials,
+      includePriorSummarySync: targetType !== 'summary',
     });
 
     // Gate 1: If any source's course is uncertain and not confirmed yet, ask the user instead of guessing!
@@ -1458,13 +1473,39 @@ export default function Study() {
         activeMaterial.content?.metadata?.sourceFingerprint ||
         (activeMaterial.exam_profile as Record<string, unknown> | null | undefined)
           ?.sourceFingerprint;
+      const matSourceIds = Array.isArray(activeMaterial.content?.metadata?.sourceIds)
+        ? (activeMaterial.content.metadata.sourceIds as string[])
+        : Array.isArray((activeMaterial.exam_profile as Record<string, unknown> | null | undefined)?.sourceIds)
+        ? ((activeMaterial.exam_profile as Record<string, unknown>).sourceIds as string[])
+        : [];
+      const matchedRawNotebookSources = activeNotebook
+        ? activeNotebook.sources.filter((s) => matSourceIds.includes(s.id))
+        : [];
+      const checkedRawNotebookSources = activeNotebook
+        ? activeNotebook.sources.filter((s) => activeNotebook.checkedSourceIds.includes(s.id))
+        : [];
       const useActiveCanonical =
-        Boolean(matFp && matFp === canonicalAnalysis.fingerprint && canonicalAnalysis.profiles.length > 0);
+        Boolean(matFp && matFp === canonicalAnalysis.fingerprint && checkedRawNotebookSources.length > 0);
 
       let bundle;
-      if (useActiveCanonical) {
-        bundle = buildBundleFromCanonicalAnalysis(canonicalAnalysis, activeMaterial.title);
+      if (matchedRawNotebookSources.length > 0) {
+        const cleanAnalysis = buildCanonicalSourceAnalysis({
+          sources: matchedRawNotebookSources,
+          allMaterials: [],
+          includePriorSummarySync: false,
+        });
+        bundle = buildBundleFromCanonicalAnalysis(cleanAnalysis, activeMaterial.title);
+      } else if (useActiveCanonical) {
+        const cleanAnalysis = buildCanonicalSourceAnalysis({
+          sources: checkedRawNotebookSources,
+          allMaterials: [],
+          includePriorSummarySync: false,
+        });
+        bundle = buildBundleFromCanonicalAnalysis(cleanAnalysis, activeMaterial.title);
       } else {
+        toast.info(
+          'Orijinal ham ders belgesi aktif defterde bulunamadığı için bu özet mevcut içeriği temizlenerek yeniden yapılandırılıyor. En yüksek doğruluk için orijinal PDF/PPTX/DOCX dosyasını seçip özet oluşturun.',
+        );
         const text = extractSearchableTextFromMaterial(activeMaterial);
         bundle = combineStudySources(
           [

@@ -34,6 +34,7 @@ interface SummaryAnalysisProgressViewProps {
 
 const DISCIPLINE_LABELS: Record<SummaryJobState['disciplineFamily'], string> = {
   economics: 'İktisat & Para Teorisi',
+  history: 'Tarih & İktisat Tarihi',
   law: 'Hukuk Bilimleri',
   statistics: 'İstatistik & Ekonometri',
   engineering: 'Mühendislik & Fen',

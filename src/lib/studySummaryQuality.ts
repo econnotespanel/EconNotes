@@ -15,6 +15,8 @@
  * 10. Exam readiness & dynamic depth proportional to document length
  */
 
+import { findTechnicalMarkupLeaks } from '@/lib/academicTextSanitizer';
+import { foldTurkishToAscii } from '@/lib/courseDetector';
 import {
   buildTurkishStemSet,
   extractContentTokens,
@@ -38,6 +40,162 @@ function countWords(text: string): number {
     .trim()
     .split(/\s+/)
     .filter(Boolean).length;
+}
+
+/**
+ * Domain-specific modern micro/macro/monetary phrases that frequently leak into
+ * non-economics or historical documents (e.g. "Aktarım Mekanizması ve Piyasa Dengesi"
+ * under "Osmanlı Toplumsal Yapısı") when a model hallucinates or misroutes discipline prompts.
+ */
+const FOREIGN_MODERN_ECON_PHRASES = [
+  'aktarim mekanizmasi',
+  'aktarim mekanizmalari',
+  'parasal aktarim',
+  'piyasa dengesi',
+  'is-lm',
+  'ad-as',
+  'keynesyen',
+  'monetarist',
+  'likidite tuzagi',
+  'taylor kurali',
+  'fisher denklemi',
+  'cambridge yaklasimi',
+  'slutsky denklemi',
+  'lerner endeksi',
+  'cournot',
+  'bertrand',
+  'nash dengesi',
+  'farksizlik egrisi',
+  'kayitsizlik egrisi',
+  'marjinal ikame orani',
+  'marjinal fayda',
+  'talep esnekligi',
+  'arz egrisi',
+  'talep egrisi',
+  'phillips egrisi',
+  'solow modeli',
+  'cobb-douglas',
+  'para carpani',
+  'acik piyasa islemleri',
+];
+
+const HISTORICAL_POLITY_ENTITIES: Array<{ key: string; label: string }> = [
+  { key: 'selcuklu', label: 'Selçuklu' },
+  { key: 'ilhanli', label: 'İlhanlı' },
+  { key: 'bizans', label: 'Bizans' },
+  { key: 'osmanli', label: 'Osmanlı' },
+  { key: 'abbasi', label: 'Abbasi' },
+  { key: 'emevi', label: 'Emevi' },
+  { key: 'memluk', label: 'Memlük' },
+  { key: 'safevi', label: 'Safevi' },
+  { key: 'karahanli', label: 'Karahanlı' },
+  { key: 'gazneli', label: 'Gazneli' },
+  { key: 'timurlu', label: 'Timurlu' },
+];
+
+function collectAllSummaryStrings(summary: SummaryContent): string[] {
+  const parts: string[] = [];
+  if (summary.overview) parts.push(summary.overview);
+  if (summary.disciplineTag) parts.push(summary.disciplineTag);
+  if (summary.summarySynthesis) parts.push(summary.summarySynthesis);
+  for (const kp of summary.keyPoints || []) parts.push(kp);
+  for (const sec of summary.sections || []) {
+    parts.push(sec.heading || '', sec.pageRange || '', sec.content || '');
+    if (sec.deepResearchNote) parts.push(sec.deepResearchNote);
+    for (const tk of sec.takeaways || []) parts.push(tk);
+    for (const pit of sec.commonPitfalls || []) parts.push(pit);
+    if (sec.checkpointQuestion) {
+      parts.push(sec.checkpointQuestion.question || '', sec.checkpointQuestion.explanation || '');
+      for (const opt of sec.checkpointQuestion.options || []) parts.push(opt);
+    }
+  }
+  if (summary.comparativeMatrix) {
+    parts.push(summary.comparativeMatrix.title || '');
+    for (const col of summary.comparativeMatrix.columns || []) parts.push(col);
+    for (const row of summary.comparativeMatrix.rows || []) {
+      for (const cell of row) parts.push(cell);
+    }
+  }
+  for (const kt of summary.keyTerms || []) {
+    parts.push(kt.term || '', kt.definition || '', kt.formula || '');
+  }
+  for (const te of summary.teacherEmphasis || []) {
+    parts.push(te.point || '', te.whyImportant || '');
+  }
+  for (const m of summary.memorizeVsInterpret?.memorize || []) parts.push(m);
+  for (const ip of summary.memorizeVsInterpret?.interpret || []) parts.push(ip);
+  for (const cl of summary.studyChecklist || []) parts.push(cl);
+  return parts.filter(Boolean);
+}
+
+/**
+ * Checks whether a single summary section is off-topic relative to the source document:
+ * 1. Its heading introduces foreign modern-economics concepts completely absent from the source text, OR
+ * 2. Its heading shares zero substantive stem overlap with the source/outline AND its body has low source grounding.
+ */
+export function detectOffTopicSection(params: {
+  section: SummarySection;
+  sourceFolded: string;
+  sourceStemSet: Set<string>;
+  outlineStemSet: Set<string>;
+  sourceWordCount: number;
+}): { isOffTopic: boolean; reason?: string; leakedPhrases: string[] } {
+  const headingFolded = foldTurkishToAscii(params.section.heading || '');
+  const bodyFolded = foldTurkishToAscii(params.section.content || '');
+
+  // 1. Direct foreign-discipline heading contamination check (e.g. "Aktarım Mekanizması ve Piyasa Dengesi")
+  const leakedInHeading = FOREIGN_MODERN_ECON_PHRASES.filter(
+    (phrase) => headingFolded.includes(phrase) && !params.sourceFolded.includes(phrase),
+  );
+  if (leakedInHeading.length > 0) {
+    return {
+      isOffTopic: true,
+      reason: `Başlık kaynakta bulunmayan farklı ders terimleri içeriyor (${leakedInHeading.join(', ')}).`,
+      leakedPhrases: leakedInHeading,
+    };
+  }
+
+  // 2. Check for heavy foreign-discipline leakage in section body when absent from source
+  const leakedInBody = FOREIGN_MODERN_ECON_PHRASES.filter(
+    (phrase) => bodyFolded.includes(phrase) && !params.sourceFolded.includes(phrase),
+  );
+
+  // Strip generic numbering prefix ("Bölüm 2:", "1.2.") before token grounding check
+  const strippedHeading = (params.section.heading || '')
+    .replace(/^(?:bölüm|ünite|konu|hafta|kısım)\s*\d+\s*[:.\-–—]?\s*/i, '')
+    .replace(/^\d+(?:\.\d+)*\.?\s*/, '')
+    .trim();
+  const headingTokens = extractContentTokens(strippedHeading);
+  const bodyTokens = extractContentTokens(params.section.content || '').slice(0, 80);
+
+  const headingOverlap = tokenOverlapRatio(headingTokens, params.sourceStemSet);
+  const outlineOverlap =
+    params.outlineStemSet.size > 0 ? tokenOverlapRatio(headingTokens, params.outlineStemSet) : { ratio: 0, matchedCount: 0 };
+  const bodyOverlap = tokenOverlapRatio(bodyTokens, params.sourceStemSet);
+
+  if (leakedInBody.length >= 2 && headingOverlap.matchedCount === 0 && bodyOverlap.ratio < 0.45) {
+    return {
+      isOffTopic: true,
+      reason: `Bölüm içeriği kaynakta yer almayan konu dışı iktisat terimleri (${leakedInBody.slice(0, 3).join(', ')}) barındırıyor.`,
+      leakedPhrases: leakedInBody,
+    };
+  }
+
+  if (
+    params.sourceWordCount >= 80 &&
+    headingTokens.length >= 2 &&
+    headingOverlap.matchedCount === 0 &&
+    outlineOverlap.matchedCount === 0 &&
+    bodyOverlap.ratio < 0.28
+  ) {
+    return {
+      isOffTopic: true,
+      reason: `Bölüm başlığı ("${params.section.heading}") ve gövdesi kaynak belgedeki konu haritasıyla örtüşmüyor.`,
+      leakedPhrases: leakedInBody,
+    };
+  }
+
+  return { isOffTopic: false, leakedPhrases: leakedInBody };
 }
 
 /**
@@ -181,9 +339,30 @@ export function auditSummaryQuality(params: {
   ].join('\n\n');
 
   const totalSummaryWords = countWords(fullSummaryText);
-  const sourceStemSet = buildTurkishStemSet(
-    extractContentTokens(`${bundle.title} ${bundle.course} ${bundle.combinedText.slice(0, 120_000)}`),
+  const sourceCombinedFull = `${bundle.title} ${bundle.course} ${bundle.combinedText.slice(0, 180_000)}`;
+  const sourceStemSet = buildTurkishStemSet(extractContentTokens(sourceCombinedFull));
+  const sourceFolded = foldTurkishToAscii(sourceCombinedFull);
+  const outlineStemSet = buildTurkishStemSet(
+    extractContentTokens(outline.map((o) => o.heading).join(' ')),
   );
+
+  // XML / HTML technical markup leakage audit across EVERY field (overview, sections, tables, glossary, matrix)
+  const allSummaryStrings = collectAllSummaryStrings(summary);
+  const xmlLeakSamples = Array.from(
+    new Set(allSummaryStrings.flatMap((str) => findTechnicalMarkupLeaks(str))),
+  );
+  const xmlLeakCount = xmlLeakSamples.length;
+
+  // Historical entity verification (detects Selçuklu/İlhanlı/Bizans/Osmanlı etc. injected outside source)
+  const summaryFolded = foldTurkishToAscii(fullSummaryText);
+  const unverifiedHistoricalEntities: string[] = [];
+  if (profile.disciplineFamily === 'history' || /osmanli|selcuklu|bizans|ilhanli|tarih/i.test(sourceFolded)) {
+    for (const ent of HISTORICAL_POLITY_ENTITIES) {
+      if (summaryFolded.includes(ent.key) && !sourceFolded.includes(ent.key)) {
+        unverifiedHistoricalEntities.push(ent.label);
+      }
+    }
+  }
 
   // Check 1: Complete document heading coverage
   const cov = computeHeadingCoverage(outline, sections, fullSummaryText);
@@ -211,8 +390,11 @@ export function auditSummaryQuality(params: {
       ? 'warn'
       : 'fail';
 
-  // Check 4: Discipline fidelity (formulas/models vs legal rules/exceptions)
+  // Check 4: Discipline fidelity (formulas/models vs legal rules/exceptions vs historical authenticity)
   const hasMathInSummary = /\$[^$]+\$|\\frac|\\sum|[A-Za-z]\s*=\s*[^=\n]{2,}/.test(fullSummaryText);
+  const leakedForeignEconTermsGlobal = FOREIGN_MODERN_ECON_PHRASES.filter(
+    (phrase) => summaryFolded.includes(phrase) && !sourceFolded.includes(phrase),
+  );
   let check4Status: SummaryQualityCheckItem['status'] = 'pass';
   let check4Detail = 'Dersin akademik yapısına ve terminolojisine uygun anlatım doğrulandı.';
   if (profile.disciplineFamily === 'law') {
@@ -223,11 +405,28 @@ export function auditSummaryQuality(params: {
     if (hasFabricatedLatex) {
       check4Status = 'fail';
       check4Detail = 'Hukuk kaynağında bulunmayan matematiksel formül/gösterim tespit edildi.';
+    } else if (leakedForeignEconTermsGlobal.length > 0) {
+      check4Status = 'fail';
+      check4Detail = `Hukuk belgesinde kaynak dışı iktisat terimleri tespit edildi: ${leakedForeignEconTermsGlobal.slice(0, 3).join(', ')}.`;
     } else if (!hasLegalSignals) {
       check4Status = 'warn';
       check4Detail = 'Hukuki unsur, şart ve istisna vurguları daha belirgin hale getirilebilir.';
     } else {
       check4Detail = 'Hukuki kavramlar, şartlar/unsurlar, istisnalar ve hukuki sonuçlar korundu.';
+    }
+  } else if (profile.disciplineFamily === 'history') {
+    const hasFabricatedLatex = /\$\$[^$]+\\frac|\$\$[^$]+\\sum|\$\$[^$]+\\int/.test(fullSummaryText) && formulas.length === 0;
+    if (leakedForeignEconTermsGlobal.length > 0) {
+      check4Status = 'fail';
+      check4Detail = `Tarih / İktisat Tarihi belgesine kaynakta bulunmayan konu dışı modern iktisat kavramları sızmış: ${leakedForeignEconTermsGlobal.slice(0, 3).join(', ')}.`;
+    } else if (hasFabricatedLatex) {
+      check4Status = 'fail';
+      check4Detail = 'Tarihsel kaynakta bulunmayan yapay matematiksel formül tespit edildi.';
+    } else if (unverifiedHistoricalEntities.length > 0) {
+      check4Status = 'warn';
+      check4Detail = `Kaynakta geçmeyen tarihsel devlet/dönem adları tespit edildi: ${unverifiedHistoricalEntities.join(', ')}.`;
+    } else {
+      check4Detail = 'Tarihsel bağlam, kurumsal yapı, dönemler ve neden–sonuç ilişkileri kaynağa sadık biçimde korundu.';
     }
   } else if (profile.disciplineFamily === 'economics' || profile.disciplineFamily === 'statistics') {
     if (formulas.length > 0 && !hasMathInSummary) {
@@ -244,8 +443,10 @@ export function auditSummaryQuality(params: {
   const check5Status: SummaryQualityCheckItem['status'] =
     !sourceHasExamples || summaryHasExamples ? 'pass' : 'warn';
 
-  // Check 6: Source grounding & anti-hallucination
+  // Check 6: Source grounding, off-topic heading detection & anti-hallucination
   const weakSectionIndices: number[] = [];
+  const offTopicSectionIndices: number[] = [];
+  const offTopicHeadings: string[] = [];
   let groundedSections = 0;
   let totalSectionGrounding = 0;
   const minSectionWordsFloor = Math.max(
@@ -258,7 +459,20 @@ export function auditSummaryQuality(params: {
     const secTokens = extractContentTokens(`${sec.heading} ${sec.content}`).slice(0, 80);
     const { ratio } = tokenOverlapRatio(secTokens, sourceStemSet);
     totalSectionGrounding += ratio;
-    if (ratio >= 0.35 || bundle.totalWords < 120) groundedSections++;
+
+    const offTopicCheck = detectOffTopicSection({
+      section: sec,
+      sourceFolded,
+      sourceStemSet,
+      outlineStemSet,
+      sourceWordCount: bundle.totalWords,
+    });
+    if (offTopicCheck.isOffTopic) {
+      offTopicSectionIndices.push(idx);
+      offTopicHeadings.push(sec.heading);
+    } else if (ratio >= 0.35 || bundle.totalWords < 120) {
+      groundedSections++;
+    }
 
     const lacksSubheading = !/^#{2,4}\s+/m.test(sec.content || '');
     if (secWords < minSectionWordsFloor || (secWords < 160 && lacksSubheading)) {
@@ -271,7 +485,11 @@ export function auditSummaryQuality(params: {
       ? Math.min(100, Math.round((totalSectionGrounding / sections.length) * 100 * 1.25))
       : 0;
   const check6Status: SummaryQualityCheckItem['status'] =
-    groundingScorePct >= 62 && groundedSections >= Math.ceil(sections.length * 0.75)
+    offTopicSectionIndices.length > 0
+      ? 'fail'
+      : unverifiedHistoricalEntities.length > 0
+      ? 'warn'
+      : groundingScorePct >= 62 && groundedSections >= Math.ceil(sections.length * 0.75)
       ? 'pass'
       : groundingScorePct >= 42
       ? 'warn'
@@ -281,12 +499,16 @@ export function auditSummaryQuality(params: {
   const dupCount = params.duplicateRemovedCount ?? 0;
   const check7Status: SummaryQualityCheckItem['status'] = dupCount <= 4 ? 'pass' : 'warn';
 
-  // Check 8: Clarity & zero broken truncation / vague placeholder fillers
+  // Check 8: Clarity, zero technical XML/HTML leaks & zero broken truncation / vague fillers
   const brokenEllipsisMatches = (fullSummaryText.match(/(?:\.\.\.|…)\s*(?:\n|$)/gm) || []).length;
   const vagueFillerRe = /(?:vb\.\s*gibi\s*şeyler|kısaca\s+budur|detaylar\s+için\s+pdf|yukarıda\s+anlatıldığı\s+gibi\s+önemlidir)/i;
   const hasVagueFillers = vagueFillerRe.test(fullSummaryText);
   const check8Status: SummaryQualityCheckItem['status'] =
-    brokenEllipsisMatches <= 1 && !hasVagueFillers ? 'pass' : 'warn';
+    xmlLeakCount > 0
+      ? 'fail'
+      : brokenEllipsisMatches <= 1 && !hasVagueFillers
+      ? 'pass'
+      : 'warn';
 
   // Check 9: Cross-section consistency & source page reference provenance
   const sectionsWithPageRef = sections.filter((s) => Boolean(s.pageRange && s.pageRange.trim())).length;
@@ -357,9 +579,14 @@ export function auditSummaryQuality(params: {
     },
     {
       id: 'source_grounding',
-      label: 'Kaynak Sadakati ve Halüsinasyon Kontrolü',
+      label: 'Kaynak Sadakati ve Konu Bütünlüğü Denetimi',
       status: check6Status,
-      detail: `Kaynak örtüşme skoru: %${groundingScorePct} (${groundedSections}/${sections.length} bölüm doğrulandı).`,
+      detail:
+        offTopicHeadings.length > 0
+          ? `Konu dışı / kaynakla doğrulanamayan bölüm tespit edildi: ${offTopicHeadings.slice(0, 3).join(', ')}.`
+          : unverifiedHistoricalEntities.length > 0
+          ? `Kaynakta geçmeyen tarihsel varlık adları gözlendi: ${unverifiedHistoricalEntities.join(', ')} (Örtüşme: %${groundingScorePct}).`
+          : `Kaynak örtüşme skoru: %${groundingScorePct} (${groundedSections}/${sections.length} bölüm doğrulandı, konu dışı başlık yok).`,
     },
     {
       id: 'deduplication',
@@ -372,11 +599,13 @@ export function auditSummaryQuality(params: {
     },
     {
       id: 'clarity_integrity',
-      label: 'Anlatım Netliği ve Kesik İfade Kontrolü',
+      label: 'Anlatım Netliği, XML/HTML Temizliği ve Kesik İfade Kontrolü',
       status: check8Status,
       detail:
-        check8Status === 'pass'
-          ? 'Kesik ifade veya belirsiz dolgu metni tespit edilmedi.'
+        xmlLeakCount > 0
+          ? `${xmlLeakCount} adet teknik XML/HTML etiketi sızıntısı tespit edildi (${xmlLeakSamples.slice(0, 3).join(', ')}).`
+          : check8Status === 'pass'
+          ? 'Sıfır XML/HTML sızıntısı; kesik ifade veya belirsiz dolgu metni tespit edilmedi.'
           : 'Bazı bölümlerde kısaltılmış veya genel ifadeler saptandı.',
     },
     {
@@ -407,12 +636,16 @@ export function auditSummaryQuality(params: {
 
   return {
     overallScore,
-    passed: failedCount === 0 && overallScore >= 75,
+    passed: failedCount === 0 && xmlLeakCount === 0 && offTopicSectionIndices.length === 0 && overallScore >= 75,
     headingCoveragePct: cov.coveragePct,
     totalSourceHeadings: cov.coveredHeadings.length + cov.missingHeadings.length,
     coveredHeadings: cov.coveredHeadings,
     missingHeadings: cov.missingHeadings,
     weakSectionIndices,
+    offTopicSectionIndices,
+    offTopicHeadings,
+    xmlLeakCount,
+    unverifiedHistoricalEntities,
     repairedSectionsCount: params.repairedSectionsCount ?? 0,
     duplicateRemovedCount: dupCount,
     groundingScorePct,
