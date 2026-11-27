@@ -28,9 +28,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useOnboarding } from '@/contexts/OnboardingContext';
 import { getSeasonalTheme, useSiteConfig } from '@/contexts/SiteConfigContext';
 import {
+  clearPendingSpinRequestId,
   executeLuckyWheelSpin,
   fetchLuckyWheelStatus,
   getMondayWheelState,
+  getOrCreatePendingSpinRequestId,
   MONDAY_WHEEL_SEGMENTS,
   syncPendingWheelXp,
   type ServerWheelStatus,
@@ -111,13 +113,6 @@ export const EconWheelMiniGraphic = ({ className = 'h-10 w-10' }: { className?: 
     </div>
   );
 };
-
-function createClientSpinRequestId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `wheel-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
 
 const MondayWheelPopup = () => {
   const { user, profile, isAdmin, loading, refreshProfile } = useAuth();
@@ -422,7 +417,7 @@ const MondayWheelPopup = () => {
       unlockWheelAudio();
     }
 
-    const clientRequestId = createClientSpinRequestId();
+    const clientRequestId = getOrCreatePendingSpinRequestId(user.id, wheelState.dailyPeriod);
     const res = await executeLuckyWheelSpin(user, clientRequestId, { isAdmin });
 
     if (!mountedRef.current) {
@@ -431,6 +426,9 @@ const MondayWheelPopup = () => {
     }
 
     if (!res.ok || !res.segment || !res.spin) {
+      if (res.retryable === false) {
+        clearPendingSpinRequestId(user.id, wheelState.dailyPeriod);
+      }
       const errMsg = res.error || 'Çark ödülü kaydedilemedi. Lütfen tekrar dene.';
       setSpinError(errMsg);
       setPhase('idle');
@@ -438,6 +436,8 @@ const MondayWheelPopup = () => {
       toast.error(errMsg);
       return;
     }
+
+    clearPendingSpinRequestId(user.id, wheelState.dailyPeriod);
 
     if (res.serverNowIso) {
       const srvMs = Date.parse(res.serverNowIso);

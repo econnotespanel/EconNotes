@@ -9,8 +9,6 @@ import {
   RequestError,
 } from '../_shared/request-security.ts';
 
-const ALLOWED_XP_AMOUNTS = new Set([100, 200, 300, 400, 500]);
-
 interface WheelSegmentDef {
   id: string;
   type: 'extra_quota' | 'unlimited_day' | 'xp';
@@ -202,6 +200,12 @@ Deno.serve(async (req) => {
       if (!statusErr && statusData) {
         return json({ ok: true, ...(statusData as Record<string, unknown>) });
       }
+      if (statusErr) {
+        console.error('claim-wheel-xp status RPC error:', {
+          code: statusErr.code ?? null,
+          message: statusErr.message ?? 'unknown',
+        });
+      }
 
       // Graceful server-authoritative fallback (NEVER trusts client-writable user_metadata!)
       const info = getIstanbulWheelInfo(new Date());
@@ -283,16 +287,38 @@ Deno.serve(async (req) => {
         return json(spinData as Record<string, unknown>);
       }
 
-      if (spinErr && !String(spinErr.message || '').includes('spin_lucky_wheel')) {
-        const isMondayRule = String(spinErr.message || '').includes('Pazartesi');
+      const spinErrCode = spinErr?.code ?? null;
+      const spinErrMsg = String(spinErr?.message || '');
+      const isMissingSpinRpc =
+        spinErrCode === 'PGRST202' ||
+        spinErrMsg.includes('spin_lucky_wheel') ||
+        spinErrMsg.includes('schema cache');
+
+      if (spinErr) {
+        console.error('claim-wheel-xp spin RPC error:', {
+          code: spinErrCode,
+          message: spinErrMsg || 'unknown',
+        });
+      }
+
+      if (spinErr && !isMissingSpinRpc) {
+        const isMondayRule = spinErrMsg.includes('Pazartesi');
+        const isApprovalRule = spinErrMsg.includes('onaylı değil');
+        if (isMondayRule) {
+          return json(
+            { ok: false, error: 'Şans Çarkı yalnızca Pazartesi günleri çevrilebilir.' },
+            403,
+          );
+        }
+        if (isApprovalRule) {
+          return json(
+            { ok: false, error: 'Hesabınız bu işlem için onaylı değil.' },
+            403,
+          );
+        }
         return json(
-          {
-            ok: false,
-            error: isMondayRule
-              ? 'Şans Çarkı yalnızca Pazartesi günleri çevrilebilir.'
-              : 'Çark çevirme işlemi tamamlanamadı.',
-          },
-          isMondayRule ? 403 : 400,
+          { ok: false, error: 'Çark ödülü sunucuda işlenemedi. Hakkın korunmuştur; lütfen tekrar dene.' },
+          500,
         );
       }
 
@@ -431,7 +457,10 @@ Deno.serve(async (req) => {
     return json({ error: 'Geçersiz çark işlemi.' }, 400);
   } catch (e) {
     if (e instanceof RequestError) return json({ error: e.message }, e.status);
-    console.error('claim-wheel-xp error');
+    console.error('claim-wheel-xp unexpected error:', {
+      name: e instanceof Error ? e.name : typeof e,
+      message: e instanceof Error ? e.message : 'unknown',
+    });
     return json({ error: 'Çark işlemi sırasında bir hata oluştu.' }, 500);
   }
 });

@@ -96,7 +96,39 @@ const STORAGE_SPIN_PREFIX = 'econnotes_monday_wheel_spin_';
 const STORAGE_BONUS_QUOTA_PREFIX = 'econnotes_wheel_bonus_quota_';
 const STORAGE_UNLIMITED_UNTIL_PREFIX = 'econnotes_wheel_unlimited_until_';
 const STORAGE_INFLIGHT_LOCK_PREFIX = 'econnotes_wheel_inflight_lock_';
+const STORAGE_PENDING_REQ_PREFIX = 'econnotes_wheel_pending_req_';
 const TAB_LOCK_TTL_MS = 15_000;
+
+export function getOrCreatePendingSpinRequestId(userId: string, dailyPeriod: string): string {
+  const key = `${STORAGE_PENDING_REQ_PREFIX}${userId}_${dailyPeriod}`;
+  try {
+    const existing = sessionStorage.getItem(key);
+    if (existing && existing.trim().length >= 8) {
+      return existing.trim();
+    }
+  } catch {
+    // ignore storage errors
+  }
+  const generated =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `wheel-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    sessionStorage.setItem(key, generated);
+  } catch {
+    // ignore storage errors
+  }
+  return generated;
+}
+
+export function clearPendingSpinRequestId(userId: string, dailyPeriod: string): void {
+  const key = `${STORAGE_PENDING_REQ_PREFIX}${userId}_${dailyPeriod}`;
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export interface WheelSpinRecord {
   id: string;
@@ -131,6 +163,7 @@ export interface ExecuteWheelSpinResult {
   ok: boolean;
   alreadySpun?: boolean;
   idempotentReplay?: boolean;
+  retryable?: boolean;
   segment?: WheelSegment;
   spin?: WheelSpinRecord;
   newPointsTotal?: number | null;
@@ -503,6 +536,42 @@ function parseServerStatusPayload(raw: Record<string, unknown>): ServerWheelStat
   };
 }
 
+function isAuthSessionError(err: { code?: string; message?: string; status?: number } | null | undefined): boolean {
+  if (!err) return false;
+  const code = String(err.code || '').toUpperCase();
+  const msg = String(err.message || '').toLowerCase();
+  return (
+    err.status === 401 ||
+    code === 'PGRST301' ||
+    code === '401' ||
+    msg.includes('jwt') ||
+    msg.includes('oturum bulunamadı') ||
+    msg.includes('oturum geçersiz') ||
+    msg.includes('unauthorized')
+  );
+}
+
+function isRpcMissingOrTransientError(err: { code?: string; message?: string; status?: number } | null | undefined): boolean {
+  if (!err) return false;
+  const code = String(err.code || '').toUpperCase();
+  const msg = String(err.message || '').toLowerCase();
+  const status = Number(err.status || 0);
+  return (
+    code === 'PGRST202' ||
+    code.startsWith('PGRST00') ||
+    status === 404 ||
+    status >= 500 ||
+    msg.includes('spin_lucky_wheel') ||
+    msg.includes('schema cache') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('networkerror') ||
+    msg.includes('load failed') ||
+    msg.includes('timeout') ||
+    msg.includes('zaman aşımına') ||
+    msg.includes('fetch')
+  );
+}
+
 /**
  * Fetches server-authoritative Lucky Wheel status using Istanbul server time.
  * Strictly read-only — NEVER spins the wheel or triggers animations!
@@ -515,7 +584,13 @@ export async function fetchLuckyWheelStatus(
 
   // 1) Primary: dedicated PostgreSQL SECURITY DEFINER RPC
   try {
-    const { data, error } = await (supabase as any).rpc('get_lucky_wheel_status');
+    let { data, error } = await (supabase as any).rpc('get_lucky_wheel_status');
+    if (error && isAuthSessionError(error)) {
+      const refreshed = await getSessionAccessToken(true);
+      if (refreshed) {
+        ({ data, error } = await (supabase as any).rpc('get_lucky_wheel_status'));
+      }
+    }
     if (!error && data && typeof data === 'object') {
       const parsed = parseServerStatusPayload(data as Record<string, unknown>);
       if (parsed) {
@@ -528,9 +603,14 @@ export async function fetchLuckyWheelStatus(
         );
         return parsed;
       }
+    } else if (error) {
+      console.warn('[LuckyWheel] get_lucky_wheel_status RPC unavailable:', {
+        code: error.code ?? null,
+        message: error.message ?? null,
+      });
     }
-  } catch {
-    // Fall through to Edge Function
+  } catch (err) {
+    console.warn('[LuckyWheel] get_lucky_wheel_status RPC exception:', err);
   }
 
   // 2) Secondary: claim-wheel-xp Edge Function (`action: 'status'`)
@@ -656,32 +736,47 @@ export async function executeLuckyWheelSpin(
       let rpcErrorMsg: string | null = null;
 
       // 1) Primary path: atomic PostgreSQL RPC `spin_lucky_wheel`
+      let rpcDiag: { code?: string | null; status?: number | null; message?: string | null } | null = null;
       try {
-        const { data, error } = await (supabase as any).rpc('spin_lucky_wheel', {
+        let { data, error } = await (supabase as any).rpc('spin_lucky_wheel', {
           _client_request_id: clientRequestId,
         });
+        if (error && isAuthSessionError(error)) {
+          const freshToken = await getSessionAccessToken(true);
+          if (freshToken) {
+            ({ data, error } = await (supabase as any).rpc('spin_lucky_wheel', {
+              _client_request_id: clientRequestId,
+            }));
+          }
+        }
         if (!error && data && typeof data === 'object' && (data as { ok?: boolean }).ok) {
           rawResult = data as Record<string, unknown>;
         } else if (error) {
           const msg = String(error.message || '');
-          const isMissingFn =
-            error.code === 'PGRST202' ||
-            msg.includes('spin_lucky_wheel') ||
-            msg.includes('schema cache');
-          if (!isMissingFn) {
+          rpcDiag = {
+            code: (error as { code?: string }).code ?? null,
+            status: (error as { status?: number }).status ?? null,
+            message: msg || null,
+          };
+          if (!isRpcMissingOrTransientError(error)) {
             rpcErrorMsg = msg;
           }
         }
       } catch (err) {
-        console.warn('spin_lucky_wheel RPC fallback:', err);
+        rpcDiag = {
+          code: 'EXCEPTION',
+          message: err instanceof Error ? err.message : String(err),
+        };
+        console.warn('[LuckyWheel] spin_lucky_wheel RPC exception, trying Edge Function:', err);
       }
 
-      // If the RPC explicitly rejected eligibility (e.g. not Monday), return that exact error immediately
+      // If the RPC explicitly rejected eligibility (e.g. not Monday or unapproved), return immediately
       if (!rawResult && rpcErrorMsg) {
-        return { ok: false, error: rpcErrorMsg };
+        return { ok: false, retryable: false, error: rpcErrorMsg };
       }
 
       // 2) Secondary path: Edge Function `claim-wheel-xp` with `{ action: 'spin', clientRequestId }`
+      let efDiag: { status?: number | null; message?: string | null } | null = null;
       if (!rawResult) {
         try {
           let token = await getSessionAccessToken(false);
@@ -704,30 +799,49 @@ export async function executeLuckyWheelSpin(
             if (!res.error && res.data && typeof res.data === 'object' && (res.data as { ok?: boolean }).ok) {
               rawResult = res.data as Record<string, unknown>;
             } else if (res.data && typeof (res.data as { error?: unknown }).error === 'string') {
-              return { ok: false, error: String((res.data as { error: string }).error) };
+              return { ok: false, retryable: false, error: String((res.data as { error: string }).error) };
             } else if (res.error) {
               const errCtx = (res.error as { context?: { status?: number; json?: () => Promise<unknown> } } | null)?.context;
-              const errStatus = errCtx?.status;
+              const errStatus = errCtx?.status ?? null;
+              efDiag = {
+                status: errStatus,
+                message: (res.error as { message?: string }).message ?? null,
+              };
               if (errStatus && errStatus !== 404 && typeof errCtx?.json === 'function') {
                 try {
                   const errBody = (await errCtx.json()) as { error?: unknown } | null;
                   if (errBody && typeof errBody.error === 'string' && errBody.error.trim()) {
-                    return { ok: false, error: errBody.error.trim() };
+                    return {
+                      ok: false,
+                      retryable: errStatus >= 500 || errStatus === 429,
+                      error: errBody.error.trim(),
+                    };
                   }
                 } catch {
                   // Fall through to standard unreachable error
                 }
               }
             }
+          } else {
+            efDiag = { status: 401, message: 'No active session token' };
           }
         } catch (err) {
-          console.warn('claim-wheel-xp spin fallback error:', err);
+          efDiag = {
+            status: null,
+            message: err instanceof Error ? err.message : String(err),
+          };
+          console.warn('[LuckyWheel] claim-wheel-xp spin fallback exception:', err);
         }
       }
 
       if (!rawResult) {
+        console.error('[LuckyWheel] Reward server unreachable across both RPC and Edge Function:', {
+          rpc: rpcDiag,
+          edgeFunction: efDiag,
+        });
         return {
           ok: false,
+          retryable: true,
           error:
             'Şans Çarkı sunucu ödül servisine ulaşılamadı. Ödül kaybı yaşanmaması için işlem durduruldu; lütfen kısa süre sonra tekrar dene.',
         };

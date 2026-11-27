@@ -342,6 +342,48 @@ describe('Lucky Wheel (Şans Çarkı) – Single-Spin Lock, StrictMode Safety, I
     // Wheel did NOT spin on error
     expect(screen.getByTestId('lucky-wheel-svg').style.transform).toBe('rotate(0deg)');
     // Button re-enabled cleanly for retry (reward was NOT lost)
-    expect(screen.getByRole('button', { name: /Şans Çarkını Çevir!/i })).not.toBeDisabled();
+    const retryBtn = screen.getByRole('button', { name: /Şans Çarkını Çevir!/i });
+    expect(retryBtn).not.toBeDisabled();
+
+    // Retry reuses the EXACT same pending client_request_id so idempotent replay never double-awards
+    fireEvent.click(retryBtn);
+    await waitFor(() => {
+      const spinCalls = rpcMock.mock.calls.filter(([n]) => n === 'spin_lucky_wheel');
+      expect(spinCalls).toHaveLength(2);
+      expect(spinCalls[0][1]._client_request_id).toBeTruthy();
+      expect(spinCalls[1][1]._client_request_id).toBe(spinCalls[0][1]._client_request_id);
+    });
+  });
+
+  it('refreshes expired JWT and retries spin_lucky_wheel before falling back, and falls back to claim-wheel-xp on transient fetch failure', async () => {
+    let callIdx = 0;
+    rpcMock.mockImplementation(async (name: string) => {
+      if (name === 'spin_lucky_wheel') {
+        callIdx += 1;
+        if (callIdx === 1) {
+          return { data: null, error: { code: 'PGRST301', message: 'JWT expired' } };
+        }
+        return { data: null, error: { message: 'TypeError: Failed to fetch' } };
+      }
+      return { data: null, error: null };
+    });
+
+    functionsInvokeMock.mockResolvedValue({
+      data: makeSpinRpcResponse({ segmentId: 'xp_400', newPointsTotal: 650 }).data,
+      error: null,
+    });
+
+    const res = await executeLuckyWheelSpin(mockUser, 'req-retry-jwt-1', { isAdmin: true });
+    expect(res.ok).toBe(true);
+    expect(res.segment?.id).toBe('xp_400');
+    expect(res.newPointsTotal).toBe(650);
+    // Primary RPC called twice (initial JWT expired + refreshed retry), then Edge Function fallback with same clientRequestId
+    expect(rpcMock).toHaveBeenCalledTimes(2);
+    expect(functionsInvokeMock).toHaveBeenCalledWith(
+      'claim-wheel-xp',
+      expect.objectContaining({
+        body: { action: 'spin', clientRequestId: 'req-retry-jwt-1' },
+      }),
+    );
   });
 });

@@ -1040,6 +1040,13 @@ Deno.serve(async (req) => {
         _actor_user_id: String(att.user_id),
       });
 
+      if (rpcFinalErr) {
+        console.error('daily-trivia trivia_finalize_attempt RPC error:', {
+          code: rpcFinalErr.code ?? null,
+          message: rpcFinalErr.message ?? 'unknown',
+        });
+      }
+
       if (!rpcFinalErr && rpcFinal) {
         const resObj = rpcFinal as Record<string, any>;
         const { data: fresh } = await admin
@@ -1698,7 +1705,10 @@ Deno.serve(async (req) => {
     return json({ error: 'Bilinmeyen işlem.' }, 400);
   } catch (e) {
     if (e instanceof RequestError) return json({ error: e.message }, e.status);
-    console.error('daily-trivia error');
+    console.error('daily-trivia unexpected error:', {
+      name: e instanceof Error ? e.name : typeof e,
+      message: e instanceof Error ? e.message : 'unknown',
+    });
     return json({ error: 'Beklenmeyen bir hata oluştu.' }, 500);
   }
 });

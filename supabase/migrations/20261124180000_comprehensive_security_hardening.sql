@@ -1146,7 +1146,8 @@ CREATE TRIGGER trg_protect_friend_requests_immutable
 
 REVOKE ALL ON FUNCTION public.protect_friend_requests_immutable() FROM PUBLIC, anon, authenticated;
 
--- M-5: Enforce expires_at in Daily Trivia answer trigger
+-- M-5: Enforce expires_at & grace_expires_at in Daily Trivia answer trigger
+--      while preserving internal xp_awarded stamping when finalizing a completed attempt.
 CREATE OR REPLACE FUNCTION public.prevent_answer_on_inactive_trivia()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -1164,8 +1165,19 @@ BEGIN
     RAISE EXCEPTION 'Yarışma oturumu bulunamadı.';
   END IF;
 
+  -- Allow internal xp_awarded stamping only when finalizing an already-recorded answer on a completed attempt
+  IF TG_OP = 'UPDATE' AND v_attempt.status = 'completed'
+     AND NEW.selected_option = OLD.selected_option
+     AND NEW.is_correct = OLD.is_correct THEN
+    RETURN NEW;
+  END IF;
+
   IF v_attempt.status NOT IN ('in_progress', 'grace_period') THEN
     RAISE EXCEPTION 'İptal edilmiş, süresi dolmuş veya tamamlanmış yarışmaya cevap kaydedilemez.';
+  END IF;
+
+  IF v_attempt.status = 'grace_period' AND v_attempt.grace_expires_at IS NOT NULL AND now() > v_attempt.grace_expires_at THEN
+    RAISE EXCEPTION '5 saniyelik geri dönüş süresi dolduğu için cevap kabul edilemez.';
   END IF;
 
   IF v_attempt.expires_at IS NOT NULL AND now() > v_attempt.expires_at THEN
@@ -1182,6 +1194,7 @@ REVOKE ALL ON FUNCTION public.prevent_answer_on_inactive_trivia() FROM PUBLIC, a
 DROP POLICY IF EXISTS "Comments viewable by everyone" ON public.comments;
 DROP POLICY IF EXISTS "Anyone can view comments" ON public.comments;
 DROP POLICY IF EXISTS "Authenticated users can view comments" ON public.comments;
+DROP POLICY IF EXISTS "Authenticated users can view visible comments" ON public.comments;
 
 CREATE POLICY "Authenticated users can view visible comments"
 ON public.comments
@@ -1191,10 +1204,11 @@ USING (
   public.is_admin(auth.uid())
   OR user_id = auth.uid()
   OR (
-    note_id IS NOT NULL
+    entity_type = 'note'
+    AND entity_id IS NOT NULL
     AND EXISTS (
       SELECT 1 FROM public.notes n
-      WHERE n.id = comments.note_id
+      WHERE n.id = comments.entity_id
         AND (
           n.user_id = auth.uid()
           OR (
@@ -1207,7 +1221,7 @@ USING (
         )
     )
   )
-  OR announcement_id IS NOT NULL
+  OR entity_type = 'announcement'
 );
 
 CREATE OR REPLACE FUNCTION public.enforce_comment_author_name()
